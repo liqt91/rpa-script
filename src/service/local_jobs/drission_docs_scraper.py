@@ -20,7 +20,7 @@ from urllib.parse import urljoin
 # 将项目根目录加入路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.config.chrome_utils import connect_chrome
+from src.repo.chrome_utils import connect_chrome
 
 BASE_URL = "https://drissionpage.cn"
 TARGET_PATHS = [

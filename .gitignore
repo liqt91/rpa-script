@@ -1,2 +1,7 @@
 # Generated workflow scripts — auto-created by workflow exporter
 src/service/local_jobs/_generated/
+
+# Compiled workflow-editor build artifacts
+src/runtime/static/workflow-editor/assets/
+src/runtime/static/workflow-editor/*.js
+src/runtime/static/workflow-editor/*.map

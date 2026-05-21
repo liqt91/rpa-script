@@ -1,2 +1,2 @@
-# Shim: re-export config.chrome_utils for backward compatibility
-from src.config.chrome_utils import *
+# Shim: re-export repo.chrome_utils for backward compatibility
+from src.repo.chrome_utils import *

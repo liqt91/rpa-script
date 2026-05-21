@@ -23,7 +23,7 @@ def build_python(wf: models.Workflow, flat_nodes: list[models.WorkflowNode], rep
         "if _project_root and _project_root not in sys.path:",
         "    sys.path.insert(0, _project_root)",
         "",
-        "from src.config.chrome_utils import connect_chrome",
+        "from src.repo.chrome_utils import connect_chrome",
         "",
         "# Workflow error handler — maps traceback back to workflow node",
         "import traceback, re",

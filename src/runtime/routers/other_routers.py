@@ -361,7 +361,7 @@ def download_scripts():
 
         # 2. shared 模块
         # 2a. 保留在 src/shared/ 的模块（ai_bridge.py, extraction_engine.py）
-        # 注意：排除 chrome_utils.py（shim），实际代码在 src/config/
+        # 注意：排除 chrome_utils.py（shim），实际代码在 src/repo/
         shared_src = os.path.join(config.REPO_DIR, "shared")
         if os.path.isdir(shared_src):
             for fn in os.listdir(shared_src):
@@ -371,7 +371,7 @@ def download_scripts():
                     zf.write(full, arcname)
 
         # 2b. chrome_utils 从 src/config/ 打包到 shared/（客户端 import shared.chrome_utils）
-        chrome_utils_src = os.path.join(config.REPO_DIR, "config", "chrome_utils.py")
+        chrome_utils_src = os.path.join(config.REPO_DIR, "repo", "chrome_utils.py")
         if os.path.isfile(chrome_utils_src):
             zf.write(chrome_utils_src, "shared/chrome_utils.py")
 
