@@ -1,0 +1,7 @@
+{
+  "name": "rpa_script",
+  "private": true,
+  "scripts": {
+    "harness:check": "node .harness/runners/structural-check.mjs"
+  }
+}

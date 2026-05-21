@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>rpa_script - Project Status</title>
+  <style>
+    :root{--bg:#f7f8fa;--ink:#17202a;--muted:#5b6472;--panel:#fff;--line:#d9dee7;--accent:#0f766e;--warn:#b45309}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+    header{background:#0b1320;color:#fff;padding:36px 24px;border-bottom:5px solid var(--accent)}
+    main{max-width:1120px;margin:0 auto;padding:24px}
+    h1,h2,h3{margin:0;line-height:1.2} h1{font-size:38px} h2{margin-top:30px;margin-bottom:12px;font-size:24px}
+    .muted{color:var(--muted)} .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+    .stat{font-size:34px;font-weight:800;margin-top:4px}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#e7f6f2;color:#0f766e;font-size:13px;font-weight:650}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden} th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top} th{background:#eef2f7;font-size:12px;text-transform:uppercase;letter-spacing:.02em} tr:last-child td{border-bottom:0}
+    code{background:#eef2f7;border-radius:4px;padding:1px 4px}.event{border-left:4px solid var(--accent);padding:10px 12px;background:#fff;border-radius:6px;margin:8px 0}.warn{border-left-color:var(--warn)}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>rpa_script - Project Status</h1>
+    <p class="muted">Generated 2026-05-20T08:28:15.989Z from <code>.harness/project/state.json</code> and <code>.harness/memory/ledger.jsonl</code>.</p>
+  </header>
+  <main>
+    <section class="grid">
+      <article class="card"><span class="pill">Phase</span><div class="stat">mvp</div><p>MVP</p></article>
+      <article class="card"><span class="pill">Features</span><div class="stat">0/2</div><p class="muted">done / total</p></article>
+      <article class="card"><span class="pill">Open risks</span><div class="stat">0</div><p class="muted">tracked in project state</p></article>
+      <article class="card"><span class="pill">Memory events</span><div class="stat">1</div><p class="muted">semantic ledger rows</p></article>
+    </section>
+
+    <h2>Phases</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Status</th><th>Goals</th><th>Exit criteria</th></tr></thead>
+      <tbody>
+        <tr><td><code>discovery</code></td><td>planned</td><td>Clarify target user, Confirm core problem</td><td>Problem statement and success signal are explicit</td></tr>
+<tr><td><code>mvp</code></td><td>active</td><td></td><td></td></tr>
+<tr><td><code>hardening</code></td><td>planned</td><td>Close release blockers, Reduce operational risk</td><td>No open P0/P1 risks</td></tr>
+<tr><td><code>release</code></td><td>planned</td><td>Publish verified build, Capture handoff context</td><td>Release evidence is recorded</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Features</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Story</th></tr></thead>
+      <tbody>
+        <tr><td><code>health-endpoint</code></td><td>GET /health returns {status:&#39;ok&#39;}</td><td>open</td><td></td></tr>
+<tr><td><code>not-found-page</code></td><td>Custom 404 page (or handler)</td><td>open</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Open Risks</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Severity</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td colspan="3">None recorded.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Recent Project Memory</h2>
+    <div class="event "><strong>session_summary</strong> <span class="muted">2026-05-20T08:22:39.829Z</span><br>Session ended: reason=prompt_input_exit, session=b95ae304-748d-4ca7-9c0a-cc4626afd0e4</div>
+  </main>
+</body>
+</html>

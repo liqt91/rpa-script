@@ -1,0 +1,39 @@
+{
+  "version": "0.15.2",
+  "name": "rpa_script",
+  "language": "python",
+  "framework": "fastapi",
+  "package_manager": "pip",
+  "preset": "fastapi",
+  "structuralTest": {
+    "engine": "ast",
+    "command": "python .harness/scripts/ast_structural_check.py"
+  },
+  "src_dir": "src",
+  "test_dir": "tests",
+  "domains": [
+    {
+      "name": "backend",
+      "root": "src",
+      "layers": ["dtypes", "config", "repo", "service", "runtime"]
+    },
+    {
+      "name": "frontend",
+      "root": "ui",
+      "layers": ["workflow-editor"]
+    }
+  ],
+  "projectMemory": {
+    "enabled": true,
+    "ledgerPath": ".harness/memory/ledger.jsonl",
+    "summaryPath": ".harness/memory/current-summary.md",
+    "maxSummaryEvents": 5,
+    "redactSecrets": true
+  },
+  "projectManagement": {
+    "enabled": true,
+    "statePath": ".harness/project/state.json",
+    "statusReportPath": ".harness/project/status.html",
+    "handoffPath": ".harness/project/handoff.json"
+  }
+}

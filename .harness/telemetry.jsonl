@@ -1,0 +1,64 @@
+{"schemaVersion":1,"ts":"2026-05-20T08:22:39.682Z","event":"session_rollup","source":"SessionEnd","reason":"unknown","session_id":"b95ae304-748d-4ca7-9c0a-cc4626afd0e4","branch":"(detached)","sha":"(no-git)","uncommitted":0,"skills_invoked":[]}
+{"schemaVersion":1,"ts":"2026-05-20T08:26:28Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T08:27:58Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T08:29:26Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T08:31:35Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-20T08:32:55.744Z","event":"session_rollup","source":"SessionEnd","reason":"unknown","session_id":"f48d9771-fe23-420a-9d74-e7505ed73c61","branch":"master","sha":"(no-git)","uncommitted":6,"skills_invoked":[]}
+{"schemaVersion":1,"ts":"2026-05-20T08:33:35.306Z","event":"session_rollup","source":"SessionEnd","reason":"unknown","session_id":"46417a93-89a2-4b0a-97e1-87aa34f878f7","branch":"master","sha":"(no-git)","uncommitted":6,"skills_invoked":[]}
+{"schemaVersion":1,"ts":"2026-05-20T08:40:35Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T08:50:16Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T08:52:28Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T08:59:22Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:07:36Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:12:04Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:14:08Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:14:46Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:15:06Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:17:07Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:19:58Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:31:21Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:36:56Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:51:38Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T09:57:24Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-20T10:17:42Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T01:31:59Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T01:34:49Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T01:43:45Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T01:44:31Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T01:47:09Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T01:49:54Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T01:51:45Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T01:53:03Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T02:04:00Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T02:06:05Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T02:12:27Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T02:14:35Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T02:33:42Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T03:00:29Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T03:02:14Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T03:05:05Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T03:07:13Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T03:13:09Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T03:22:33Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T04:00:28Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T04:02:35Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T05:32:16Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T06:10:10Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T06:15:04Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T06:21:47Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T06:31:31Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T06:34:29Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T06:51:51Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T06:53:24Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T07:02:09Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T07:04:45Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T07:09:49Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T07:11:58Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T07:16:42Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T07:18:54Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T07:33:57Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T07:48:15Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T07:50:23Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T07:54:05Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}
+{"schemaVersion":1,"ts":"2026-05-21T08:00:05Z","event":"subagent_stop","source":"SubagentStop","subagent":"unknown","sha":"no-git"}
+{"schemaVersion":1,"ts":"2026-05-21T08:02:56Z","event":"notification","hook":"Notification","type":"","title":"Claude Code","body":"Claude Code wants your attention."}

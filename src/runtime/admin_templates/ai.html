@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% block title %}AI 分析{% endblock %}
+{% block content %}
+<div class="p-8">
+  <h1 class="text-2xl font-bold text-white mb-6">AI 分析</h1>
+
+  <!-- 结果列表 -->
+  <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+      <h2 class="text-lg font-medium text-white">结果列表</h2>
+      <span class="text-sm text-gray-400">点击"AI 分析"选择兼容的分析能力</span>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-gray-700 text-gray-300">
+        <tr>
+          <th class="px-4 py-3 text-left">结果ID</th>
+          <th class="px-4 py-3 text-left">任务ID</th>
+          <th class="px-4 py-3 text-left">脚本类型</th>
+          <th class="px-4 py-3 text-left">URL</th>
+          <th class="px-4 py-3 text-left">总数</th>
+          <th class="px-4 py-3 text-left">AI 状态</th>
+          <th class="px-4 py-3 text-left">操作</th>
+        </tr>
+      </thead>
+      <tbody id="aiResultTable" class="text-gray-300"></tbody>
+    </table>
+    <div id="aiPagination" class="px-4 py-3 border-t border-gray-700 flex justify-between items-center"></div>
+  </div>
+</div>
+
+<!-- 分析面板弹窗 -->
+<div id="analyzePanel" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+  <div class="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-3xl max-h-[90vh] m-4 flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+      <h3 class="text-lg font-medium text-white">AI 分析</h3>
+      <button onclick="closeAnalyzePanel()" class="text-gray-400 hover:text-white">✕</button>
+    </div>
+    <div class="flex-1 overflow-auto p-6 space-y-4">
+      <!-- 任务信息 -->
+      <div class="bg-gray-900/50 rounded-lg p-4">
+        <div class="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <span class="text-gray-500">任务ID:</span>
+            <span id="panelTaskId" class="text-white ml-1">-</span>
+          </div>
+          <div>
+            <span class="text-gray-500">脚本类型:</span>
+            <span id="panelJobType" class="text-white ml-1">-</span>
+          </div>
+          <div>
+            <span class="text-gray-500">评论数:</span>
+            <span id="panelTotal" class="text-white ml-1">-</span>
+          </div>
+        </div>
+        <div class="mt-2 text-xs text-gray-500 truncate" id="panelUrl">-</div>
+      </div>
+
+      <!-- 能力列表 -->
+      <div>
+        <h4 class="text-sm font-medium text-gray-300 mb-3">兼容的 AI 能力</h4>
+        <div id="panelCapabilities" class="space-y-2"></div>
+      </div>
+
+      <!-- 结果展示 -->
+      <div id="resultArea" class="hidden">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="text-sm font-medium text-gray-300">分析结果</h4>
+          <button onclick="toggleResultView()" id="resultViewToggle" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded">切换视图</button>
+        </div>
+        <div id="resultVisual" class="bg-gray-900 rounded-lg p-4 overflow-x-auto max-h-64"></div>
+        <pre id="resultRaw" class="hidden bg-gray-900 rounded-lg p-4 text-xs text-gray-300 font-mono overflow-x-auto max-h-64"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentPanelTaskId = null;
+let currentPanelJobType = null;
+let aiStatusCache = {};  // task_id -> {type: bool}
+
+function getToken() {
+  const m = document.cookie.match(/access_token=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+async function loadResults(page) {
+  const r = await fetch(`/api/results?page=${page}&per_page=20`, {headers: {'Authorization': 'Bearer ' + getToken()}});
+  const data = await r.json();
+
+  const tbody = document.getElementById('aiResultTable');
+  tbody.innerHTML = data.items.map(item => `
+    <tr class="border-t border-gray-700 hover:bg-gray-700/50" data-task-id="${item.task_id || ''}">
+      <td class="px-4 py-3">#${item.id}</td>
+      <td class="px-4 py-3">${item.task_id || '-'}</td>
+      <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded">${item.job_type || '?'}</span></td>
+      <td class="px-4 py-3 truncate max-w-xs" title="${item.url}">${item.url}</td>
+      <td class="px-4 py-3">${item.total}</td>
+      <td class="px-4 py-3">
+        <span class="ai-status text-xs text-gray-500" data-task-id="${item.task_id || ''}">-</span>
+      </td>
+      <td class="px-4 py-3">
+        <button onclick="openAnalyzePanel(${item.task_id || 0}, '${item.job_type || ''}', ${item.total}, '${(item.url || '').replace(/'/g, "\\'")}')"
+                class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded-lg transition-colors"
+                ${item.task_id ? '' : 'disabled class="px-3 py-1 bg-gray-600 text-gray-400 text-xs rounded-lg cursor-not-allowed"'}>
+          AI 分析
+        </button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">暂无结果</td></tr>';
+
+  const pag = document.getElementById('aiPagination');
+  pag.innerHTML = `
+    <span class="text-gray-400 text-sm">共 ${data.total} 条，第 ${data.page}/${data.pages} 页</span>
+    <div class="flex gap-2">
+      <button onclick="loadResults(${data.page - 1})" ${data.page <= 1 ? 'disabled' : ''} class="px-3 py-1 bg-gray-700 rounded text-sm disabled:opacity-50">上一页</button>
+      <button onclick="loadResults(${data.page + 1})" ${data.page >= data.pages ? 'disabled' : ''} class="px-3 py-1 bg-gray-700 rounded text-sm disabled:opacity-50">下一页</button>
+    </div>`;
+
+  // 加载每行的 AI 状态
+  loadAIStatuses(data.items);
+}
+
+async function loadAIStatuses(items) {
+  const taskIds = [...new Set(items.map(i => i.task_id).filter(Boolean))];
+  for (const taskId of taskIds) {
+    try {
+      const r = await fetch(`/api/ai/results/${taskId}`, {headers: {'Authorization': 'Bearer ' + getToken()}});
+      const data = await r.json();
+      const types = data.results.map(r => r.type);
+      aiStatusCache[taskId] = types;
+      const statusText = types.length ? types.map(t => {
+        const names = {sentiment: '情感', stance: '倾向', summary: '摘要', topics: '话题', comment_analysis: '对象'};
+        return names[t] || t;
+      }).join(', ') : '未分析';
+      document.querySelectorAll(`.ai-status[data-task-id="${taskId}"]`).forEach(el => {
+        el.textContent = statusText;
+        el.className = types.length ? 'ai-status text-xs text-green-400' : 'ai-status text-xs text-gray-500';
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
+}
+
+// 分析面板
+async function openAnalyzePanel(taskId, jobType, total, url) {
+  if (!taskId) return;
+  currentPanelTaskId = taskId;
+  currentPanelJobType = jobType;
+
+  document.getElementById('panelTaskId').textContent = taskId;
+  document.getElementById('panelJobType').textContent = jobType || '?';
+  document.getElementById('panelTotal').textContent = total;
+  document.getElementById('panelUrl').textContent = url;
+  document.getElementById('resultArea').classList.add('hidden');
+
+  // 加载兼容能力
+  const capsContainer = document.getElementById('panelCapabilities');
+  capsContainer.innerHTML = '<p class="text-gray-500 text-sm">加载中...</p>';
+
+  let caps = [];
+  let cachedResults = [];
+  try {
+    const [capsR, cachedR] = await Promise.all([
+      fetch(`/api/ai/capabilities?job_type=${encodeURIComponent(jobType || '')}`, {headers: {'Authorization': 'Bearer ' + getToken()}}),
+      fetch(`/api/ai/results/${taskId}`, {headers: {'Authorization': 'Bearer ' + getToken()}}),
+    ]);
+    const capsData = await capsR.json();
+    const cachedData = await cachedR.json();
+    caps = capsData.capabilities || [];
+    cachedResults = cachedData.results || [];
+  } catch (e) {
+    capsContainer.innerHTML = '<p class="text-red-400 text-sm">加载失败</p>';
+    document.getElementById('analyzePanel').classList.remove('hidden');
+    return;
+  }
+
+  const cachedMap = {};
+  cachedResults.forEach(r => cachedMap[r.type] = r);
+
+  if (caps.length === 0) {
+    capsContainer.innerHTML = '<p class="text-gray-500 text-sm">该脚本类型暂无兼容的 AI 能力</p>';
+  } else {
+    capsContainer.innerHTML = caps.map(cap => {
+      const cached = cachedMap[cap.type];
+      return `
+        <div class="flex items-center justify-between bg-gray-900/50 rounded-lg p-3">
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-white font-medium">${cap.name}</span>
+            <span class="text-xs text-gray-500">${cap.type}</span>
+            ${cached ? '<span class="px-2 py-0.5 bg-green-900/30 text-green-400 text-xs rounded">已缓存</span>' : '<span class="px-2 py-0.5 bg-gray-700 text-gray-400 text-xs rounded">未分析</span>'}
+          </div>
+          <div class="flex gap-2">
+            ${cached ? `<button onclick="showCachedResult('${cap.type}')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg">查看结果</button>` : ''}
+            <button onclick="runAnalyze('${cap.type}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded-lg">${cached ? '重新分析' : '分析'}</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('analyzePanel').classList.remove('hidden');
+}
+
+function closeAnalyzePanel() {
+  document.getElementById('analyzePanel').classList.add('hidden');
+  document.getElementById('resultArea').classList.add('hidden');
+}
+
+async function runAnalyze(capType) {
+  const btn = event.target;
+  const originalText = btn.textContent;
+  btn.textContent = '分析中...';
+  btn.disabled = true;
+
+  try {
+    const r = await fetch('/api/ai/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken()},
+      body: JSON.stringify({task_id: currentPanelTaskId, type: capType})
+    });
+    const data = await r.json();
+    if (r.ok) {
+      showResult(data.result, data.cached ? '（来自缓存）' : '');
+      // 刷新面板状态
+      openAnalyzePanel(currentPanelTaskId, currentPanelJobType,
+        parseInt(document.getElementById('panelTotal').textContent),
+        document.getElementById('panelUrl').textContent);
+      // 刷新列表状态
+      loadResults(1);
+    } else {
+      const err = await r.json().catch(() => ({}));
+      showResult({error: err.detail || '分析失败'}, '', true);
+    }
+  } catch (e) {
+    showResult({error: e.message}, '', true);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+async function showCachedResult(capType) {
+  try {
+    const r = await fetch(`/api/ai/results/${currentPanelTaskId}`, {headers: {'Authorization': 'Bearer ' + getToken()}});
+    const data = await r.json();
+    const found = data.results.find(r => r.type === capType);
+    if (found) {
+      showResult(found.result, '（来自缓存）');
+    } else {
+      showResult({error: '缓存不存在'}, '', true);
+    }
+  } catch (e) {
+    showResult({error: e.message}, '', true);
+  }
+}
+
+let _currentResult = null;
+let _resultViewMode = 'visual'; // 'visual' | 'raw'
+
+function showResult(result, suffix, isError) {
+  _currentResult = result;
+  const area = document.getElementById('resultArea');
+  const visual = document.getElementById('resultVisual');
+  const raw = document.getElementById('resultRaw');
+  area.classList.remove('hidden');
+  _resultViewMode = 'visual';
+
+  if (isError) {
+    visual.innerHTML = `<div class="text-red-400 text-sm">${result.error || JSON.stringify(result)}</div>`;
+    raw.textContent = JSON.stringify(result, null, 2);
+    visual.classList.remove('hidden');
+    raw.classList.add('hidden');
+    document.getElementById('resultViewToggle').classList.add('hidden');
+    return;
+  }
+
+  document.getElementById('resultViewToggle').classList.remove('hidden');
+  visual.innerHTML = renderResult(result) + (suffix ? `<div class="mt-2 text-xs text-gray-500">${suffix}</div>` : '');
+  raw.textContent = JSON.stringify(result, null, 2);
+  visual.classList.remove('hidden');
+  raw.classList.add('hidden');
+}
+
+function toggleResultView() {
+  const visual = document.getElementById('resultVisual');
+  const raw = document.getElementById('resultRaw');
+  if (_resultViewMode === 'visual') {
+    visual.classList.add('hidden');
+    raw.classList.remove('hidden');
+    _resultViewMode = 'raw';
+  } else {
+    visual.classList.remove('hidden');
+    raw.classList.add('hidden');
+    _resultViewMode = 'visual';
+  }
+}
+
+function renderResult(result) {
+  if (typeof result === 'string') {
+    return `<p class="text-sm text-gray-300 leading-relaxed">${escapeHtml(result)}</p>`;
+  }
+  if (!result || typeof result !== 'object') {
+    return `<pre class="text-xs text-gray-300">${JSON.stringify(result, null, 2)}</pre>`;
+  }
+
+  // 检测是否为百分比/数值型数据（如情感分析）
+  const hasPercentages = Object.values(result).some(v =>
+    typeof v === 'number' || (typeof v === 'string' && v.endsWith('%'))
+  );
+  if (hasPercentages && !result.items && !Array.isArray(result)) {
+    return renderKeyValueCards(result);
+  }
+
+  // 检测是否为列表型数据（如话题聚类、关键词列表）
+  if (Array.isArray(result)) {
+    return renderList(result);
+  }
+  if (result.items && Array.isArray(result.items)) {
+    return renderList(result.items);
+  }
+
+  // 检测是否为摘要型（有 summary 字段）
+  if (result.summary) {
+    return renderSummary(result);
+  }
+
+  // 默认：键值对表格
+  return renderKeyValueTable(result);
+}
+
+function renderKeyValueCards(obj) {
+  const entries = Object.entries(obj).filter(([k]) => k !== 'raw_answer' && k !== 'parse_error');
+  return `
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+      ${entries.map(([k, v]) => {
+        const num = parseFloat(v);
+        const isNum = !isNaN(num) && typeof v !== 'boolean';
+        const pct = isNum && num <= 1 ? Math.round(num * 100) : (typeof v === 'string' && v.endsWith('%') ? parseInt(v) : null);
+        const bar = pct !== null ? `
+          <div class="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+            <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${Math.min(pct, 100)}%"></div>
+          </div>` : '';
+        return `
+          <div class="bg-gray-800 rounded-lg p-3 border border-gray-700">
+            <div class="text-xs text-gray-500 mb-1">${escapeHtml(k)}</div>
+            <div class="text-lg font-medium text-white">${escapeHtml(String(v))}</div>
+            ${bar}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderList(items) {
+  const arr = Array.isArray(items) ? items : [items];
+  if (!arr.length) return '<p class="text-gray-500 text-sm">无数据</p>';
+  // 如果每项是字符串
+  if (arr.every(i => typeof i === 'string')) {
+    return `<div class="flex flex-wrap gap-2">${arr.map(s => `<span class="px-2 py-1 bg-gray-800 text-gray-300 text-xs rounded border border-gray-700">${escapeHtml(s)}</span>`).join('')}</div>`;
+  }
+  // 如果每项是对象，用表格
+  if (arr.every(i => typeof i === 'object' && i !== null)) {
+    const keys = [...new Set(arr.flatMap(Object.keys))].slice(0, 5);
+    return `
+      <table class="w-full text-xs">
+        <thead class="text-gray-500 border-b border-gray-700">
+          <tr>${keys.map(k => `<th class="text-left py-1 px-2">${escapeHtml(k)}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+          ${arr.map(item => `
+            <tr class="border-b border-gray-800">
+              ${keys.map(k => `<td class="py-1 px-2 text-gray-300">${escapeHtml(String(item[k] ?? '-'))}</td>`).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+  return `<pre class="text-xs text-gray-300">${JSON.stringify(arr, null, 2)}</pre>`;
+}
+
+function renderSummary(obj) {
+  let html = '';
+  if (obj.summary) {
+    html += `<div class="bg-gray-800 rounded-lg p-3 border-l-4 border-blue-500 mb-3">
+      <p class="text-sm text-gray-300 leading-relaxed">${escapeHtml(obj.summary)}</p>
+    </div>`;
+  }
+  if (obj.top_opinions && Array.isArray(obj.top_opinions)) {
+    html += `<div class="space-y-2 mt-3"><h5 class="text-xs text-gray-500 font-medium">核心观点</h5>`;
+    obj.top_opinions.forEach((op, i) => {
+      html += `<div class="flex gap-2 text-sm">
+        <span class="text-blue-400 font-medium">${i+1}.</span>
+        <span class="text-gray-300">${escapeHtml(typeof op === 'string' ? op : op.text || JSON.stringify(op))}</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  if (obj.keywords && Array.isArray(obj.keywords)) {
+    html += `<div class="mt-3"><h5 class="text-xs text-gray-500 font-medium mb-1">关键词</h5>
+      <div class="flex flex-wrap gap-1">${obj.keywords.map(k => `<span class="px-2 py-0.5 bg-gray-800 text-gray-300 text-xs rounded border border-gray-700">${escapeHtml(k)}</span>`).join('')}</div>
+    </div>`;
+  }
+  return html || renderKeyValueTable(obj);
+}
+
+function renderKeyValueTable(obj) {
+  const entries = Object.entries(obj).filter(([k]) => k !== 'raw_answer' && k !== 'parse_error');
+  if (!entries.length) return '<p class="text-gray-500 text-sm">无数据</p>';
+  return `
+    <table class="w-full text-xs">
+      <tbody>
+        ${entries.map(([k, v]) => `
+          <tr class="border-b border-gray-800">
+            <td class="py-1.5 px-2 text-gray-500 w-1/3 align-top">${escapeHtml(k)}</td>
+            <td class="py-1.5 px-2 text-gray-300">${formatValue(v)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function formatValue(v) {
+  if (v === null || v === undefined) return '<span class="text-gray-600">-</span>';
+  if (typeof v === 'boolean') return v ? '<span class="text-green-400">是</span>' : '<span class="text-red-400">否</span>';
+  if (typeof v === 'number') return `<span class="text-blue-400">${v}</span>`;
+  if (typeof v === 'string') return escapeHtml(v);
+  if (Array.isArray(v)) return v.length ? v.map(i => `<span class="px-1.5 py-0.5 bg-gray-800 text-gray-300 text-xs rounded">${escapeHtml(String(i))}</span>`).join(' ') : '<span class="text-gray-600">[]</span>';
+  return `<pre class="text-xs text-gray-400">${JSON.stringify(v, null, 2)}</pre>`;
+}
+
+function escapeHtml(s) {
+  if (typeof s !== 'string') return String(s);
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+
+loadResults(1);
+</script>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}结果 #{{ result.id }}{% endblock %}
+{% block content %}
+<div class="p-8">
+  <a href="/admin/results" class="text-blue-400 hover:underline text-sm mb-4 inline-block">← 返回结果列表</a>
+  <h1 class="text-2xl font-bold text-white mb-6">结果 #{{ result.id }}</h1>
+
+  <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-6">
+    <h2 class="text-lg font-medium text-white mb-4">基本信息</h2>
+    <dl class="space-y-2 text-sm grid grid-cols-2 md:grid-cols-4">
+      <div><dt class="text-gray-400">任务ID</dt><dd class="text-gray-200">{{ result.task_id or '-' }}</dd></div>
+      <div><dt class="text-gray-400">URL</dt><dd class="text-gray-200 break-all">{{ result.url }}</dd></div>
+      <div><dt class="text-gray-400">总数</dt><dd class="text-gray-200">{{ result.total }}</dd></div>
+      <div><dt class="text-gray-400">采集时间</dt><dd class="text-gray-200">{{ result.extract_time.strftime('%Y-%m-%d %H:%M:%S') if result.extract_time else '-' }}</dd></div>
+    </dl>
+  </div>
+
+  <!-- Extra 统计 -->
+  {% set extra = data_dict.get('extra', {}) %}
+  {% if extra %}
+  <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-6">
+    <h2 class="text-lg font-medium text-white mb-4">统计信息</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% if extra.heavy_users %}
+      <div class="bg-gray-700/50 rounded-lg p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-2">活跃作者（评论≥2条） {{ extra.heavy_users | length }} 人</h3>
+        <div class="flex flex-wrap gap-1">
+          {% for u in extra.heavy_users %}
+          <span class="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded">{{ u }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if extra.heavy_regions %}
+      <div class="bg-gray-700/50 rounded-lg p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-2">活跃地区（评论≥2条） {{ extra.heavy_regions | length }} 个</h3>
+        <div class="flex flex-wrap gap-1">
+          {% for r in extra.heavy_regions %}
+          <span class="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded">{{ r }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if extra.author_distribution %}
+      <div class="bg-gray-700/50 rounded-lg p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-2">作者评论数分布 TOP10</h3>
+        <div class="space-y-1">
+          {% for item in (extra.author_distribution | dictsort(by='value', reverse=true))[:10] %}
+          <div class="flex justify-between text-xs">
+            <span class="text-gray-300">{{ item[0] }}</span>
+            <span class="text-gray-400">{{ item[1] }} 条</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if extra.region_distribution %}
+      <div class="bg-gray-700/50 rounded-lg p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-2">地区评论数分布 TOP10</h3>
+        <div class="space-y-1">
+          {% for item in (extra.region_distribution | dictsort(by='value', reverse=true))[:10] %}
+          <div class="flex justify-between text-xs">
+            <span class="text-gray-300">{{ item[0] }}</span>
+            <span class="text-gray-400">{{ item[1] }} 条</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- AI 分析结果 -->
+  {% if ai_results %}
+  <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-6">
+    <h2 class="text-lg font-medium text-white mb-4">AI 分析结果</h2>
+    <div class="space-y-3">
+      {% for ai in ai_results %}
+      <div class="bg-gray-700/50 rounded-lg p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-sm font-medium text-blue-400">{{ ai.type }}</span>
+          <span class="text-xs text-gray-500">{{ ai.model }}</span>
+          <span class="text-xs text-gray-500">{{ ai.created_at.strftime('%Y-%m-%d %H:%M:%S') if ai.created_at else '' }}</span>
+        </div>
+        <pre class="text-xs text-gray-300 overflow-x-auto">{{ ai.result }}</pre>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 原始数据 -->
+  <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+    <h2 class="text-lg font-medium text-white mb-4">原始数据</h2>
+    <pre class="text-xs text-gray-300 bg-gray-900 rounded-lg p-4 overflow-x-auto max-h-96 overflow-y-auto">{{ result.data }}</pre>
+  </div>
+</div>
+{% endblock %}

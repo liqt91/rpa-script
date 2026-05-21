@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}任务 #{{ task.id }}{% endblock %}
+{% block content %}
+<div class="p-8">
+  <a href="/admin/tasks" class="text-blue-400 hover:underline text-sm mb-4 inline-block">← 返回任务列表</a>
+  <h1 class="text-2xl font-bold text-white mb-6">任务 #{{ task.id }}</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+      <h2 class="text-lg font-medium text-white mb-4">任务信息</h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex"><dt class="w-28 text-gray-400">脚本类型:</dt><dd class="text-gray-200">{{ task.job_type }}</dd></div>
+        <div class="flex"><dt class="w-28 text-gray-400">URL:</dt><dd class="text-gray-200 break-all">{{ task.url }}</dd></div>
+        <div class="flex"><dt class="w-28 text-gray-400">状态:</dt><dd class="{% if task.status == 'done' %}text-green-400{% elif task.status == 'running' %}text-blue-400{% elif task.status == 'failed' %}text-red-400{% else %}text-yellow-400{% endif %}">{{ task.status }}</dd></div>
+        <div class="flex"><dt class="w-28 text-gray-400">客户端:</dt><dd class="text-gray-200">{{ task.client_id or '未分配' }}</dd></div>
+        <div class="flex"><dt class="w-28 text-gray-400">参数:</dt><dd class="text-gray-200"><pre class="text-xs">{{ task.params or '{}' }}</pre></dd></div>
+        <div class="flex"><dt class="w-28 text-gray-400">创建时间:</dt><dd class="text-gray-200">{{ task.created_at.strftime('%Y-%m-%d %H:%M:%S') if task.created_at else '-' }}</dd></div>
+      </dl>
+    </div>
+
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+      <h2 class="text-lg font-medium text-white mb-4">采集结果</h2>
+      {% if result %}
+        <dl class="space-y-2 text-sm">
+          <div class="flex"><dt class="w-24 text-gray-400">结果ID:</dt><dd class="text-gray-200">#{{ result.id }}</dd></div>
+          <div class="flex"><dt class="w-24 text-gray-400">总数:</dt><dd class="text-gray-200">{{ result.total }}</dd></div>
+          <div class="flex"><dt class="w-24 text-gray-400">采集时间:</dt><dd class="text-gray-200">{{ result.extract_time.strftime('%Y-%m-%d %H:%M:%S') if result.extract_time else '-' }}</dd></div>
+        </dl>
+        <a href="/admin/results/{{ result.id }}" class="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors">
+          查看详细数据
+        </a>
+      {% else %}
+        <p class="text-gray-500">暂无采集结果</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

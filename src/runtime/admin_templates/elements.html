@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}元素库{% endblock %}
+
+{% block content %}
+<div class="p-6">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-xl font-bold text-white">元素库</h2>
+    <span class="text-sm text-gray-400" id="total-count"></span>
+  </div>
+
+  <div class="flex gap-4">
+    <!-- 左侧站点筛选 -->
+    <aside class="w-56 flex-shrink-0">
+      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-700 bg-gray-750">
+          <h3 class="text-sm font-semibold text-gray-200">站点</h3>
+        </div>
+        <div class="p-2 space-y-1" id="host-list">
+          <button data-host=""
+                  class="host-btn w-full text-left px-3 py-2 rounded text-sm text-white bg-gray-700 transition-colors">
+            全部站点
+          </button>
+          {% for host in hosts %}
+          <button data-host="{{ host }}"
+                  class="host-btn w-full text-left px-3 py-2 rounded text-sm text-gray-300 hover:bg-gray-700 transition-colors">
+            {{ host }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧元素列表 -->
+    <div class="flex-1 min-w-0">
+      <div id="element-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <!-- JS 填充 -->
+      </div>
+      <div id="empty-state" class="hidden text-center py-20 text-gray-500">
+        暂无元素，请使用浏览器扩展捕获
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let allElements = [];
+let currentHost = '';
+
+async function loadElements() {
+  const url = currentHost
+    ? `/api/elements?hostname=${encodeURIComponent(currentHost)}`
+    : '/api/elements';
+  const res = await fetch(url);
+  if (!res.ok) { console.error('加载失败'); return; }
+  allElements = await res.json();
+  renderElements();
+}
+
+function renderElements() {
+  const grid = document.getElementById('element-grid');
+  const empty = document.getElementById('empty-state');
+  const count = document.getElementById('total-count');
+
+  if (!allElements.length) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    count.textContent = '';
+    return;
+  }
+
+  empty.classList.add('hidden');
+  count.textContent = `共 ${allElements.length} 个元素`;
+
+  grid.innerHTML = allElements.map(el => {
+    const img = el.screenshot
+      ? `<img src="${el.screenshot}" class="w-full h-28 object-contain bg-gray-900 rounded" alt="screenshot">`
+      : `<div class="w-full h-28 bg-gray-900 rounded flex items-center justify-center text-gray-600 text-xs">无截图</div>`;
+
+    const tag = el.tag ? `&lt;${el.tag}&gt;` : '';
+    const text = el.text_preview || '';
+
+    return `
+      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden hover:border-gray-500 transition-colors" data-id="${el.id}">
+        <div class="p-3 border-b border-gray-700 flex items-center justify-between">
+          <span class="font-semibold text-sm text-white truncate flex-1" title="${el.name}">${el.name}</span>
+          <button onclick="deleteElement(${el.id})" class="text-red-400 hover:text-red-300 text-xs ml-2" title="删除">删除</button>
+        </div>
+        <div class="p-3">
+          ${img}
+          <div class="mt-2 text-xs text-gray-400 space-y-1">
+            <div><span class="text-gray-500">标签:</span> <span class="text-gray-300">${tag}</span></div>
+            <div><span class="text-gray-500">定位:</span> <code class="text-amber-400 font-mono text-[11px]">${escapeHtml(el.locator)}</code></div>
+            <div><span class="text-gray-500">类型:</span> ${el.locator_type} · ${el.method}</div>
+            <div><span class="text-gray-500">站点:</span> ${el.hostname}</div>
+            ${text ? `<div class="truncate text-gray-300" title="${escapeHtml(text)}">${escapeHtml(text)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function deleteElement(id) {
+  if (!confirm('确定删除此元素?')) return;
+  const res = await fetch(`/api/elements/${id}`, { method: 'DELETE' });
+  if (res.ok) {
+    loadElements();
+  } else {
+    alert('删除失败');
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// 站点筛选
+document.getElementById('host-list').addEventListener('click', e => {
+  const btn = e.target.closest('.host-btn');
+  if (!btn) return;
+  document.querySelectorAll('.host-btn').forEach(b => {
+    b.classList.remove('bg-gray-700', 'text-white');
+    b.classList.add('text-gray-300');
+  });
+  btn.classList.add('bg-gray-700', 'text-white');
+  btn.classList.remove('text-gray-300');
+  currentHost = btn.dataset.host;
+  loadElements();
+});
+
+loadElements();
+</script>
+{% endblock %}

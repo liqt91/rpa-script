@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}客户端{% endblock %}
+{% block content %}
+<div class="p-8">
+  <h1 class="text-2xl font-bold text-white mb-6">客户端</h1>
+
+  <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-700 text-gray-300">
+        <tr>
+          <th class="px-4 py-3 text-left">ID</th>
+          <th class="px-4 py-3 text-left">主机名</th>
+          <th class="px-4 py-3 text-left">IP</th>
+          <th class="px-4 py-3 text-left">系统</th>
+          <th class="px-4 py-3 text-left">版本</th>
+          <th class="px-4 py-3 text-left">状态</th>
+          <th class="px-4 py-3 text-left">最后心跳</th>
+        </tr>
+      </thead>
+      <tbody id="clientTable" class="text-gray-300"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function getToken() {
+  const m = document.cookie.match(/access_token=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+async function loadClients() {
+  const r = await fetch('/api/clients', {headers: {'Authorization': 'Bearer ' + getToken()}});
+  const data = await r.json();
+
+  const tbody = document.getElementById('clientTable');
+  tbody.innerHTML = data.clients.map(c => {
+    const onlineClass = c.online ? 'text-green-400' : 'text-red-400';
+    const onlineText = c.online ? '在线' : '离线';
+    return `<tr class="border-t border-gray-700 hover:bg-gray-700/50">
+      <td class="px-4 py-3 font-mono text-xs">${c.id}</td>
+      <td class="px-4 py-3">${c.hostname || '-'}</td>
+      <td class="px-4 py-3 text-gray-400">${c.ip || '-'}</td>
+      <td class="px-4 py-3 text-gray-400">${c.os || '-'}</td>
+      <td class="px-4 py-3 text-gray-400">${c.version || '-'}</td>
+      <td class="px-4 py-3 ${onlineClass}">${onlineText}</td>
+      <td class="px-4 py-3 text-gray-400 text-xs">${c.last_heartbeat ? c.last_heartbeat.replace('T',' ').substring(0,19) : '-'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">暂无客户端</td></tr>';
+}
+
+loadClients();
+</script>
+{% endblock %}

@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}指令管理{% endblock %}
+{% block content %}
+<div class="p-8 max-w-7xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">指令管理</h1>
+    <div class="flex gap-3">
+      <a href="/api/commands/export/csv" class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors text-sm">
+        <i class="fas fa-file-csv mr-2"></i>导出 CSV
+      </a>
+      <button onclick="showCreateModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors text-sm">
+        + 新增指令
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter -->
+  <div class="mb-4 flex gap-3">
+    <select id="categoryFilter" onchange="loadCommands()" class="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm">
+      <option value="">全部分类</option>
+    </select>
+    <label class="flex items-center gap-2 text-sm text-gray-300">
+      <input type="checkbox" id="enabledOnly" checked onchange="loadCommands()" class="rounded bg-gray-700 border-gray-600">
+      仅显示启用
+    </label>
+  </div>
+
+  <!-- Table -->
+  <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+    <table class="w-full text-sm text-left">
+      <thead class="bg-gray-700 text-gray-300">
+        <tr>
+          <th class="px-4 py-3">分类</th>
+          <th class="px-4 py-3">指令类型</th>
+          <th class="px-4 py-3">显示名称</th>
+          <th class="px-4 py-3">参数</th>
+          <th class="px-4 py-3">容器</th>
+          <th class="px-4 py-3">状态</th>
+          <th class="px-4 py-3 text-right">操作</th>
+        </tr>
+      </thead>
+      <tbody id="commandTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
+  <div class="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-lg mx-4 p-6">
+    <h2 id="modalTitle" class="text-lg font-semibold text-white mb-4">新增指令</h2>
+    <form id="commandForm" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+      <input type="hidden" id="cmdId">
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">指令类型 <span class="text-red-400">*</span></label>
+        <input type="text" id="cmdType" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="如: myCustomAction">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">显示名称 <span class="text-red-400">*</span></label>
+        <input type="text" id="cmdLabel" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">分类 <span class="text-red-400">*</span></label>
+        <input type="text" id="cmdCategory" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="如: 数据提取">
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">图标</label>
+          <input type="text" id="cmdIcon" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="fa-circle">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">图标颜色</label>
+          <input type="text" id="cmdIconColor" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="text-gray-500">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">背景颜色</label>
+          <input type="text" id="cmdBgColor" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="bg-gray-50">
+        </div>
+      </div>
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2 text-sm text-gray-300">
+          <input type="checkbox" id="cmdIsContainer" class="rounded bg-gray-700 border-gray-600">
+          容器（可含子节点）
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-300">
+          <input type="checkbox" id="cmdIsBranch" class="rounded bg-gray-700 border-gray-600">
+          分支（else/catch）
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-300">
+          <input type="checkbox" id="cmdIsStructural" class="rounded bg-gray-700 border-gray-600">
+          结构标记（endIf/endFor）
+        </label>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">参数定义 (JSON)</label>
+        <textarea id="cmdFields" rows="6" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono" placeholder='[{"name":"url","label":"网址","type":"text","required":true}]'></textarea>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="cmdEnabled" checked class="rounded bg-gray-700 border-gray-600">
+        <label class="text-sm text-gray-300">启用</label>
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="hideModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm">取消</button>
+        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const API = '/api/commands';
+let allCategories = [];
+
+async function loadCommands() {
+  const cat = document.getElementById('categoryFilter').value;
+  const enabledOnly = document.getElementById('enabledOnly').checked;
+  const url = new URL(API, location.origin);
+  if (cat) url.searchParams.set('category', cat);
+  url.searchParams.set('enabled_only', enabledOnly);
+
+  const res = await fetch(url);
+  const data = await res.json();
+  renderTable(data);
+  updateCategoryFilter(data);
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('commandTable');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">暂无指令</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(c => `
+    <tr class="border-t border-gray-700 hover:bg-gray-700/50">
+      <td class="px-4 py-3 text-gray-300">${esc(c.category)}</td>
+      <td class="px-4 py-3 font-mono text-xs text-gray-400">${esc(c.type)}</td>
+      <td class="px-4 py-3 text-white">${esc(c.label)}</td>
+      <td class="px-4 py-3 text-gray-400">${c.fields?.length || 0} 个</td>
+      <td class="px-4 py-3">${c.isContainer ? '<span class="text-orange-400 text-xs">是</span>' : '<span class="text-gray-500 text-xs">-</span>'}</td>
+      <td class="px-4 py-3">
+        <span class="px-2 py-0.5 rounded text-xs ${c.enabled ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}">
+          ${c.enabled ? '启用' : '禁用'}
+        </span>
+        ${c.isBuiltin ? '<span class="ml-1 px-2 py-0.5 rounded text-xs bg-blue-900/40 text-blue-300">内置</span>' : ''}
+      </td>
+      <td class="px-4 py-3 text-right">
+        <button onclick="editCommand(${c.id})" class="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs mr-1">编辑</button>
+        ${!c.isBuiltin ? `<button onclick="deleteCommand(${c.id})" class="px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs">删除</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function updateCategoryFilter(data) {
+  const cats = [...new Set(data.map(c => c.category))].sort();
+  const sel = document.getElementById('categoryFilter');
+  const current = sel.value;
+  allCategories = cats;
+  sel.innerHTML = '<option value="">全部分类</option>' +
+    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (current && cats.includes(current)) sel.value = current;
+}
+
+function showCreateModal() {
+  document.getElementById('modalTitle').textContent = '新增指令';
+  document.getElementById('commandForm').reset();
+  document.getElementById('cmdId').value = '';
+  document.getElementById('cmdType').disabled = false;
+  document.getElementById('modal').classList.remove('hidden');
+  document.getElementById('modal').classList.add('flex');
+}
+
+function hideModal() {
+  document.getElementById('modal').classList.add('hidden');
+  document.getElementById('modal').classList.remove('flex');
+}
+
+async function editCommand(id) {
+  const res = await fetch(API);
+  const data = await res.json();
+  const c = data.find(x => x.id === id);
+  if (!c) return alert('指令不存在');
+
+  document.getElementById('modalTitle').textContent = '编辑指令';
+  document.getElementById('cmdId').value = c.id;
+  document.getElementById('cmdType').value = c.type;
+  document.getElementById('cmdType').disabled = true;
+  document.getElementById('cmdLabel').value = c.label;
+  document.getElementById('cmdCategory').value = c.category;
+  document.getElementById('cmdIcon').value = c.icon;
+  document.getElementById('cmdIconColor').value = c.iconColor;
+  document.getElementById('cmdBgColor').value = c.bgColor;
+  document.getElementById('cmdIsContainer').checked = c.isContainer;
+  document.getElementById('cmdIsBranch').checked = c.isBranch;
+  document.getElementById('cmdIsStructural').checked = c.isStructural;
+  document.getElementById('cmdFields').value = JSON.stringify(c.fields || [], null, 2);
+  document.getElementById('cmdEnabled').checked = c.enabled;
+
+  document.getElementById('modal').classList.remove('hidden');
+  document.getElementById('modal').classList.add('flex');
+}
+
+document.getElementById('commandForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  let fields;
+  try {
+    fields = JSON.parse(document.getElementById('cmdFields').value || '[]');
+  } catch {
+    return alert('参数定义 JSON 格式错误');
+  }
+
+  const id = document.getElementById('cmdId').value;
+  const payload = {
+    type: document.getElementById('cmdType').value.trim(),
+    label: document.getElementById('cmdLabel').value.trim(),
+    category: document.getElementById('cmdCategory').value.trim(),
+    icon: document.getElementById('cmdIcon').value.trim(),
+    iconColor: document.getElementById('cmdIconColor').value.trim(),
+    bgColor: document.getElementById('cmdBgColor').value.trim(),
+    isContainer: document.getElementById('cmdIsContainer').checked,
+    isBranch: document.getElementById('cmdIsBranch').checked,
+    isStructural: document.getElementById('cmdIsStructural').checked,
+    fields,
+    enabled: document.getElementById('cmdEnabled').checked,
+  };
+
+  const url = id ? `${API}/${id}` : API;
+  const method = id ? 'PUT' : 'POST';
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (res.ok) {
+    hideModal();
+    loadCommands();
+  } else {
+    const err = await res.json();
+    alert('保存失败: ' + (err.detail || '未知错误'));
+  }
+});
+
+async function deleteCommand(id) {
+  if (!confirm('确定删除该指令？此操作不可恢复。')) return;
+  const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
+  if (res.ok) {
+    loadCommands();
+  } else {
+    const err = await res.json();
+    alert('删除失败: ' + (err.detail || '未知错误'));
+  }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+loadCommands();
+</script>
+{% endblock %}

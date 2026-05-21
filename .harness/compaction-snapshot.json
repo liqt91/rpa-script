@@ -1,0 +1,9 @@
+{
+  "compacted_at": "2026-05-21T06:47:52Z",
+  "branch": "master",
+  "sha": "(none)",
+  "uncommitted": 12,
+  "feature": "health-endpoint — GET /health returns {status:'ok'}",
+  "trigger": "auto",
+  "estimated_tokens_removed": 0
+}

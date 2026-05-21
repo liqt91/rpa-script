@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "default": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "LS",
+      "TodoWrite",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(ls*)",
+      "Bash(rg*)",
+      "Bash(find*)",
+      "Bash(node .harness/scripts/*)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(git commit*)"
+    ]
+  },
+  "skills": {
+    "orchestrate": {
+      "allow": [
+        "Read",
+        "Grep",
+        "Glob",
+        "LS",
+        "Bash(node .claude/skills/orchestrate/orchestrate.mjs*)",
+        "Bash(node .harness/scripts/session-replay.mjs*)",
+        "Bash(node .harness/scripts/cost-tracker.mjs*)",
+        "Bash(node .harness/scripts/orchestration-schema-check.mjs*)"
+      ],
+      "deny": [
+        "Write",
+        "Edit",
+        "MultiEdit"
+      ]
+    },
+    "regression-benchmark": {
+      "allow": [
+        "Read",
+        "Grep",
+        "Glob",
+        "LS",
+        "Bash(node .harness/scripts/regression-runner.mjs*)",
+        "Bash(node .harness/scripts/regression-compare.mjs*)",
+        "Bash(node .harness/scripts/regression-report.mjs*)"
+      ]
+    }
+  }
+}

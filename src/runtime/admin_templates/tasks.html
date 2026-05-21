@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}任务管理{% endblock %}
+{% block content %}
+<div class="p-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">任务管理</h1>
+    <button onclick="document.getElementById('createForm').classList.toggle('hidden')"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">
+      + 创建任务
+    </button>
+  </div>
+
+  <!-- 筛选 -->
+  <div class="flex gap-3 mb-4">
+    <select id="filterStatus" class="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300">
+      <option value="">全部状态</option>
+      <option value="pending">待执行</option>
+      <option value="running">进行中</option>
+      <option value="done">已完成</option>
+      <option value="failed">失败</option>
+    </select>
+    <select id="filterJobType" class="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300">
+      <option value="">全部脚本</option>
+    </select>
+    <button onclick="loadTasks(1)" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
+      刷新
+    </button>
+  </div>
+
+  <!-- 创建任务表单 -->
+  <div id="createForm" class="hidden bg-gray-800 rounded-lg border border-gray-700 p-6 mb-6">
+    <h3 class="text-lg font-medium text-white mb-4">创建任务</h3>
+    <form id="taskForm" class="space-y-4">
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">脚本类型</label>
+        <select id="formJobType" name="job_type" required onchange="renderParams()"
+                class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+          <option value="">选择脚本...</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">URL（每行一个）</label>
+        <textarea id="formUrls" name="urls" rows="3" required
+                  class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  placeholder="https://www.xiaohongshu.com/explore/..."></textarea>
+      </div>
+      <div id="paramFields" class="space-y-3"></div>
+      <div class="flex gap-3">
+        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">
+          提交
+        </button>
+        <button type="button" onclick="document.getElementById('createForm').classList.add('hidden')"
+                class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors">
+          取消
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 任务表格 -->
+  <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-700 text-gray-300">
+        <tr>
+          <th class="px-4 py-3 text-left">ID</th>
+          <th class="px-4 py-3 text-left">脚本</th>
+          <th class="px-4 py-3 text-left">URL</th>
+          <th class="px-4 py-3 text-left">状态</th>
+          <th class="px-4 py-3 text-left">客户端</th>
+          <th class="px-4 py-3 text-left">创建时间</th>
+        </tr>
+      </thead>
+      <tbody id="taskTable" class="text-gray-300"></tbody>
+    </table>
+    <div id="taskPagination" class="px-4 py-3 border-t border-gray-700 flex justify-between items-center"></div>
+  </div>
+</div>
+
+<script>
+let scriptsMeta = {};
+
+async function loadScripts() {
+  const r = await fetch('/api/scripts', {headers: {'Authorization': 'Bearer ' + getToken()}});
+  const data = await r.json();
+  const sel = document.getElementById('formJobType');
+  const filter = document.getElementById('filterJobType');
+  data.scripts.forEach(s => {
+    scriptsMeta[s.name] = s;
+    sel.innerHTML += `<option value="${s.name}">${s.name} - ${s.description}</option>`;
+    filter.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+  });
+}
+
+function renderParams() {
+  const name = document.getElementById('formJobType').value;
+  const container = document.getElementById('paramFields');
+  container.innerHTML = '';
+  if (!name || !scriptsMeta[name]) return;
+  const params = scriptsMeta[name].params || {};
+  for (const [key, cfg] of Object.entries(params)) {
+    const req = cfg.required ? ' <span class="text-red-400">*</span>' : '';
+    const def = cfg.default !== undefined ? ` (默认: ${cfg.default})` : '';
+    container.innerHTML += `
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">${key}${req}${def}</label>
+        <input type="text" name="param_${key}" data-type="${cfg.type}"
+               placeholder="${cfg.description || ''}"
+               class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white param-input">
+      </div>`;
+  }
+}
+
+async function loadTasks(page) {
+  const status = document.getElementById('filterStatus').value;
+  const jobType = document.getElementById('filterJobType').value;
+  let url = `/api/tasks?page=${page}&per_page=20`;
+  if (status) url += `&status=${status}`;
+  if (jobType) url += `&job_type=${jobType}`;
+  const r = await fetch(url, {headers: {'Authorization': 'Bearer ' + getToken()}});
+  const data = await r.json();
+
+  const tbody = document.getElementById('taskTable');
+  tbody.innerHTML = data.items.map(t => {
+    const statusColor = {pending: 'text-yellow-400', running: 'text-blue-400', done: 'text-green-400', failed: 'text-red-400'}[t.status] || 'text-gray-400';
+    return `<tr class="border-t border-gray-700 hover:bg-gray-700/50">
+      <td class="px-4 py-3"><a href="/admin/tasks/${t.id}" class="text-blue-400 hover:underline">#${t.id}</a></td>
+      <td class="px-4 py-3">${t.job_type}</td>
+      <td class="px-4 py-3 truncate max-w-xs" title="${t.url}">${t.url}</td>
+      <td class="px-4 py-3 ${statusColor}">${t.status}</td>
+      <td class="px-4 py-3 text-gray-400">${t.client_id || '-'}</td>
+      <td class="px-4 py-3 text-gray-400 text-xs">${t.created_at ? t.created_at.replace('T',' ').substring(0,19) : '-'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">暂无任务</td></tr>';
+
+  const pag = document.getElementById('taskPagination');
+  pag.innerHTML = `
+    <span class="text-gray-400 text-sm">共 ${data.total} 条，第 ${data.page}/${data.pages} 页</span>
+    <div class="flex gap-2">
+      <button onclick="loadTasks(${data.page - 1})" ${data.page <= 1 ? 'disabled' : ''} class="px-3 py-1 bg-gray-700 rounded text-sm disabled:opacity-50">上一页</button>
+      <button onclick="loadTasks(${data.page + 1})" ${data.page >= data.pages ? 'disabled' : ''} class="px-3 py-1 bg-gray-700 rounded text-sm disabled:opacity-50">下一页</button>
+    </div>`;
+}
+
+function getToken() {
+  // 从 cookie 读取 token（admin 页面共享 cookie）
+  const m = document.cookie.match(/access_token=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+document.getElementById('taskForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const jobType = document.getElementById('formJobType').value;
+  const urls = document.getElementById('formUrls').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const params = {};
+  document.querySelectorAll('.param-input').forEach(input => {
+    const key = input.name.replace('param_', '');
+    let val = input.value;
+    if (!val) return;
+    const type = input.dataset.type;
+    if (type === 'integer') val = parseInt(val);
+    else if (type === 'float') val = parseFloat(val);
+    else if (type === 'boolean') val = val === 'true' || val === '1';
+    params[key] = val;
+  });
+  const payload = {job_type: jobType, urls, params};
+  const r = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken()},
+    body: JSON.stringify(payload)
+  });
+  if (r.ok) {
+    document.getElementById('createForm').classList.add('hidden');
+    document.getElementById('taskForm').reset();
+    document.getElementById('paramFields').innerHTML = '';
+    loadTasks(1);
+  } else {
+    const err = await r.json();
+    alert('创建失败: ' + JSON.stringify(err.detail || err));
+  }
+});
+
+loadScripts();
+loadTasks(1);
+</script>
+{% endblock %}

@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}编辑工作流{% endblock %}
+{% block content %}
+<div class="p-6 max-w-6xl mx-auto h-screen flex flex-col">
+  <!-- 头部信息 -->
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h1 class="text-xl font-bold text-white">编辑工作流</h1>
+      <p class="text-sm text-gray-400" id="wfInfo">加载中...</p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="addNode()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded">+ 添加节点</button>
+      <button onclick="exportPython()" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-sm rounded">导出 Python</button>
+      <a href="/admin/workflows" class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded">返回列表</a>
+    </div>
+  </div>
+
+  <!-- 节点树 -->
+  <div class="flex-1 bg-gray-800 rounded-lg border border-gray-700 overflow-auto p-4">
+    <div id="nodeTree" class="space-y-2"></div>
+  </div>
+</div>
+
+<!-- 节点编辑弹窗 -->
+<div id="nodeModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+  <div class="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-lg m-4 p-6">
+    <h3 class="text-lg font-medium text-white mb-4" id="modalTitle">添加节点</h3>
+    <form id="nodeForm" class="space-y-3">
+      <input type="hidden" name="node_id" id="nodeId">
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">节点类型</label>
+        <select name="type" id="nodeType" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+          <option value="click">点击 click</option>
+          <option value="input">输入 input</option>
+          <option value="getText">获取文本 getText</option>
+          <option value="getAttr">获取属性 getAttr</option>
+          <option value="hover">悬停 hover</option>
+          <option value="findWithin">内嵌查找 findWithin</option>
+          <option value="waitFor">等待 waitFor</option>
+          <option value="forEach">循环 forEach</option>
+          <option value="if">条件 if</option>
+          <option value="custom">自定义 custom</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">父节点 (用于嵌套)</label>
+        <select name="parent_id" id="nodeParent" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+          <option value="">无 (顶层)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">从元素库选择</label>
+        <select id="nodeElementSelect" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm">
+          <option value="">-- 手动输入 --</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">定位器 locator</label>
+        <input type="text" name="locator" id="nodeLocator" placeholder="@data-testid=search-btn"
+               class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono text-sm">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">定位类型</label>
+          <select name="locator_type" id="nodeLocatorType" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+            <option value="data-attr">data-attr</option>
+            <option value="css">css</option>
+            <option value="id">id</option>
+            <option value="class">class</option>
+            <option value="xpath">xpath</option>
+            <option value="text">text</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">method</label>
+          <select name="method" id="nodeMethod" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+            <option value="ele">ele()</option>
+            <option value="eles">eles()</option>
+            <option value="s_ele">s_ele()</option>
+            <option value="s_eles">s_eles()</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">Extra (JSON)</label>
+        <textarea name="extra" id="nodeExtra" rows="3" placeholder='{"text": "搜索关键词"}'
+                  class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono text-sm"></textarea>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg">保存</button>
+        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg">取消</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const WF_ID = {{ wf_id }};
+const API_BASE = `/api/workflows/${WF_ID}`;
+let allNodes = [];
+let capturedElements = [];
+
+async function loadCapturedElements() {
+  const res = await fetch('/api/elements');
+  if (!res.ok) return;
+  capturedElements = await res.json();
+  const sel = document.getElementById('nodeElementSelect');
+  sel.innerHTML = '<option value="">-- 手动输入 --</option>';
+  for (const el of capturedElements) {
+    const label = `${el.name} · ${el.tag || ''} · ${(el.locator || '').slice(0, 40)}`;
+    sel.innerHTML += `<option value="${el.id}">${esc(label)}</option>`;
+  }
+}
+
+document.getElementById('nodeElementSelect').addEventListener('change', (e) => {
+  const id = parseInt(e.target.value, 10);
+  if (!id) return;
+  const el = capturedElements.find(x => x.id === id);
+  if (!el) return;
+  document.getElementById('nodeLocator').value = el.locator || '';
+  document.getElementById('nodeLocatorType').value = el.locator_type || 'css';
+  document.getElementById('nodeMethod').value = el.method || 'ele';
+});
+
+async function loadWorkflow() {
+  const res = await fetch(API_BASE);
+  const wf = await res.json();
+  document.getElementById('wfInfo').innerHTML = `${esc(wf.name)} &middot; ${esc(wf.description || '无描述')} &middot; ${esc(wf.url || '无 URL')}`;
+}
+
+async function loadNodes() {
+  const res = await fetch(`${API_BASE}/nodes`);
+  allNodes = await res.json();
+  renderTree();
+  populateParentSelect();
+}
+
+function renderTree() {
+  const container = document.getElementById('nodeTree');
+  if (!allNodes.length) {
+    container.innerHTML = '<div class="text-gray-500 text-center py-12">暂无节点，点击"添加节点"开始编排</div>';
+    return;
+  }
+
+  // Build parent-child map
+  const byParent = {};
+  for (const n of allNodes) {
+    const pid = n.parent_id || 0;
+    if (!byParent[pid]) byParent[pid] = [];
+    byParent[pid].push(n);
+  }
+  for (const k in byParent) {
+    byParent[k].sort((a, b) => a.order - b.order);
+  }
+
+  const typeLabels = {
+    click: '点击', input: '输入', getText: '取文本', getAttr: '取属性',
+    hover: '悬停', findWithin: '内嵌查找', waitFor: '等待',
+    forEach: '循环', if: '条件', custom: '自定义',
+  };
+
+  function renderGroup(parentId, depth) {
+    const nodes = byParent[parentId] || [];
+    let html = '';
+    for (const n of nodes) {
+      const pad = depth * 24;
+      const loc = n.locator ? `<code class="text-xs text-yellow-400 bg-gray-900 px-1 rounded">${esc(n.locator)}</code>` : '';
+      const method = n.method ? `<span class="text-xs text-blue-400">${esc(n.method)}()</span>` : '';
+      html += `
+        <div class="flex items-center gap-2 py-2 px-3 bg-gray-700/50 rounded hover:bg-gray-700 transition-colors" style="margin-left:${pad}px">
+          <span class="text-xs text-gray-500 w-6">${n.order}</span>
+          <span class="text-sm font-medium text-white w-16">${typeLabels[n.type] || n.type}</span>
+          <div class="flex-1">${loc} ${method}</div>
+          <button onclick="editNode(${n.id})" class="text-xs text-blue-400 hover:text-blue-300">编辑</button>
+          <button onclick="deleteNode(${n.id})" class="text-xs text-red-400 hover:text-red-300">删除</button>
+        </div>
+      `;
+      // Recurse for children
+      html += renderGroup(n.id, depth + 1);
+    }
+    return html;
+  }
+
+  container.innerHTML = renderGroup(0, 0);
+}
+
+function populateParentSelect() {
+  const sel = document.getElementById('nodeParent');
+  sel.innerHTML = '<option value="">无 (顶层)</option>';
+  for (const n of allNodes) {
+    if (n.type === 'forEach' || n.type === 'if') {
+      sel.innerHTML += `<option value="${n.id}">#${n.order} ${esc(n.type)} - ${esc((n.locator || '').slice(0, 30))}</option>`;
+    }
+  }
+}
+
+function addNode() {
+  document.getElementById('nodeId').value = '';
+  document.getElementById('nodeForm').reset();
+  document.getElementById('modalTitle').textContent = '添加节点';
+  document.getElementById('nodeModal').classList.remove('hidden');
+}
+
+async function editNode(id) {
+  const n = allNodes.find(x => x.id === id);
+  if (!n) return;
+  document.getElementById('nodeId').value = n.id;
+  document.getElementById('nodeType').value = n.type;
+  document.getElementById('nodeParent').value = n.parent_id || '';
+  document.getElementById('nodeLocator').value = n.locator || '';
+  document.getElementById('nodeLocatorType').value = n.locator_type || 'data-attr';
+  document.getElementById('nodeMethod').value = n.method || 'ele';
+  document.getElementById('nodeExtra').value = n.extra ? JSON.stringify(n.extra, null, 2) : '';
+  document.getElementById('modalTitle').textContent = '编辑节点 #' + n.order;
+  document.getElementById('nodeModal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('nodeModal').classList.add('hidden');
+}
+
+document.getElementById('nodeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nodeId = document.getElementById('nodeId').value;
+  const extraStr = document.getElementById('nodeExtra').value.trim();
+  let extra = {};
+  try { extra = extraStr ? JSON.parse(extraStr) : {}; } catch (e) { alert('Extra JSON 格式错误'); return; }
+
+  const payload = {
+    type: document.getElementById('nodeType').value,
+    parent_id: document.getElementById('nodeParent').value || null,
+    locator: document.getElementById('nodeLocator').value || null,
+    locator_type: document.getElementById('nodeLocatorType').value || null,
+    method: document.getElementById('nodeMethod').value || null,
+    action: document.getElementById('nodeType').value,
+    extra: extra,
+  };
+
+  const url = nodeId ? `${API_BASE}/nodes/${nodeId}` : `${API_BASE}/nodes`;
+  const method = nodeId ? 'PUT' : 'POST';
+  const res = await fetch(url, {
+    method,
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (res.ok) {
+    closeModal();
+    loadNodes();
+  } else {
+    const err = await res.json();
+    alert('保存失败: ' + (err.detail || '未知错误'));
+  }
+});
+
+async function deleteNode(id) {
+  if (!confirm('确定删除该节点？')) return;
+  const res = await fetch(`${API_BASE}/nodes/${id}`, {method: 'DELETE'});
+  if (res.ok) loadNodes();
+}
+
+async function exportPython() {
+  const res = await fetch(`${API_BASE}/export/python`);
+  const data = await res.json();
+  if (data.success) {
+    await navigator.clipboard.writeText(data.python);
+    alert('Python 脚本已复制到剪贴板');
+  }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+loadWorkflow();
+loadNodes();
+loadCapturedElements();
+</script>
+{% endblock %}
