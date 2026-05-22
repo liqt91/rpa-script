@@ -16,6 +16,7 @@ from src.repo import runtime_models as models
 from src.config import runtime_config as config
 from ..workflow.commands import COMMAND_REGISTRY, list_categories, list_commands_by_category, get_container_types, get_branch_types
 from ..workflow.exporter import build_python
+from ..workflow.extension_runner import run_workflow_extension
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -432,3 +433,22 @@ def run_workflow(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.ge
             "stdout": "",
             "stderr": str(e),
         }
+
+
+@router.post("/{wf_id}/run/extension")
+async def run_workflow_extension_endpoint(wf_id: int, db: Session = Depends(get_db),
+                                           user=Depends(auth.get_current_user)):
+    """Run workflow via browser extension (WebSocket).
+    Requires an active extension connection.
+    """
+    wf = db.get(models.Workflow, wf_id)
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    nodes = (db.query(models.WorkflowNode)
+               .filter(models.WorkflowNode.workflow_id == wf_id)
+               .order_by(models.WorkflowNode.order)
+               .all())
+
+    result = await run_workflow_extension(wf, nodes)
+    return result

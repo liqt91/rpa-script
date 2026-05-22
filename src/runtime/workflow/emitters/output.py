@@ -4,9 +4,9 @@ from ._registry import _handler, _var_ref, _py_str
 
 @_handler("log")
 def _emit_log(node, extra, depth, prefix, by_parent, lines):
-    msg = extra.get("message")
+    msg = extra.get("message", "")
     level = extra.get("level", "info")
-    lines.append(f"{prefix}print(f'[{level.upper()}] {_py_str(msg)}')")
+    lines.append(f'{prefix}print("[{level.upper()}]", {_py_str(msg)})')
 
 
 @_handler("pushItem")
