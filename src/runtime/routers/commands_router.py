@@ -59,6 +59,14 @@ def list_commands(
     ]
 
 
+@router.post("/reload-emitters")
+def reload_emitters(user=Depends(auth.get_current_user)):
+    """Runtime reload of emit handlers without server restart."""
+    from src.runtime.workflow.emitters import reload_handlers
+    reload_handlers()
+    return {"success": True}
+
+
 @router.post("")
 def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
     type_name = payload.get("type", "").strip()

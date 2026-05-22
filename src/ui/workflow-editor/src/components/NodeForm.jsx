@@ -250,86 +250,91 @@ export default function NodeForm() {
           </>
         )}
 
-        {/* Dynamic extra fields from command schema */}
-        {extraFields.map(field => (
-          <SchemaField
-            key={field.name}
-            field={field}
-            value={extra[field.name]}
-            onChange={(v) => handleExtraChange(field.name, v)}
-          />
-        ))}
+        {/* Dynamic extra fields from command schema — table layout */}
+        {extraFields.length > 0 && (
+          <div className="border border-[#d9d9d9] rounded overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-[#fafafa]">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-b border-[#e8e8e8] w-28">参数</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-b border-[#e8e8e8]">值</th>
+                </tr>
+              </thead>
+              <tbody>
+                {extraFields.map(field => (
+                  <tr key={field.name} className="border-b border-[#f0f0f0] last:border-0 hover:bg-[#fafafa]">
+                    <td className="px-3 py-2 text-xs text-gray-600 align-middle">{field.label || field.name}</td>
+                    <td className="px-3 py-2 align-middle">
+                      <SchemaControl
+                        field={field}
+                        value={extra[field.name]}
+                        onChange={(v) => handleExtraChange(field.name, v)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </aside>
   );
 }
 
 /**
- * Schema-driven field renderer.
+ * Schema-driven control renderer (no label wrapper).
  * Supports: text, number, select, bool, textarea, varName
  */
-function SchemaField({ field, value, onChange }) {
+function SchemaControl({ field, value, onChange }) {
   const inputClass = "w-full px-2 py-1.5 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]";
-  const label = field.label || field.name;
   const currentValue = value !== undefined ? value : (field.default ?? '');
 
   switch (field.type) {
     case 'bool':
       return (
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!currentValue}
-            onChange={(e) => onChange(e.target.checked)}
-            className="w-4 h-4 accent-[#1677ff]"
-          />
-          <span className="text-sm text-gray-700">{label}</span>
-        </label>
+        <input
+          type="checkbox"
+          checked={!!currentValue}
+          onChange={(e) => onChange(e.target.checked)}
+          className="w-4 h-4 accent-[#1677ff]"
+        />
       );
 
     case 'select':
       return (
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">{label}</label>
-          <select
-            value={currentValue}
-            onChange={(e) => onChange(e.target.value)}
-            className={inputClass}
-          >
-            {(field.options || []).map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={currentValue}
+          onChange={(e) => onChange(e.target.value)}
+          className={inputClass}
+        >
+          {(field.options || []).map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
       );
 
     case 'number':
       return (
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">{label}</label>
-          <input
-            type="number"
-            value={currentValue}
-            onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
-            placeholder={field.placeholder || ''}
-            className={inputClass}
-            step={field.step || 'any'}
-          />
-        </div>
+        <input
+          type="number"
+          value={currentValue}
+          onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
+          placeholder={field.placeholder || ''}
+          className={inputClass}
+          step={field.step || 'any'}
+        />
       );
 
     case 'textarea':
       return (
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">{label}</label>
-          <textarea
-            value={currentValue}
-            onChange={(e) => onChange(e.target.value)}
-            rows={field.rows || 3}
-            placeholder={field.placeholder || ''}
-            className={`${inputClass} font-mono resize-none`}
-          />
-        </div>
+        <textarea
+          value={currentValue}
+          onChange={(e) => onChange(e.target.value)}
+          rows={field.rows || 3}
+          placeholder={field.placeholder || ''}
+          className={`${inputClass} font-mono resize-none`}
+        />
       );
 
     case 'locator':
@@ -337,18 +342,28 @@ function SchemaField({ field, value, onChange }) {
     case 'text':
     default:
       return (
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">{label}</label>
-          <input
-            type="text"
-            value={currentValue}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder || ''}
-            className={inputClass}
-          />
-        </div>
+        <input
+          type="text"
+          value={currentValue}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || ''}
+          className={inputClass}
+        />
       );
   }
+}
+
+/**
+ * Schema-driven field renderer with label (vertical layout, legacy usage).
+ */
+function SchemaField({ field, value, onChange }) {
+  const label = field.label || field.name;
+  return (
+    <div>
+      <label className="block text-xs text-gray-500 mb-1">{label}</label>
+      <SchemaControl field={field} value={value} onChange={onChange} />
+    </div>
+  );
 }
 
 /**
