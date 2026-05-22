@@ -1,15 +1,15 @@
-from ._registry import _handler, _loc_call, _var_ref
+from ._registry import _handler, _loc_call, _var_ref, _py_str
 
 
 @_handler("navigate")
 def _emit_navigate(node, extra, depth, prefix, by_parent, lines):
-    url = (extra.get("url") or "").replace("'", "\\'")
+    url = extra.get("url")
     wait = extra.get("waitLoad", True)
     timeout = extra.get("timeout", 30)
     if wait:
-        lines.append(f"{prefix}tab.get('{url}')")
+        lines.append(f"{prefix}tab.get({_py_str(url)})")
     else:
-        lines.append(f"{prefix}tab.get('{url}', go_timeout={timeout})")
+        lines.append(f"{prefix}tab.get({_py_str(url)}, go_timeout={timeout})")
 
 
 @_handler("goBack")
@@ -32,9 +32,9 @@ def _emit_refresh(node, extra, depth, prefix, by_parent, lines):
 
 @_handler("newTab")
 def _emit_newTab(node, extra, depth, prefix, by_parent, lines):
-    url = extra.get("url", "").replace("'", "\\'")
+    url = extra.get("url")
     if url:
-        lines.append(f"{prefix}tab.new_tab('{url}')")
+        lines.append(f"{prefix}tab.new_tab({_py_str(url)})")
     else:
         lines.append(f"{prefix}tab.new_tab()")
 
@@ -51,15 +51,15 @@ def _emit_switchTab(node, extra, depth, prefix, by_parent, lines):
     if by == "index":
         lines.append(f"{prefix}tab.to_tab({value})")
     elif by == "url":
-        lines.append(f"{prefix}tab.to_tab(url='{value}')")
+        lines.append(f"{prefix}tab.to_tab(url={_py_str(value)})")
     elif by == "title":
-        lines.append(f"{prefix}tab.to_tab(title='{value}')")
+        lines.append(f"{prefix}tab.to_tab(title={_py_str(value)})")
 
 
 @_handler("switchToFrame")
 def _emit_switchToFrame(node, extra, depth, prefix, by_parent, lines):
-    loc = (node.locator or "").replace("'", "\\'")
-    lines.append(f"{prefix}tab.to_frame('{loc}')")
+    loc = node.locator or ""
+    lines.append(f"{prefix}tab.to_frame({_py_str(loc)})")
 
 
 @_handler("switchToMain")

@@ -175,8 +175,12 @@ export function deriveParentId(nodes, newNodeType, typeMap, insertIndex) {
   }
 
   const newInfo = typeMap[newNodeType];
-  if (newInfo?.isBranch || newInfo?.isStructural) {
-    stack.pop();
+  if (newInfo?.isBranch) {
+    const closed = stack.pop();
+    return closed || null;
+  } else if (newInfo?.isStructural) {
+    const closed = stack.pop();
+    return closed || null;
   }
   return stack.length > 0 ? stack[stack.length - 1] : null;
 }

@@ -5,7 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: path.resolve(__dirname, '../runtime/static/workflow-editor'),
+    outDir: path.resolve(__dirname, '../../runtime/static/workflow-editor'),
     emptyOutDir: true,
   },
   base: '/workflow-editor/',

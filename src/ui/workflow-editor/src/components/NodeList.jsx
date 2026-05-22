@@ -182,15 +182,15 @@ export default function NodeList() {
     for (const node of sorted) {
       const info = NODE_TYPE_MAP[node.type];
       if (info?.isBranch) {
-        stack.pop();
-        node.parent_id = stack.length > 0 ? stack[stack.length - 1] : null;
+        const closed = stack.pop();
+        node.parent_id = closed || null;
         stack.push(node.id);
       } else if (info?.isContainer) {
         node.parent_id = stack.length > 0 ? stack[stack.length - 1] : null;
         stack.push(node.id);
       } else if (info?.isStructural) {
-        stack.pop();
-        node.parent_id = stack.length > 0 ? stack[stack.length - 1] : null;
+        const closed = stack.pop();
+        node.parent_id = closed || null;
       } else {
         node.parent_id = stack.length > 0 ? stack[stack.length - 1] : null;
       }
@@ -210,7 +210,7 @@ export default function NodeList() {
       onDragLeave={handleDragLeavePanel}
       onDrop={handleDropPanel}
     >
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className={`flex-1 overflow-y-auto p-4 transition-colors ${dragOver ? 'bg-blue-50/30' : ''}`}>
         {treeNodes.length === 0 ? (
           <EmptyState />
         ) : (
@@ -226,19 +226,34 @@ export default function NodeList() {
             >
               <div className="w-full space-y-0.5 relative">
                 {dragOver && insertIndex === 0 && <InsertPlaceholder />}
-                {treeNodes.map((node, idx) => (
-                  <div key={node.id}>
-                    <SortableNode
-                      node={node}
-                      index={idx}
-                      isSelected={node.id === selectedNodeId}
-                      NODE_TYPE_MAP={NODE_TYPE_MAP}
-                      onSelect={handleSelect}
-                      onDelete={handleDelete}
-                    />
-                    {dragOver && insertIndex === idx + 1 && <InsertPlaceholder />}
-                  </div>
-                ))}
+                {treeNodes.map((node, idx) => {
+                  const typeInfo = NODE_TYPE_MAP[node.type] || {};
+                  const nextNode = treeNodes[idx + 1];
+                  const hasChildren = nextNode && nextNode.depth === (node.depth || 0) + 1;
+                  return (
+                    <div key={node.id}>
+                      <SortableNode
+                        node={node}
+                        index={idx}
+                        isSelected={node.id === selectedNodeId}
+                        NODE_TYPE_MAP={NODE_TYPE_MAP}
+                        onSelect={handleSelect}
+                        onDelete={handleDelete}
+                      />
+                      {/* 容器节点下方的子节点插槽 */}
+                      {typeInfo.isContainer && !hasChildren && (
+                        <div
+                          className={`border border-dashed rounded py-2.5 px-3 text-xs flex items-center gap-2 transition-colors ${dragOver ? 'border-[#1677ff] bg-blue-50/60 text-[#1677ff]' : 'border-gray-300 bg-gray-50/50 text-gray-400'}`}
+                          style={{ marginLeft: `${(node.depth || 0) * 20 + 24}px` }}
+                        >
+                          <i className="fas fa-plus text-[10px]"></i>
+                          拖入指令到此处
+                        </div>
+                      )}
+                      {dragOver && insertIndex === idx + 1 && <InsertPlaceholder />}
+                    </div>
+                  );
+                })}
               </div>
             </SortableContext>
             <DragOverlay>
@@ -304,18 +319,44 @@ function SortableNode({ node, index, isSelected, NODE_TYPE_MAP, onSelect, onDele
 
 function NodeRow({ node, index, isSelected, listeners, attributes, NODE_TYPE_MAP, onSelect, onDelete, isOverlay }) {
   const typeInfo = NODE_TYPE_MAP[node.type] || {};
-  const indent = (node.depth || 0) * 20;
+  const depth = node.depth || 0;
+  const indent = depth * 20;
 
   return (
     <div
       className={`
-        step-item flex items-start gap-2 px-3 py-2.5 rounded cursor-pointer
+        step-item flex items-start gap-2 px-3 py-2.5 rounded cursor-pointer relative
         ${isSelected ? 'step-selected' : 'hover:bg-[#f5f5f5]'}
         ${isOverlay ? 'bg-white shadow-lg border border-[#1677ff]' : ''}
       `}
       style={{ marginLeft: indent }}
       onClick={() => onSelect && onSelect(node.id)}
     >
+      {/* 缩进竖线 — 每层 depth 一条 */}
+      {Array.from({ length: depth }).map((_, i) => (
+        <div
+          key={i}
+          className="absolute border-l border-gray-200"
+          style={{ left: `${-(depth - i) * 20 - 2}px`, top: '-2px', bottom: '-2px' }}
+        />
+      ))}
+
+      {/* 分支线 — else/catch 左侧水平线连回前序容器 */}
+      {typeInfo.isBranch && depth > 0 && (
+        <div
+          className="absolute border-t border-gray-300"
+          style={{ left: `${-20}px`, top: '50%', width: '18px' }}
+        />
+      )}
+
+      {/* 闭合线 — endIf/endFor/endTry L 形返回线 */}
+      {typeInfo.isStructural && depth > 0 && (
+        <div
+          className="absolute border-l border-b border-gray-200 rounded-bl"
+          style={{ left: `${-18}px`, top: '-50%', height: 'calc(50% + 1px)', width: '16px' }}
+        />
+      )}
+
       {/* 拖拽手柄 */}
       <div
         {...listeners}
@@ -363,9 +404,9 @@ function EmptyState() {
 
 function InsertPlaceholder() {
   return (
-    <div className="h-9 mx-3 my-0.5 rounded border-2 border-dashed border-[#1677ff] bg-[#e6f7ff]/40 flex items-center px-3 gap-2 animate-pulse">
-      <div className="w-4 h-4 rounded-full bg-[#1677ff]/20"></div>
-      <div className="h-2 w-20 rounded bg-[#1677ff]/20"></div>
+    <div className="relative h-1 -my-0.5 z-10 pointer-events-none">
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-[#1677ff] rounded-full shadow-[0_0_4px_rgba(22,119,255,0.4)]" />
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-[#1677ff] rounded-full" />
     </div>
   );
 }

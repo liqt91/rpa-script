@@ -1,5 +1,5 @@
 import json
-from ._registry import _handler, _emit_dispatch, _loc_call, _var_ref
+from ._registry import _handler, _loc_call, _var_ref, _py_str, _emit_children, _emit_dispatch
 
 
 @_handler("forEachElement")
@@ -8,8 +8,7 @@ def _emit_forEachElement(node, extra, depth, prefix, by_parent, lines):
     item_var = _var_ref(extra.get("itemVar", "item"))
     idx_var = _var_ref(extra.get("indexVar", "index"))
     lines.append(f"{prefix}for {idx_var}, {item_var} in enumerate({call}):")
-    for child in by_parent.get(node.id, []):
-        _emit_dispatch(child, json.loads(child.extra) if child.extra else {}, depth + 1, by_parent, lines)
+    _emit_children(node, depth, by_parent, lines)
 
 
 @_handler("forRange")
@@ -19,8 +18,7 @@ def _emit_forRange(node, extra, depth, prefix, by_parent, lines):
     step = extra.get("step", 1)
     var = _var_ref(extra.get("varName", "i"))
     lines.append(f"{prefix}for {var} in range({start}, {end}, {step}):")
-    for child in by_parent.get(node.id, []):
-        _emit_dispatch(child, json.loads(child.extra) if child.extra else {}, depth + 1, by_parent, lines)
+    _emit_children(node, depth, by_parent, lines)
 
 
 @_handler("forList")
@@ -29,8 +27,7 @@ def _emit_forList(node, extra, depth, prefix, by_parent, lines):
     item_var = _var_ref(extra.get("itemVar", "item"))
     idx_var = _var_ref(extra.get("indexVar", "index"))
     lines.append(f"{prefix}for {idx_var}, {item_var} in enumerate({list_var}):")
-    for child in by_parent.get(node.id, []):
-        _emit_dispatch(child, json.loads(child.extra) if child.extra else {}, depth + 1, by_parent, lines)
+    _emit_children(node, depth, by_parent, lines)
 
 
 @_handler("whileCondition")
@@ -43,25 +40,26 @@ def _emit_whileCondition(node, extra, depth, prefix, by_parent, lines):
 
     ip = "    " * (depth + 1)
     if cond_type == "elementExists":
-        loc = (extra.get("locator") or "").replace("'", "\\'")
-        lines.append(f"{ip}if not tab.ele('{loc}'):")
+        loc = extra.get("locator") or ""
+        lines.append(f"{ip}if not tab.ele({_py_str(loc)}):")
         lines.append(f"{ip}    break")
     elif cond_type == "elementNotExists":
-        loc = (extra.get("locator") or "").replace("'", "\\'")
-        lines.append(f"{ip}if tab.ele('{loc}'):")
+        loc = extra.get("locator") or ""
+        lines.append(f"{ip}if tab.ele({_py_str(loc)}):")
         lines.append(f"{ip}    break")
     elif cond_type == "urlContains":
-        pattern = (extra.get("urlPattern") or "").replace("'", "\\'")
-        lines.append(f"{ip}if '{pattern}' in tab.url:")
+        pattern = extra.get("urlPattern")
+        lines.append(f"{ip}if {_py_str(pattern)} in tab.url:")
         lines.append(f"{ip}    break")
     elif cond_type == "varEquals":
         var = _var_ref(extra.get("varName", "x"))
-        val = (extra.get("varValue") or "").replace("'", "\\'")
-        lines.append(f"{ip}if {var} == '{val}':")
+        val = extra.get("varValue")
+        lines.append(f"{ip}if {var} == {_py_str(val)}:")
         lines.append(f"{ip}    break")
 
     for child in by_parent.get(node.id, []):
-        _emit_dispatch(child, json.loads(child.extra) if child.extra else {}, depth + 1, by_parent, lines)
+        extra_c = json.loads(child.extra) if child.extra else {}
+        _emit_dispatch(child, extra_c, depth + 1, by_parent, lines)
 
     lines.append(f"{ip}_iter += 1")
 

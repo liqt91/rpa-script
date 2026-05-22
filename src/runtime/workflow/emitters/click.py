@@ -1,4 +1,4 @@
-from ._registry import _handler, _loc_call
+from ._registry import _handler, _loc_call, _py_str
 
 
 @_handler("click")
@@ -24,9 +24,9 @@ def _emit_rightClick(node, extra, depth, prefix, by_parent, lines):
 
 @_handler("clickByIndex")
 def _emit_clickByIndex(node, extra, depth, prefix, by_parent, lines):
-    loc = (node.locator or "").replace("'", "\\'")
+    loc = node.locator or ""
     idx = extra.get("index", 0)
-    lines.append(f"{prefix}tab.eles('{loc}')[{idx}].click()")
+    lines.append(f"{prefix}tab.eles({_py_str(loc)})[{idx}].click()")
 
 
 @_handler("clickIfExists")

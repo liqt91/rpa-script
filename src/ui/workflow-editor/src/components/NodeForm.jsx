@@ -250,7 +250,7 @@ export default function NodeForm() {
           </>
         )}
 
-        {/* Dynamic extra fields from command schema — table layout */}
+        {/* Dynamic extra fields from command schema — grouped table layout */}
         {extraFields.length > 0 && (
           <div className="border border-[#d9d9d9] rounded overflow-hidden">
             <table className="w-full text-sm">
@@ -261,18 +261,32 @@ export default function NodeForm() {
                 </tr>
               </thead>
               <tbody>
-                {extraFields.map(field => (
-                  <tr key={field.name} className="border-b border-[#f0f0f0] last:border-0 hover:bg-[#fafafa]">
-                    <td className="px-3 py-2 text-xs text-gray-600 align-middle">{field.label || field.name}</td>
-                    <td className="px-3 py-2 align-middle">
-                      <SchemaControl
-                        field={field}
-                        value={extra[field.name]}
-                        onChange={(v) => handleExtraChange(field.name, v)}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {['input', 'output', 'advanced'].map(group => {
+                  const groupFields = extraFields.filter(f => (f.group || 'input') === group);
+                  if (groupFields.length === 0) return null;
+                  const groupLabel = group === 'input' ? '输入参数' : group === 'output' ? '输出参数' : '高级参数';
+                  return (
+                    <>
+                      <tr key={`${group}-header`} className="bg-gray-50">
+                        <td colSpan={2} className="px-3 py-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+                          {groupLabel}
+                        </td>
+                      </tr>
+                      {groupFields.map(field => (
+                        <tr key={field.name} className="border-b border-[#f0f0f0] last:border-0 hover:bg-[#fafafa]">
+                          <td className="px-3 py-2 text-xs text-gray-600 align-middle">{field.label || field.name}</td>
+                          <td className="px-3 py-2 align-middle">
+                            <SchemaControl
+                              field={field}
+                              value={extra[field.name]}
+                              onChange={(v) => handleExtraChange(field.name, v)}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  );
+                })}
               </tbody>
             </table>
           </div>

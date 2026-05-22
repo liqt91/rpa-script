@@ -13,6 +13,6 @@ def _emit_custom(node, extra, depth, prefix, by_parent, lines):
 
 @_handler("executeJs")
 def _emit_executeJs(node, extra, depth, prefix, by_parent, lines):
-    script = extra.get("script", "").replace("'", "\\'")
+    script = extra.get("script", "")
     result_var = _var_ref(extra.get("resultVar", "jsResult"))
     lines.append(f"{prefix}{result_var} = tab.run_js('''{script}''')")

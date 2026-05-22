@@ -7,6 +7,7 @@ Design philosophy (影刀-style granularity):
 - Container commands (if/for/try) can hold child nodes.
 """
 
+import copy
 from typing import Any
 
 # ─── Field type helpers ───────────────────────────────────────────
@@ -33,10 +34,41 @@ def _method_field(default: str = "ele") -> dict:
     }
 
 def _timeout_field(default: int = 10) -> dict:
-    return {"name": "timeout", "label": "超时(秒)", "type": "number", "default": default}
+    return {"name": "timeout", "label": "超时(秒)", "type": "number", "default": default, "group": "advanced"}
 
 def _var_field(name: str = "varName", label: str = "保存到变量") -> dict:
-    return {"name": name, "label": label, "type": "varName", "required": False}
+    return {"name": name, "label": label, "type": "varName", "required": False, "group": "output"}
+
+def _on_error_field(default: str = "stop") -> dict:
+    return {
+        "name": "onError",
+        "label": "执行失败时",
+        "type": "select",
+        "options": ["stop", "continue", "retry"],
+        "default": default,
+        "group": "advanced",
+    }
+
+def _retry_count_field(default: int = 3) -> dict:
+    return {
+        "name": "retryCount",
+        "label": "重试次数",
+        "type": "number",
+        "default": default,
+        "group": "advanced",
+    }
+
+def _attach_common_advanced(fields: list[dict]) -> list[dict]:
+    """为指令字段列表附加通用高级参数（如果不存在）。"""
+    result = copy.deepcopy(fields)
+    names = {f.get("name") for f in result}
+    if "onError" not in names:
+        result.append(_on_error_field())
+    if "retryCount" not in names:
+        result.append(_retry_count_field())
+    if "timeout" not in names:
+        result.append(_timeout_field())
+    return result
 
 # ─── Command registry ─────────────────────────────────────────────
 
@@ -881,7 +913,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             {"name": "url", "label": "URL", "type": "text", "required": True},
             {"name": "headers", "label": "Headers(JSON)", "type": "textarea", "required": False},
             {"name": "body", "label": "Body", "type": "textarea", "required": False},
-            {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 30},
+            _timeout_field(30),
             _var_field("resultVar", "保存响应到变量"),
         ],
     },
@@ -1015,7 +1047,14 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
 # ─── Helpers ──────────────────────────────────────────────────────
 
 def get_command(type_name: str) -> dict | None:
-    return COMMAND_REGISTRY.get(type_name)
+    cmd = COMMAND_REGISTRY.get(type_name)
+    if cmd is None:
+        return None
+    result = copy.deepcopy(cmd)
+    # 为普通指令自动附加通用高级参数
+    if not cmd.get("isContainer") and not cmd.get("isStructural"):
+        result["fields"] = _attach_common_advanced(cmd.get("fields", []))
+    return result
 
 
 def list_categories() -> list[str]:
@@ -1037,7 +1076,11 @@ def list_commands_by_category() -> dict[str, list[dict]]:
         cat = cmd["category"]
         if cat not in result:
             result[cat] = []
-        result[cat].append({"type": type_name, **cmd})
+        cmd_copy = copy.deepcopy(cmd)
+        # 为普通指令自动附加通用高级参数（容器/结构标记除外）
+        if not cmd.get("isContainer") and not cmd.get("isStructural"):
+            cmd_copy["fields"] = _attach_common_advanced(cmd.get("fields", []))
+        result[cat].append({"type": type_name, **cmd_copy})
     return result
 
 

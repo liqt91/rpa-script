@@ -46,7 +46,7 @@
 
 <!-- Modal -->
 <div id="modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
-  <div class="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-lg mx-4 p-6">
+  <div class="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-4xl mx-4 p-6">
     <h2 id="modalTitle" class="text-lg font-semibold text-white mb-4">新增指令</h2>
     <form id="commandForm" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
       <input type="hidden" id="cmdId">
@@ -91,8 +91,31 @@
         </label>
       </div>
       <div>
-        <label class="block text-sm text-gray-300 mb-1">参数定义 (JSON)</label>
-        <textarea id="cmdFields" rows="6" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono" placeholder='[{"name":"url","label":"网址","type":"text","required":true}]'></textarea>
+        <label class="block text-sm text-gray-300 mb-1">参数定义</label>
+        <div class="bg-gray-700 border border-gray-600 rounded-lg overflow-hidden">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-gray-600 text-gray-300">
+              <tr>
+                <th class="px-2 py-2 font-medium w-28">参数名</th>
+                <th class="px-2 py-2 font-medium w-32">显示名称</th>
+                <th class="px-2 py-2 font-medium w-24">类型</th>
+                <th class="px-2 py-2 font-medium w-20">分组</th>
+                <th class="px-2 py-2 font-medium w-12 text-center">必填</th>
+                <th class="px-2 py-2 font-medium w-28">默认值</th>
+                <th class="px-2 py-2 font-medium w-32">占位提示</th>
+                <th class="px-2 py-2 font-medium w-28">选项(逗号分隔)</th>
+                <th class="px-2 py-2 font-medium w-12 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="fieldsTableBody"></tbody>
+          </table>
+          <div class="px-3 py-2 border-t border-gray-600">
+            <button type="button" onclick="addFieldRow()" class="text-xs text-blue-300 hover:text-blue-200">
+              <i class="fas fa-plus mr-1"></i>添加参数
+            </button>
+          </div>
+        </div>
+        <input type="hidden" id="cmdFields">
       </div>
       <div class="flex items-center gap-2">
         <input type="checkbox" id="cmdEnabled" checked class="rounded bg-gray-700 border-gray-600">
@@ -165,6 +188,7 @@ function showCreateModal() {
   document.getElementById('commandForm').reset();
   document.getElementById('cmdId').value = '';
   document.getElementById('cmdType').disabled = false;
+  renderFieldsTable([]);
   document.getElementById('modal').classList.remove('hidden');
   document.getElementById('modal').classList.add('flex');
 }
@@ -192,21 +216,74 @@ async function editCommand(id) {
   document.getElementById('cmdIsContainer').checked = c.isContainer;
   document.getElementById('cmdIsBranch').checked = c.isBranch;
   document.getElementById('cmdIsStructural').checked = c.isStructural;
-  document.getElementById('cmdFields').value = JSON.stringify(c.fields || [], null, 2);
+  renderFieldsTable(c.fields || []);
   document.getElementById('cmdEnabled').checked = c.enabled;
 
   document.getElementById('modal').classList.remove('hidden');
   document.getElementById('modal').classList.add('flex');
 }
 
+function addFieldRow(data = {}) {
+  const tbody = document.getElementById('fieldsTableBody');
+  const tr = document.createElement('tr');
+  tr.className = 'border-t border-gray-600';
+  const types = ['text', 'number', 'select', 'bool', 'textarea', 'locator', 'varName'];
+  tr.innerHTML = `
+    <td class="px-2 py-1"><input type="text" class="field-name w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.name || '')}" placeholder="name"></td>
+    <td class="px-2 py-1"><input type="text" class="field-label w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.label || '')}" placeholder="显示名称"></td>
+    <td class="px-2 py-1"><select class="field-type w-full px-1 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs">${types.map(t => `<option value="${t}" ${data.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+    <td class="px-2 py-1"><select class="field-group w-full px-1 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"><option value="input" ${data.group === 'input' ? 'selected' : ''}>输入</option><option value="output" ${data.group === 'output' ? 'selected' : ''}>输出</option><option value="advanced" ${data.group === 'advanced' ? 'selected' : ''}>高级</option></select></td>
+    <td class="px-2 py-1 text-center"><input type="checkbox" class="field-required" ${data.required ? 'checked' : ''}></td>
+    <td class="px-2 py-1"><input type="text" class="field-default w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.default !== undefined ? String(data.default) : '')}" placeholder="默认值"></td>
+    <td class="px-2 py-1"><input type="text" class="field-placeholder w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.placeholder || '')}" placeholder="提示文本"></td>
+    <td class="px-2 py-1"><input type="text" class="field-options w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc((data.options || []).join(','))}" placeholder="a,b,c"></td>
+    <td class="px-2 py-1 text-center"><button type="button" onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-300 text-xs"><i class="fas fa-trash"></i></button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function getFieldsFromTable() {
+  const rows = document.querySelectorAll('#fieldsTableBody tr');
+  const fields = [];
+  rows.forEach(tr => {
+    const name = tr.querySelector('.field-name')?.value.trim();
+    if (!name) return;
+    const type = tr.querySelector('.field-type')?.value || 'text';
+    const f = {
+      name,
+      label: tr.querySelector('.field-label')?.value.trim() || name,
+      type,
+      group: tr.querySelector('.field-group')?.value || 'input',
+      required: tr.querySelector('.field-required')?.checked || false,
+    };
+    const defVal = tr.querySelector('.field-default')?.value.trim();
+    if (defVal !== '') {
+      if (type === 'number') {
+        const n = Number(defVal);
+        if (!isNaN(n)) f.default = n;
+      } else if (type === 'bool') {
+        f.default = defVal.toLowerCase() === 'true';
+      } else {
+        f.default = defVal;
+      }
+    }
+    const placeholder = tr.querySelector('.field-placeholder')?.value.trim();
+    if (placeholder) f.placeholder = placeholder;
+    const options = tr.querySelector('.field-options')?.value.trim();
+    if (options) f.options = options.split(',').map(s => s.trim()).filter(Boolean);
+    fields.push(f);
+  });
+  return fields;
+}
+
+function renderFieldsTable(fields = []) {
+  document.getElementById('fieldsTableBody').innerHTML = '';
+  (fields || []).forEach(f => addFieldRow(f));
+}
+
 document.getElementById('commandForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  let fields;
-  try {
-    fields = JSON.parse(document.getElementById('cmdFields').value || '[]');
-  } catch {
-    return alert('参数定义 JSON 格式错误');
-  }
+  const fields = getFieldsFromTable();
 
   const id = document.getElementById('cmdId').value;
   const payload = {

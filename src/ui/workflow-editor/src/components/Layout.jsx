@@ -6,6 +6,8 @@ import NodeList from './NodeList';
 import NodeForm from './NodeForm';
 import ElementLibraryTab from './ElementLibraryTab';
 
+const LAYOUT_KEY = 'wf_editor_layout';
+
 export default function Layout() {
   const { loadWorkflow, loadElements } = useWorkflow();
   const leftRef = useRef(null);
@@ -15,6 +17,24 @@ export default function Layout() {
   useEffect(() => {
     loadWorkflow();
     loadElements();
+  }, []);
+
+  // 恢复保存的布局尺寸
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}');
+      if (saved.leftWidth && leftRef.current?.previousElementSibling) {
+        leftRef.current.previousElementSibling.style.width = saved.leftWidth + 'px';
+      }
+      if (saved.rightWidth && rightRef.current?.nextElementSibling) {
+        rightRef.current.nextElementSibling.style.width = saved.rightWidth + 'px';
+      }
+      if (saved.bottomHeight && bottomRef.current?.nextElementSibling) {
+        bottomRef.current.nextElementSibling.style.height = saved.bottomHeight + 'px';
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
   function initResize(handle, direction) {
@@ -67,6 +87,18 @@ export default function Layout() {
       handle.classList.remove('resizing');
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+
+      try {
+        const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}');
+        if (targetEl) {
+          if (direction === 'left') saved.leftWidth = targetEl.offsetWidth;
+          else if (direction === 'right') saved.rightWidth = targetEl.offsetWidth;
+          else if (direction === 'bottom') saved.bottomHeight = targetEl.offsetHeight;
+          localStorage.setItem(LAYOUT_KEY, JSON.stringify(saved));
+        }
+      } catch {
+        // ignore
+      }
     }
   }
 

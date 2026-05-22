@@ -8,7 +8,12 @@ import time
 from DrissionPage import ChromiumPage, ChromiumOptions
 
 
-USER_DATA_DIR = os.environ.get("CHROME_USER_DATA_DIR", r"D:\Chrome_Work")
+def _default_user_data_dir() -> str:
+    """系统默认 Chrome 用户数据目录（复用日常登录态）。"""
+    return os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
+
+
+USER_DATA_DIR = os.environ.get("CHROME_USER_DATA_DIR", _default_user_data_dir())
 DEBUG_PORT = int(os.environ.get("CHROME_DEBUG_PORT", "9222"))
 
 
@@ -53,8 +58,24 @@ def get_chrome_path():
     return None
 
 
+def _chrome_already_running() -> bool:
+    """检测是否已有 Chrome 进程在运行（Windows）。"""
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq chrome.exe", "/NH"],
+            capture_output=True, text=True, check=False,
+        )
+        return "chrome.exe" in result.stdout.lower()
+    except Exception:
+        return False
+
+
 def launch_chrome(home_url: str = "about:blank"):
-    """以 USER_DATA_DIR + 远程调试端口启动 Chrome。"""
+    """以 USER_DATA_DIR + 远程调试端口启动 Chrome。
+
+    若检测到 Chrome 已在运行且使用同一用户目录，会提示关闭后重试，
+    或改用 connect_chrome() 连接已有实例。
+    """
     cp = get_chrome_path()
     if not cp:
         print("X Chrome not found")
@@ -62,6 +83,15 @@ def launch_chrome(home_url: str = "about:blank"):
     if not os.path.exists(USER_DATA_DIR):
         print(f"! {USER_DATA_DIR} missing")
         return False
+
+    if _chrome_already_running():
+        print(
+            "! Chrome 正在运行中。若使用同一用户目录启动新实例会冲突。\n"
+            "  建议：关闭所有 Chrome 窗口后重试，或改用 connect_chrome() 连接已有实例。\n"
+            "  （给 Chrome 快捷方式添加 --remote-debugging-port=9222 参数后，connect_chrome() 可自动接管）"
+        )
+        return False
+
     print(f"Launch Chrome ({USER_DATA_DIR})...")
     subprocess.Popen([
         cp,

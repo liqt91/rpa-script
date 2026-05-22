@@ -1,4 +1,4 @@
-from ._registry import _handler, _var_ref
+from ._registry import _handler, _var_ref, _py_str
 
 
 @_handler("setVar")
@@ -14,24 +14,23 @@ def _emit_setVar(node, extra, depth, prefix, by_parent, lines):
     elif vtype == "list":
         lines.append(f"{prefix}{var} = []")
     else:
-        val = str(value).replace("'", "\\'")
-        lines.append(f"{prefix}{var} = '{val}'")
+        lines.append(f"{prefix}{var} = {_py_str(value)}")
 
 
 @_handler("appendToList")
 def _emit_appendToList(node, extra, depth, prefix, by_parent, lines):
     list_var = _var_ref(extra.get("listName", "items"))
-    value = str(extra.get("value", "")).replace("'", "\\'")
-    lines.append(f"{prefix}{list_var}.append('{value}')")
+    value = extra.get("value", "")
+    lines.append(f"{prefix}{list_var}.append({_py_str(value)})")
 
 
 @_handler("stringConcat")
 def _emit_stringConcat(node, extra, depth, prefix, by_parent, lines):
     target = _var_ref(extra.get("targetVar", "result"))
     parts = [extra.get("part1", ""), extra.get("part2", ""), extra.get("part3", "")]
-    parts = [p.replace("'", "\\'") for p in parts if p]
+    parts = [p for p in parts if p]
     if parts:
-        joined = " + ".join(f"'{p}'" for p in parts)
+        joined = " + ".join(_py_str(p) for p in parts)
         lines.append(f"{prefix}{target} = {joined}")
     else:
         lines.append(f"{prefix}{target} = ''")

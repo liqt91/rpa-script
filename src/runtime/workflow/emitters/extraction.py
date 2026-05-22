@@ -1,4 +1,4 @@
-from ._registry import _handler, _loc_call, _var_ref
+from ._registry import _handler, _loc_call, _var_ref, _py_str
 
 
 @_handler("getText")
@@ -11,9 +11,9 @@ def _emit_getText(node, extra, depth, prefix, by_parent, lines):
 @_handler("getAttr")
 def _emit_getAttr(node, extra, depth, prefix, by_parent, lines):
     call = _loc_call(node, extra)
-    attr = (extra.get("attrName") or "").replace("'", "\\'")
+    attr = extra.get("attrName")
     var = _var_ref(extra.get("varName", "attrVal"))
-    lines.append(f"{prefix}{var} = {call}.attr('{attr}')")
+    lines.append(f"{prefix}{var} = {call}.attr({_py_str(attr)})")
 
 
 @_handler("getHtml")
@@ -43,6 +43,6 @@ def _emit_getElementCount(node, extra, depth, prefix, by_parent, lines):
 
 @_handler("getElementList")
 def _emit_getElementList(node, extra, depth, prefix, by_parent, lines):
-    loc = (node.locator or "").replace("'", "\\'")
+    loc = node.locator or ""
     var = _var_ref(extra.get("varName", "elements"))
-    lines.append(f"{prefix}{var} = tab.eles('{loc}')")
+    lines.append(f"{prefix}{var} = tab.eles({_py_str(loc)})")
