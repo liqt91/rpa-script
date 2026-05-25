@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 
@@ -22,8 +22,18 @@ export default function ElementLibraryTab() {
   const [targetBrowser, setTargetBrowser] = useState(''); // '' = all, 'chrome', 'edge'
   const [capturing, setCapturing] = useState(false);
   const [toast, setToast] = useState(null);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renamingValue, setRenamingValue] = useState('');
+  const renameRef = useRef(null);
 
   const selectedElement = elements.find(e => e.id === selectedElementId) || null;
+
+  useEffect(() => {
+    if (renamingId && renameRef.current) {
+      renameRef.current.focus();
+      renameRef.current.select();
+    }
+  }, [renamingId]);
 
   // 加载元素库 + 站点列表
   const refresh = async () => {
@@ -100,6 +110,42 @@ export default function ElementLibraryTab() {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`确认删除元素 "${name}"？`)) return;
+    try {
+      await api.deleteElement(id);
+      showToast(`已删除 "${name}"`);
+      if (selectedElementId === id) setSelectedElementId(null);
+      await refresh();
+    } catch (e) {
+      showToast('删除失败: ' + e.message, 'error');
+    }
+  };
+
+  const startRename = (el) => {
+    setRenamingId(el.id);
+    setRenamingValue(el.name);
+  };
+
+  const submitRename = async (id) => {
+    const name = renamingValue.trim();
+    if (!name) {
+      setRenamingId(null);
+      return;
+    }
+    try {
+      await api.updateElement(id, { name });
+      showToast('重命名成功');
+      setRenamingId(null);
+      await refresh();
+    } catch (e) {
+      showToast('重命名失败: ' + e.message, 'error');
+      setRenamingId(null);
+    }
+  };
+
+  const cancelRename = () => setRenamingId(null);
 
   const handleCapture = async () => {
     if (!extOnline) {
@@ -182,8 +228,8 @@ export default function ElementLibraryTab() {
                   {filtered.map(el => (
                     <div
                       key={el.id}
-                      onClick={() => setSelectedElementId(el.id)}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer ${
+                      onClick={() => { if (renamingId !== el.id) setSelectedElementId(el.id); }}
+                      className={`group flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer ${
                         selectedElementId === el.id
                           ? 'bg-blue-50 border border-blue-200'
                           : 'hover:bg-gray-100 border border-transparent'
@@ -193,11 +239,46 @@ export default function ElementLibraryTab() {
                         selectedElementId === el.id ? 'text-blue-500' : 'text-gray-400'
                       }`}></i>
                       <div className="flex-1 min-w-0">
-                        <div className={`text-xs truncate ${
-                          selectedElementId === el.id ? 'text-blue-700 font-medium' : 'text-gray-700'
-                        }`}>{el.name}</div>
-                        <div className="text-[10px] text-gray-400 truncate">{el.locator}</div>
+                        {renamingId === el.id ? (
+                          <input
+                            ref={renameRef}
+                            value={renamingValue}
+                            onChange={(e) => setRenamingValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') submitRename(el.id);
+                              if (e.key === 'Escape') cancelRename();
+                            }}
+                            onBlur={() => submitRename(el.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full text-xs px-1 py-0.5 border border-blue-300 rounded outline-none bg-white"
+                          />
+                        ) : (
+                          <>
+                            <div className={`text-xs truncate ${
+                              selectedElementId === el.id ? 'text-blue-700 font-medium' : 'text-gray-700'
+                            }`}>{el.name}</div>
+                            <div className="text-[10px] text-gray-400 truncate">{el.locator}</div>
+                          </>
+                        )}
                       </div>
+                      {renamingId !== el.id && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); startRename(el); }}
+                            className="text-gray-400 hover:text-blue-500 px-1"
+                            title="重命名"
+                          >
+                            <i className="fas fa-pen text-[10px]"></i>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDelete(el.id, el.name); }}
+                            className="text-gray-400 hover:text-red-500 px-1"
+                            title="删除"
+                          >
+                            <i className="fas fa-trash text-[10px]"></i>
+                          </button>
+                        </div>
+                      )}
                       <span className="text-[10px] text-gray-400">{el.locator_type}</span>
                     </div>
                   ))}
@@ -256,6 +337,22 @@ export default function ElementLibraryTab() {
                         {selectedElement.tag}
                       </span>
                     )}
+                    <div className="ml-auto flex items-center gap-1">
+                      <button
+                        onClick={() => startRename(selectedElement)}
+                        className="text-gray-400 hover:text-blue-500 px-1.5 py-0.5 rounded hover:bg-gray-100"
+                        title="重命名"
+                      >
+                        <i className="fas fa-pen text-xs"></i>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(selectedElement.id, selectedElement.name)}
+                        className="text-gray-400 hover:text-red-500 px-1.5 py-0.5 rounded hover:bg-gray-100"
+                        title="删除"
+                      >
+                        <i className="fas fa-trash text-xs"></i>
+                      </button>
+                    </div>
                   </div>
 
                   {/* 截图 */}

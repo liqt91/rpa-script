@@ -107,6 +107,34 @@ def get_element(
     return el
 
 
+@router.patch("/{element_id}", response_model=schemas.CapturedElementOut)
+def update_element(
+    element_id: int,
+    payload: schemas.CapturedElementUpdate,
+    db: Session = Depends(get_db),
+):
+    el = db.query(models.CapturedElement).filter(
+        models.CapturedElement.id == element_id,
+    ).first()
+    if not el:
+        raise HTTPException(status_code=404, detail="元素不存在")
+    if payload.name is not None:
+        el.name = payload.name
+    if payload.description is not None:
+        el.description = payload.description
+    db.commit()
+    db.refresh(el)
+    try:
+        el.candidates = __import__("json").loads(el.candidates) if el.candidates else []
+    except Exception:
+        el.candidates = []
+    try:
+        el.features = __import__("json").loads(el.features) if el.features else {}
+    except Exception:
+        el.features = {}
+    return el
+
+
 @router.delete("/{element_id}")
 def delete_element(
     element_id: int,

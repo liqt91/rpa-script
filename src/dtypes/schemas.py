@@ -215,6 +215,11 @@ class CapturedElementIn(BaseModel):
     screenshot: Optional[str] = None
 
 
+class CapturedElementUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
 class CapturedElementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

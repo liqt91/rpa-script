@@ -519,8 +519,12 @@
   // ─── Confirm Modal ───────────────────────────────────────────────
 
   function showConfirmModal() {
-    const features = buildFeatureSnapshot(lockedElement);
-    const best = lockedCandidates[0];
+    const el = lockedElement;
+    const cands = lockedCandidates;
+    // 弹出确认框后立即退出捕获模式，避免鼠标在框上移动时重新锁定目标
+    exitCaptureMode();
+    const features = buildFeatureSnapshot(el);
+    const best = cands[0];
     let selectedIdx = 0;
 
     const overlay = document.createElement('div');
@@ -596,7 +600,7 @@
     body.appendChild(screenshotWrap);
 
     // Request element screenshot from background.js
-    const rect = lockedElement.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
     chrome.runtime.sendMessage({
       action: 'captureElementScreenshot',
       rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
@@ -637,7 +641,7 @@
 
     const list = document.createElement('div');
     list.style.cssText = 'border: 1px solid #eee; border-radius: 6px; overflow: hidden;';
-    lockedCandidates.slice(0, 6).forEach((c, idx) => {
+    cands.slice(0, 6).forEach((c, idx) => {
       const row = document.createElement('div');
       row.style.cssText = `
         padding: 8px 10px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
@@ -682,7 +686,7 @@
     btnOk.textContent = '确认捕获';
     btnOk.style.cssText = 'padding: 6px 16px; border: none; background: #1677ff; color: #fff; border-radius: 4px; cursor: pointer; font-size: 13px;';
     btnOk.addEventListener('click', async () => {
-      const sel = lockedCandidates[selectedIdx];
+      const sel = cands[selectedIdx];
       const customSyntax = inputEl.value.trim() || sel.syntax;
       const payload = {
         action: 'captureElement',
@@ -695,7 +699,7 @@
           tag: features.tag,
           text: features.inner_text?.slice(0, 50) || '',
           pageUrl: window.location.href,
-          candidates: lockedCandidates.slice(0, 5).map(c => ({ syntax: c.syntax, type: c.type, score: c.score, matchCount: c.matchCount })),
+          candidates: cands.slice(0, 5).map(c => ({ syntax: c.syntax, type: c.type, score: c.score, matchCount: c.matchCount })),
           features,
           screenshot: capturedScreenshot,
         },

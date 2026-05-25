@@ -67,6 +67,10 @@ export const api = {
   getElements: (hostname) => request(`/api/elements${hostname ? `?hostname=${encodeURIComponent(hostname)}` : ''}`),
   getElementHosts: () => request('/api/elements/hosts'),
   deleteElement: (id) => request(`/api/elements/${id}`, { method: 'DELETE' }),
+  updateElement: (id, payload) => request(`/api/elements/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }),
 
   // AI
   invokeAI: (capability, payload) => request('/api/ai/invoke', {
