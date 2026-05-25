@@ -200,7 +200,7 @@ export default function Toolbar() {
   const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP } = useWorkflow();
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState(null);
-  const [runMode, setRunMode] = useState('python'); // 'python' | 'extension'
+  const [runMode, setRunMode] = useState('extension'); // 'python' | 'extension'
   const [extStatus, setExtStatus] = useState(null);
 
   // Poll extension status when in extension mode

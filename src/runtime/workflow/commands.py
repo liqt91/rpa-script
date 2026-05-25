@@ -87,6 +87,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             {"name": "url", "label": "网址", "type": "text", "required": True, "placeholder": "https://..."},
             {"name": "waitLoad", "label": "等待加载完成", "type": "bool", "default": True},
             _timeout_field(30),
+            _var_field("saveToVar", "保存网页对象到"),
         ],
     },
     "goBack": {

@@ -30,7 +30,7 @@ _SUPPORTED_TYPES = {
     "scrollToBottom", "scrollToTop", "scrollBy",
     "goBack", "goForward", "refresh",
     "pressKey", "hover", "clearInput", "selectOption",
-    "newTab", "executeJs",
+    "newTab", "executeJs", "setVar",
 }
 
 # Mapping from workflow command type -> content-script instruction type

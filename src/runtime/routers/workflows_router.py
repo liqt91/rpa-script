@@ -451,4 +451,25 @@ async def run_workflow_extension_endpoint(wf_id: int, db: Session = Depends(get_
                .all())
 
     result = await run_workflow_extension(wf, nodes)
+
+    # Save run log to Result table
+    try:
+        log = models.Result(
+            task_id=None,
+            url=wf.url or "",
+            total=result.get("completedSteps", 0),
+            data=__import__("json").dumps({
+                "workflow_id": wf_id,
+                "mode": "extension",
+                "success": result.get("success"),
+                "total_steps": result.get("totalSteps"),
+                "failed_step": result.get("failedStep"),
+            }),
+            client_id=None,
+        )
+        db.add(log)
+        db.commit()
+    except Exception as e:
+        print(f"[WorkflowsRouter] failed to save run log: {e}")
+
     return result

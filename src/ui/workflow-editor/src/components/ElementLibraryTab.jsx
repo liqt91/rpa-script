@@ -81,6 +81,17 @@ export default function ElementLibraryTab() {
     };
   }, [capturing]);
 
+  // 智能轮询：只在元素库 tab 激活且页面可见时刷新（跨浏览器/桌面应用唯一可靠方案）
+  useEffect(() => {
+    if (activeTab !== 'elements') return;
+    const tick = () => {
+      if (!document.hidden) loadElements();
+    };
+    tick(); // 立即刷新一次
+    const timer = setInterval(tick, 5000);
+    return () => clearInterval(timer);
+  }, [activeTab]);
+
   const filtered = selectedHost
     ? elements.filter(e => e.hostname === selectedHost)
     : elements;

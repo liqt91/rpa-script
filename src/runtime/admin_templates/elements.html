@@ -133,5 +133,8 @@ document.getElementById('host-list').addEventListener('click', e => {
 });
 
 loadElements();
+
+// Auto-refresh every 10 seconds when page is visible
+setInterval(() => { if (!document.hidden) loadElements(); }, 5000);
 </script>
 {% endblock %}

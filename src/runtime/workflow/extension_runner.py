@@ -22,9 +22,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_STEP_TIMEOUT = 30.0
 
 
+_VAR_PLACEHOLDER_RE = __import__("re").compile(r"\$\{(\w+)\}|\{\{(\w+)\}\}")
+
+
 class ExtensionRunner:
     def __init__(self, client_id: str):
         self.client_id = client_id
+        self.vars: dict[str, Any] = {}
         self.results: list[dict] = []
         self.completed = 0
         self.failed_step: dict | None = None
@@ -47,19 +51,65 @@ class ExtensionRunner:
             "results": self.results,
         }
 
+    @staticmethod
+    def _resolve_vars(obj: Any, vars_dict: dict[str, Any]) -> Any:
+        """Recursively replace ${var} and {{var}} placeholders in strings."""
+        if isinstance(obj, str):
+            def _repl(m):
+                key = m.group(1) or m.group(2)
+                if key in vars_dict:
+                    return str(vars_dict[key])
+                return m.group(0)
+            return _VAR_PLACEHOLDER_RE.sub(_repl, obj)
+        if isinstance(obj, list):
+            return [ExtensionRunner._resolve_vars(item, vars_dict) for item in obj]
+        if isinstance(obj, dict):
+            return {k: ExtensionRunner._resolve_vars(v, vars_dict) for k, v in obj.items()}
+        return obj
+
     async def _execute_instruction(self, instr: dict) -> bool:
         step_id = instr["stepId"]
+        step_type = instr.get("type", "")
         extra = instr.get("extra") or {}
         on_error = extra.get("onError", "stop")
         retry_count = extra.get("retryCount", 0)
         timeout = extra.get("timeout", DEFAULT_STEP_TIMEOUT)
 
+        # Handle setVar locally (backend variable pool)
+        if step_type == "setVar":
+            var_name = extra.get("name", "")
+            var_value = extra.get("value", "")
+            vtype = extra.get("valueType", "string")
+            if vtype == "number":
+                try:
+                    var_value = float(var_value)
+                except (ValueError, TypeError):
+                    pass
+            elif vtype == "bool":
+                var_value = str(var_value).lower() in ("true", "1", "yes")
+            self.vars[var_name] = var_value
+            logger.info(f"[ExtensionRunner] setVar {var_name} = {var_value!r}")
+            self.results.append({"stepId": step_id, "status": "success", "result": {"setVar": var_name}})
+            self.completed += 1
+            return True
+
+        # Resolve variable placeholders in the instruction before sending
+        resolved_instr = self._resolve_vars(instr, self.vars)
+
         last_error = None
         for attempt in range(retry_count + 1):
             try:
-                result = await self._send_and_wait(step_id, instr, timeout)
+                result = await self._send_and_wait(step_id, resolved_instr, timeout)
                 self.results.append({"stepId": step_id, "status": "success", "result": result})
                 self.completed += 1
+
+                # Save results to variable if requested (extracted, navigatedTo, or whole result)
+                save_to_var = (resolved_instr.get("extra") or {}).get("saveToVar")
+                if save_to_var and result:
+                    value = result.get("extracted") or result.get("navigatedTo") or result
+                    self.vars[save_to_var] = value
+                    logger.info(f"[ExtensionRunner] saved result to var {save_to_var}: {value!r}")
+
                 return True
             except Exception as e:
                 last_error = str(e)

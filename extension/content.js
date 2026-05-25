@@ -18,24 +18,98 @@
 
   function resolveLocator(locator, locatorType) {
     if (!locator) return document;
+
+    // Normalize css:/xpath: prefixes
+    if (locator.startsWith('css:')) {
+      locator = locator.slice(4);
+      locatorType = 'css';
+    }
+    if (locator.startsWith('xpath:')) {
+      locator = locator.slice(6);
+      locatorType = 'xpath';
+    }
+
     switch (locatorType) {
       case 'xpath':
         return document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+
       case 'id':
-        return document.getElementById(locator);
+        return locator.startsWith('#')
+          ? document.querySelector(locator)
+          : document.getElementById(locator);
+
       case 'class':
-        return document.querySelector('.' + locator);
-      case 'text':
+        return document.querySelector(locator.startsWith('.') ? locator : '.' + locator);
+
+      case 'text': {
+        const text = locator.startsWith('text=') ? locator.slice(5) : locator;
         return document.evaluate(
-          `//*[contains(text(), ${JSON.stringify(locator)})]`,
+          `//*[contains(text(), ${JSON.stringify(text)})]`,
           document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
         ).singleNodeValue;
+      }
+
+      case 'tag_text': {
+        const m = locator.match(/^tag:(\w+)@text\(\)=(.+)$/);
+        if (m) {
+          return document.evaluate(
+            `//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`,
+            document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
+          ).singleNodeValue;
+        }
+        break;
+      }
+
       case 'data-attr':
-        return document.querySelector(`[data-${locator}]`);
+      case 'aria':
+      case 'name': {
+        let l = locator;
+        if (l.startsWith('@')) l = l.slice(1);
+        const eq = l.indexOf('=');
+        if (eq > 0) {
+          const attr = l.slice(0, eq);
+          const val = l.slice(eq + 1);
+          return document.querySelector(`[${attr}=${JSON.stringify(val)}]`);
+        }
+        return document.querySelector(`[data-${l}]`);
+      }
+
+      case 'tag_attr': {
+        const m = locator.match(/^tag:(\w+)@(\w+)=(.+)$/);
+        if (m) {
+          return document.querySelector(`${m[1]}[${m[2]}=${JSON.stringify(m[3])}]`);
+        }
+        break;
+      }
+
+      case 'tag_class': {
+        const m = locator.match(/^tag:(\w+)@class=(.+)$/);
+        if (m) {
+          return document.querySelector(`${m[1]}.${m[2]}`);
+        }
+        break;
+      }
+
+      case 'multi_attr': {
+        const parts = locator.match(/@@class:([^@]+)/g);
+        if (parts) {
+          const cls = parts.map(p => '.' + p.replace('@@class:', '')).join('');
+          return document.querySelector(cls);
+        }
+        break;
+      }
+
       case 'css':
       default:
         return document.querySelector(locator);
     }
+
+    // Fallback chain
+    try { return document.querySelector(locator); } catch (e) {}
+    try {
+      return document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    } catch (e) {}
+    return null;
   }
 
   // ─── Step handlers ───────────────────────────────────────────────

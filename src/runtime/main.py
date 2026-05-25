@@ -63,28 +63,41 @@ def _load_ai_apps_from_db(db):
 
 
 def _sync_commands_to_db(db):
-    """首次启动：将 commands.py 中的内置指令同步到数据库。"""
+    """启动时：将 commands.py 中的内置指令同步到数据库（已存在的覆盖字段定义）。"""
     from .workflow import commands
     import json
 
-    existing_types = {row.type for row in db.query(models.WorkflowCommand.type).all()}
+    existing = {row.type: row for row in db.query(models.WorkflowCommand).all()}
     for type_name, cmd in commands.COMMAND_REGISTRY.items():
-        if type_name in existing_types:
-            continue
-        db.add(models.WorkflowCommand(
-            type=type_name,
-            label=cmd.get("label", type_name),
-            category=cmd.get("category", "其他"),
-            icon=cmd.get("icon", "fa-circle"),
-            icon_color=cmd.get("iconColor", "text-gray-500"),
-            bg_color=cmd.get("bgColor", "bg-gray-50"),
-            is_container=1 if cmd.get("isContainer") else 0,
-            is_branch=1 if cmd.get("isBranch") else 0,
-            is_structural=1 if cmd.get("isStructural") else 0,
-            fields=json.dumps(cmd.get("fields", [])),
-            is_builtin=1,
-            enabled=1,
-        ))
+        if type_name in existing:
+            # Update built-in command fields/metadata
+            row = existing[type_name]
+            row.label = cmd.get("label", type_name)
+            row.category = cmd.get("category", "其他")
+            row.icon = cmd.get("icon", "fa-circle")
+            row.icon_color = cmd.get("iconColor", "text-gray-500")
+            row.bg_color = cmd.get("bgColor", "bg-gray-50")
+            row.is_container = 1 if cmd.get("isContainer") else 0
+            row.is_branch = 1 if cmd.get("isBranch") else 0
+            row.is_structural = 1 if cmd.get("isStructural") else 0
+            row.fields = json.dumps(cmd.get("fields", []))
+            row.is_builtin = 1
+            row.enabled = 1
+        else:
+            db.add(models.WorkflowCommand(
+                type=type_name,
+                label=cmd.get("label", type_name),
+                category=cmd.get("category", "其他"),
+                icon=cmd.get("icon", "fa-circle"),
+                icon_color=cmd.get("iconColor", "text-gray-500"),
+                bg_color=cmd.get("bgColor", "bg-gray-50"),
+                is_container=1 if cmd.get("isContainer") else 0,
+                is_branch=1 if cmd.get("isBranch") else 0,
+                is_structural=1 if cmd.get("isStructural") else 0,
+                fields=json.dumps(cmd.get("fields", [])),
+                is_builtin=1,
+                enabled=1,
+            ))
     db.commit()
 
 

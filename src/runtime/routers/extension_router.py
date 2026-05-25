@@ -8,8 +8,23 @@ from fastapi import APIRouter, WebSocket
 from typing import Optional
 
 from ..websocket_manager import ext_manager
+from src.service.elements_service import save_captured_element
 
 router = APIRouter(prefix="/api/extension", tags=["extension"])
+
+
+# ── WebSocket 消息回调 ──
+
+async def _on_capture_element(payload: dict, client_id: str):
+    """处理扩展上报的捕获元素，委托 service 层保存"""
+    el = await save_captured_element(payload)
+    if el:
+        print(f"[Extension] 捕获元素已保存: {el.id} {el.name}")
+    else:
+        print("[Extension] 保存捕获元素失败")
+
+
+ext_manager.on("captureElement", _on_capture_element)
 
 
 # ── WebSocket 长连接 ──
