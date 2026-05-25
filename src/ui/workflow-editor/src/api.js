@@ -60,6 +60,7 @@ export const api = {
   }),
   exportPython: (wfId) => request(`/api/workflows/${wfId}/export/python`),
   runWorkflow: (wfId) => request(`/api/workflows/${wfId}/run`, { method: 'POST' }),
+  runWorkflowExtension: (wfId) => request(`/api/workflows/${wfId}/run/extension`, { method: 'POST' }),
   getCommands: () => request('/api/workflows/commands'),
 
   // Elements
