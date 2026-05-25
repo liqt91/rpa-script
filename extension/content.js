@@ -26,7 +26,6 @@
       case 'class':
         return document.querySelector('.' + locator);
       case 'text':
-        // Simple text matching via XPath
         return document.evaluate(
           `//*[contains(text(), ${JSON.stringify(locator)})]`,
           document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
@@ -53,7 +52,6 @@
       const el = resolveLocator(locator, locatorType);
       if (!el) throw new Error(`click: element not found: ${locator}`);
 
-      // Try native click first, fallback to MouseEvent
       if (el.click) {
         el.click();
       } else {
@@ -80,6 +78,12 @@
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
 
+      // If inputAndPressEnter, also dispatch Enter key
+      if (extra?.pressEnter) {
+        el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+      }
+
       return { input: true, length: text.length };
     },
 
@@ -89,7 +93,11 @@
 
       const attr = extra?.attribute;
       let value;
-      if (attr) {
+      if (attr === 'innerHTML') {
+        value = el.innerHTML;
+      } else if (attr === 'value') {
+        value = el.value;
+      } else if (attr) {
         value = el.getAttribute(attr);
       } else {
         value = el.textContent?.trim() ?? '';
@@ -123,6 +131,75 @@
       window.history.back();
       return { wentBack: true };
     },
+
+    goForward() {
+      window.history.forward();
+      return { wentForward: true };
+    },
+
+    refresh() {
+      window.location.reload();
+      return { refreshed: true };
+    },
+
+    pressKey({ extra }) {
+      const key = extra?.key || 'Enter';
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+      return { pressed: key };
+    },
+
+    hover({ locator, locatorType, extra }) {
+      const el = resolveLocator(locator, locatorType);
+      if (!el) throw new Error(`hover: element not found: ${locator}`);
+      el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window }));
+      el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window }));
+      return { hovered: true, tagName: el.tagName };
+    },
+
+    clearInput({ locator, locatorType, extra }) {
+      const el = resolveLocator(locator, locatorType);
+      if (!el) throw new Error(`clearInput: element not found: ${locator}`);
+      el.value = '';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return { cleared: true };
+    },
+
+    selectOption({ locator, locatorType, extra }) {
+      const el = resolveLocator(locator, locatorType);
+      if (!el) throw new Error(`selectOption: element not found: ${locator}`);
+      const value = extra?.value;
+      if (!value) throw new Error('selectOption: value required');
+
+      // Try select.by_value first
+      let option = el.querySelector(`option[value="${CSS.escape(value)}"]`);
+      if (!option) {
+        // Fallback: select.by_text
+        option = Array.from(el.options).find(o => o.textContent.trim() === value);
+      }
+      if (option) {
+        el.value = option.value;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return { selected: option.value, text: option.textContent };
+      }
+      throw new Error(`selectOption: option "${value}" not found`);
+    },
+
+    newTab({ extra }) {
+      const url = extra?.url;
+      if (!url) throw new Error('newTab: url required');
+      window.open(url, '_blank');
+      return { opened: url };
+    },
+
+    executeJs({ extra }) {
+      const script = extra?.script;
+      if (!script) throw new Error('executeJs: script required');
+      // eslint-disable-next-line no-eval
+      const result = eval(script);
+      return { executed: true, result: String(result) };
+    },
   };
 
   // ─── Message listener ────────────────────────────────────────────
@@ -139,14 +216,13 @@
       return false;
     }
 
-    // Execute handler (sync or async)
     try {
       const result = handler({ locator, locatorType, extra: extra || {} });
       if (result instanceof Promise) {
         result
           .then((r) => sendResponse({ status: 'success', result: r }))
           .catch((e) => sendResponse({ status: 'error', error: e.message }));
-        return true; // Keep channel open for async
+        return true;
       }
       sendResponse({ status: 'success', result });
     } catch (e) {

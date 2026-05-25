@@ -19,6 +19,34 @@ without tree traversal.
 import json
 from src.repo import runtime_models as models
 
+# Commands that the content script can execute directly.
+# Others (setVar, log, pushItem, return, custom, takeScreenshot, closeTab)
+# are skipped because they need backend interpretation or browser APIs
+# unavailable to content scripts.
+_SUPPORTED_TYPES = {
+    "navigate", "click", "input", "inputAndPressEnter",
+    "getText", "getAttr", "getHtml", "getValue",
+    "waitForElement", "sleep",
+    "scrollToBottom", "scrollToTop", "scrollBy",
+    "goBack", "goForward", "refresh",
+    "pressKey", "hover", "clearInput", "selectOption",
+    "newTab", "executeJs",
+}
+
+# Mapping from workflow command type -> content-script instruction type
+_TYPE_MAP = {
+    "inputAndPressEnter": "input",
+    "getText": "extract",
+    "getAttr": "extract",
+    "getHtml": "extract",
+    "getValue": "extract",
+    "waitForElement": "wait",
+    "sleep": "wait",
+    "scrollToBottom": "scroll",
+    "scrollToTop": "scroll",
+    "scrollBy": "scroll",
+}
+
 
 def _build_by_parent(nodes: list[models.WorkflowNode]) -> dict:
     """Group nodes by parent_id."""
@@ -56,13 +84,8 @@ def _emit_instruction(node: models.WorkflowNode, step_index: int) -> dict:
 def build_instructions(nodes: list[models.WorkflowNode]) -> list[dict]:
     """
     Flatten a node tree into a linear instruction sequence.
-
-n    Container nodes (if/for/loop/try) are emitted as:
-        { type: "enterBlock", blockType: "if", condition: ... }
-        ...children...
-        { type: "exitBlock", blockType: "if" }
-
-n    The extension runner is responsible for interpreting enterBlock/exitBlock.
+    Only emits instructions for types supported by the content script.
+    Container nodes are flattened (children are emitted directly).
     """
     by_parent = _build_by_parent(nodes)
     instructions: list[dict] = []
@@ -76,33 +99,35 @@ n    The extension runner is responsible for interpreting enterBlock/exitBlock.
             is_container = cmd_info.get("isContainer", False) if cmd_info else False
 
             if not is_container and child.type in ("if", "for", "loop", "try", "while"):
-                # Fallback: check type name for container detection
                 is_container = True
 
             if is_container:
-                # enterBlock marker
-                step_counter[0] += 1
-                instructions.append({
-                    "stepId": f"step_{step_counter[0]}",
-                    "type": "enterBlock",
-                    "blockType": child.type,
-                    "locator": child.locator,
-                    "locatorType": child.locator_type or "css",
-                    "extra": extra,
-                })
-                # Recurse children
+                # Flatten: just recurse children (no enterBlock/exitBlock markers)
                 _walk(child.id, depth + 1)
-                # exitBlock marker
-                step_counter[0] += 1
-                instructions.append({
-                    "stepId": f"step_{step_counter[0]}",
-                    "type": "exitBlock",
-                    "blockType": child.type,
-                    "extra": {},
-                })
+            elif child.type not in _SUPPORTED_TYPES:
+                # Skip unsupported commands (setVar, log, pushItem, etc.)
+                continue
             else:
                 step_counter[0] += 1
-                instructions.append(_emit_instruction(child, step_counter[0]))
+                instr = _emit_instruction(child, step_counter[0])
+                # Remap type for content script compatibility
+                instr["type"] = _TYPE_MAP.get(child.type, child.type)
+                # Adjust extra for remapped types
+                if child.type == "sleep":
+                    instr["extra"] = {**extra, "seconds": extra.get("seconds", 1)}
+                elif child.type in ("scrollToBottom", "scrollToTop"):
+                    instr["extra"] = {**extra, "direction": "bottom" if child.type == "scrollToBottom" else "top"}
+                elif child.type == "scrollBy":
+                    instr["extra"] = {**extra, "direction": "down" if (extra.get("y") or 500) > 0 else "up", "amount": abs(extra.get("y", 500))}
+                elif child.type == "getText":
+                    instr["extra"] = {**extra, "attribute": None}
+                elif child.type == "getAttr":
+                    instr["extra"] = {**extra, "attribute": extra.get("attrName")}
+                elif child.type == "getHtml":
+                    instr["extra"] = {**extra, "attribute": "innerHTML"}
+                elif child.type == "getValue":
+                    instr["extra"] = {**extra, "attribute": "value"}
+                instructions.append(instr)
 
     _walk(None)
     return instructions
