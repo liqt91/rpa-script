@@ -5,3 +5,7 @@ src/service/local_jobs/_generated/
 src/runtime/static/workflow-editor/assets/
 src/runtime/static/workflow-editor/*.js
 src/runtime/static/workflow-editor/*.map
+
+# Python cache
+__pycache__/
+*.pyc
