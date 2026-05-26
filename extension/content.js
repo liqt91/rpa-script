@@ -16,7 +16,85 @@
 
   // ─── Locator resolution ──────────────────────────────────────────
 
-  function resolveLocator(locator, locatorType) {
+  function isVisible(el) {
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    return el.offsetParent !== null && style.visibility !== 'hidden' && style.display !== 'none';
+  }
+
+  function inferLocatorType(locator) {
+    if (locator.startsWith('css:')) return 'css';
+    if (locator.startsWith('xpath:')) return 'xpath';
+    if (locator.startsWith('tag:') && locator.includes('@class=')) return 'tag_class';
+    if (locator.startsWith('tag:') && locator.includes('@text()=')) return 'tag_text';
+    if (locator.startsWith('tag:') && locator.includes('@')) return 'tag_attr';
+    if (locator.startsWith('@@class:')) return 'multi_attr';
+    if (locator.startsWith('text=')) return 'text';
+    if (locator.startsWith('@')) return 'data-attr';
+    if (locator.startsWith('#')) return 'id';
+    if (locator.startsWith('.')) return 'class';
+    if (locator.startsWith('//')) return 'xpath';
+    return null;
+  }
+
+  function resolveAllLocators(locator, locatorType) {
+    if (!locator) return [];
+    if (locator.startsWith('css:')) { locator = locator.slice(4); locatorType = 'css'; }
+    if (locator.startsWith('xpath:')) { locator = locator.slice(6); locatorType = 'xpath'; }
+    const inferred = inferLocatorType(locator);
+    if (inferred && inferred !== locatorType) locatorType = inferred;
+
+    if (locatorType === 'xpath') {
+      const r = document.evaluate(locator, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      const arr = [];
+      for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+      return arr;
+    }
+    if (locatorType === 'text') {
+      const text = locator.startsWith('text=') ? locator.slice(5) : locator;
+      const r = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      const arr = [];
+      for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+      return arr;
+    }
+    if (locatorType === 'tag_text') {
+      const m = locator.match(/^tag:(\w+)@text\(\)=(.+)$/);
+      if (m) {
+        const r = document.evaluate(`//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        const arr = [];
+        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        return arr;
+      }
+      return [];
+    }
+
+    let selector = locator;
+    if (locatorType === 'id') selector = locator.startsWith('#') ? locator : '#' + locator;
+    else if (locatorType === 'class') selector = locator.startsWith('.') ? locator : '.' + locator;
+    else if (locatorType === 'data-attr' || locatorType === 'aria' || locatorType === 'name') {
+      let l = locator;
+      if (l.startsWith('@')) l = l.slice(1);
+      const eq = l.indexOf('=');
+      if (eq > 0) {
+        selector = `[${l.slice(0, eq)}=${JSON.stringify(l.slice(eq + 1))}]`;
+      } else {
+        selector = `[data-${l}]`;
+      }
+    } else if (locatorType === 'tag_attr') {
+      const m = locator.match(/^tag:(\w+)@(\w+)=(.+)$/);
+      if (m) selector = `${m[1]}[${m[2]}=${JSON.stringify(m[3])}]`;
+    } else if (locatorType === 'tag_class') {
+      const m = locator.match(/^tag:(\w+)@class=(.+)$/);
+      if (m) selector = `${m[1]}.${m[2]}`;
+    } else if (locatorType === 'multi_attr') {
+      const parts = locator.match(/@@class:([^@]+)/g);
+      if (parts) selector = parts.map(p => '.' + p.replace('@@class:', '')).join('');
+    }
+    try { return Array.from(document.querySelectorAll(selector)); } catch (e) {}
+    return [];
+  }
+
+  function resolveLocator(locator, locatorType, visibleOnly) {
     if (!locator) return document;
 
     // Normalize css:/xpath: prefixes
@@ -28,38 +106,32 @@
       locator = locator.slice(6);
       locatorType = 'xpath';
     }
+    const inferred = inferLocatorType(locator);
+    if (inferred && inferred !== locatorType) locatorType = inferred;
 
+    let el = null;
     switch (locatorType) {
       case 'xpath':
-        return document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-
+        el = document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        break;
       case 'id':
-        return locator.startsWith('#')
-          ? document.querySelector(locator)
-          : document.getElementById(locator);
-
+        el = locator.startsWith('#') ? document.querySelector(locator) : document.getElementById(locator);
+        break;
       case 'class':
-        return document.querySelector(locator.startsWith('.') ? locator : '.' + locator);
-
+        el = document.querySelector(locator.startsWith('.') ? locator : '.' + locator);
+        break;
       case 'text': {
         const text = locator.startsWith('text=') ? locator.slice(5) : locator;
-        return document.evaluate(
-          `//*[contains(text(), ${JSON.stringify(text)})]`,
-          document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
-        ).singleNodeValue;
+        el = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        break;
       }
-
       case 'tag_text': {
         const m = locator.match(/^tag:(\w+)@text\(\)=(.+)$/);
         if (m) {
-          return document.evaluate(
-            `//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`,
-            document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
-          ).singleNodeValue;
+          el = document.evaluate(`//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
         }
         break;
       }
-
       case 'data-attr':
       case 'aria':
       case 'name': {
@@ -67,49 +139,47 @@
         if (l.startsWith('@')) l = l.slice(1);
         const eq = l.indexOf('=');
         if (eq > 0) {
-          const attr = l.slice(0, eq);
-          const val = l.slice(eq + 1);
-          return document.querySelector(`[${attr}=${JSON.stringify(val)}]`);
+          el = document.querySelector(`[${l.slice(0, eq)}=${JSON.stringify(l.slice(eq + 1))}]`);
+        } else {
+          el = document.querySelector(`[data-${l}]`);
         }
-        return document.querySelector(`[data-${l}]`);
+        break;
       }
-
       case 'tag_attr': {
         const m = locator.match(/^tag:(\w+)@(\w+)=(.+)$/);
-        if (m) {
-          return document.querySelector(`${m[1]}[${m[2]}=${JSON.stringify(m[3])}]`);
-        }
+        if (m) el = document.querySelector(`${m[1]}[${m[2]}=${JSON.stringify(m[3])}]`);
         break;
       }
-
       case 'tag_class': {
         const m = locator.match(/^tag:(\w+)@class=(.+)$/);
-        if (m) {
-          return document.querySelector(`${m[1]}.${m[2]}`);
-        }
+        if (m) el = document.querySelector(`${m[1]}.${m[2]}`);
         break;
       }
-
       case 'multi_attr': {
         const parts = locator.match(/@@class:([^@]+)/g);
         if (parts) {
           const cls = parts.map(p => '.' + p.replace('@@class:', '')).join('');
-          return document.querySelector(cls);
+          el = document.querySelector(cls);
         }
         break;
       }
-
       case 'css':
       default:
-        return document.querySelector(locator);
+        el = document.querySelector(locator);
     }
 
-    // Fallback chain
-    try { return document.querySelector(locator); } catch (e) {}
-    try {
-      return document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    } catch (e) {}
-    return null;
+    if (!el) {
+      try { el = document.querySelector(locator); } catch (e) {}
+      try { el = document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; } catch (e) {}
+    }
+
+    if (!el || !visibleOnly) return el;
+    if (!isVisible(el)) {
+      const all = resolveAllLocators(locator, locatorType);
+      const v = all.find(isVisible);
+      if (v) return v;
+    }
+    return el;
   }
 
   // ─── Step handlers ───────────────────────────────────────────────
@@ -123,7 +193,7 @@
     },
 
     click({ locator, locatorType, extra }) {
-      const el = resolveLocator(locator, locatorType);
+      const el = resolveLocator(locator, locatorType, extra?.visibleOnly);
       if (!el) throw new Error(`click: element not found: ${locator}`);
 
       if (el.click) {
@@ -136,7 +206,7 @@
     },
 
     input({ locator, locatorType, extra }) {
-      const el = resolveLocator(locator, locatorType);
+      const el = resolveLocator(locator, locatorType, extra?.visibleOnly);
       if (!el) throw new Error(`input: element not found: ${locator}`);
 
       const text = extra?.text ?? '';
@@ -162,7 +232,7 @@
     },
 
     extract({ locator, locatorType, extra }) {
-      const el = resolveLocator(locator, locatorType);
+      const el = resolveLocator(locator, locatorType, extra?.visibleOnly);
       if (!el) throw new Error(`extract: element not found: ${locator}`);
 
       const attr = extra?.attribute;
@@ -224,7 +294,7 @@
     },
 
     hover({ locator, locatorType, extra }) {
-      const el = resolveLocator(locator, locatorType);
+      const el = resolveLocator(locator, locatorType, extra?.visibleOnly);
       if (!el) throw new Error(`hover: element not found: ${locator}`);
       el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window }));
       el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window }));
@@ -232,7 +302,7 @@
     },
 
     clearInput({ locator, locatorType, extra }) {
-      const el = resolveLocator(locator, locatorType);
+      const el = resolveLocator(locator, locatorType, extra?.visibleOnly);
       if (!el) throw new Error(`clearInput: element not found: ${locator}`);
       el.value = '';
       el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -241,7 +311,7 @@
     },
 
     selectOption({ locator, locatorType, extra }) {
-      const el = resolveLocator(locator, locatorType);
+      const el = resolveLocator(locator, locatorType, extra?.visibleOnly);
       if (!el) throw new Error(`selectOption: element not found: ${locator}`);
       const value = extra?.value;
       if (!value) throw new Error('selectOption: value required');

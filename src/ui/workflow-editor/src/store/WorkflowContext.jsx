@@ -15,6 +15,10 @@ const initialState = {
   commands: null,
   commandsLoading: true,
   isDirty: false,
+  runStatus: 'idle', // 'idle' | 'running' | 'error' | 'completed'
+  runningStepId: null,
+  stepErrors: {},
+  runLogs: [],
 };
 
 function buildTree(flatNodes) {
@@ -113,6 +117,29 @@ function reducer(state, action) {
       console.log(`[reducer] REPLACE_NODES count=${nodes.length}`);
       return { ...state, nodes, treeNodes: buildTree(nodes), isDirty: true };
     }
+    case 'RUN_START':
+      return { ...state, runStatus: 'running', runningStepId: null, stepErrors: {} };
+    case 'RUN_STEP':
+      return { ...state, runningStepId: action.payload.nodeId ?? null };
+    case 'RUN_STEP_ERROR':
+      return {
+        ...state,
+        runStatus: 'error',
+        runningStepId: action.payload.nodeId ?? null,
+        stepErrors: { ...state.stepErrors, [action.payload.nodeId]: action.payload.error },
+      };
+    case 'RUN_DONE':
+      return {
+        ...state,
+        runStatus: action.payload.success ? 'completed' : 'error',
+        runningStepId: null,
+      };
+    case 'RUN_RESET':
+      return { ...state, runStatus: 'idle', runningStepId: null, stepErrors: {} };
+    case 'APPEND_RUN_LOG':
+      return { ...state, runLogs: [...state.runLogs, action.payload] };
+    case 'CLEAR_RUN_LOGS':
+      return { ...state, runLogs: [] };
     default:
       return state;
   }

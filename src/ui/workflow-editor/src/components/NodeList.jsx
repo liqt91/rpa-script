@@ -27,6 +27,9 @@ export default function NodeList() {
     saveNode,
     replaceNodes,
     wfId,
+    runStatus,
+    runningStepId,
+    stepErrors,
   } = useWorkflow();
   const [dragOver, setDragOver] = useState(false);
   const [insertIndex, setInsertIndex] = useState(null);
@@ -239,6 +242,8 @@ export default function NodeList() {
                         NODE_TYPE_MAP={NODE_TYPE_MAP}
                         onSelect={handleSelect}
                         onDelete={handleDelete}
+                        isRunning={node.id === runningStepId}
+                        runError={stepErrors[node.id] || null}
                       />
                       {/* 容器节点下方的子节点插槽 */}
                       {typeInfo.isContainer && !hasChildren && (
@@ -264,6 +269,8 @@ export default function NodeList() {
                   isSelected={false}
                   isOverlay
                   NODE_TYPE_MAP={NODE_TYPE_MAP}
+                  isRunning={false}
+                  runError={null}
                 />
               ) : null}
             </DragOverlay>
@@ -285,7 +292,7 @@ export default function NodeList() {
 
 // ─── 子组件 ───────────────────────────────────────────────────
 
-function SortableNode({ node, index, isSelected, NODE_TYPE_MAP, onSelect, onDelete }) {
+function SortableNode({ node, index, isSelected, NODE_TYPE_MAP, onSelect, onDelete, isRunning, runError }) {
   const {
     listeners,
     attributes,
@@ -312,15 +319,20 @@ function SortableNode({ node, index, isSelected, NODE_TYPE_MAP, onSelect, onDele
         NODE_TYPE_MAP={NODE_TYPE_MAP}
         onSelect={onSelect}
         onDelete={onDelete}
+        isRunning={isRunning}
+        runError={runError}
       />
     </div>
   );
 }
 
-function NodeRow({ node, index, isSelected, listeners, attributes, NODE_TYPE_MAP, onSelect, onDelete, isOverlay }) {
+function NodeRow({ node, index, isSelected, listeners, attributes, NODE_TYPE_MAP, onSelect, onDelete, isOverlay, isRunning, runError }) {
   const typeInfo = NODE_TYPE_MAP[node.type] || {};
   const depth = node.depth || 0;
   const indent = depth * 20;
+
+  const runningCls = isRunning ? 'step-running' : '';
+  const errorCls = runError ? 'step-error' : '';
 
   return (
     <div
@@ -328,9 +340,12 @@ function NodeRow({ node, index, isSelected, listeners, attributes, NODE_TYPE_MAP
         step-item flex items-start gap-2 px-3 py-2.5 rounded cursor-pointer relative
         ${isSelected ? 'step-selected' : 'hover:bg-[#f5f5f5]'}
         ${isOverlay ? 'bg-white shadow-lg border border-[#1677ff]' : ''}
+        ${runningCls}
+        ${errorCls}
       `}
       style={{ marginLeft: indent }}
       onClick={() => onSelect && onSelect(node.id)}
+      title={runError || ''}
     >
       {/* 缩进竖线 — 每层 depth 一条 */}
       {Array.from({ length: depth }).map((_, i) => (
@@ -372,7 +387,14 @@ function NodeRow({ node, index, isSelected, listeners, attributes, NODE_TYPE_MAP
         <i className={`fas ${typeInfo.icon || 'fa-circle'} ${typeInfo.iconColor || 'text-gray-400'} text-xs`}></i>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium text-gray-800">{typeInfo.label || node.type}</div>
+        <div className="flex items-center gap-1.5">
+          <div className="text-xs font-medium text-gray-800">{typeInfo.label || node.type}</div>
+          {runError && (
+            <span className="text-[10px] text-red-600 bg-red-100 px-1 rounded truncate max-w-[200px]" title={runError}>
+              {runError}
+            </span>
+          )}
+        </div>
         <div className="text-[11px] text-gray-500 mt-0.5 truncate">{getNodeDesc(node, NODE_TYPE_MAP)}</div>
       </div>
       {isSelected && onDelete && (

@@ -2,13 +2,15 @@
 Workflow CRUD + Node management + Python export
 """
 
+import asyncio
 import json
 import os
 import subprocess
 import sys
 import time
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from .. import schemas, auth
@@ -17,6 +19,7 @@ from src.config import runtime_config as config
 from ..workflow.commands import COMMAND_REGISTRY, list_categories, list_commands_by_category, get_container_types, get_branch_types
 from ..workflow.exporter import build_python
 from ..workflow.extension_runner import run_workflow_extension
+from src.providers import run_progress
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -435,11 +438,49 @@ def run_workflow(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.ge
         }
 
 
+@router.get("/{wf_id}/run/stream")
+async def run_workflow_stream(wf_id: int, run_id: str = Query(...), user=Depends(auth.get_current_user)):
+    """SSE stream of workflow execution progress.
+    Connect before or concurrently with POST /run/extension.
+    """
+    queue = run_progress.get(run_id)
+    if not queue:
+        # Poll up to 10s for the runner to start and register its queue
+        for _ in range(200):
+            queue = run_progress.get(run_id)
+            if queue:
+                break
+            await asyncio.sleep(0.05)
+    if not queue:
+        async def _empty():
+            yield f"data: {json.dumps({'type': 'error', 'error': 'Run not found or already finished'})}\n\n"
+        return StreamingResponse(_empty(), media_type="text/event-stream")
+
+    async def event_generator():
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=60.0)
+                yield f"data: {json.dumps(event)}\n\n"
+                if event.get("type") == "done":
+                    break
+            except asyncio.TimeoutError:
+                yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+            except Exception:
+                break
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @router.post("/{wf_id}/run/extension")
-async def run_workflow_extension_endpoint(wf_id: int, db: Session = Depends(get_db),
-                                           user=Depends(auth.get_current_user)):
+async def run_workflow_extension_endpoint(
+    wf_id: int,
+    run_id: str = Query(default=""),
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user)
+):
     """Run workflow via browser extension (WebSocket).
     Requires an active extension connection.
+    Supply run_id (e.g. a UUID) so the matching SSE stream can receive progress.
     """
     wf = db.get(models.Workflow, wf_id)
     if not wf:
@@ -450,7 +491,7 @@ async def run_workflow_extension_endpoint(wf_id: int, db: Session = Depends(get_
                .order_by(models.WorkflowNode.order)
                .all())
 
-    result = await run_workflow_extension(wf, nodes)
+    result = await run_workflow_extension(wf, nodes, run_id=run_id or None)
 
     # Save run log to Result table
     try:
@@ -458,7 +499,7 @@ async def run_workflow_extension_endpoint(wf_id: int, db: Session = Depends(get_
             task_id=None,
             url=wf.url or "",
             total=result.get("completedSteps", 0),
-            data=__import__("json").dumps({
+            data=json.dumps({
                 "workflow_id": wf_id,
                 "mode": "extension",
                 "success": result.get("success"),

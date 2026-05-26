@@ -4,6 +4,7 @@ FastAPI 入口
 """
 
 import json
+import logging
 import os
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -102,12 +103,14 @@ def _sync_commands_to_db(db):
 
 
 def _load_commands_from_db(db):
-    """从数据库读取指令配置，覆盖 COMMAND_REGISTRY（支持热更新元数据）。"""
+    """从数据库读取指令配置，合并到 COMMAND_REGISTRY（保留代码中定义的额外字段如 runtimes）。"""
     from .workflow import commands
     import json
 
     for row in db.query(models.WorkflowCommand).filter(models.WorkflowCommand.enabled == 1).all():
+        existing = commands.COMMAND_REGISTRY.get(row.type, {})
         commands.COMMAND_REGISTRY[row.type] = {
+            **existing,
             "label": row.label,
             "category": row.category,
             "icon": row.icon,
@@ -141,6 +144,8 @@ async def lifespan(app: FastAPI):
         db.close()
     yield
 
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 app = FastAPI(title="分布式脚本执行平台", version="1.0", lifespan=lifespan)
 

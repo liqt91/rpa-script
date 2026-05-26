@@ -52,6 +52,21 @@ body {
 }
 .run-pulse { animation: pulse-black 2s infinite; }
 
+/* 步骤运行中整行高亮脉冲 */
+@keyframes step-pulse-bg {
+  0%, 100% { background-color: rgba(34, 197, 94, 0.18); }
+  50% { background-color: rgba(34, 197, 94, 0.35); }
+}
+.step-running {
+  animation: step-pulse-bg 1s infinite ease-in-out;
+  border-left: 3px solid #22c55e !important;
+}
+/* 步骤错误整行高亮 */
+.step-error {
+  background-color: rgba(239, 68, 68, 0.12);
+  border-left: 3px solid #ef4444 !important;
+}
+
 /* 拖拽分隔线 */
 .resize-handle-v {
   width: 4px;

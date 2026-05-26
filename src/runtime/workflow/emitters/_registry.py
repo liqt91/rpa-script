@@ -21,8 +21,11 @@ def _loc_call(node: models.WorkflowNode, extra: dict) -> str:
     """Build tab.ele('...') style locator call."""
     loc = node.locator or ""
     method = node.method or "ele"
+    visible_only = extra.get("visibleOnly", True)
     if not loc:
         return "tab"
+    if visible_only and method == "ele":
+        return f"_ele_visible(tab, {_py_str(loc)})"
     return f"tab.{method}({_py_str(loc)})"
 
 

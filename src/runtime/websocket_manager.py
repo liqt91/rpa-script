@@ -78,6 +78,10 @@ class ExtensionManager:
     def is_any_online(self) -> bool:
         return len(self._connections) > 0
 
+    def list_client_ids(self) -> list[str]:
+        """Return a list of currently connected extension client IDs."""
+        return list(self._connections.keys())
+
     # ── 按浏览器过滤 ──
 
     def connections_by_browser(self, browser_type: str) -> List[ExtensionConnection]:

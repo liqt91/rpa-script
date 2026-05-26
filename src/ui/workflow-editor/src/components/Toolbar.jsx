@@ -197,7 +197,7 @@ function exportAsNaturalLanguage(nodes, workflow, typeMap) {
 }
 
 export default function Toolbar() {
-  const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP } = useWorkflow();
+  const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch } = useWorkflow();
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState(null);
   const [runMode, setRunMode] = useState('extension'); // 'python' | 'extension'
@@ -280,18 +280,69 @@ export default function Toolbar() {
 
     setRunning(true);
     setRunResult(null);
+    dispatch({ type: 'RUN_START' });
+    dispatch({ type: 'CLEAR_RUN_LOGS' });
+
+    if (runMode === 'extension') {
+      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（扩展模式）' } });
+    } else {
+      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（Python 模式）' } });
+    }
+
+    let es = null;
+    const runId = crypto.randomUUID();
+
+    if (runMode === 'extension') {
+      // Open SSE stream before POST so we don't miss early events
+      es = new EventSource(`/api/workflows/${wfId}/run/stream?run_id=${runId}`);
+      es.onmessage = (e) => {
+        try {
+          const evt = JSON.parse(e.data);
+          const t = new Date().toLocaleTimeString('zh-CN');
+          if (evt.type === 'stepStart') {
+            dispatch({ type: 'RUN_STEP', payload: { nodeId: evt.nodeId } });
+          } else if (evt.type === 'stepComplete') {
+            dispatch({ type: 'RUN_STEP', payload: { nodeId: null } });
+            const node = nodes.find(n => n.id === evt.nodeId);
+            const label = node ? (NODE_TYPE_MAP[node.type]?.label || node.type) : evt.stepId;
+            const resultStr = evt.result ? JSON.stringify(evt.result).slice(0, 200) : '完成';
+            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'success', msg: `${label}: ${resultStr}` } });
+          } else if (evt.type === 'stepError') {
+            dispatch({ type: 'RUN_STEP_ERROR', payload: { nodeId: evt.nodeId, error: evt.error } });
+            const node = nodes.find(n => n.id === evt.nodeId);
+            const label = node ? (NODE_TYPE_MAP[node.type]?.label || node.type) : evt.stepId;
+            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'error', msg: `${label}: ${evt.error}` } });
+          } else if (evt.type === 'done') {
+            dispatch({ type: 'RUN_DONE', payload: { success: evt.success } });
+            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: evt.success ? 'success' : 'error', msg: evt.success ? '执行完成' : '执行失败' } });
+            es.close();
+          }
+        } catch (err) {
+          console.error('[Toolbar] SSE parse error', err);
+        }
+      };
+      es.onerror = (err) => {
+        console.error('[Toolbar] SSE error', err);
+      };
+    }
+
     console.log(`[Toolbar] calling runWorkflow mode=${runMode} wfId=${wfId}`);
     try {
       const data = runMode === 'extension'
-        ? await api.runWorkflowExtension(wfId)
+        ? await api.runWorkflowExtension(wfId, runId)
         : await api.runWorkflow(wfId);
       console.log(`[Toolbar] runWorkflow result success=${data.success}`);
       setRunResult(data);
+      dispatch({ type: 'RUN_DONE', payload: { success: data.success } });
     } catch (e) {
       console.error(`[Toolbar] runWorkflow failed: ${e.message}`);
       setRunResult({ success: false, stderr: e.message, stdout: '', returncode: -1 });
+      dispatch({ type: 'RUN_DONE', payload: { success: false } });
     } finally {
       setRunning(false);
+      if (es) {
+        try { es.close(); } catch {}
+      }
     }
   };
 

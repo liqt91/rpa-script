@@ -10,7 +10,7 @@ const BOTTOM_TABS = [
 ];
 
 export default function ElementLibraryTab() {
-  const { elements, loadElements } = useWorkflow();
+  const { elements, loadElements, runLogs, runStatus } = useWorkflow();
   const [hosts, setHosts] = useState([]);
   const [selectedHost, setSelectedHost] = useState('');
   const [activeTab, setActiveTab] = useState('elements');
@@ -204,7 +204,32 @@ export default function ElementLibraryTab() {
 
       {/* 内容区 */}
       <div className="flex-1 flex overflow-hidden">
-        {activeTab === 'elements' ? (
+        {activeTab === 'logs' ? (
+          <div className="flex-1 overflow-y-auto p-2 font-mono text-xs">
+            {runLogs.length === 0 ? (
+              <div className="text-center text-gray-400 py-8">
+                {runStatus === 'running' ? (
+                  <span><i className="fas fa-spinner fa-spin mr-1"></i>等待执行日志...</span>
+                ) : (
+                  <span>暂无运行日志</span>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {runLogs.map((log, i) => (
+                  <div key={i} className={`flex gap-2 px-2 py-1 rounded ${
+                    log.level === 'error' ? 'bg-red-50 text-red-700' :
+                    log.level === 'success' ? 'bg-green-50 text-green-700' :
+                    'text-gray-600'
+                  }`}>
+                    <span className="text-gray-400 shrink-0">{log.time}</span>
+                    <span className="break-all">{log.msg}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'elements' ? (
           <>
             {/* 左侧元素树 */}
             <div className="w-[280px] border-r border-[#e8e8e8] overflow-y-auto p-2">

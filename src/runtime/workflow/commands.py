@@ -83,6 +83,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "navigate", "local": False}},
         "fields": [
             {"name": "url", "label": "网址", "type": "text", "required": True, "placeholder": "https://..."},
             {"name": "waitLoad", "label": "等待加载完成", "type": "bool", "default": True},
@@ -97,6 +98,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "goBack", "local": False}},
         "fields": [],
     },
     "goForward": {
@@ -106,6 +108,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "goForward", "local": False}},
         "fields": [],
     },
     "refresh": {
@@ -115,6 +118,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "refresh", "local": False}},
         "fields": [
             {"name": "hardReload", "label": "强制刷新(忽略缓存)", "type": "bool", "default": False},
         ],
@@ -126,6 +130,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "newTab", "local": False}},
         "fields": [
             {"name": "url", "label": "网址(可选)", "type": "text", "required": False, "placeholder": "https://..."},
         ],
@@ -201,6 +206,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "click", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -271,6 +277,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "input", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -285,6 +292,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "input", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -299,6 +307,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "clearInput", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -311,6 +320,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "pressKey", "local": False}},
         "fields": [
             {"name": "key", "label": "按键", "type": "select", "options": ["Enter", "Tab", "Esc", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Space", "Backspace"], "default": "Enter"},
         ],
@@ -322,6 +332,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "selectOption", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -340,6 +351,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-green-500",
         "bgColor": "bg-green-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -354,6 +366,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-green-500",
         "bgColor": "bg-green-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -369,6 +382,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-green-500",
         "bgColor": "bg-green-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -384,6 +398,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-green-500",
         "bgColor": "bg-green-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -427,6 +442,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-cyan-500",
         "bgColor": "bg-cyan-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
             {"name": "smooth", "label": "平滑滚动", "type": "bool", "default": False},
         ],
@@ -438,6 +454,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-cyan-500",
         "bgColor": "bg-cyan-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
             {"name": "smooth", "label": "平滑滚动", "type": "bool", "default": False},
         ],
@@ -462,6 +479,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-cyan-500",
         "bgColor": "bg-cyan-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
             {"name": "x", "label": "水平距离(px)", "type": "number", "default": 0},
             {"name": "y", "label": "垂直距离(px)", "type": "number", "default": 500},
@@ -492,6 +510,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-gray-500",
         "bgColor": "bg-gray-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "wait", "local": False}},
         "fields": [
             {"name": "seconds", "label": "等待秒数", "type": "number", "default": 1.0},
         ],
@@ -503,6 +522,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-gray-500",
         "bgColor": "bg-gray-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "wait", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
@@ -786,6 +806,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-indigo-500",
         "bgColor": "bg-indigo-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "setVar", "local": True}},
         "fields": [
             {"name": "name", "label": "变量名", "type": "varName", "required": True},
             {"name": "value", "label": "值", "type": "text", "required": True},
@@ -841,6 +862,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-gray-600",
         "bgColor": "bg-gray-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "log", "local": True}},
         "fields": [
             {"name": "message", "label": "日志内容", "type": "text", "required": True},
             {"name": "level", "label": "级别", "type": "select", "options": ["info", "warn", "error"], "default": "info"},
@@ -1020,6 +1042,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-yellow-500",
         "bgColor": "bg-yellow-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "executeJs", "local": False}},
         "fields": [
             {"name": "script", "label": "JavaScript代码", "type": "textarea", "required": True, "rows": 4},
             _var_field("resultVar", "返回值变量"),
@@ -1036,6 +1059,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "hover", "local": False}},
         "fields": [
             _locator_field(),
             _locator_type_field(),
