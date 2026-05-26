@@ -174,15 +174,16 @@ class AgentBackground {
       // Ensure we have a valid work tab (creates new one for navigate if needed)
       const tabId = await this._ensureWorkTab(step);
 
-      // Special case: navigate on a new tab already navigated — just confirm
+      // Special case: navigate — handled entirely in background to avoid content-script suicide
       if (type === 'navigate') {
-        const tab = await chrome.tabs.get(tabId);
         const targetUrl = step.extra?.url || '';
-        // If the tab was just created with the target URL, skip content script execution
-        if (tab.url === targetUrl || tab.pendingUrl === targetUrl) {
-          this._send('stepResult', { stepId, result: { navigatedTo: targetUrl, newTab: true } });
-          return;
-        }
+        if (!targetUrl) throw new Error('navigate: url required');
+        await chrome.tabs.update(tabId, { url: targetUrl });
+        this.workTabId = tabId;
+        // Wait for tab to start loading before confirming
+        await new Promise(r => setTimeout(r, 500));
+        this._send('stepResult', { stepId, result: { navigatedTo: targetUrl } });
+        return;
       }
 
       // Try sending directly; if content script is missing, inject and retry once
@@ -191,9 +192,12 @@ class AgentBackground {
         result = await this._executeStepOnTab(tabId, step);
       } catch (sendErr) {
         const msg = sendErr?.message || '';
-        if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
+        const isMissing = msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection');
+        const isClosed = msg.includes('message channel closed');
+        if (isMissing || isClosed) {
+          console.log('[Agent] content script missing/closed, re-injecting...');
           await this._injectContentScript(tabId);
-          await new Promise(r => setTimeout(r, 200));
+          await new Promise(r => setTimeout(r, 500));
           result = await this._executeStepOnTab(tabId, step);
         } else {
           throw sendErr;

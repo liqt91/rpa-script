@@ -62,12 +62,33 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
     """为指令字段列表附加通用高级参数（如果不存在）。"""
     result = copy.deepcopy(fields)
     names = {f.get("name") for f in result}
+    has_locator = "locator" in names
     if "onError" not in names:
         result.append(_on_error_field())
     if "retryCount" not in names:
         result.append(_retry_count_field())
     if "timeout" not in names:
         result.append(_timeout_field())
+    if has_locator and "visibleOnly" not in names:
+        result.append(
+            {
+                "name": "visibleOnly",
+                "label": "只操作可见元素",
+                "type": "bool",
+                "default": True,
+                "group": "advanced",
+            }
+        )
+    if "humanLike" not in names:
+        result.append(
+            {
+                "name": "humanLike",
+                "label": "拟人化操作",
+                "type": "bool",
+                "default": True,
+                "group": "advanced",
+            }
+        )
     return result
 
 # ─── Command registry ─────────────────────────────────────────────
