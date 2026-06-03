@@ -1,207 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 
-function buildDpCall(node) {
-  const m = node.method || 'ele';
-  const loc = (node.locator || '').replace(/'/g, "\\'");
-  return `tab.${m}('${loc}')`;
-}
-
-function exportAsNaturalLanguage(nodes, workflow, typeMap) {
-  const sorted = [...nodes].sort((a, b) => a.order - b.order);
-  if (sorted.length === 0) {
-    alert('还没有任何操作步骤');
-    return;
-  }
-
-  let hostname = '未知页面';
-  if (workflow?.url) {
-    try { hostname = new URL(workflow.url).hostname; } catch { hostname = workflow.url; }
-  }
-
-  let nl = `需求: 自动化操作流程 - ${hostname}\n\n`;
-  nl += `页面URL: ${workflow?.url || ''}\n`;
-  nl += `使用的框架: DrissionPage (每步骤后括号内为定位语法,请严格照搬不要改写)\n`;
-  nl += `约定: tab 是已连接的 ChromiumPage / SessionPage 对象\n\n`;
-  nl += `操作步骤:\n`;
-
-  sorted.forEach((node, idx) => {
-    const n = idx + 1;
-    const typeInfo = typeMap[node.type] || {};
-    const desc = node.locator
-      ? `「${typeInfo.label || node.type}」(${node.locator})`
-      : `「${typeInfo.label || node.type}」`;
-    const call = node.locator ? buildDpCall(node) : '';
-    const extra = node.extra && typeof node.extra === 'object' ? node.extra : {};
-
-    switch (node.type) {
-      case 'custom':
-        nl += `${n}. ${extra.description || '自定义操作'} [元素: ${desc}]${call ? ' -> ' + call : ''}\n`;
-        break;
-      case 'click':
-        nl += `${n}. 点击 ${desc}${call ? ' -> ' + call + '.click()' : ''}\n`;
-        break;
-      case 'getText':
-        nl += `${n}. 获取 ${desc} 的文本${call ? ' -> ' + call + '.text' : ''}\n`;
-        break;
-      case 'input':
-      case 'inputAndPressEnter': {
-        const txt = (extra.text || '').replace(/'/g, "\\'");
-        nl += `${n}. 在 ${desc} 中输入: "${extra.text || ''}"${call ? ' -> ' + call + ".input('" + txt + "')" : ''}\n`;
-        break;
-      }
-      case 'getAttr':
-        nl += `${n}. 获取 ${desc} 的 ${extra.attrName || ''} 属性${call ? ' -> ' + call + ".attr('" + (extra.attrName || '') + "')" : ''}\n`;
-        break;
-      case 'hover':
-        nl += `${n}. 鼠标悬停 ${desc}${call ? ' -> ' + call + '.hover()' : ''}\n`;
-        break;
-      case 'findWithin': {
-        const sub = (extra.subSelector || '').replace(/'/g, "\\'");
-        nl += `${n}. 在 ${desc} 内查找子元素${call ? ' -> ' + call + ".ele('" + sub + "')" : ''}\n`;
-        break;
-      }
-      case 'waitForElement': {
-        const loc = (node.locator || '').replace(/'/g, "\\'");
-        nl += `${n}. 等待 ${desc} 出现(最长 ${extra.seconds || 10} 秒) -> tab.wait.ele_displayed('${loc}', timeout=${extra.seconds || 10})\n`;
-        break;
-      }
-      case 'navigate':
-        nl += `${n}. 打开网页: ${extra.url || ''} -> tab.get('${extra.url || ''}')\n`;
-        break;
-      case 'sleep':
-        nl += `${n}. 等待 ${extra.seconds || 1} 秒 -> time.sleep(${extra.seconds || 1})\n`;
-        break;
-      case 'pressKey':
-        nl += `${n}. 按键: ${extra.key || 'Enter'}\n`;
-        break;
-      case 'scrollToBottom':
-        nl += `${n}. 滚动到底部\n`;
-        break;
-      case 'scrollToTop':
-        nl += `${n}. 滚动到顶部\n`;
-        break;
-      case 'scrollBy':
-        nl += `${n}. 滚动 (${extra.x || 0}, ${extra.y || 500})\n`;
-        break;
-      case 'newTab':
-        nl += `${n}. 新建标签页: ${extra.url || ''}\n`;
-        break;
-      case 'closeTab':
-        nl += `${n}. 关闭当前标签页\n`;
-        break;
-      case 'goBack':
-        nl += `${n}. 返回上一页\n`;
-        break;
-      case 'goForward':
-        nl += `${n}. 前进\n`;
-        break;
-      case 'refresh':
-        nl += `${n}. 刷新页面${extra.hardReload ? ' (强制)' : ''}\n`;
-        break;
-      case 'getCurrentUrl':
-        nl += `${n}. 获取当前页面URL -> ${extra.varName || 'currentUrl'} = tab.url\n`;
-        break;
-      case 'getPageTitle':
-        nl += `${n}. 获取页面标题 -> ${extra.varName || 'pageTitle'} = tab.title\n`;
-        break;
-      case 'getHtml':
-        nl += `${n}. 获取元素HTML${call ? ' -> ' + call + '.html' : ''}\n`;
-        break;
-      case 'getValue':
-        nl += `${n}. 获取元素值${call ? ' -> ' + call + '.value' : ''}\n`;
-        break;
-      case 'clearInput':
-        nl += `${n}. 清空输入框${call ? ' -> ' + call + '.clear()' : ''}\n`;
-        break;
-      case 'selectOption':
-        nl += `${n}. 选择下拉选项: ${extra.value || ''}${call ? ' -> ' + call + ".select('" + (extra.value || '') + "')" : ''}\n`;
-        break;
-      case 'takeScreenshot':
-        nl += `${n}. 截图保存到: ${extra.savePath || ''}\n`;
-        break;
-      case 'executeJs':
-        nl += `${n}. 执行JavaScript: ${(extra.script || '').slice(0, 60)}...\n`;
-        break;
-      case 'ifElementExists':
-        nl += `${n}. 条件判断: 如果元素存在 ${desc}\n`;
-        break;
-      case 'ifElementNotExists':
-        nl += `${n}. 条件判断: 如果元素不存在 ${desc}\n`;
-        break;
-      case 'else':
-        nl += `${n}. 否则\n`;
-        break;
-      case 'endIf':
-        nl += `${n}. 结束条件判断\n`;
-        break;
-      case 'forEachElement':
-        nl += `${n}. 循环遍历: ${desc}\n`;
-        break;
-      case 'forRange':
-        nl += `${n}. 循环范围: ${extra.start || 0} 到 ${extra.end || 10}\n`;
-        break;
-      case 'endFor':
-        nl += `${n}. 结束循环\n`;
-        break;
-      case 'break':
-        nl += `${n}. 跳出循环\n`;
-        break;
-      case 'continue':
-        nl += `${n}. 继续下一次循环\n`;
-        break;
-      case 'setVar':
-        nl += `${n}. 设置变量: ${extra.name || 'x'} = ${extra.value || ''}\n`;
-        break;
-      case 'log':
-        nl += `${n}. 日志输出 [${extra.level || 'info'}]: ${extra.message || ''}\n`;
-        break;
-      case 'pushItem':
-        nl += `${n}. 推送结果项\n`;
-        break;
-      case 'return':
-        nl += `${n}. 结束并返回结果\n`;
-        break;
-      default:
-        nl += `${n}. ${typeInfo.label || node.type} ${desc}${call ? ' -> ' + call : ''}\n`;
-    }
-  });
-
-  nl += `\n请根据以上步骤生成完整的 DrissionPage Python 脚本:\n`;
-  nl += `1. 用 ChromiumOptions 显式设置浏览器路径和用户数据目录后启动 ChromiumPage:\n`;
-  nl += `\n`;
-  nl += "```python\n";
-  nl += `from DrissionPage import ChromiumPage, ChromiumOptions\n`;
-  nl += `\n`;
-  nl += `chrome_path = r'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'\n`;
-  nl += `user_data_path = r'D:\\Chrome_Work'\n`;
-  nl += `\n`;
-  nl += `co = ChromiumOptions()\n`;
-  nl += `co.set_browser_path(chrome_path)\n`;
-  nl += `co.set_user_data_path(user_data_path)\n`;
-  nl += `co.set_argument('--no-sandbox')\n`;
-  nl += `co.set_argument('--disable-blink-features=AutomationControlled')\n`;
-  nl += `tab = ChromiumPage(addr_or_opts=co)\n`;
-  if (workflow?.url) {
-    nl += `tab.get('${workflow.url}')\n`;
-  }
-  nl += "```\n";
-  nl += `\n`;
-  nl += `2. 严格按上述定位语法,不要自行改写为 CSS 或 xpath\n`;
-  nl += `3. 加随机延迟(random.uniform(0.5, 1.5))模拟人类操作\n`;
-  nl += `4. 加 try/except 错误处理,关键步骤打印日志\n`;
-  nl += `5. eles/s_eles 返回列表时遍历处理\n`;
-  nl += `6. 不要写 tab.quit(),让 Chrome 保持运行以便用户继续观察\n`;
-  return nl;
-}
-
 export default function Toolbar() {
-  const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch } = useWorkflow();
+  const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch, elements } = useWorkflow();
   const [running, setRunning] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [currentRunId, setCurrentRunId] = useState(null);
   const [runResult, setRunResult] = useState(null);
   const [runMode, setRunMode] = useState('extension'); // 'python' | 'extension'
   const [extStatus, setExtStatus] = useState(null);
+  const importInputRef = useRef(null);
+  const stoppedRef = useRef(false);
 
   // Poll extension status when in extension mode
   useEffect(() => {
@@ -238,17 +48,129 @@ export default function Toolbar() {
     }
   };
 
-  const handleExportNL = async () => {
-    console.log(`[Toolbar] exportNL wfId=${wfId}`);
+  // 从节点的 locator 中提取关联的元素 ID（支持 element_id 和 locator 字符串反向查找）
+  const resolveElementIdsFromNode = (node) => {
+    const ids = new Set();
+    if (node.element_id) ids.add(node.element_id);
+
+    const nodeLoc = node.locator;
+    const locators = [];
+    if (Array.isArray(nodeLoc)) {
+      for (const item of nodeLoc) {
+        if (typeof item === 'string') {
+          locators.push(item);
+        } else if (item && typeof item === 'object') {
+          if (item.elementId) ids.add(item.elementId);
+          if (item.locator) locators.push(item.locator);
+          if (item.selector) locators.push(item.selector);
+        }
+      }
+    } else if (typeof nodeLoc === 'string') {
+      locators.push(nodeLoc);
+    }
+
+    for (const loc of locators) {
+      const str = String(loc).trim();
+      if (!str) continue;
+      for (const el of elements) {
+        if (el.locator && String(el.locator).trim() === str) {
+          ids.add(el.id);
+          break;
+        }
+        if (el.candidates && Array.isArray(el.candidates)) {
+          for (const cand of el.candidates) {
+            const val = typeof cand === 'string'
+              ? cand
+              : (cand.syntax || cand.locator || cand.selector || JSON.stringify(cand));
+            if (val === str) {
+              ids.add(el.id);
+              break;
+            }
+          }
+        }
+      }
+    }
+    return ids;
+  };
+
+  const handleExportJSON = () => {
+    const usedElementIds = new Set();
+    for (const n of nodes) {
+      for (const id of resolveElementIdsFromNode(n)) {
+        usedElementIds.add(id);
+      }
+    }
+    const usedElements = elements.filter(e => usedElementIds.has(e.id)).map(e => ({ ...e }));
+    const data = {
+      workflow: { id: workflow?.id, name: workflow?.name, url: workflow?.url },
+      nodes: nodes.map(n => ({ ...n })),
+      elements: usedElements,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    a.download = `${workflow?.name || 'workflow'}_${dateStr}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJSON = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     try {
-      const nl = exportAsNaturalLanguage(nodes, workflow, NODE_TYPE_MAP);
-      if (!nl) return;
-      await navigator.clipboard.writeText(nl);
-      console.log(`[Toolbar] exportNL success, ${nl.length} chars`);
-      alert('自然语言描述已复制到剪贴板');
-    } catch (e) {
-      console.error(`[Toolbar] exportNL failed: ${e.message}`);
-      alert('导出失败: ' + e.message);
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!Array.isArray(data.nodes)) {
+        alert('JSON 格式错误：缺少 nodes 数组');
+        return;
+      }
+      const elementCount = Array.isArray(data.elements) ? data.elements.length : 0;
+      if (!confirm(`确定导入 "${file.name}"？\n共 ${data.nodes.length} 个节点${elementCount > 0 ? `，含 ${elementCount} 个元素` : ''}，将覆盖当前流程。`)) {
+        e.target.value = '';
+        return;
+      }
+      // 先导入元素，建立旧 ID → 新 ID 映射
+      let elementMapping = {};
+      if (Array.isArray(data.elements) && data.elements.length > 0) {
+        try {
+          const result = await api.importElements(data.elements);
+          elementMapping = result.mapping || {};
+        } catch (err) {
+          console.error('[Toolbar] import elements failed:', err);
+        }
+      }
+      // 重新生成 temp_id 并修正 parent_id 映射，避免与现有节点 ID 冲突
+      const oldToTemp = new Map();
+      const imported = data.nodes.map((n) => {
+        const tempId = crypto.randomUUID();
+        oldToTemp.set(n.id, tempId);
+        const copy = { ...n };
+        delete copy.workflow_id;
+        delete copy.created_at;
+        copy.id = tempId;        // frontend tree/dnd needs id
+        copy.temp_id = tempId;   // backend batch save uses temp_id
+        // 更新 element_id 映射
+        if (copy.element_id && elementMapping[String(copy.element_id)]) {
+          copy.element_id = elementMapping[String(copy.element_id)];
+        }
+        return copy;
+      });
+      imported.forEach((n) => {
+        if (n.parent_id != null && oldToTemp.has(n.parent_id)) {
+          n.parent_id = oldToTemp.get(n.parent_id);
+        } else if (n.parent_id != null) {
+          // 父节点不在导入列表中，提升到顶层
+          n.parent_id = null;
+        }
+      });
+      dispatch({ type: 'REPLACE_NODES', payload: imported });
+      e.target.value = '';
+    } catch (err) {
+      alert('导入失败: ' + err.message);
+      e.target.value = '';
     }
   };
 
@@ -279,6 +201,7 @@ export default function Toolbar() {
     }
 
     setRunning(true);
+    setPaused(false);
     setRunResult(null);
     dispatch({ type: 'RUN_START' });
     dispatch({ type: 'CLEAR_RUN_LOGS' });
@@ -291,6 +214,7 @@ export default function Toolbar() {
 
     let es = null;
     const runId = crypto.randomUUID();
+    setCurrentRunId(runId);
 
     if (runMode === 'extension') {
       // Open SSE stream before POST so we don't miss early events
@@ -304,17 +228,33 @@ export default function Toolbar() {
           } else if (evt.type === 'stepComplete') {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: null } });
             const node = nodes.find(n => n.id === evt.nodeId);
-            const label = node ? (NODE_TYPE_MAP[node.type]?.label || node.type) : evt.stepId;
+            const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
             const resultStr = evt.result ? JSON.stringify(evt.result).slice(0, 200) : '完成';
             dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'success', msg: `${label}: ${resultStr}` } });
+            if (evt.result?.prints?.length) {
+              for (const line of evt.result.prints) {
+                dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `  🖨 ${line}` } });
+              }
+            }
+            // Real-time table updates pushed to DataTableTab via CustomEvent
+            if (evt.result?.tableData) {
+              window.dispatchEvent(new CustomEvent('runtime-table-update', {
+                detail: { wfId, tableData: evt.result.tableData }
+              }));
+            }
           } else if (evt.type === 'stepError') {
             dispatch({ type: 'RUN_STEP_ERROR', payload: { nodeId: evt.nodeId, error: evt.error } });
             const node = nodes.find(n => n.id === evt.nodeId);
-            const label = node ? (NODE_TYPE_MAP[node.type]?.label || node.type) : evt.stepId;
+            const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
             dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'error', msg: `${label}: ${evt.error}` } });
+          } else if (evt.type === 'paused') {
+            dispatch({ type: 'RUN_PAUSED' });
+            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'warn', msg: '⏸ 已暂停' } });
           } else if (evt.type === 'done') {
-            dispatch({ type: 'RUN_DONE', payload: { success: evt.success } });
-            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: evt.success ? 'success' : 'error', msg: evt.success ? '执行完成' : '执行失败' } });
+            dispatch({ type: 'RUN_DONE', payload: { success: evt.success, stopped: evt.stopped } });
+            const msg = evt.stopped ? '用户停止运行' : (evt.success ? '执行完成' : '执行失败');
+            const level = evt.stopped ? 'warn' : (evt.success ? 'success' : 'error');
+            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level, msg } });
             es.close();
           }
         } catch (err) {
@@ -326,23 +266,82 @@ export default function Toolbar() {
       };
     }
 
+    // Read design-time table data from localStorage for runtime initialization
+    const getDesignTableData = () => {
+      try {
+        const raw = localStorage.getItem(`workflow_table_${wfId}`);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    };
+
     console.log(`[Toolbar] calling runWorkflow mode=${runMode} wfId=${wfId}`);
     try {
       const data = runMode === 'extension'
-        ? await api.runWorkflowExtension(wfId, runId)
+        ? await api.runWorkflowExtension(wfId, runId, getDesignTableData())
         : await api.runWorkflow(wfId);
       console.log(`[Toolbar] runWorkflow result success=${data.success}`);
-      setRunResult(data);
+      if (!stoppedRef.current) {
+        setRunResult(data);
+      }
+      // Final table data: push to DataTableTab and persist to localStorage
+      if (data.tableRows || data.tableColumns) {
+        const finalTable = { rows: data.tableRows || [], columns: data.tableColumns || [] };
+        window.dispatchEvent(new CustomEvent('runtime-table-update', {
+          detail: { wfId, tableData: finalTable }
+        }));
+        try {
+          localStorage.setItem(`workflow_table_${wfId}`, JSON.stringify(finalTable));
+        } catch {}
+      }
       dispatch({ type: 'RUN_DONE', payload: { success: data.success } });
     } catch (e) {
       console.error(`[Toolbar] runWorkflow failed: ${e.message}`);
-      setRunResult({ success: false, stderr: e.message, stdout: '', returncode: -1 });
+      if (!stoppedRef.current) {
+        setRunResult({ success: false, stderr: e.message, stdout: '', returncode: -1 });
+      }
       dispatch({ type: 'RUN_DONE', payload: { success: false } });
     } finally {
       setRunning(false);
+      setPaused(false);
+      setCurrentRunId(null);
+      stoppedRef.current = false;
       if (es) {
         try { es.close(); } catch {}
       }
+    }
+  };
+
+  const handlePause = async () => {
+    if (!currentRunId) return;
+    try {
+      await api.pauseRun(wfId, currentRunId);
+      setPaused(true);
+      // 日志由 SSE paused 事件统一追加，避免重复
+    } catch (e) {
+      console.error('[Toolbar] pause failed:', e);
+    }
+  };
+
+  const handleResume = async () => {
+    if (!currentRunId) return;
+    try {
+      await api.resumeRun(wfId, currentRunId);
+      setPaused(false);
+      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '▶ 已继续' } });
+    } catch (e) {
+      console.error('[Toolbar] resume failed:', e);
+    }
+  };
+
+  const handleStop = async () => {
+    if (!currentRunId) return;
+    stoppedRef.current = true;
+    try {
+      await api.stopRun(wfId, currentRunId);
+      setRunResult({ stopped: true });
+      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'error', msg: '⏹ 已停止' } });
+    } catch (e) {
+      console.error('[Toolbar] stop failed:', e);
     }
   };
 
@@ -391,12 +390,26 @@ export default function Toolbar() {
             <span>导出 Python</span>
           </button>
           <button
-            className="h-7 px-3 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#6a4a8a] hover:text-[#6a4a8a] text-xs text-gray-600 transition-colors"
-            onClick={handleExportNL}
+            className="h-7 px-3 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
+            onClick={handleExportJSON}
           >
-            <i className="fas fa-file-alt text-[10px]"></i>
-            <span>导出自然语言</span>
+            <i className="fas fa-file-export text-[10px]"></i>
+            <span>导出 JSON</span>
           </button>
+          <button
+            className="h-7 px-3 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
+            onClick={() => importInputRef.current?.click()}
+          >
+            <i className="fas fa-file-import text-[10px]"></i>
+            <span>导入 JSON</span>
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportJSON}
+          />
           <div className="w-px h-5 bg-gray-200 mx-1"></div>
 
           {/* Run mode toggle */}
@@ -420,16 +433,55 @@ export default function Toolbar() {
             </button>
           </div>
 
-          <button
-            className={`h-7 px-3 flex items-center gap-1.5 rounded bg-[#1f1f1f] hover:bg-black text-white text-xs transition-colors ${running ? '' : 'run-pulse'}`}
-            onClick={handleRun}
-            disabled={running}
-          >
-            <i className={`fas ${running ? 'fa-spinner fa-spin' : 'fa-play'} text-[10px]`}></i>
-            <span>{running ? '运行中...' : '运行'}</span>
-          </button>
+          {/* Run controls */}
+          {!running ? (
+            <button
+              className={`h-7 px-3 flex items-center gap-1.5 rounded bg-[#1f1f1f] hover:bg-black text-white text-xs transition-colors run-pulse`}
+              onClick={handleRun}
+            >
+              <i className="fas fa-play text-[10px]"></i>
+              <span>运行</span>
+            </button>
+          ) : runMode === 'python' ? (
+            <div className="flex items-center gap-1">
+              <button
+                className="h-7 px-3 flex items-center gap-1.5 rounded bg-red-500 hover:bg-red-600 text-white text-xs transition-colors"
+                onClick={handleStop}
+              >
+                <i className="fas fa-stop text-[10px]"></i>
+                <span>停止</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              {paused ? (
+                <button
+                  className="h-7 px-3 flex items-center gap-1.5 rounded bg-green-600 hover:bg-green-700 text-white text-xs transition-colors"
+                  onClick={handleResume}
+                >
+                  <i className="fas fa-play text-[10px]"></i>
+                  <span>继续</span>
+                </button>
+              ) : (
+                <button
+                  className="h-7 px-3 flex items-center gap-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs transition-colors"
+                  onClick={handlePause}
+                >
+                  <i className="fas fa-pause text-[10px]"></i>
+                  <span>暂停</span>
+                </button>
+              )}
+              <button
+                className="h-7 px-3 flex items-center gap-1.5 rounded bg-red-500 hover:bg-red-600 text-white text-xs transition-colors"
+                onClick={handleStop}
+              >
+                <i className="fas fa-stop text-[10px]"></i>
+                <span>停止</span>
+              </button>
+            </div>
+          )}
           <a
-            href="/admin/workflows"
+            href="/workflow-editor/"
             className="h-7 px-2.5 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
           >
             <i className="fas fa-arrow-left text-[10px]"></i>
@@ -461,15 +513,26 @@ export default function Toolbar() {
 
       {/* 运行结果弹窗 */}
       {runResult && (
-        <RunResultModal result={runResult} onClose={closeResult} mode={runMode} />
+        <RunResultModal result={runResult} onClose={closeResult} mode={runMode} nodes={nodes} typeMap={NODE_TYPE_MAP} />
       )}
     </>
   );
 }
 
-function RunResultModal({ result, onClose, mode }) {
+function RunResultModal({ result, onClose, mode, nodes, typeMap }) {
   const isExtension = mode === 'extension';
   const success = result.success;
+  const stopped = result.stopped;
+
+  const getLabel = (r) => {
+    if (!nodes || !r.nodeId) return r.stepId;
+    const node = nodes.find(n => n.id === r.nodeId);
+    if (!node) return r.stepId;
+    return `#${node.order} ${typeMap[node.type]?.label || node.type}`;
+  };
+
+  const title = stopped ? '停止执行' : (success ? '运行成功' : '运行失败');
+  const titleIcon = stopped ? 'fa-hand-paper text-amber-500' : (success ? 'fa-check-circle text-green-500' : 'fa-times-circle text-red-500');
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
@@ -477,9 +540,9 @@ function RunResultModal({ result, onClose, mode }) {
         {/* 头部 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <i className={`fas ${success ? 'fa-check-circle text-green-500' : 'fa-times-circle text-red-500'}`}></i>
+            <i className={`fas ${titleIcon}`}></i>
             <span className="text-sm font-medium">
-              {success ? '运行成功' : '运行失败'}
+              {title}
             </span>
             {!isExtension && (
               <span className="text-xs text-gray-400">exit code: {result.returncode}</span>
@@ -510,7 +573,7 @@ function RunResultModal({ result, onClose, mode }) {
                     <span className={`shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${r.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
                       {r.status === 'success' ? '✓' : '✗'}
                     </span>
-                    <span className="text-gray-600">{r.stepId}:</span>
+                    <span className="text-gray-600">{getLabel(r)}:</span>
                     <span className="text-gray-800 truncate">
                       {r.status === 'success' ? JSON.stringify(r.result) : r.error}
                     </span>
@@ -524,7 +587,7 @@ function RunResultModal({ result, onClose, mode }) {
             <div>
               <div className="text-xs text-red-500 mb-1 font-medium">失败步骤</div>
               <pre className="bg-red-50 rounded p-3 text-xs text-red-700 whitespace-pre-wrap font-mono">
-                {result.failedStep.stepId}: {result.failedStep.error}
+                {getLabel(result.failedStep)}: {result.failedStep.error}
               </pre>
             </div>
           )}

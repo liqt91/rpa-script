@@ -86,6 +86,78 @@ def list_hosts(
     return sorted([r[0] for r in rows if r[0]])
 
 
+@router.get("/export")
+def export_elements(
+    db: Session = Depends(get_db),
+):
+    """导出所有元素为 JSON 数组（供下载备份）"""
+    items = db.query(models.CapturedElement).order_by(models.CapturedElement.created_at.desc()).all()
+    result = []
+    for item in items:
+        result.append({
+            "name": item.name,
+            "description": item.description,
+            "locator": item.locator,
+            "locator_type": item.locator_type,
+            "method": item.method,
+            "candidates": __import__("json").loads(item.candidates) if item.candidates else [],
+            "features": __import__("json").loads(item.features) if item.features else {},
+            "css_selector": item.css_selector,
+            "tag": item.tag,
+            "text_preview": item.text_preview,
+            "page_url": item.page_url,
+            "hostname": item.hostname,
+            "screenshot": item.screenshot,
+        })
+    return result
+
+
+@router.post("/import")
+def import_elements(
+    payload: list[dict],
+    db: Session = Depends(get_db),
+):
+    """批量导入元素（追加模式，不覆盖已有）"""
+    imported = 0
+    failed = 0
+    errors = []
+    mapping = {}
+    for idx, item in enumerate(payload):
+        try:
+            name = item.get("name")
+            if not name:
+                failed += 1
+                errors.append(f"#{idx + 1}: 缺少 name")
+                continue
+            old_id = item.get("id")
+            el = models.CapturedElement(
+                user_id=1,
+                name=name,
+                description=item.get("description") or "",
+                locator=item.get("locator") or "",
+                locator_type=item.get("locator_type") or "css",
+                method=item.get("method") or "ele",
+                candidates=__import__("json").dumps(item.get("candidates") or []),
+                features=__import__("json").dumps(item.get("features") or {}),
+                css_selector=item.get("css_selector") or "",
+                tag=item.get("tag") or "",
+                text_preview=item.get("text_preview") or "",
+                page_url=item.get("page_url") or "",
+                hostname=item.get("hostname") or "",
+                screenshot=item.get("screenshot") or "",
+            )
+            db.add(el)
+            db.flush()
+            if old_id is not None:
+                mapping[str(old_id)] = el.id
+            imported += 1
+        except Exception as e:
+            failed += 1
+            errors.append(f"#{idx + 1}: {str(e)}")
+    db.commit()
+    return {"imported": imported, "failed": failed, "errors": errors, "mapping": mapping}
+
+
 @router.get("/{element_id}", response_model=schemas.CapturedElementOut)
 def get_element(
     element_id: int,

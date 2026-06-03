@@ -1,27 +1,15 @@
-import { useState, useEffect } from 'react';
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { useWorkflow, deriveParentId } from '../store/WorkflowContext';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useWorkflow, deriveParentId, computeParents, matchBrackets } from '../store/WorkflowContext';
 
 export default function NodeList() {
   const {
     treeNodes,
     selectedNodeId,
+    selectedNodeIds,
     dispatch,
     deleteNode,
+    deleteNodes,
+    updateNode,
     nodes,
     NODE_TYPE_MAP,
     saveNode,
@@ -30,100 +18,270 @@ export default function NodeList() {
     runStatus,
     runningStepId,
     stepErrors,
+    elements,
   } = useWorkflow();
+
   const [dragOver, setDragOver] = useState(false);
   const [insertIndex, setInsertIndex] = useState(null);
-  const [activeId, setActiveId] = useState(null);
+  const [draggingIds, setDraggingIds] = useState(null);
 
-  // 全局 dragend 后备：任何 HTML5 拖拽结束时重置状态
+  const hasMultiSelection = selectedNodeIds.size > 1;
+
+  // ─── 拖拽时自动滚动 ──────────────────────────────────────────
+  const autoScrollRef = useRef({ active: false, direction: 0 });
+
+  const stopAutoScroll = useCallback(() => {
+    autoScrollRef.current.active = false;
+    autoScrollRef.current.direction = 0;
+  }, []);
+
+  const startAutoScroll = useCallback(() => {
+    if (autoScrollRef.current.active) return;
+    autoScrollRef.current.active = true;
+    const tick = () => {
+      if (!autoScrollRef.current.active) return;
+      const container = document.querySelector('.node-list-container');
+      if (container && autoScrollRef.current.direction !== 0) {
+        container.scrollTop += autoScrollRef.current.direction * 8;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, []);
+
+  // 全局 dragend 后备
   useEffect(() => {
     const onDragEnd = () => {
-      if (dragOver) {
-        console.log('[NodeList] global dragend fallback -> reset dragOver');
+      if (dragOver || draggingIds) {
         setDragOver(false);
         setInsertIndex(null);
+        setDraggingIds(null);
+        stopAutoScroll();
       }
     };
     window.addEventListener('dragend', onDragEnd);
     return () => window.removeEventListener('dragend', onDragEnd);
-  }, [dragOver]);
+  }, [dragOver, draggingIds, stopAutoScroll]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 }, // 鼠标移动 5px 才触发拖拽，避免误触
-    })
-  );
+  // ─── 选区合法性 ──────────────────────────────────────────────
 
-  const handleSelect = (id) => {
-    dispatch({ type: 'SELECT_NODE', payload: id });
-  };
-
-  const handleDelete = (e, id) => {
-    e.stopPropagation();
-    console.log(`[NodeList] deleteNode id=${id}`);
-    if (!confirm('确定删除该节点？')) return;
-    deleteNode(id);
-  };
-
-  // ─── 从左侧指令面板拖入新指令 ───────────────────────────
-
-  const handleDragOverPanel = (e) => {
-    // 允许任何 drop，具体校验在 handleDropPanel 里做
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    setDragOver(true);
-
-    // 实时计算插入位置
-    if (treeNodes.length > 0) {
-      const container = e.currentTarget.querySelector('.overflow-y-auto');
-      if (container) {
-        const rect = container.getBoundingClientRect();
-        const scrollTop = container.scrollTop;
-        const y = e.clientY - rect.top + scrollTop - 16;
-        const nodeElements = container.querySelectorAll('.step-item');
-        let idx = treeNodes.length;
-        for (let i = 0; i < nodeElements.length; i++) {
-          const el = nodeElements[i];
-          const elRect = el.getBoundingClientRect();
-          const elCenter = elRect.top + elRect.height / 2 - rect.top + scrollTop;
-          if (y < elCenter) {
-            idx = i;
-            break;
-          }
-        }
-        setInsertIndex(prev => prev === idx ? prev : idx);
+  const selectionValidation = useMemo(() => {
+    if (selectedNodeIds.size <= 1) return { valid: true };
+    const ids = Array.from(selectedNodeIds);
+    const indices = ids.map(id => treeNodes.findIndex(n => n.id === id)).sort((a, b) => a - b);
+    for (let i = 1; i < indices.length; i++) {
+      if (indices[i] !== indices[i - 1] + 1) {
+        return { valid: false, reason: '选区不连续' };
       }
-    } else {
-      setInsertIndex(0);
     }
-  };
+    // 容器完整性：选区包含容器时必须包含对应的结束标记
+    const bracketMatch = matchBrackets(treeNodes, NODE_TYPE_MAP);
+    const containerClose = new Map();
+    for (const [sId, cId] of bracketMatch) containerClose.set(cId, sId);
+    for (let i = indices[0]; i <= indices[indices.length - 1]; i++) {
+      const node = treeNodes[i];
+      const info = NODE_TYPE_MAP[node.type];
+      if (info?.isContainer) {
+        const closeId = containerClose.get(node.id);
+        if (closeId && !selectedNodeIds.has(closeId)) {
+          return { valid: false, reason: '选区包含容器但未包含对应的结束标记' };
+        }
+      }
+    }
+    return { valid: true };
+  }, [selectedNodeIds, treeNodes, NODE_TYPE_MAP]);
 
-  const handleDragLeavePanel = (e) => {
-    // relatedTarget 为 null（离开窗口/按 Escape）或不在容器内时重置
+  const canBatchMove = hasMultiSelection && selectionValidation.valid;
+
+  // ─── 选择交互 ────────────────────────────────────────────────
+
+  const handleSelect = useCallback((id, e) => {
+    if (e.ctrlKey || e.metaKey) {
+      dispatch({ type: 'SELECT_NODE_TOGGLE', payload: id });
+    } else if (e.shiftKey) {
+      dispatch({ type: 'SELECT_RANGE', payload: id });
+    } else {
+      dispatch({ type: 'SELECT_NODE', payload: id });
+    }
+  }, [dispatch]);
+
+  const handleClearSelection = useCallback(() => {
+    dispatch({ type: 'CLEAR_SELECTION' });
+  }, [dispatch]);
+
+  // ─── 删除 ────────────────────────────────────────────────────
+
+  const handleDelete = useCallback((e, id) => {
+    e.stopPropagation();
+    if (hasMultiSelection && selectedNodeIds.has(id)) {
+      if (!confirm(`确定删除选中的 ${selectedNodeIds.size} 个节点？`)) return;
+      deleteNodes(Array.from(selectedNodeIds));
+    } else {
+      if (!confirm('确定删除该节点？')) return;
+      deleteNode(id);
+    }
+  }, [hasMultiSelection, selectedNodeIds, deleteNodes, deleteNode]);
+
+  const handleToggleEnabled = useCallback((e, node) => {
+    e.stopPropagation();
+    const newVal = node.enabled === 0 ? 1 : 0;
+    updateNode({ id: node.id, enabled: newVal });
+  }, [updateNode]);
+
+  // ─── 批量移动 ────────────────────────────────────────────────
+
+  const doMove = useCallback((indices, direction) => {
+    const start = indices[0];
+    const end = indices[indices.length - 1];
+    const count = end - start + 1;
+    let newStart = direction === 'up' ? start - 1 : start + 1;
+    if (newStart < 0 || newStart + count > treeNodes.length) return;
+
+    const selectedTreeNodes = treeNodes.slice(start, end + 1);
+    const remaining = [...treeNodes.slice(0, start), ...treeNodes.slice(end + 1)];
+    const newTree = [
+      ...remaining.slice(0, newStart),
+      ...selectedTreeNodes,
+      ...remaining.slice(newStart),
+    ];
+
+    const sorted = newTree.map(n => {
+      const original = nodes.find(x => x.id === n.id);
+      return { ...original };
+    });
+    for (let i = 0; i < sorted.length; i++) sorted[i].order = i + 1;
+    computeParents(sorted, NODE_TYPE_MAP);
+    replaceNodes(sorted);
+  }, [treeNodes, nodes, NODE_TYPE_MAP, replaceNodes]);
+
+  const handleBatchMove = useCallback((direction) => {
+    if (!canBatchMove) return;
+    const ids = Array.from(selectedNodeIds);
+    const indices = ids.map(id => treeNodes.findIndex(n => n.id === id)).sort((a, b) => a - b);
+    for (let i = 1; i < indices.length; i++) {
+      if (indices[i] !== indices[i - 1] + 1) return;
+    }
+    doMove(indices, direction);
+  }, [canBatchMove, selectedNodeIds, treeNodes, doMove]);
+
+  // ─── 拖拽：计算插入位置 ──────────────────────────────────────
+
+  const computeInsertIndex = useCallback((clientY) => {
+    if (treeNodes.length === 0) return 0;
+    const container = document.querySelector('.node-list-container');
+    if (!container) return treeNodes.length;
+    const rect = container.getBoundingClientRect();
+    const scrollTop = container.scrollTop;
+    const y = clientY - rect.top + scrollTop - 16;
+    const nodeElements = container.querySelectorAll('.step-item');
+    for (let i = 0; i < nodeElements.length; i++) {
+      const el = nodeElements[i];
+      const elRect = el.getBoundingClientRect();
+      const elCenter = elRect.top + elRect.height / 2 - rect.top + scrollTop;
+      if (y < elCenter) return i;
+    }
+    return treeNodes.length;
+  }, [treeNodes.length]);
+
+  // ─── 内部节点拖拽 ────────────────────────────────────────────
+
+  const handleNodeDragStart = useCallback((e, nodeId) => {
+    e.stopPropagation();
+    const ids = selectedNodeIds.has(nodeId) && selectionValidation.valid
+      ? new Set(selectedNodeIds)
+      : new Set([nodeId]);
+    setDraggingIds(ids);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({ source: 'nodelist', ids: Array.from(ids) }));
+  }, [selectedNodeIds, selectionValidation.valid]);
+
+  const handleInternalDrop = useCallback((dropIndex) => {
+    if (!draggingIds || draggingIds.size === 0) return;
+    const ids = Array.from(draggingIds);
+    const indices = ids.map(id => treeNodes.findIndex(n => n.id === id)).sort((a, b) => a - b);
+    for (let i = 1; i < indices.length; i++) {
+      if (indices[i] !== indices[i - 1] + 1) return;
+    }
+    const start = indices[0];
+    const end = indices[indices.length - 1];
+    const selectedTreeNodes = treeNodes.slice(start, end + 1);
+    const remaining = [...treeNodes.slice(0, start), ...treeNodes.slice(end + 1)];
+
+    let adjustedDrop = dropIndex;
+    if (dropIndex > end) adjustedDrop = dropIndex - selectedTreeNodes.length;
+
+    const newTree = [
+      ...remaining.slice(0, adjustedDrop),
+      ...selectedTreeNodes,
+      ...remaining.slice(adjustedDrop),
+    ];
+
+    const sorted = newTree.map(n => {
+      const original = nodes.find(x => x.id === n.id);
+      return { ...original };
+    });
+    for (let i = 0; i < sorted.length; i++) sorted[i].order = i + 1;
+    computeParents(sorted, NODE_TYPE_MAP);
+    replaceNodes(sorted);
+  }, [draggingIds, treeNodes, nodes, NODE_TYPE_MAP, replaceNodes]);
+
+  // ─── 面板拖入（左侧指令面板 → 画布）─────────────────────────
+
+  const handleDragOverPanel = useCallback((e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = draggingIds ? 'move' : 'copy';
+    setDragOver(true);
+    const idx = computeInsertIndex(e.clientY);
+    setInsertIndex(idx);
+
+    // 边缘自动滚动
+    const container = document.querySelector('.node-list-container');
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const threshold = 48; // px
+      if (e.clientY - rect.top < threshold) {
+        autoScrollRef.current.direction = -1;
+        startAutoScroll();
+      } else if (rect.bottom - e.clientY < threshold) {
+        autoScrollRef.current.direction = 1;
+        startAutoScroll();
+      } else {
+        autoScrollRef.current.direction = 0;
+      }
+    }
+  }, [computeInsertIndex, draggingIds, startAutoScroll]);
+
+  const handleDragLeavePanel = useCallback((e) => {
     if (!e.relatedTarget || !e.currentTarget.contains(e.relatedTarget)) {
-      console.log('[NodeList] dragLeave -> reset dragOver');
       setDragOver(false);
       setInsertIndex(null);
+      stopAutoScroll();
     }
-  };
+  }, [stopAutoScroll]);
 
-  const handleDropPanel = (e) => {
+  const handleDropPanel = useCallback((e) => {
     e.preventDefault();
-    console.log('[NodeList] drop -> reset dragOver');
     setDragOver(false);
+    stopAutoScroll();
+    const idx = insertIndex !== null ? insertIndex : treeNodes.length;
     setInsertIndex(null);
-    const raw = e.dataTransfer.getData('text/plain');
-    if (!raw) {
-      console.log('[NodeList] drop empty data, skipped');
+
+    // 内部排序 drop
+    if (draggingIds) {
+      handleInternalDrop(idx);
+      setDraggingIds(null);
       return;
     }
+
+    // 左侧面板拖入
+    const raw = e.dataTransfer.getData('text/plain');
+    if (!raw) return;
     let payload;
     try { payload = JSON.parse(raw); } catch { payload = { type: raw }; }
     const nodeType = payload.type;
-    console.log(`[NodeList] dropPanel type=${nodeType}`);
     if (!nodeType) return;
     const typeInfo = NODE_TYPE_MAP[nodeType];
-    if (!typeInfo) { console.warn(`[NodeList] unknown nodeType: ${nodeType}`); return; }
+    if (!typeInfo) return;
 
     const defaultExtra = {};
     if (typeInfo.fields) {
@@ -133,11 +291,7 @@ export default function NodeList() {
         }
       }
     }
-
-    const dropIndex = insertIndex !== null ? insertIndex : treeNodes.length;
-    console.log(`[NodeList] drop insertIndex=${dropIndex} total=${treeNodes.length}`);
-
-    const parentId = deriveParentId(nodes, nodeType, NODE_TYPE_MAP, dropIndex);
+    const parentId = deriveParentId(nodes, nodeType, NODE_TYPE_MAP, idx);
     saveNode({
       type: nodeType,
       parent_id: parentId,
@@ -145,138 +299,107 @@ export default function NodeList() {
       locator_type: 'css',
       method: 'ele',
       extra: defaultExtra,
-    }, dropIndex);
-  };
+    }, idx);
+  }, [draggingIds, insertIndex, treeNodes, nodes, NODE_TYPE_MAP, saveNode, handleInternalDrop]);
 
-  // ─── dnd-kit 拖拽排序 ──────────────────────────────────────
-
-  const handleDragStart = (event) => {
-    setActiveId(event.active.id);
-    document.body.classList.add('dragging-node');
-  };
-
-  const handleDragEnd = (event) => {
-    document.body.classList.remove('dragging-node');
-    const { active, over } = event;
-    console.log(`[NodeList] dragEnd active=${active?.id} over=${over?.id}`);
-    setActiveId(null);
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = treeNodes.findIndex(n => n.id === active.id);
-    const newIndex = treeNodes.findIndex(n => n.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    // 用 arrayMove 计算新顺序
-    const movedTree = arrayMove(treeNodes, oldIndex, newIndex);
-
-    // 用原始 nodes 数据构建新顺序
-    const sorted = movedTree.map(n => {
-      const original = nodes.find(x => x.id === n.id);
-      return { ...original };
-    });
-
-    // 重新分配 order
-    for (let i = 0; i < sorted.length; i++) {
-      sorted[i].order = i + 1;
-    }
-
-    // 基于新顺序重新计算 parent_id
-    const stack = [];
-    for (const node of sorted) {
-      const info = NODE_TYPE_MAP[node.type];
-      if (info?.isBranch) {
-        const closed = stack.pop();
-        node.parent_id = closed || null;
-        stack.push(node.id);
-      } else if (info?.isContainer) {
-        node.parent_id = stack.length > 0 ? stack[stack.length - 1] : null;
-        stack.push(node.id);
-      } else if (info?.isStructural) {
-        const closed = stack.pop();
-        node.parent_id = closed || null;
-      } else {
-        node.parent_id = stack.length > 0 ? stack[stack.length - 1] : null;
-      }
-    }
-
-    replaceNodes(sorted);
-  };
-
-  // ─── 描述渲染 ──────────────────────────────────────────────
-
-  const activeNode = activeId ? treeNodes.find(n => n.id === activeId) : null;
+  // ─── 渲染 ────────────────────────────────────────────────────
 
   return (
     <main
       className="flex-1 flex flex-col min-w-0 bg-white relative"
       onDragOver={handleDragOverPanel}
+      onDragEnter={handleDragOverPanel}
       onDragLeave={handleDragLeavePanel}
       onDrop={handleDropPanel}
     >
-      <div className={`flex-1 overflow-y-auto p-4 transition-colors ${dragOver ? 'bg-blue-50/30' : ''}`}>
+      <div className={`flex-1 overflow-y-auto p-4 transition-colors node-list-container ${dragOver ? 'bg-blue-50/30' : ''}`}>
         {treeNodes.length === 0 ? (
           <EmptyState />
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={treeNodes.map(n => n.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="w-full space-y-0.5 relative">
-                {dragOver && insertIndex === 0 && <InsertPlaceholder />}
-                {treeNodes.map((node, idx) => {
-                  const typeInfo = NODE_TYPE_MAP[node.type] || {};
-                  const nextNode = treeNodes[idx + 1];
-                  const hasChildren = nextNode && nextNode.depth === (node.depth || 0) + 1;
-                  return (
-                    <div key={node.id}>
-                      <SortableNode
-                        node={node}
-                        index={idx}
-                        isSelected={node.id === selectedNodeId}
-                        NODE_TYPE_MAP={NODE_TYPE_MAP}
-                        onSelect={handleSelect}
-                        onDelete={handleDelete}
-                        isRunning={node.id === runningStepId}
-                        runError={stepErrors[node.id] || null}
-                      />
-                      {/* 容器节点下方的子节点插槽 */}
-                      {typeInfo.isContainer && !hasChildren && (
-                        <div
-                          className={`border border-dashed rounded py-2.5 px-3 text-xs flex items-center gap-2 transition-colors ${dragOver ? 'border-[#1677ff] bg-blue-50/60 text-[#1677ff]' : 'border-gray-300 bg-gray-50/50 text-gray-400'}`}
-                          style={{ marginLeft: `${(node.depth || 0) * 20 + 24}px` }}
-                        >
-                          <i className="fas fa-plus text-[10px]"></i>
-                          拖入指令到此处
-                        </div>
-                      )}
-                      {dragOver && insertIndex === idx + 1 && <InsertPlaceholder />}
+          <div className="w-full space-y-0.5 relative">
+            {dragOver && insertIndex === 0 && <InsertPlaceholder />}
+            {treeNodes.map((node, idx) => {
+              const typeInfo = NODE_TYPE_MAP[node.type] || {};
+              const nextNode = treeNodes[idx + 1];
+              const hasChildren = nextNode && nextNode.depth === (node.depth || 0) + 1;
+              const isSelected = selectedNodeIds.has(node.id);
+              const isDraggingNode = draggingIds && draggingIds.has(node.id);
+              return (
+                <div key={node.id}>
+                  <NodeRow
+                    node={node}
+                    index={idx}
+                    isSelected={isSelected}
+                    isDragging={isDraggingNode}
+                    NODE_TYPE_MAP={NODE_TYPE_MAP}
+                    onSelect={handleSelect}
+                    onDelete={handleDelete}
+                    onToggleEnabled={handleToggleEnabled}
+                    onDragStart={handleNodeDragStart}
+                    isRunning={node.id === runningStepId}
+                    runError={stepErrors[node.id] || null}
+                    elements={elements}
+                  />
+                  {/* 容器节点下方的子节点插槽 */}
+                  {typeInfo.isContainer && !hasChildren && (
+                    <div
+                      className={`border border-dashed rounded py-2.5 px-3 text-xs flex items-center gap-2 transition-colors ${dragOver ? 'border-[#1677ff] bg-blue-50/60 text-[#1677ff]' : 'border-gray-300 bg-gray-50/50 text-gray-400'}`}
+                      style={{ marginLeft: `${(node.depth || 0) * 20 + 24}px` }}
+                    >
+                      <i className="fas fa-plus text-[10px]"></i>
+                      拖入指令到此处
                     </div>
-                  );
-                })}
-              </div>
-            </SortableContext>
-            <DragOverlay>
-              {activeNode ? (
-                <NodeRow
-                  node={activeNode}
-                  index={treeNodes.findIndex(n => n.id === activeNode.id)}
-                  isSelected={false}
-                  isOverlay
-                  NODE_TYPE_MAP={NODE_TYPE_MAP}
-                  isRunning={false}
-                  runError={null}
-                />
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+                  )}
+                  {dragOver && insertIndex === idx + 1 && <InsertPlaceholder />}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
+
+      {/* 多选操作工具栏 */}
+      {hasMultiSelection && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white border shadow-lg rounded-lg px-3 py-2 flex items-center gap-2 z-20">
+          <span className="text-xs text-gray-500 mr-1">{selectedNodeIds.size} 个节点</span>
+          {!selectionValidation.valid && (
+            <span className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded" title={selectionValidation.reason}>
+              {selectionValidation.reason}
+            </span>
+          )}
+          <button
+            onClick={() => handleBatchMove('up')}
+            disabled={!canBatchMove}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600"
+            title="上移"
+          >
+            <i className="fas fa-arrow-up text-[10px]"></i>
+          </button>
+          <button
+            onClick={() => handleBatchMove('down')}
+            disabled={!canBatchMove}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600"
+            title="下移"
+          >
+            <i className="fas fa-arrow-down text-[10px]"></i>
+          </button>
+          <div className="w-px h-4 bg-gray-200 mx-1" />
+          <button
+            onClick={(e) => handleDelete(e, Array.from(selectedNodeIds)[0])}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+            title="删除"
+          >
+            <i className="fas fa-trash-alt text-[10px]"></i>
+          </button>
+          <button
+            onClick={handleClearSelection}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+            title="取消选择"
+          >
+            <i className="fas fa-times text-[10px]"></i>
+          </button>
+        </div>
+      )}
 
       {/* 画布为空时的拖拽提示 */}
       {dragOver && treeNodes.length === 0 && (
@@ -292,59 +415,31 @@ export default function NodeList() {
 
 // ─── 子组件 ───────────────────────────────────────────────────
 
-function SortableNode({ node, index, isSelected, NODE_TYPE_MAP, onSelect, onDelete, isRunning, runError }) {
-  const {
-    listeners,
-    attributes,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: node.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style}>
-      <NodeRow
-        node={node}
-        index={index}
-        isSelected={isSelected}
-        listeners={listeners}
-        attributes={attributes}
-        NODE_TYPE_MAP={NODE_TYPE_MAP}
-        onSelect={onSelect}
-        onDelete={onDelete}
-        isRunning={isRunning}
-        runError={runError}
-      />
-    </div>
-  );
-}
-
-function NodeRow({ node, index, isSelected, listeners, attributes, NODE_TYPE_MAP, onSelect, onDelete, isOverlay, isRunning, runError }) {
+function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect, onDelete, onToggleEnabled, onDragStart, isRunning, runError, elements }) {
   const typeInfo = NODE_TYPE_MAP[node.type] || {};
   const depth = node.depth || 0;
   const indent = depth * 20;
+  const isDisabled = node.enabled === 0;
 
   const runningCls = isRunning ? 'step-running' : '';
   const errorCls = runError ? 'step-error' : '';
+  const disabledCls = isDisabled ? 'opacity-40 grayscale' : '';
+  const draggingCls = isDragging ? 'opacity-30' : '';
 
   return (
     <div
       className={`
-        step-item flex items-start gap-2 px-3 py-2.5 rounded cursor-pointer relative
+        step-item flex items-start gap-2 px-3 py-2.5 rounded cursor-pointer relative select-none
         ${isSelected ? 'step-selected' : 'hover:bg-[#f5f5f5]'}
-        ${isOverlay ? 'bg-white shadow-lg border border-[#1677ff]' : ''}
         ${runningCls}
         ${errorCls}
+        ${disabledCls}
+        ${draggingCls}
       `}
       style={{ marginLeft: indent }}
-      onClick={() => onSelect && onSelect(node.id)}
+      onClick={(e) => onSelect && onSelect(node.id, e)}
+      onDragOver={(e) => { e.preventDefault(); }}
+      onDragEnter={(e) => { e.preventDefault(); }}
       title={runError || ''}
     >
       {/* 缩进竖线 — 每层 depth 一条 */}
@@ -374,8 +469,8 @@ function NodeRow({ node, index, isSelected, listeners, attributes, NODE_TYPE_MAP
 
       {/* 拖拽手柄 */}
       <div
-        {...listeners}
-        {...attributes}
+        draggable
+        onDragStart={(e) => onDragStart && onDragStart(e, node.id)}
         className="drag-handle w-6 h-6 flex items-center justify-center shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 rounded hover:bg-gray-100 touch-none"
         title="拖拽排序"
         onClick={(e) => e.stopPropagation()}
@@ -395,10 +490,22 @@ function NodeRow({ node, index, isSelected, listeners, attributes, NODE_TYPE_MAP
             </span>
           )}
         </div>
-        <div className="text-[11px] text-gray-500 mt-0.5 truncate">{getNodeDesc(node, NODE_TYPE_MAP)}</div>
+        <div className="text-[11px] text-gray-500 mt-0.5 truncate">{getNodeDesc(node, NODE_TYPE_MAP, elements)}</div>
       </div>
-      {isSelected && onDelete && (
+      {onDelete && (
         <div className="flex items-center gap-1 shrink-0">
+          <label
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 cursor-pointer"
+            title={isDisabled ? '已禁用（执行时跳过）' : '已启用'}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={!isDisabled}
+              onChange={(e) => onToggleEnabled && onToggleEnabled(e, node)}
+              className="w-3.5 h-3.5 accent-[#1677ff] cursor-pointer"
+            />
+          </label>
           <button
             onClick={(e) => onDelete(e, node.id)}
             className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
@@ -435,85 +542,218 @@ function InsertPlaceholder() {
 
 // ─── 描述提取 ──────────────────────────────────────────────────
 
-function getNodeDesc(node, NODE_TYPE_MAP) {
+const OP_LABELS = {
+  exists: '存在', notExists: '不存在',
+  visible: '可见', notVisible: '不可见',
+  contains: '包含', notContains: '不包含',
+  startsWith: '开头为', endsWith: '结尾为',
+  equals: '等于', greaterThan: '大于', lessThan: '小于',
+};
+
+function V({ children }) {
+  return <span className="font-bold text-red-600">{children}</span>;
+}
+
+function formatLocator(locator) {
+  if (Array.isArray(locator)) {
+    const first = typeof locator[0] === 'string' ? locator[0] : (locator[0].locator || locator[0].selector || '');
+    return `[${locator.length}个备选] ${first}`;
+  }
+  return String(locator);
+}
+
+function normalizeLocator(locator) {
+  if (!locator) return '';
+  if (Array.isArray(locator)) {
+    const first = typeof locator[0] === 'string' ? locator[0] : (locator[0]?.locator || locator[0]?.selector || '');
+    return first.trim();
+  }
+  return String(locator).trim();
+}
+
+function normalizeLocatorString(locator) {
+  if (!locator) return '';
+  if (typeof locator === 'string') return locator.trim();
+  if (Array.isArray(locator)) {
+    const first = typeof locator[0] === 'string' ? locator[0] : (locator[0]?.locator || locator[0]?.selector || '');
+    return first.trim();
+  }
+  return String(locator).trim();
+}
+
+function flattenLocators(locator) {
+  if (!locator) return [];
+  if (typeof locator === 'string') {
+    try {
+      const parsed = JSON.parse(locator);
+      return flattenLocators(parsed);
+    } catch {
+      return [locator.trim()];
+    }
+  }
+  if (Array.isArray(locator)) {
+    return locator.map(item => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object') {
+        return (item.locator || item.selector || '').trim();
+      }
+      return String(item).trim();
+    }).filter(Boolean);
+  }
+  return [String(locator).trim()];
+}
+
+function findElementByLocator(locatorStr, elements) {
+  if (!locatorStr || !elements || !elements.length) return null;
+  return elements.find(e => {
+    const elLoc = normalizeLocatorString(e.locator);
+    if (elLoc === locatorStr) return true;
+    // 也匹配 candidates 中的备选定位器
+    if (e.candidates && Array.isArray(e.candidates)) {
+      for (const cand of e.candidates) {
+        const val = typeof cand === 'string'
+          ? cand
+          : (cand.syntax || cand.locator || cand.selector || '');
+        if (val === locatorStr) return true;
+      }
+    }
+    return false;
+  }) || null;
+}
+
+function getNodeDesc(node, NODE_TYPE_MAP, elements) {
   const typeInfo = NODE_TYPE_MAP[node.type];
   const extra = node.extra && typeof node.extra === 'object' ? node.extra : {};
   const hasLocator = typeInfo?.fields?.some(f => f.name === 'locator');
+  const isCondition = node.type.startsWith('if');
+
   if (hasLocator) {
     const parts = [];
-    if (node.locator) parts.push(node.locator);
-    if (node.method && node.locator) parts.push(`${node.method}()`);
-    return parts.join(' · ') || typeInfo?.label || node.type;
+    const op = extra.operator;
+    const opLabel = op ? (OP_LABELS[op] || op) : null;
+
+    // 条件节点：前缀 + operator 优先显示（避免被 truncate 截断）
+    if (isCondition) {
+      parts.push(<span key="prefix">如果</span>);
+    }
+    if (opLabel) {
+      parts.push(<span key="op" className="text-gray-500 font-medium">[{opLabel}]</span>);
+    }
+
+    const locators = flattenLocators(node.locator);
+
+    if (locators.length > 0) {
+      locators.forEach((loc, i) => {
+        let matched = null;
+        if (i === 0 && node.element_id && elements && elements.length > 0) {
+          matched = elements.find(e => e.id === node.element_id);
+          if (matched && normalizeLocatorString(matched.locator) !== loc) {
+            matched = null;
+          }
+        }
+        if (!matched) {
+          matched = findElementByLocator(loc, elements);
+        }
+        if (matched) {
+          parts.push(<span key={`el-${i}`}>📎 <V>{matched.name}</V></span>);
+        } else {
+          parts.push(<span key={`el-${i}`}><V>{loc}</V></span>);
+        }
+      });
+    } else if (node.locator) {
+      parts.push(<span key="loc"><V>{formatLocator(node.locator)}</V></span>);
+    }
+
+    if (node.method && !isCondition) {
+      parts.push(<span key="method" className="text-gray-500">{node.method}()</span>);
+    }
+
+    const skipKeys = ['operator', 'scope', 'locator_type', 'method'];
+    for (const [k, v] of Object.entries(extra)) {
+      if (skipKeys.includes(k)) continue;
+      if (v !== undefined && v !== '' && v !== false) {
+        const label = typeInfo.fields?.find(f => f.name === k)?.label || k;
+        parts.push(<span key={k}>{label}: <V>{String(v)}</V></span>);
+      }
+    }
+
+    if (parts.length === 0) return typeInfo?.label || node.type;
+    return <span className="space-x-1.5">{parts}</span>;
   }
+
   const summary = summarizeExtra(node.type, extra, typeInfo);
   return summary || typeInfo?.label || node.type;
 }
 
 function summarizeExtra(type, extra, typeInfo) {
   const val = (k) => extra[k];
+  const op = extra.operator;
+  const opLabel = op ? (OP_LABELS[op] || op) : null;
+
   switch (type) {
-    case 'navigate': return val('url') ? `打开 ${val('url')}` : '打开网页';
+    case 'navigate': return val('url') ? <>打开 <V>{val('url')}</V></> : '打开网页';
     case 'goBack': return '返回上一页';
     case 'goForward': return '前进';
     case 'refresh': return val('hardReload') ? '强制刷新' : '刷新页面';
-    case 'newTab': return val('url') ? `新标签页 ${val('url')}` : '新建标签页';
+    case 'newTab': return val('url') ? <>新标签页 <V>{val('url')}</V></> : '新建标签页';
     case 'closeTab': return '关闭标签页';
-    case 'switchTab': return `切换标签页 (${val('by') || 'index'}=${val('value') || ''})`;
-    case 'switchToFrame': return val('locator') ? `进入 iframe: ${val('locator')}` : '进入 iframe';
+    case 'switchTab': return <>切换标签页 (<V>{val('by') || 'index'}={val('value') || ''}</V>)</>;
+    case 'switchToFrame': return val('locator') ? <>进入 iframe: <V>{val('locator')}</V></> : '进入 iframe';
     case 'switchToMain': return '退出 iframe';
-    case 'getCurrentUrl': return `保存URL → ${val('varName') || 'currentUrl'}`;
-    case 'getPageTitle': return `保存标题 → ${val('varName') || 'pageTitle'}`;
+    case 'getCurrentUrl': return <>保存URL → <V>{val('varName') || 'currentUrl'}</V></>;
+    case 'getPageTitle': return <>保存标题 → <V>{val('varName') || 'pageTitle'}</V></>;
     case 'input':
-    case 'inputAndPressEnter': return val('text') ? `输入: ${val('text')}` : '输入文本';
+    case 'inputAndPressEnter': return val('text') ? <>输入: <V>{val('text')}</V></> : '输入文本';
     case 'clearInput': return '清空输入框';
-    case 'pressKey': return `按键: ${val('key') || 'Enter'}`;
-    case 'selectOption': return `选择: ${val('value') || ''}`;
-    case 'getText': return `提取文本 → ${val('varName') || 'text'}`;
-    case 'getAttr': return `提取 ${val('attrName') || '属性'} → ${val('varName') || 'attrVal'}`;
-    case 'getHtml': return `提取HTML → ${val('varName') || 'html'}`;
-    case 'getValue': return `提取值 → ${val('varName') || 'value'}`;
-    case 'getElementCount': return `计数 → ${val('varName') || 'count'}`;
-    case 'getElementList': return `获取列表 → ${val('varName') || 'elements'}`;
+    case 'pressKey': return <>按键: <V>{val('key') || 'Enter'}</V></>;
+    case 'selectOption': return <>选择 (<V>{val('by') || 'label'}</V>): <V>{val('value') || ''}</V></>;
+    case 'getText': return <>提取文本 → <V>{val('varName') || 'text'}</V></>;
+    case 'getAttr': return <>提取 <V>{val('attrName') || '属性'}</V> → <V>{val('varName') || 'attrVal'}</V></>;
+    case 'getHtml': return <>提取HTML → <V>{val('varName') || 'html'}</V></>;
+    case 'getValue': return <>提取值 → <V>{val('varName') || 'value'}</V></>;
+    case 'getElementCount': return <>计数 → <V>{val('varName') || 'count'}</V></>;
+    case 'getElementList': return <>获取列表 → <V>{val('varName') || 'elements'}</V></>;
     case 'scrollToBottom': return '滚动到底部';
     case 'scrollToTop': return '滚动到顶部';
-    case 'scrollIntoView': return val('locator') ? `滚动到: ${val('locator')}` : '滚动到元素';
-    case 'scrollBy': return `滚动 (${val('x') || 0}, ${val('y') || 500})`;
-    case 'infiniteScroll': return `无限滚动 (最大${val('maxScrolls') || 50}次)`;
-    case 'sleep': return `等待 ${val('seconds') || 1} 秒`;
-    case 'waitForElement': return val('locator') ? `等待出现: ${val('locator')}` : '等待元素出现';
-    case 'waitForElementHide': return val('locator') ? `等待消失: ${val('locator')}` : '等待元素消失';
-    case 'waitForText': return `等待文本: ${val('text') || ''}`;
-    case 'waitForUrl': return `等待URL: ${val('urlPattern') || ''}`;
-    case 'waitForLoad': return `等待页面加载 (${val('state') || 'networkidle'})`;
-    case 'ifElementExists': return val('locator') ? `如果存在: ${val('locator')}` : '如果元素存在';
-    case 'ifElementNotExists': return val('locator') ? `如果不存在: ${val('locator')}` : '如果元素不存在';
-    case 'ifElementVisible': return val('locator') ? `如果可见: ${val('locator')}` : '如果元素可见';
-    case 'ifTextContains': return `文本包含: ${val('text') || ''}`;
-    case 'ifTextEquals': return `文本等于: ${val('text') || ''}`;
-    case 'ifUrlContains': return `URL包含: ${val('urlPattern') || ''}`;
-    case 'ifVarEquals': return `${val('varName') || 'x'} == ${val('value') || ''}`;
-    case 'ifVarGreaterThan': return `${val('varName') || 'x'} > ${val('value') || 0}`;
+    case 'scrollOneScreen': return '滚动一屏';
+    case 'scrollIntoView': return val('locator') ? <>滚动到: <V>{val('locator')}</V></> : '滚动到元素';
+    case 'scrollBy': return <>滚动 (<V>{val('x') || 0}, {val('y') || 500}</V>)</>;
+    case 'infiniteScroll': return <>无限滚动 (最大<V>{val('maxScrolls') || 50}</V>次)</>;
+    case 'sleep': return <>等待 <V>{val('seconds') || 1}</V> 秒</>;
+    case 'waitForElement': return val('locator') ? <>等待出现: <V>{val('locator')}</V></> : '等待元素出现';
+    case 'waitForElementHide': return val('locator') ? <>等待消失: <V>{val('locator')}</V></> : '等待元素消失';
+    case 'waitForText': return <>等待文本: <V>{val('text') || ''}</V></>;
+    case 'waitForUrl': return <>等待URL: <V>{val('urlPattern') || ''}</V></>;
+    case 'waitForLoad': return <>等待页面加载 (<V>{val('state') || 'networkidle'}</V>)</>;
+    case 'ifElementExists': return val('locator') ? <>如果<V>{opLabel || '存在'}</V>: <V>{val('locator')}</V></> : `如果元素${opLabel || '存在'}`;
+    case 'ifElementNotExists': return val('locator') ? <>如果不存在: <V>{val('locator')}</V></> : '如果元素不存在';
+    case 'ifElementVisible': return val('locator') ? <>如果<V>{opLabel || '可见'}</V>: <V>{val('locator')}</V></> : `如果元素${opLabel || '可见'}`;
+    case 'ifTextContains': return <>文本<V>{opLabel || '包含'}</V>: <V>{val('text') || ''}</V></>;
+    case 'ifTextEquals': return <>文本等于: <V>{val('text') || ''}</V></>;
+    case 'ifUrlContains': return <>URL<V>{opLabel || '包含'}</V>: <V>{val('urlPattern') || ''}</V></>;
+    case 'ifVarEquals': return <><V>{val('varName') || 'x'}</V> <V>{opLabel || '=='}</V> <V>{val('value') || ''}</V></>;
+    case 'ifVarGreaterThan': return <><V>{val('varName') || 'x'}</V> &gt; <V>{val('value') || 0}</V></>;
     case 'else': return '否则';
     case 'endIf': return '结束条件';
-    case 'forEachElement': return val('locator') ? `遍历: ${val('locator')}` : '循环相似元素';
-    case 'forRange': return `循环 ${val('start') || 0}..${val('end') || 10}`;
-    case 'forList': return `遍历列表: ${val('listVar') || 'items'}`;
-    case 'whileCondition': return `循环直到: ${val('conditionType') || ''}`;
+    case 'forEachElement': return val('locator') ? <>遍历: <V>{val('locator')}</V></> : '循环相似元素';
+    case 'forRange': return <>循环 <V>{val('start') || 0}..{val('end') || 10}</V></>;
+    case 'forList': return <>遍历列表: <V>{val('listVar') || 'items'}</V></>;
+    case 'whileCondition': return <>循环直到: <V>{val('conditionType') || ''}</V></>;
     case 'break': return '跳出循环';
     case 'continue': return '继续下一次';
     case 'endFor': return '结束循环';
-    case 'setVar': return `${val('name') || 'x'} = ${val('value') || ''}`;
-    case 'appendToList': return `追加: ${val('value') || ''}`;
-    case 'stringConcat': return `拼接 → ${val('targetVar') || 'result'}`;
-    case 'increment': return `${val('varName') || 'count'} += ${val('step') || 1}`;
-    case 'log': return `[${val('level') || 'info'}] ${val('message') || ''}`;
+    case 'setVar': return <><V>{val('name') || 'x'}</V> = <V>{val('value') || ''}</V></>;
+    case 'appendToList': return <>追加: <V>{val('value') || ''}</V></>;
+    case 'stringConcat': return <>拼接 → <V>{val('targetVar') || 'result'}</V></>;
+    case 'increment': return <><V>{val('varName') || 'count'}</V> += <V>{val('step') || 1}</V></>;
+    case 'log': return <><V>[{val('level') || 'info'}]</V> <V>{val('message') || ''}</V></>;
     case 'pushItem': return '推送结果项';
-    case 'takeScreenshot': return `截图: ${val('savePath') || ''}`;
-    case 'saveToFile': return `保存到: ${val('filePath') || ''}`;
-    case 'keyCombo': return `按键: ${val('keys') || ''}`;
-    case 'httpRequest': return `${val('method') || 'GET'} ${val('url') || ''}`;
-    case 'callAiApp': return `AI: ${val('appType') || ''}`;
-    case 'callWorkflow': return `调用流程 #${val('workflowId') || ''}`;
+    case 'takeScreenshot': return <>截图: <V>{val('savePath') || ''}</V></>;
+    case 'saveToFile': return <>保存到: <V>{val('filePath') || ''}</V></>;
+    case 'keyCombo': return <>按键: <V>{val('keys') || ''}</V></>;
+    case 'httpRequest': return <><V>{val('method') || 'GET'}</V> <V>{val('url') || ''}</V></>;
+    case 'callAiApp': return <>AI: <V>{val('appType') || ''}</V></>;
+    case 'callWorkflow': return <>调用流程 #<V>{val('workflowId') || ''}</V></>;
     case 'return': return '结束并返回';
     case 'try': return '捕获异常';
     case 'catch': return '异常处理';
@@ -525,7 +765,7 @@ function summarizeExtra(type, extra, typeInfo) {
         for (const f of typeInfo.fields) {
           const v = extra[f.name];
           if (v !== undefined && v !== '' && v !== false) {
-            return `${f.label}: ${v}`;
+            return <><V>{f.label}</V>: <V>{String(v)}</V></>;
           }
         }
       }

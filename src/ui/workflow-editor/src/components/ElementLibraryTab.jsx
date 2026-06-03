@@ -1,20 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
+import DataTableTab from './DataTableTab';
 
 const BOTTOM_TABS = [
   { key: 'elements', label: '元素库', icon: 'fa-crosshairs' },
   { key: 'images', label: '图像库', icon: 'fa-image' },
+  { key: 'dataTable', label: '数据表格', icon: 'fa-table' },
   { key: 'logs', label: '运行日志', icon: 'fa-terminal' },
   { key: 'params', label: '流程参数', icon: 'fa-sliders-h' },
 ];
 
 export default function ElementLibraryTab() {
-  const { elements, loadElements, runLogs, runStatus } = useWorkflow();
-  const [hosts, setHosts] = useState([]);
+  const { elements, loadElements, runLogs, runStatus, wfId } = useWorkflow();
   const [selectedHost, setSelectedHost] = useState('');
   const [activeTab, setActiveTab] = useState('elements');
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(() => {
+    try { return localStorage.getItem('wf_editor_bottom_expanded') !== 'false'; }
+    catch { return true; }
+  });
   const [selectedElementId, setSelectedElementId] = useState(null);
   const [extOnline, setExtOnline] = useState(false);
   const [extCount, setExtCount] = useState(0);
@@ -25,8 +29,62 @@ export default function ElementLibraryTab() {
   const [renamingId, setRenamingId] = useState(null);
   const [renamingValue, setRenamingValue] = useState('');
   const renameRef = useRef(null);
+  const logsRef = useRef(null);
+  const panelRef = useRef(null);
+  const importRef = useRef(null);
+
+  function toggleExpanded(next) {
+    try { localStorage.setItem('wf_editor_bottom_expanded', String(next)); } catch {}
+    setExpanded(next);
+  }
+
+  // 点击运行后自动切换到运行日志 tab
+  useEffect(() => {
+    if (runStatus === 'running') {
+      setActiveTab('logs');
+    }
+  }, [runStatus]);
+
+  // 展开时从 localStorage 恢复高度
+  useEffect(() => {
+    if (!expanded || !panelRef.current) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem('wf_editor_layout') || '{}');
+      if (saved.bottomHeight) {
+        panelRef.current.style.height = saved.bottomHeight + 'px';
+      }
+    } catch {}
+  }, [expanded]);
+
+  // 运行日志自动滚底：切换标签或新增日志时，若之前在底部则保持底部
+  useEffect(() => {
+    if (activeTab !== 'logs' || !logsRef.current) return;
+    const el = logsRef.current;
+    // 切换标签时直接滚到底部
+    if (runLogs.length > 0) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!logsRef.current || runLogs.length === 0) return;
+    const el = logsRef.current;
+    const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+    if (isAtBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [runLogs]);
 
   const selectedElement = elements.find(e => e.id === selectedElementId) || null;
+
+  // 从 elements 派生站点列表，捕获新站点后自动更新
+  const hosts = useMemo(() => {
+    const set = new Set();
+    for (const e of elements) {
+      if (e.hostname) set.add(e.hostname);
+    }
+    return Array.from(set).sort();
+  }, [elements]);
 
   useEffect(() => {
     if (renamingId && renameRef.current) {
@@ -35,10 +93,9 @@ export default function ElementLibraryTab() {
     }
   }, [renamingId]);
 
-  // 加载元素库 + 站点列表
+  // 加载元素库
   const refresh = async () => {
     await loadElements();
-    api.getElementHosts().then(setHosts).catch(() => {});
   };
 
   useEffect(() => {
@@ -168,10 +225,46 @@ export default function ElementLibraryTab() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const res = await api.exportElements();
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `elements-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`已导出 ${data.length} 个元素`);
+    } catch (e) {
+      showToast('导出失败: ' + e.message, 'error');
+    }
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      const text = await file.text();
+      const items = JSON.parse(text);
+      if (!Array.isArray(items)) {
+        showToast('文件格式错误: 应为 JSON 数组', 'error');
+        return;
+      }
+      const result = await api.importElements(items);
+      showToast(`导入完成: ${result.imported} 个成功${result.failed ? `, ${result.failed} 个失败` : ''}`);
+      await refresh();
+    } catch (err) {
+      showToast('导入失败: ' + err.message, 'error');
+    }
+  };
+
   if (!expanded) {
     return (
       <div className="h-8 bg-white border-t border-[#e8e8e8] flex items-center px-4 cursor-pointer hover:bg-gray-50"
-           onClick={() => setExpanded(true)}>
+           onClick={() => toggleExpanded(true)}>
         <span className="text-xs text-gray-500">
           <i className="fas fa-chevron-up mr-1"></i>
           元素库 ({elements.length})
@@ -181,7 +274,7 @@ export default function ElementLibraryTab() {
   }
 
   return (
-    <div className="h-[220px] bg-white border-t border-[#e8e8e8] flex flex-col shrink-0 select-none">
+    <div ref={panelRef} className="h-[220px] bg-white border-t border-[#e8e8e8] flex flex-col shrink-0 select-none">
       {/* Tab 栏 */}
       <div className="flex items-center border-b border-[#e8e8e8] px-2">
         {BOTTOM_TABS.map(tab => (
@@ -195,7 +288,7 @@ export default function ElementLibraryTab() {
           </button>
         ))}
         <button
-          onClick={() => setExpanded(false)}
+          onClick={() => toggleExpanded(false)}
           className="ml-auto px-2 py-2 text-xs text-gray-400 hover:text-gray-600"
         >
           <i className="fas fa-chevron-down"></i>
@@ -205,7 +298,7 @@ export default function ElementLibraryTab() {
       {/* 内容区 */}
       <div className="flex-1 flex overflow-hidden">
         {activeTab === 'logs' ? (
-          <div className="flex-1 overflow-y-auto p-2 font-mono text-xs">
+          <div ref={logsRef} className="flex-1 overflow-y-auto p-2 font-mono text-xs select-text">
             {runLogs.length === 0 ? (
               <div className="text-center text-gray-400 py-8">
                 {runStatus === 'running' ? (
@@ -216,19 +309,31 @@ export default function ElementLibraryTab() {
               </div>
             ) : (
               <div className="space-y-1">
-                {runLogs.map((log, i) => (
-                  <div key={i} className={`flex gap-2 px-2 py-1 rounded ${
-                    log.level === 'error' ? 'bg-red-50 text-red-700' :
-                    log.level === 'success' ? 'bg-green-50 text-green-700' :
-                    'text-gray-600'
-                  }`}>
-                    <span className="text-gray-400 shrink-0">{log.time}</span>
-                    <span className="break-all">{log.msg}</span>
-                  </div>
-                ))}
+                {runLogs.map((log, i) => {
+                  const stepMatch = log.msg.match(/^#(\d+)\s/);
+                  const stepNum = stepMatch ? stepMatch[1] : null;
+                  const msgWithoutStep = stepNum ? log.msg.slice(stepMatch[0].length) : log.msg;
+                  return (
+                    <div key={i} className={`flex gap-2 px-2 py-1 rounded ${
+                      log.level === 'error' ? 'bg-red-50 text-red-700' :
+                      log.level === 'success' ? 'bg-green-50 text-green-700' :
+                      'text-gray-600'
+                    }`}>
+                      <span className="text-gray-400 shrink-0">{log.time}</span>
+                      {stepNum && (
+                        <span className="shrink-0 px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 text-[10px] font-mono leading-4">
+                          #{stepNum}
+                        </span>
+                      )}
+                      <span className="break-all">{msgWithoutStep}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
+        ) : activeTab === 'dataTable' ? (
+          <DataTableTab wfId={wfId} />
         ) : activeTab === 'elements' ? (
           <>
             {/* 左侧元素树 */}
@@ -245,6 +350,27 @@ export default function ElementLibraryTab() {
                   ))}
                 </select>
                 <span className="text-xs text-gray-400">{filtered.length}</span>
+                <button
+                  onClick={handleExport}
+                  className="text-gray-400 hover:text-blue-500 px-1"
+                  title="导出全部"
+                >
+                  <i className="fas fa-download text-[10px]"></i>
+                </button>
+                <button
+                  onClick={() => importRef.current?.click()}
+                  className="text-gray-400 hover:text-green-500 px-1"
+                  title="导入"
+                >
+                  <i className="fas fa-upload text-[10px]"></i>
+                </button>
+                <input
+                  ref={importRef}
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={handleImport}
+                />
               </div>
               {filtered.length === 0 ? (
                 <div className="text-center text-gray-400 text-xs py-8">暂无元素</div>
