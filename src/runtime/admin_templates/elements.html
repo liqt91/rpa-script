@@ -91,7 +91,7 @@ function renderElements() {
           <div class="mt-2 text-xs text-gray-400 space-y-1">
             <div><span class="text-gray-500">标签:</span> <span class="text-gray-300">${tag}</span></div>
             <div><span class="text-gray-500">定位:</span> <code class="text-amber-400 font-mono text-[11px]">${escapeHtml(el.locator)}</code></div>
-            <div><span class="text-gray-500">类型:</span> ${el.locator_type} · ${el.method}</div>
+            <div><span class="text-gray-500">类型:</span> ${el.selector_family} · ${el.target_mode}</div>
             <div><span class="text-gray-500">站点:</span> ${el.hostname}</div>
             ${text ? `<div class="truncate text-gray-300" title="${escapeHtml(text)}">${escapeHtml(text)}</div>` : ''}
           </div>

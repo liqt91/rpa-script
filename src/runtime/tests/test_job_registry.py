@@ -1,7 +1,6 @@
 """Job registry: scan, validation, hot reload, legacy compatibility."""
 
 import time
-from pathlib import Path
 
 from src.runtime.job_registry import JobRegistry
 from src.config import settings as config

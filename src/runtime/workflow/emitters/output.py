@@ -3,14 +3,14 @@ from ._registry import _handler, _var_ref, _py_str
 
 
 @_handler("log")
-def _emit_log(node, extra, depth, prefix, by_parent, lines):
+def _emit_log(node, extra, depth, prefix, by_parent, lines, element_map=None):
     msg = extra.get("message", "")
     level = extra.get("level", "info")
     lines.append(f'{prefix}print("[{level.upper()}]", {_py_str(msg)})')
 
 
 @_handler("pushItem")
-def _emit_pushItem(node, extra, depth, prefix, by_parent, lines):
+def _emit_pushItem(node, extra, depth, prefix, by_parent, lines, element_map=None):
     expr = extra.get("dataExpr", "{}")
     try:
         parsed = json.loads(expr)
@@ -21,7 +21,7 @@ def _emit_pushItem(node, extra, depth, prefix, by_parent, lines):
 
 
 @_handler("takeScreenshot")
-def _emit_takeScreenshot(node, extra, depth, prefix, by_parent, lines):
+def _emit_takeScreenshot(node, extra, depth, prefix, by_parent, lines, element_map=None):
     path = extra.get("savePath") or "screenshot.png"
     full = extra.get("fullPage", False)
     loc = extra.get("locator")
@@ -34,7 +34,7 @@ def _emit_takeScreenshot(node, extra, depth, prefix, by_parent, lines):
 
 
 @_handler("saveToFile")
-def _emit_saveToFile(node, extra, depth, prefix, by_parent, lines):
+def _emit_saveToFile(node, extra, depth, prefix, by_parent, lines, element_map=None):
     data_var = _var_ref(extra.get("dataVar", "data"))
     path = extra.get("filePath") or "data.json"
     fmt = extra.get("format", "json")

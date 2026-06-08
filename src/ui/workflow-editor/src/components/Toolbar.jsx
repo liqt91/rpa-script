@@ -48,71 +48,42 @@ export default function Toolbar() {
     }
   };
 
-  // 从节点的 locator 中提取关联的元素 ID（支持 element_id 和 locator 字符串反向查找）
-  const resolveElementIdsFromNode = (node) => {
-    const ids = new Set();
-    if (node.element_id) ids.add(node.element_id);
-
-    const nodeLoc = node.locator;
-    const locators = [];
-    if (Array.isArray(nodeLoc)) {
-      for (const item of nodeLoc) {
-        if (typeof item === 'string') {
-          locators.push(item);
-        } else if (item && typeof item === 'object') {
-          if (item.elementId) ids.add(item.elementId);
-          if (item.locator) locators.push(item.locator);
-          if (item.selector) locators.push(item.selector);
-        }
-      }
-    } else if (typeof nodeLoc === 'string') {
-      locators.push(nodeLoc);
-    }
-
-    for (const loc of locators) {
-      const str = String(loc).trim();
-      if (!str) continue;
-      for (const el of elements) {
-        if (el.locator && String(el.locator).trim() === str) {
-          ids.add(el.id);
-          break;
-        }
-        if (el.candidates && Array.isArray(el.candidates)) {
-          for (const cand of el.candidates) {
-            const val = typeof cand === 'string'
-              ? cand
-              : (cand.syntax || cand.locator || cand.selector || JSON.stringify(cand));
-            if (val === str) {
-              ids.add(el.id);
-              break;
-            }
-          }
-        }
-      }
-    }
-    return ids;
+  // 收集节点引用的 element_name
+  const resolveElementNamesFromNode = (node) => {
+    const names = new Set();
+    if (node.element_name) names.add(node.element_name);
+    return names;
   };
 
   const handleExportJSON = () => {
-    const usedElementIds = new Set();
+    const usedElementNames = new Set();
     for (const n of nodes) {
-      for (const id of resolveElementIdsFromNode(n)) {
-        usedElementIds.add(id);
+      for (const name of resolveElementNamesFromNode(n)) {
+        usedElementNames.add(name);
       }
     }
-    const usedElements = elements.filter(e => usedElementIds.has(e.id)).map(e => ({ ...e }));
+    const usedElements = elements.filter(e => usedElementNames.has(e.name)).map(e => ({ ...e }));
     const data = {
       workflow: { id: workflow?.id, name: workflow?.name, url: workflow?.url },
       nodes: nodes.map(n => ({ ...n })),
       elements: usedElements,
       exportedAt: new Date().toISOString(),
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const jsonStr = JSON.stringify(data, null, 2);
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const filename = `${workflow?.name || 'workflow'}_${dateStr}.json`;
+
+    // 桌面应用（pywebview）通过桥接调用系统保存对话框
+    if (typeof window !== 'undefined' && window.pywebview?.api) {
+      window.pywebview.api.saveFileDialog(jsonStr, filename);
+      return;
+    }
+
+    const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    a.download = `${workflow?.name || 'workflow'}_${dateStr}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -132,12 +103,20 @@ export default function Toolbar() {
         e.target.value = '';
         return;
       }
-      // 先导入元素，建立旧 ID → 新 ID 映射
-      let elementMapping = {};
+      // 先导入元素到当前流程（元素以 name 为键，同名会覆盖）
       if (Array.isArray(data.elements) && data.elements.length > 0) {
         try {
-          const result = await api.importElements(data.elements);
-          elementMapping = result.mapping || {};
+          for (const el of data.elements) {
+            const payload = { ...el };
+            delete payload.id;
+            delete payload.workflow_id;
+            delete payload.created_at;
+            delete payload.updated_at;
+            await api.createWorkflowElement(wfId, payload);
+          }
+          // 刷新元素库
+          const fresh = await api.getWorkflowElements(wfId);
+          dispatch({ type: 'SET_ELEMENTS', payload: fresh });
         } catch (err) {
           console.error('[Toolbar] import elements failed:', err);
         }
@@ -152,10 +131,6 @@ export default function Toolbar() {
         delete copy.created_at;
         copy.id = tempId;        // frontend tree/dnd needs id
         copy.temp_id = tempId;   // backend batch save uses temp_id
-        // 更新 element_id 映射
-        if (copy.element_id && elementMapping[String(copy.element_id)]) {
-          copy.element_id = elementMapping[String(copy.element_id)];
-        }
         return copy;
       });
       imported.forEach((n) => {
@@ -195,11 +170,6 @@ export default function Toolbar() {
       }
     }
 
-    if (runMode === 'extension' && !extStatus?.online) {
-      alert('浏览器扩展未连接。请先安装扩展并确保 Chrome 中已启用。');
-      return;
-    }
-
     setRunning(true);
     setPaused(false);
     setRunResult(null);
@@ -207,7 +177,8 @@ export default function Toolbar() {
     dispatch({ type: 'CLEAR_RUN_LOGS' });
 
     if (runMode === 'extension') {
-      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（扩展模式）' } });
+      const browserLabel = workflow?.target_browser === 'edge' ? 'Edge' : workflow?.target_browser === 'chrome' ? 'Chrome' : '默认 Chrome';
+      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: `开始执行（扩展模式 · ${browserLabel}）` } });
     } else {
       dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（Python 模式）' } });
     }
@@ -424,12 +395,14 @@ export default function Toolbar() {
             <button
               className={`h-6 px-2 rounded text-xs transition-colors flex items-center gap-1 ${runMode === 'extension' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
               onClick={() => setRunMode('extension')}
-              title="通过浏览器扩展在默认 Chrome 中执行"
+              title={`通过浏览器扩展在 ${workflow?.target_browser === 'edge' ? 'Edge' : workflow?.target_browser === 'chrome' ? 'Chrome' : '默认 Chrome'} 中执行`}
             >
               {runMode === 'extension' && (
                 <span className={`w-1.5 h-1.5 rounded-full ${extDotColor}`}></span>
               )}
               扩展
+              {workflow?.target_browser === 'edge' && <i className="fab fa-edge text-[9px] ml-0.5" title="Edge"></i>}
+              {workflow?.target_browser === 'chrome' && <i className="fab fa-chrome text-[9px] ml-0.5" title="Chrome"></i>}
             </button>
           </div>
 

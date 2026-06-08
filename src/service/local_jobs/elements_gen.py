@@ -176,7 +176,7 @@ class DrissionPageDocsCrawler:
                     self.save_as_markdown(content_data, idx)
                     print(f"      ✅ 已保存: {content_data['title']} ({len(content_data['content'])} 字符)")
                 else:
-                    print(f"      ⚠️ 未能提取到有效内容")
+                    print("      ⚠️ 未能提取到有效内容")
                     
             except Exception as e:
                 print(f"      ❌ 错误: {e}")

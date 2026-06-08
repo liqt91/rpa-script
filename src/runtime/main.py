@@ -19,9 +19,9 @@ from src.repo import runtime_models as models
 from .routers.auth_router import router as auth_router
 from .routers.tasks_router import router as tasks_router
 from .routers.workflows_router import router as workflows_router
-from .routers.elements_router import router as elements_router
 from .routers.extension_router import router as extension_router
 from .routers.commands_router import router as commands_router
+from .routers.data_tables_router import router as data_tables_router
 from .routers.other_routers import result_router, script_router, client_router, ai_router
 from .admin_router import router as admin_router
 from src.config.runtime_config import HOST, PORT
@@ -64,14 +64,15 @@ def _load_ai_apps_from_db(db):
 
 
 def _sync_commands_to_db(db):
-    """启动时：将 commands.py 中的内置指令同步到数据库（已存在的覆盖字段定义）。"""
+    """启动时：将 commands.py 中的内置指令同步到数据库。
+    新指令默认停用（enabled=0），已存在的指令不覆盖启停状态。"""
     from .workflow import commands
     import json
 
     existing = {row.type: row for row in db.query(models.WorkflowCommand).all()}
     for type_name, cmd in commands.COMMAND_REGISTRY.items():
+        ext = cmd.get("runtimes", {}).get("extension")
         if type_name in existing:
-            # Update built-in command fields/metadata
             row = existing[type_name]
             row.label = cmd.get("label", type_name)
             row.category = cmd.get("category", "其他")
@@ -82,8 +83,13 @@ def _sync_commands_to_db(db):
             row.is_branch = 1 if cmd.get("isBranch") else 0
             row.is_structural = 1 if cmd.get("isStructural") else 0
             row.fields = json.dumps(cmd.get("fields", []))
+            row.description = cmd.get("description", "")
             row.is_builtin = 1
-            row.enabled = 1
+            # Sync runtime metadata from registry (allow DB to override later)
+            if ext:
+                row.handler = ext.get("handler")
+                row.local = 1 if ext.get("local") else 0
+            # DO NOT overwrite enabled — user controls activation
         else:
             db.add(models.WorkflowCommand(
                 type=type_name,
@@ -96,8 +102,11 @@ def _sync_commands_to_db(db):
                 is_branch=1 if cmd.get("isBranch") else 0,
                 is_structural=1 if cmd.get("isStructural") else 0,
                 fields=json.dumps(cmd.get("fields", [])),
+                description=cmd.get("description", ""),
                 is_builtin=1,
-                enabled=1,
+                enabled=0,  # new commands default disabled
+                handler=ext.get("handler") if ext else None,
+                local=1 if ext and ext.get("local") else 0,
             ))
     db.commit()
 
@@ -126,6 +135,9 @@ def _load_commands_from_db(db):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     models.init_db()
+    from src.repo.migrations import run_migrations
+    run_migrations()
+
     from . import auth
     db = models.SessionLocal()
     try:
@@ -142,6 +154,13 @@ async def lifespan(app: FastAPI):
         _load_commands_from_db(db)
     finally:
         db.close()
+
+    # 打印 runs 相关路由顺序（调试用）
+    print("[startup] runs-related routes:")
+    for r in app.routes:
+        if hasattr(r, 'methods') and 'GET' in r.methods and 'workflows' in str(r.path) and 'runs' in str(r.path):
+            print(f"  {r.path} -> {r.name}")
+
     yield
 
 
@@ -155,7 +174,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 app.include_router(auth_router)
 app.include_router(tasks_router)
 app.include_router(workflows_router)
-app.include_router(elements_router)
+app.include_router(data_tables_router)
 app.include_router(extension_router)
 app.include_router(commands_router)
 app.include_router(result_router)
@@ -210,4 +229,4 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("src.runtime.main:app", host=HOST, port=PORT, reload=True)
+    uvicorn.run("src.runtime.main:app", host=HOST, port=PORT, reload=False)

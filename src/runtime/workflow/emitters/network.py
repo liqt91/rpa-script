@@ -3,7 +3,7 @@ from ._registry import _handler, _var_ref, _py_str
 
 
 @_handler("httpRequest")
-def _emit_httpRequest(node, extra, depth, prefix, by_parent, lines):
+def _emit_httpRequest(node, extra, depth, prefix, by_parent, lines, element_map=None):
     method = extra.get("method", "GET")
     url = extra.get("url")
     headers_str = extra.get("headers", "")

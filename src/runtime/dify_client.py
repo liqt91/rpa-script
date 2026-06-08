@@ -9,7 +9,6 @@ Dify 多应用客户端（透传模式）。
 不转换请求体结构，不解析/封装返回结果。
 """
 
-import json
 from typing import Optional
 
 import httpx
@@ -109,7 +108,7 @@ class DifyClient:
         endpoint = app_cfg.get("endpoint") or _default_endpoint(app_type)
 
         if not api_key:
-            raise ValueError(f"AI 应用未配置 API Key")
+            raise ValueError("AI 应用未配置 API Key")
 
         # 参数校验
         errors = _validate_payload(app_type, payload)
@@ -141,7 +140,7 @@ class DifyClient:
         api_key = app_cfg.get("api_key", "")
 
         if not api_key:
-            raise ValueError(f"AI 应用未配置 API Key")
+            raise ValueError("AI 应用未配置 API Key")
 
         # workflow 类型没有 parameters 接口
         if app_type == "workflow":

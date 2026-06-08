@@ -112,7 +112,7 @@ class DrissionDocsScraper:
             article = self.page.ele("tag:article", timeout=5)
             return article.html
         except Exception:
-            print(f"    未找到 <article> 标签")
+            print("    未找到 <article> 标签")
             return None
 
     def run(self):
@@ -122,13 +122,13 @@ class DrissionDocsScraper:
         print("=" * 60)
 
         # 1. 递归发现所有目标页面
-        print(f"\n[1/3] 递归发现目标页面...")
+        print("\n[1/3] 递归发现目标页面...")
         links = self.discover()
         for link in links:
             print(f"      {link}")
 
         # 2. 逐个抓取 article 并转 Markdown
-        print(f"\n[2/3] 抓取 <article> 并转为 Markdown...")
+        print("\n[2/3] 抓取 <article> 并转为 Markdown...")
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         saved = 0
         for url in links:

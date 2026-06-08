@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
@@ -11,10 +11,88 @@ export default function WorkflowList() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', url: '' });
   const [deleteId, setDeleteId] = useState(null);
+  const [browserPaths, setBrowserPaths] = useState({ chrome: null, edge: null });
+  const [extStatus, setExtStatus] = useState(null);
+  const [runningId, setRunningId] = useState(null);
+  const runningRef = useRef(false); // 同步锁，防止 React state 异步更新导致双击穿透
+  const [runResult, setRunResult] = useState(null);
+  const [editingBrowser, setEditingBrowser] = useState({});  // wfId -> target_browser
 
   useEffect(() => {
     loadWorkflows();
+    loadBrowserPaths();
+    loadExtensionStatus();
+    const savedId = sessionStorage.getItem('wf_running_id');
+    const savedRunId = sessionStorage.getItem('wf_run_id');
+    if (savedId) {
+      // 验证后端是否仍在运行该任务
+      api.getActiveRuns()
+        .then(runs => {
+          const stillRunning = runs.some(r => r.runId === savedRunId);
+          if (stillRunning) {
+            setRunningId(Number(savedId));
+          } else {
+            sessionStorage.removeItem('wf_running_id');
+            sessionStorage.removeItem('wf_run_id');
+          }
+        })
+        .catch(() => {
+          // 后端不可达时保守处理：清除状态，避免永久转圈
+          sessionStorage.removeItem('wf_running_id');
+          sessionStorage.removeItem('wf_run_id');
+        });
+    }
   }, []);
+
+  async function loadBrowserPaths() {
+    try {
+      const data = await api.getBrowserPaths();
+      setBrowserPaths(data);
+    } catch (e) {
+      console.warn('检测浏览器路径失败:', e.message);
+    }
+  }
+
+  async function loadExtensionStatus() {
+    try {
+      const data = await api.getExtensionStatus();
+      setExtStatus(data);
+    } catch (e) {
+      console.warn('检测扩展状态失败:', e.message);
+      setExtStatus({ online: false, count: 0, installed: [] });
+    }
+  }
+
+  async function handleUpdateBrowser(wfId, targetBrowser) {
+    try {
+      await api.updateWorkflow(wfId, { target_browser: targetBrowser });
+      setWorkflows(prev => prev.map(wf => wf.id === wfId ? { ...wf, target_browser: targetBrowser } : wf));
+      setEditingBrowser(prev => { const next = { ...prev }; delete next[wfId]; return next; });
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleRun(wf) {
+    if (runningRef.current || runningId) return; // 同步锁 + state 双保险
+    runningRef.current = true;
+    const runId = `run_${Date.now()}`;
+    setRunningId(wf.id);
+    sessionStorage.setItem('wf_running_id', String(wf.id));
+    sessionStorage.setItem('wf_run_id', runId);
+    setRunResult(null);
+    try {
+      const result = await api.runWorkflowExtension(wf.id, runId, null);
+      setRunResult({ wfId: wf.id, ...result });
+    } catch (e) {
+      setRunResult({ wfId: wf.id, success: false, error: e.message });
+    } finally {
+      runningRef.current = false;
+      setRunningId(null);
+      sessionStorage.removeItem('wf_running_id');
+      sessionStorage.removeItem('wf_run_id');
+    }
+  }
 
   async function loadWorkflows() {
     setLoading(true);
@@ -65,49 +143,107 @@ export default function WorkflowList() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
-  const currentUser = typeof window !== 'undefined' ? window.__USER__ : null;
-
   return (
-    <div className="min-h-screen bg-[#0f172a] text-gray-200">
-      {/* Header */}
-      <div className="border-b border-gray-700 bg-[#1e293b]">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <i className="fas fa-project-diagram text-blue-400 text-xl"></i>
-            <h1 className="text-xl font-semibold text-white">工作流管理</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            {currentUser ? (
-              <div className="flex items-center gap-2 text-sm text-gray-300">
-                <i className="fas fa-user-circle text-gray-500"></i>
-                <span>{currentUser.username}</span>
-                <a
-                  href="/admin/logout"
-                  className="text-gray-500 hover:text-red-400 text-xs ml-1 transition-colors"
-                  title="退出登录"
-                >
-                  <i className="fas fa-sign-out-alt"></i>
-                </a>
-              </div>
-            ) : null}
-            <button
-            onClick={() => setShowCreate(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-          >
-            <i className="fas fa-plus"></i>
-            新建工作流
-          </button>
+    <div className="p-6">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-white">流程列表</h1>
+          <p className="text-gray-500 text-sm mt-1">管理工作流，配置执行浏览器，手动触发运行</p>
         </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+        >
+          <i className="fas fa-plus"></i>
+          新建工作流
+        </button>
       </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
         {error && (
           <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
             <i className="fas fa-exclamation-circle mr-2"></i>
             {error}
             <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-200">×</button>
+          </div>
+        )}
+
+        {/* 浏览器与扩展状态检测 */}
+        <div className="mb-4 p-3 bg-[#1e293b] border border-gray-700 rounded-lg">
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-gray-400 font-medium"><i className="fas fa-browser mr-1"></i>浏览器检测:</span>
+            <span className="flex items-center gap-1.5">
+              <i className="fab fa-chrome text-gray-400"></i>
+              <span className={browserPaths.chrome ? 'text-green-400' : 'text-red-400'}>
+                {browserPaths.chrome ? 'Chrome 已找到' : 'Chrome 未找到'}
+              </span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <i className="fab fa-edge text-gray-400"></i>
+              <span className={browserPaths.edge ? 'text-green-400' : 'text-red-400'}>
+                {browserPaths.edge ? 'Edge 已找到' : 'Edge 未找到'}
+              </span>
+            </span>
+            <button
+              onClick={() => { loadBrowserPaths(); loadExtensionStatus(); }}
+              className="ml-auto text-xs text-blue-400 hover:text-blue-300"
+              title="重新检测"
+            >
+              <i className="fas fa-sync-alt"></i> 重新检测
+            </button>
+          </div>
+          {(browserPaths.chrome || browserPaths.edge) && (
+            <div className="mt-2 text-xs text-gray-500 font-mono space-y-0.5">
+              {browserPaths.chrome && <div>Chrome: {browserPaths.chrome}</div>}
+              {browserPaths.edge && <div>Edge: {browserPaths.edge}</div>}
+            </div>
+          )}
+          {/* 扩展状态 */}
+          <div className="mt-2 flex items-center gap-4 text-sm border-t border-gray-700/50 pt-2">
+            <span className="text-gray-400 font-medium"><i className="fas fa-puzzle-piece mr-1"></i>扩展状态:</span>
+            {(() => {
+              if (!extStatus) return <span className="text-gray-500">检测中...</span>;
+              const installed = extStatus.installed || [];
+              const chromeInstalled = installed.some(i => i.browser === 'chrome');
+              const edgeInstalled = installed.some(i => i.browser === 'edge');
+              const chromeOnline = extStatus.browsers?.some(b => b.browser === 'chrome');
+              const edgeOnline = extStatus.browsers?.some(b => b.browser === 'edge');
+              return (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <i className="fab fa-chrome text-gray-400"></i>
+                    {chromeInstalled ? (
+                      <span className={chromeOnline ? 'text-green-400' : 'text-yellow-400'}>
+                        {chromeOnline ? '扩展已安装 · 在线' : '扩展已安装 · 未连接'}
+                      </span>
+                    ) : (
+                      <span className="text-red-400">扩展未安装</span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <i className="fab fa-edge text-gray-400"></i>
+                    {edgeInstalled ? (
+                      <span className={edgeOnline ? 'text-green-400' : 'text-yellow-400'}>
+                        {edgeOnline ? '扩展已安装 · 在线' : '扩展已安装 · 未连接'}
+                      </span>
+                    ) : (
+                      <span className="text-red-400">扩展未安装</span>
+                    )}
+                  </span>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* 执行结果 Toast */}
+        {runResult && (
+          <div className={`mb-4 p-3 rounded-lg text-sm ${runResult.success ? 'bg-green-900/30 border border-green-700 text-green-300' : 'bg-red-900/30 border border-red-700 text-red-300'}`}>
+            <div className="flex items-center justify-between">
+              <span>
+                <i className={`fas ${runResult.success ? 'fa-check-circle' : 'fa-times-circle'} mr-2`}></i>
+                {runResult.success ? '执行成功' : `执行失败: ${runResult.error || '未知错误'}`}
+              </span>
+              <button onClick={() => setRunResult(null)} className="text-gray-400 hover:text-white">×</button>
+            </div>
           </div>
         )}
 
@@ -129,7 +265,7 @@ export default function WorkflowList() {
                 <tr className="border-b border-gray-700 bg-[#252f47]">
                   <th className="text-left px-4 py-3 font-medium text-gray-400">名称</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-400">目标页面</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-400">框架</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-400">浏览器</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-400">创建时间</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-400">更新时间</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-400">操作</th>
@@ -151,14 +287,66 @@ export default function WorkflowList() {
                       {wf.url || '-'}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 bg-blue-900/40 text-blue-300 rounded text-xs">
-                        {wf.framework || 'DrissionPage'}
-                      </span>
+                      {editingBrowser[wf.id] !== undefined ? (
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={editingBrowser[wf.id]}
+                            onChange={(e) => setEditingBrowser(prev => ({ ...prev, [wf.id]: e.target.value }))}
+                            className="px-2 py-1 bg-[#0f172a] border border-gray-600 rounded text-xs text-white outline-none"
+                          >
+                            <option value="">任意</option>
+                            <option value="chrome">Chrome</option>
+                            <option value="edge">Edge</option>
+                          </select>
+                          <button
+                            onClick={() => handleUpdateBrowser(wf.id, editingBrowser[wf.id])}
+                            className="text-green-400 hover:text-green-300 px-1"
+                            title="保存"
+                          >
+                            <i className="fas fa-check text-[10px]"></i>
+                          </button>
+                          <button
+                            onClick={() => setEditingBrowser(prev => { const n = { ...prev }; delete n[wf.id]; return n; })}
+                            className="text-gray-400 hover:text-gray-300 px-1"
+                            title="取消"
+                          >
+                            <i className="fas fa-times text-[10px]"></i>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className="px-2 py-0.5 bg-gray-800 text-gray-300 rounded text-xs">
+                            {wf.target_browser === 'chrome' && <i className="fab fa-chrome mr-1"></i>}
+                            {wf.target_browser === 'edge' && <i className="fab fa-edge mr-1"></i>}
+                            {wf.target_browser || '任意'}
+                          </span>
+                          <button
+                            onClick={() => setEditingBrowser(prev => ({ ...prev, [wf.id]: wf.target_browser || '' }))}
+                            className="text-gray-500 hover:text-gray-300 px-1"
+                            title="修改浏览器"
+                          >
+                            <i className="fas fa-pen text-[10px]"></i>
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-400">{formatDate(wf.created_at)}</td>
                     <td className="px-4 py-3 text-gray-400">{formatDate(wf.updated_at)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleRun(wf)}
+                          disabled={runningId === wf.id}
+                          className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 disabled:bg-green-900/20 text-green-300 disabled:text-green-700 rounded text-xs transition-colors"
+                          title="执行"
+                        >
+                          {runningId === wf.id ? (
+                            <i className="fas fa-circle-notch fa-spin mr-1"></i>
+                          ) : (
+                            <i className="fas fa-play mr-1"></i>
+                          )}
+                          执行
+                        </button>
                         <button
                           onClick={() => navigate(`/editor/${wf.id}`)}
                           className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs transition-colors"
@@ -181,7 +369,6 @@ export default function WorkflowList() {
             </table>
           </div>
         )}
-      </div>
 
       {/* Create Modal */}
       {showCreate && (

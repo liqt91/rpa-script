@@ -286,7 +286,7 @@ export default function NodeList() {
     const defaultExtra = {};
     if (typeInfo.fields) {
       for (const f of typeInfo.fields) {
-        if (f.default !== undefined && !['locator', 'locator_type', 'method'].includes(f.name)) {
+        if (f.default !== undefined && !['locator', 'selector_family', 'target_mode'].includes(f.name)) {
           defaultExtra[f.name] = f.default;
         }
       }
@@ -296,8 +296,8 @@ export default function NodeList() {
       type: nodeType,
       parent_id: parentId,
       locator: '',
-      locator_type: 'css',
-      method: 'ele',
+      selector_family: 'css',
+      target_mode: 'single',
       extra: defaultExtra,
     }, idx);
   }, [draggingIds, insertIndex, treeNodes, nodes, NODE_TYPE_MAP, saveNode, handleInternalDrop]);
@@ -554,85 +554,18 @@ function V({ children }) {
   return <span className="font-bold text-red-600">{children}</span>;
 }
 
-function formatLocator(locator) {
-  if (Array.isArray(locator)) {
-    const first = typeof locator[0] === 'string' ? locator[0] : (locator[0].locator || locator[0].selector || '');
-    return `[${locator.length}个备选] ${first}`;
-  }
-  return String(locator);
-}
-
-function normalizeLocator(locator) {
-  if (!locator) return '';
-  if (Array.isArray(locator)) {
-    const first = typeof locator[0] === 'string' ? locator[0] : (locator[0]?.locator || locator[0]?.selector || '');
-    return first.trim();
-  }
-  return String(locator).trim();
-}
-
-function normalizeLocatorString(locator) {
-  if (!locator) return '';
-  if (typeof locator === 'string') return locator.trim();
-  if (Array.isArray(locator)) {
-    const first = typeof locator[0] === 'string' ? locator[0] : (locator[0]?.locator || locator[0]?.selector || '');
-    return first.trim();
-  }
-  return String(locator).trim();
-}
-
-function flattenLocators(locator) {
-  if (!locator) return [];
-  if (typeof locator === 'string') {
-    try {
-      const parsed = JSON.parse(locator);
-      return flattenLocators(parsed);
-    } catch {
-      return [locator.trim()];
-    }
-  }
-  if (Array.isArray(locator)) {
-    return locator.map(item => {
-      if (typeof item === 'string') return item.trim();
-      if (item && typeof item === 'object') {
-        return (item.locator || item.selector || '').trim();
-      }
-      return String(item).trim();
-    }).filter(Boolean);
-  }
-  return [String(locator).trim()];
-}
-
-function findElementByLocator(locatorStr, elements) {
-  if (!locatorStr || !elements || !elements.length) return null;
-  return elements.find(e => {
-    const elLoc = normalizeLocatorString(e.locator);
-    if (elLoc === locatorStr) return true;
-    // 也匹配 candidates 中的备选定位器
-    if (e.candidates && Array.isArray(e.candidates)) {
-      for (const cand of e.candidates) {
-        const val = typeof cand === 'string'
-          ? cand
-          : (cand.syntax || cand.locator || cand.selector || '');
-        if (val === locatorStr) return true;
-      }
-    }
-    return false;
-  }) || null;
-}
-
 function getNodeDesc(node, NODE_TYPE_MAP, elements) {
   const typeInfo = NODE_TYPE_MAP[node.type];
   const extra = node.extra && typeof node.extra === 'object' ? node.extra : {};
-  const hasLocator = typeInfo?.fields?.some(f => f.name === 'locator');
+  const hasElement = typeInfo?.fields?.some(f => f.name === 'element_name');
   const isCondition = node.type.startsWith('if');
 
-  if (hasLocator) {
+  if (hasElement) {
     const parts = [];
     const op = extra.operator;
     const opLabel = op ? (OP_LABELS[op] || op) : null;
 
-    // 条件节点：前缀 + operator 优先显示（避免被 truncate 截断）
+    // 条件节点：前缀 + operator 优先显示
     if (isCondition) {
       parts.push(<span key="prefix">如果</span>);
     }
@@ -640,35 +573,12 @@ function getNodeDesc(node, NODE_TYPE_MAP, elements) {
       parts.push(<span key="op" className="text-gray-500 font-medium">[{opLabel}]</span>);
     }
 
-    const locators = flattenLocators(node.locator);
-
-    if (locators.length > 0) {
-      locators.forEach((loc, i) => {
-        let matched = null;
-        if (i === 0 && node.element_id && elements && elements.length > 0) {
-          matched = elements.find(e => e.id === node.element_id);
-          if (matched && normalizeLocatorString(matched.locator) !== loc) {
-            matched = null;
-          }
-        }
-        if (!matched) {
-          matched = findElementByLocator(loc, elements);
-        }
-        if (matched) {
-          parts.push(<span key={`el-${i}`}>📎 <V>{matched.name}</V></span>);
-        } else {
-          parts.push(<span key={`el-${i}`}><V>{loc}</V></span>);
-        }
-      });
-    } else if (node.locator) {
-      parts.push(<span key="loc"><V>{formatLocator(node.locator)}</V></span>);
+    if (node.element_name) {
+      const el = elements.find(e => e.name === node.element_name);
+      parts.push(<span key="el">📎 <V>{el?.name || node.element_name}</V></span>);
     }
 
-    if (node.method && !isCondition) {
-      parts.push(<span key="method" className="text-gray-500">{node.method}()</span>);
-    }
-
-    const skipKeys = ['operator', 'scope', 'locator_type', 'method'];
+    const skipKeys = ['operator', 'scope'];
     for (const [k, v] of Object.entries(extra)) {
       if (skipKeys.includes(k)) continue;
       if (v !== undefined && v !== '' && v !== false) {
@@ -681,16 +591,17 @@ function getNodeDesc(node, NODE_TYPE_MAP, elements) {
     return <span className="space-x-1.5">{parts}</span>;
   }
 
-  const summary = summarizeExtra(node.type, extra, typeInfo);
+  const summary = summarizeExtra(node, extra, typeInfo);
   return summary || typeInfo?.label || node.type;
 }
 
-function summarizeExtra(type, extra, typeInfo) {
+function summarizeExtra(node, extra, typeInfo) {
   const val = (k) => extra[k];
   const op = extra.operator;
   const opLabel = op ? (OP_LABELS[op] || op) : null;
+  const elName = node?.element_name;
 
-  switch (type) {
+  switch (node?.type) {
     case 'navigate': return val('url') ? <>打开 <V>{val('url')}</V></> : '打开网页';
     case 'goBack': return '返回上一页';
     case 'goForward': return '前进';
@@ -698,7 +609,7 @@ function summarizeExtra(type, extra, typeInfo) {
     case 'newTab': return val('url') ? <>新标签页 <V>{val('url')}</V></> : '新建标签页';
     case 'closeTab': return '关闭标签页';
     case 'switchTab': return <>切换标签页 (<V>{val('by') || 'index'}={val('value') || ''}</V>)</>;
-    case 'switchToFrame': return val('locator') ? <>进入 iframe: <V>{val('locator')}</V></> : '进入 iframe';
+    case 'switchToFrame': return elName ? <>进入 iframe: <V>{elName}</V></> : '进入 iframe';
     case 'switchToMain': return '退出 iframe';
     case 'getCurrentUrl': return <>保存URL → <V>{val('varName') || 'currentUrl'}</V></>;
     case 'getPageTitle': return <>保存标题 → <V>{val('varName') || 'pageTitle'}</V></>;
@@ -716,18 +627,18 @@ function summarizeExtra(type, extra, typeInfo) {
     case 'scrollToBottom': return '滚动到底部';
     case 'scrollToTop': return '滚动到顶部';
     case 'scrollOneScreen': return '滚动一屏';
-    case 'scrollIntoView': return val('locator') ? <>滚动到: <V>{val('locator')}</V></> : '滚动到元素';
+    case 'scrollIntoView': return elName ? <>滚动到: <V>{elName}</V></> : '滚动到元素';
     case 'scrollBy': return <>滚动 (<V>{val('x') || 0}, {val('y') || 500}</V>)</>;
     case 'infiniteScroll': return <>无限滚动 (最大<V>{val('maxScrolls') || 50}</V>次)</>;
     case 'sleep': return <>等待 <V>{val('seconds') || 1}</V> 秒</>;
-    case 'waitForElement': return val('locator') ? <>等待出现: <V>{val('locator')}</V></> : '等待元素出现';
-    case 'waitForElementHide': return val('locator') ? <>等待消失: <V>{val('locator')}</V></> : '等待元素消失';
+    case 'waitForElement': return elName ? <>等待出现: <V>{elName}</V></> : '等待元素出现';
+    case 'waitForElementHide': return elName ? <>等待消失: <V>{elName}</V></> : '等待元素消失';
     case 'waitForText': return <>等待文本: <V>{val('text') || ''}</V></>;
     case 'waitForUrl': return <>等待URL: <V>{val('urlPattern') || ''}</V></>;
     case 'waitForLoad': return <>等待页面加载 (<V>{val('state') || 'networkidle'}</V>)</>;
-    case 'ifElementExists': return val('locator') ? <>如果<V>{opLabel || '存在'}</V>: <V>{val('locator')}</V></> : `如果元素${opLabel || '存在'}`;
-    case 'ifElementNotExists': return val('locator') ? <>如果不存在: <V>{val('locator')}</V></> : '如果元素不存在';
-    case 'ifElementVisible': return val('locator') ? <>如果<V>{opLabel || '可见'}</V>: <V>{val('locator')}</V></> : `如果元素${opLabel || '可见'}`;
+    case 'ifElementExists': return elName ? <>如果<V>{opLabel || '存在'}</V>: <V>{elName}</V></> : `如果元素${opLabel || '存在'}`;
+    case 'ifElementNotExists': return elName ? <>如果不存在: <V>{elName}</V></> : '如果元素不存在';
+    case 'ifElementVisible': return elName ? <>如果<V>{opLabel || '可见'}</V>: <V>{elName}</V></> : `如果元素${opLabel || '可见'}`;
     case 'ifTextContains': return <>文本<V>{opLabel || '包含'}</V>: <V>{val('text') || ''}</V></>;
     case 'ifTextEquals': return <>文本等于: <V>{val('text') || ''}</V></>;
     case 'ifUrlContains': return <>URL<V>{opLabel || '包含'}</V>: <V>{val('urlPattern') || ''}</V></>;
@@ -735,7 +646,7 @@ function summarizeExtra(type, extra, typeInfo) {
     case 'ifVarGreaterThan': return <><V>{val('varName') || 'x'}</V> &gt; <V>{val('value') || 0}</V></>;
     case 'else': return '否则';
     case 'endIf': return '结束条件';
-    case 'forEachElement': return val('locator') ? <>遍历: <V>{val('locator')}</V></> : '循环相似元素';
+    case 'forEachElement': return elName ? <>遍历: <V>{elName}</V></> : '循环相似元素';
     case 'forRange': return <>循环 <V>{val('start') || 0}..{val('end') || 10}</V></>;
     case 'forList': return <>遍历列表: <V>{val('listVar') || 'items'}</V></>;
     case 'whileCondition': return <>循环直到: <V>{val('conditionType') || ''}</V></>;
@@ -769,6 +680,6 @@ function summarizeExtra(type, extra, typeInfo) {
           }
         }
       }
-      return typeInfo?.label || type;
+      return typeInfo?.label || node?.type;
   }
 }

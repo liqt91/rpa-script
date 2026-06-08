@@ -89,6 +89,22 @@ class ResultUpload(BaseModel):
     extract_time: Optional[str] = None
 
 
+class ResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    workflow_id: Optional[int] = None
+    run_id: str = ""
+    url: str = ""
+    total: int = 0
+    data: Optional[dict] = None
+    extract_time: Optional[datetime] = None
+    trigger_type: str = "manual"
+    log_dir: str = ""
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
 # ====== Clients ======
 class ClientHeartbeat(BaseModel):
     client_id: str
@@ -133,11 +149,9 @@ class WorkflowNodeIn(BaseModel):
     parent_id: Optional[int] = None
     order: int = 0
     type: str
-    locator: Optional[str] = None
-    locator_type: Optional[str] = None
-    method: Optional[str] = "ele"
     action: Optional[str] = None
-    element_id: Optional[int] = None
+    element_name: Optional[str] = None
+    enabled: Optional[int] = 1
     extra: Optional[dict] = Field(default_factory=dict)
 
 
@@ -149,11 +163,9 @@ class WorkflowNodeOut(BaseModel):
     parent_id: Optional[int] = None
     order: int
     type: str
-    locator: Optional[str] = None
-    locator_type: Optional[str] = None
-    method: Optional[str] = None
     action: Optional[str] = None
-    element_id: Optional[int] = None
+    element_name: Optional[str] = None
+    enabled: Optional[int] = None
     extra: Optional[dict] = None
 
 
@@ -162,6 +174,7 @@ class WorkflowCreate(BaseModel):
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
+    target_browser: str = ""
 
 
 class WorkflowUpdate(BaseModel):
@@ -169,6 +182,7 @@ class WorkflowUpdate(BaseModel):
     description: Optional[str] = None
     url: Optional[str] = None
     framework: Optional[str] = None
+    target_browser: Optional[str] = None
 
 
 class WorkflowOut(BaseModel):
@@ -180,6 +194,7 @@ class WorkflowOut(BaseModel):
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
+    target_browser: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     nodes: list[WorkflowNodeOut] = Field(default_factory=list)
@@ -194,49 +209,65 @@ class WorkflowListOut(BaseModel):
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
+    target_browser: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
 
-# ====== Captured Elements ======
-class CapturedElementIn(BaseModel):
+# ====== Workflow Elements ======
+class WorkflowElementIn(BaseModel):
     name: str
-    description: str = ""
-    locator: str
-    locator_type: str = "css"
-    method: str = "ele"
-    candidates: list = Field(default_factory=list)
-    features: dict = Field(default_factory=dict)
-    css_selector: Optional[str] = None
-    tag: Optional[str] = None
-    text_preview: Optional[str] = None
-    page_url: Optional[str] = None
-    hostname: str
+    target_mode: str = "single"
+    css_candidates: list = Field(default_factory=list)
+    xpath_candidates: list = Field(default_factory=list)
+    drission_candidates: list = Field(default_factory=list)
+    web_selector: str = ""
+    drission_selector: str = ""
+    dom_path: list = Field(default_factory=list)
+    attributes: dict = Field(default_factory=dict)
     screenshot: Optional[str] = None
+    page_url: Optional[str] = None
 
 
-class CapturedElementUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-
-
-class CapturedElementOut(BaseModel):
+class WorkflowElementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    user_id: int
+    workflow_id: int
     name: str
-    description: str = ""
-    locator: str
-    locator_type: str = "css"
-    method: str = "ele"
-    candidates: Optional[list] = None
-    features: Optional[dict] = None
-    css_selector: Optional[str] = None
-    tag: Optional[str] = None
-    text_preview: Optional[str] = None
-    page_url: Optional[str] = None
-    hostname: str
+    target_mode: str = "single"
+    css_candidates: Optional[list] = None
+    xpath_candidates: Optional[list] = None
+    drission_candidates: Optional[list] = None
+    web_selector: str = ""
+    drission_selector: str = ""
+    dom_path: Optional[list] = None
+    attributes: Optional[dict] = None
     screenshot: Optional[str] = None
+    page_url: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# ====== Data Tables ======
+class DataTableColumn(BaseModel):
+    name: str
+    type: str = "text"
+
+
+class DataTableIn(BaseModel):
+    name: str
+    columns: list[DataTableColumn] = Field(default_factory=list)
+    rows: list[dict] = Field(default_factory=list)
+
+
+class DataTableOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    workflow_id: int
+    name: str
+    columns: Optional[list] = None
+    rows: Optional[list] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

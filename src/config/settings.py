@@ -2,7 +2,6 @@
 服务端配置
 """
 
-import json
 import os
 from datetime import timedelta
 
@@ -18,13 +17,13 @@ if not DATABASE_URL:
 # JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE = timedelta(hours=24)
+ACCESS_TOKEN_EXPIRE = timedelta(days=365*10)  # 单机应用：10 年免登录
 
 # 脚本仓库
 # 支持打包后通过环境变量指定，否则自动推导
 REPO_DIR = os.environ.get("RPA_REPO_ROOT", os.path.join(os.path.dirname(BASE_DIR)))
 JOBS_DIR = os.path.join(REPO_DIR, "service", "jobs")
-VERSION_FILE = os.path.join(REPO_DIR, "VERSION")
+VERSION_FILE = os.path.join(os.path.dirname(REPO_DIR), "VERSION")
 
 # AI: Dify 配置（替换原有 OpenAI 配置）
 # 内网 Dify 多应用配置：每个 capability 对应独立的应用

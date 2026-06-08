@@ -16,7 +16,7 @@ def test_invoke_without_dify_config(client, auth_headers):
 
 def test_invoke_unknown_capability(client, auth_headers, monkeypatch):
     """未知的 AI 能力返回 400。"""
-    from runtime import config
+    from src.config import runtime_config as config
     monkeypatch.setattr(config, "DIFY_BASE_URL", "http://dify.local")
 
     r = client.post(
@@ -28,7 +28,7 @@ def test_invoke_unknown_capability(client, auth_headers, monkeypatch):
 
 def test_invoke_no_api_key(client, auth_headers, monkeypatch):
     """能力存在但无 API Key 返回 400。"""
-    from runtime import config
+    from src.config import runtime_config as config
     monkeypatch.setattr(config, "DIFY_BASE_URL", "http://dify.local")
     monkeypatch.setitem(config.DIFY_APPS, "sentiment", {
         "api_key": "",
@@ -44,7 +44,7 @@ def test_invoke_no_api_key(client, auth_headers, monkeypatch):
 
 def test_invoke_validation_error(client, auth_headers, monkeypatch):
     """payload 校验失败返回 400。"""
-    from runtime import config
+    from src.config import runtime_config as config
     monkeypatch.setattr(config, "DIFY_BASE_URL", "http://dify.local")
     monkeypatch.setitem(config.DIFY_APPS, "sentiment", {
         "api_key": "test-key",
@@ -62,7 +62,7 @@ def test_invoke_validation_error(client, auth_headers, monkeypatch):
 
 def test_invoke_workflow_with_query(client, auth_headers, monkeypatch):
     """workflow 传了 query 返回 400。"""
-    from runtime import config
+    from src.config import runtime_config as config
     monkeypatch.setattr(config, "DIFY_BASE_URL", "http://dify.local")
     monkeypatch.setitem(config.DIFY_APPS, "batch", {
         "api_key": "test-key",
@@ -77,10 +77,10 @@ def test_invoke_workflow_with_query(client, auth_headers, monkeypatch):
     assert "不支持 query" in r.json()["detail"]
 
 
-@patch("runtime.routers.other_routers.get_dify_client")
+@patch("src.runtime.routers.other_routers.get_dify_client")
 def test_get_app_parameters(mock_get_dify, client, auth_headers, monkeypatch):
     """从 Dify 获取应用参数并解析为 input_schema。"""
-    from runtime import config
+    from src.config import runtime_config as config
     monkeypatch.setattr(config, "DIFY_BASE_URL", "http://dify.local")
     monkeypatch.setitem(config.DIFY_APPS, "sentiment", {
         "api_key": "test-key",
@@ -113,7 +113,7 @@ def test_get_app_parameters(mock_get_dify, client, auth_headers, monkeypatch):
 
 def test_invoke_input_schema_validation(client, auth_headers, monkeypatch):
     """inputs 字段 schema 校验失败返回 400。"""
-    from runtime import config
+    from src.config import runtime_config as config
     monkeypatch.setattr(config, "DIFY_BASE_URL", "http://dify.local")
     monkeypatch.setitem(config.DIFY_APPS, "sentiment", {
         "api_key": "test-key",
@@ -140,17 +140,22 @@ def test_invoke_input_schema_validation(client, auth_headers, monkeypatch):
         "/api/ai/invoke", headers=auth_headers,
         json={
             "capability": "sentiment",
-            "payload": {"query": "分析情感", "inputs": {"comments": "not-array"}, "response_mode": "blocking", "user": "u1"},
+            "payload": {
+                "query": "分析情感",
+                "inputs": {"comments": "not-array"},
+                "response_mode": "blocking",
+                "user": "u1",
+            },
         },
     )
     assert r.status_code == 400
     assert "array" in r.json()["detail"]
 
 
-@patch("runtime.routers.other_routers.get_dify_client")
+@patch("src.runtime.routers.other_routers.get_dify_client")
 def test_invoke_success(mock_get_dify, client, auth_headers, monkeypatch):
     """透传调用成功。"""
-    from runtime import config
+    from src.config import runtime_config as config
     monkeypatch.setattr(config, "DIFY_BASE_URL", "http://dify.local")
     monkeypatch.setitem(config.DIFY_APPS, "sentiment", {
         "api_key": "test-key",

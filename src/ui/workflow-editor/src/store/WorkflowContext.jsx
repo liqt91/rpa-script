@@ -7,6 +7,8 @@ const initialState = {
   nodes: [],
   treeNodes: [],
   selectedNodeId: null,
+  selectedNodeIds: new Set(),
+  selectionAnchor: null,
   loading: false,
   error: null,
   elements: [],
@@ -23,6 +25,7 @@ const initialState = {
 
 function buildTree(flatNodes) {
   const byParent = {};
+  const allIds = new Set(flatNodes.map(n => n.id));
   for (const n of flatNodes) {
     const pid = n.parent_id || 0;
     if (!byParent[pid]) byParent[pid] = [];
@@ -40,8 +43,19 @@ function buildTree(flatNodes) {
     }
   }
   walk(0, 0);
+  // 兜底：把孤儿节点（parent_id 指向不存在的节点）挂到根层，避免丢失
+  for (const n of flatNodes) {
+    const pid = n.parent_id || 0;
+    if (pid !== 0 && !allIds.has(pid)) {
+      if (!result.find(r => r.id === n.id)) {
+        result.push({ ...n, depth: 0 });
+      }
+    }
+  }
   return result;
 }
+
+const isTempId = (id) => id && typeof id === 'string' && id.includes('-');
 
 function reducer(state, action) {
   switch (action.type) {
@@ -55,9 +69,43 @@ function reducer(state, action) {
       console.log(`[reducer] SET_NODES count=${nodes.length} dirty=${isDirty}`);
       return { ...state, nodes, treeNodes: buildTree(nodes), isDirty };
     }
-    case 'SELECT_NODE':
-      console.log(`[reducer] SELECT_NODE id=${action.payload}`);
-      return { ...state, selectedNodeId: action.payload };
+    case 'SELECT_NODE': {
+      const id = action.payload;
+      console.log(`[reducer] SELECT_NODE id=${id}`);
+      return { ...state, selectedNodeId: id, selectedNodeIds: new Set([id]), selectionAnchor: id };
+    }
+    case 'SELECT_NODE_TOGGLE': {
+      const id = action.payload;
+      const ids = new Set(state.selectedNodeIds);
+      if (ids.has(id)) {
+        ids.delete(id);
+      } else {
+        ids.add(id);
+      }
+      const newAnchor = ids.size === 1 ? Array.from(ids)[0] : state.selectionAnchor;
+      return { ...state, selectedNodeId: id, selectedNodeIds: ids, selectionAnchor: newAnchor };
+    }
+    case 'SELECT_RANGE': {
+      const targetId = action.payload;
+      const anchorId = state.selectionAnchor;
+      if (!anchorId) {
+        return { ...state, selectedNodeId: targetId, selectedNodeIds: new Set([targetId]), selectionAnchor: targetId };
+      }
+      const anchorIdx = state.treeNodes.findIndex(n => n.id === anchorId);
+      const targetIdx = state.treeNodes.findIndex(n => n.id === targetId);
+      if (anchorIdx === -1 || targetIdx === -1) {
+        return { ...state, selectedNodeId: targetId };
+      }
+      const start = Math.min(anchorIdx, targetIdx);
+      const end = Math.max(anchorIdx, targetIdx);
+      const ids = new Set();
+      for (let i = start; i <= end; i++) {
+        ids.add(state.treeNodes[i].id);
+      }
+      return { ...state, selectedNodeIds: ids, selectedNodeId: targetId };
+    }
+    case 'CLEAR_SELECTION':
+      return { ...state, selectedNodeIds: new Set(), selectedNodeId: null, selectionAnchor: null };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
     case 'SET_ERROR':
@@ -90,7 +138,22 @@ function reducer(state, action) {
         .filter(n => n.id !== removeId)
         .map(n => n.parent_id === removeId ? { ...n, parent_id: promoteTo } : n);
       console.log(`[reducer] REMOVE_NODE id=${removeId} remaining=${nodes.length}`);
-      return { ...state, nodes, treeNodes: buildTree(nodes), selectedNodeId: null, isDirty: true };
+      return { ...state, nodes, treeNodes: buildTree(nodes), selectedNodeId: null, selectedNodeIds: new Set(), isDirty: true };
+    }
+    case 'REMOVE_NODES': {
+      const removeIds = new Set(action.payload);
+      const idToNode = Object.fromEntries(state.nodes.map(n => [n.id, n]));
+      const nodes = state.nodes
+        .filter(n => !removeIds.has(n.id))
+        .map(n => {
+          let pid = n.parent_id;
+          while (pid !== null && removeIds.has(pid)) {
+            pid = idToNode[pid]?.parent_id ?? null;
+          }
+          return pid !== n.parent_id ? { ...n, parent_id: pid } : n;
+        });
+      console.log(`[reducer] REMOVE_NODES count=${removeIds.size} remaining=${nodes.length}`);
+      return { ...state, nodes, treeNodes: buildTree(nodes), selectedNodeId: null, selectedNodeIds: new Set(), selectionAnchor: null, isDirty: true };
     }
     case 'ADD_NODE_LOCAL': {
       const { _insertIndex, ...nodeData } = action.payload;
@@ -120,7 +183,13 @@ function reducer(state, action) {
     case 'RUN_START':
       return { ...state, runStatus: 'running', runningStepId: null, stepErrors: {} };
     case 'RUN_STEP':
+      // 暂停时 stepComplete 发送 nodeId=null，不要清除高亮
+      if (state.runStatus === 'paused' && action.payload.nodeId === null) {
+        return state;
+      }
       return { ...state, runningStepId: action.payload.nodeId ?? null };
+    case 'RUN_PAUSED':
+      return { ...state, runStatus: 'paused' };
     case 'RUN_STEP_ERROR':
       return {
         ...state,
@@ -129,6 +198,9 @@ function reducer(state, action) {
         stepErrors: { ...state.stepErrors, [action.payload.nodeId]: action.payload.error },
       };
     case 'RUN_DONE':
+      if (action.payload.stopped) {
+        return { ...state, runStatus: 'stopped', runningStepId: null };
+      }
       return {
         ...state,
         runStatus: action.payload.success ? 'completed' : 'error',
@@ -174,48 +246,128 @@ function getContainerTypes(commands) {
 
 // ─── derive parent_id from position-based indentation ─────────────
 
-export function deriveParentId(nodes, newNodeType, typeMap, insertIndex) {
-  /* 基于列表位置推导 parent_id。
-     规则：按 order 扫描所有节点，维护容器栈；
-     - 遇到容器(isContainer) → push
-     - 遇到分支(isBranch, 如 else/catch) → 先 pop（关闭前一分支）再 push（开启新分支）
-     - 遇到结束标记(isStructural, 如 endIf/endFor) → pop
-     - 新节点的 parent_id = 栈顶节点 id（栈空则为 null）
-     insertIndex: 按 order 排序后的插入位置（可选，缺省=末尾） */
-  const sorted = [...nodes].sort((a, b) => a.order - b.order);
-  const stack = [];
-
-  for (let i = 0; i < sorted.length; i++) {
-    if (insertIndex !== undefined && i === insertIndex) {
-      break;
-    }
-    const node = sorted[i];
+/**
+ * 括号匹配：为每个结构标记（右括号）找到对应的容器（左括号）。
+ * 返回 Map<structuralId, containerId>
+ */
+export function matchBrackets(sorted, typeMap) {
+  const stack = []; // { id, closesWith }[]
+  const match = new Map();
+  for (const node of sorted) {
     const info = typeMap[node.type];
-    if (info?.isBranch) {
-      stack.pop();
-      stack.push(node.id);
-    } else if (info?.isContainer) {
-      stack.push(node.id);
+    if (info?.isContainer) {
+      stack.push({ id: node.id, closesWith: info.closesWith });
+    } else if (info?.isBranch) {
+      // 分支替换栈顶容器，不形成新的匹配对
+      if (stack.length > 0) {
+        stack[stack.length - 1].id = node.id;
+        stack[stack.length - 1].closesWith = info.closesWith || stack[stack.length - 1].closesWith;
+      }
     } else if (info?.isStructural) {
-      stack.pop();
+      const closeType = node.type; // e.g. "endFor"
+      let idx = stack.length - 1;
+      while (idx >= 0 && stack[idx].closesWith !== closeType) idx--;
+      if (idx >= 0) {
+        const closed = stack.splice(idx, 1)[0];
+        match.set(node.id, closed.id);
+      }
+    }
+  }
+  return match;
+}
+
+/**
+ * 基于括号匹配结果计算每个节点的 parent_id。
+ * 规则：节点属于离它最近且尚未闭合的容器。
+ * 结构标记和容器平级（parent = 容器的 parent）。
+ */
+export function computeParents(sorted, typeMap) {
+  const bracketMatch = matchBrackets(sorted, typeMap);
+  // 反向映射：容器 id → 结构标记 id
+  const containerClose = new Map();
+  for (const [sId, cId] of bracketMatch) containerClose.set(cId, sId);
+
+  const scope = []; // 当前打开的容器 {id, closesWith}[]
+  for (const node of sorted) {
+    const info = typeMap[node.type];
+    if (info?.isContainer) {
+      node.parent_id = scope.length > 0 ? scope[scope.length - 1].id : null;
+      scope.push({ id: node.id, closesWith: info.closesWith });
+    } else if (info?.isBranch) {
+      // 分支与容器平级，但它本身也开启新作用域
+      const closed = scope.pop();
+      const closedParent = closed ? (sorted.find(n => n.id === closed.id)?.parent_id ?? null) : null;
+      node.parent_id = closedParent;
+      scope.push({ id: node.id, closesWith: info.closesWith || closed?.closesWith });
+    } else if (info?.isStructural) {
+      const closeType = node.type;
+      let idx = scope.length - 1;
+      while (idx >= 0 && scope[idx].closesWith !== closeType) idx--;
+      if (idx >= 0) {
+        const closed = scope.splice(idx, 1)[0];
+        const closedParent = sorted.find(n => n.id === closed.id)?.parent_id ?? null;
+        node.parent_id = closedParent;
+      } else {
+        node.parent_id = null;
+      }
+    } else {
+      node.parent_id = scope.length > 0 ? scope[scope.length - 1].id : null;
+    }
+  }
+  return sorted;
+}
+
+export function deriveParentId(nodes, newNodeType, typeMap, insertIndex) {
+  /* 推导新节点的 parent_id。
+     先把现有节点做一次括号匹配，然后按插入位置截断，看新节点落在哪个作用域里。 */
+  const sorted = [...nodes].sort((a, b) => a.order - b.order);
+
+  // 只处理插入位置之前的节点，做括号匹配
+  const prefix = insertIndex !== undefined ? sorted.slice(0, insertIndex) : sorted;
+  const scope = []; // 当前未闭合的容器 {id, closesWith}[]
+  for (const node of prefix) {
+    const info = typeMap[node.type];
+    if (info?.isContainer) {
+      scope.push({ id: node.id, closesWith: info.closesWith });
+    } else if (info?.isBranch) {
+      if (scope.length > 0) scope[scope.length - 1].id = node.id;
+    } else if (info?.isStructural) {
+      const closeType = node.type;
+      let idx = scope.length - 1;
+      while (idx >= 0 && scope[idx].closesWith !== closeType) idx--;
+      if (idx >= 0) scope.splice(idx, 1);
     }
   }
 
   const newInfo = typeMap[newNodeType];
   if (newInfo?.isBranch) {
-    const closed = stack.pop();
-    return closed || null;
-  } else if (newInfo?.isStructural) {
-    const closed = stack.pop();
-    return closed || null;
+    // 分支：与栈顶容器平级
+    const closed = scope[scope.length - 1];
+    return closed
+      ? (sorted.find(n => n.id === closed.id)?.parent_id ?? null)
+      : null;
   }
-  return stack.length > 0 ? stack[stack.length - 1] : null;
+  if (newInfo?.isStructural) {
+    // 结构标记：找到匹配的容器，与其平级
+    const closeType = newNodeType;
+    let idx = scope.length - 1;
+    while (idx >= 0 && scope[idx].closesWith !== closeType) idx--;
+    if (idx >= 0) {
+      const closed = scope[idx];
+      return sorted.find(n => n.id === closed.id)?.parent_id ?? null;
+    }
+    return null;
+  }
+  // 容器/普通节点：落在当前最内层作用域里
+  return scope.length > 0 ? scope[scope.length - 1].id : null;
 }
 
 export function WorkflowProvider({ children, wfId }) {
   const [state, dispatch] = useReducer(reducer, { ...initialState, wfId });
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  });
 
   const loadCommands = useCallback(async () => {
     try {
@@ -293,8 +445,9 @@ export function WorkflowProvider({ children, wfId }) {
   }, []);
 
   const loadElements = useCallback(async () => {
+    if (!stateRef.current.wfId) return;
     try {
-      const els = await api.getElements();
+      const els = await api.getWorkflowElements(stateRef.current.wfId);
       dispatch({ type: 'SET_ELEMENTS', payload: els });
     } catch (e) {
       // silent
@@ -319,9 +472,33 @@ export function WorkflowProvider({ children, wfId }) {
     setTimeout(() => persistToLocal(), 0);
   }, [persistToLocal]);
 
-  const deleteNode = useCallback((nodeId) => {
+  const deleteNode = useCallback(async (nodeId) => {
     console.log(`[WorkflowContext] deleteNode id=${nodeId}`);
+    const currentWfId = stateRef.current.wfId;
+    if (currentWfId && !isTempId(nodeId)) {
+      try {
+        await api.deleteNode(currentWfId, nodeId);
+      } catch (e) {
+        console.error(`[WorkflowContext] deleteNode API failed: ${e.message}`);
+        return;
+      }
+    }
     dispatch({ type: 'REMOVE_NODE', payload: nodeId });
+    setTimeout(() => persistToLocal(), 0);
+  }, [persistToLocal]);
+
+  const deleteNodes = useCallback(async (nodeIds) => {
+    console.log(`[WorkflowContext] deleteNodes count=${nodeIds.length}`);
+    const currentWfId = stateRef.current.wfId;
+    if (currentWfId) {
+      const toDelete = nodeIds.filter(id => !isTempId(id));
+      await Promise.all(toDelete.map(id =>
+        api.deleteNode(currentWfId, id).catch(e => {
+          console.warn(`[WorkflowContext] deleteNode API skipped: ${e.message}`);
+        })
+      ));
+    }
+    dispatch({ type: 'REMOVE_NODES', payload: nodeIds });
     setTimeout(() => persistToLocal(), 0);
   }, [persistToLocal]);
 
@@ -342,9 +519,6 @@ export function WorkflowProvider({ children, wfId }) {
       const selectedNode = current.nodes.find(n => n.id === current.selectedNodeId);
       const selectedOrder = selectedNode?.order ?? null;
       const selectedType = selectedNode?.type ?? null;
-
-      // 判断是否为临时 id（UUID 格式）
-      const isTempId = (id) => id && typeof id === 'string' && id.includes('-');
 
       // 构建 payload：已有节点保留 id，新节点发送 temp_id
       const payload = current.nodes.map((n, idx) => {
@@ -420,6 +594,7 @@ export function WorkflowProvider({ children, wfId }) {
     saveNode,
     updateNode,
     deleteNode,
+    deleteNodes,
     replaceNodes,
     commit,
     reorderNodes,

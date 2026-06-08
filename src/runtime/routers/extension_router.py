@@ -4,11 +4,16 @@ WebSocket 长连接 + HTTP 命令下发
 本地模式，无需认证
 """
 
+import asyncio
 from fastapi import APIRouter, WebSocket
 from typing import Optional
 
 from ..websocket_manager import ext_manager
 from src.service.elements_service import save_captured_element
+from src.service.extension_scanner import scan_installed_extensions
+from src.repo import runtime_models as models
+from src.repo.models import SessionLocal
+import json
 
 router = APIRouter(prefix="/api/extension", tags=["extension"])
 
@@ -78,7 +83,7 @@ async def send_command(
 
 @router.get("/status")
 async def get_status():
-    """查询扩展连接状态"""
+    """查询扩展连接状态 + 本地安装状态（扫描用户数据目录）"""
     connections = []
     for cid, conn in ext_manager._connections.items():
         connections.append({
@@ -87,9 +92,59 @@ async def get_status():
             "connected_at": conn.connected_at,
             "tab_info": conn.tab_info,
         })
+
+    installed = await asyncio.to_thread(scan_installed_extensions)
+
     return {
         "online": ext_manager.is_any_online,
         "count": ext_manager.connection_count,
         "browsers": ext_manager.browser_summary,
         "connections": connections,
+        "installed": installed,
     }
+
+
+@router.get("/workflows")
+def list_extension_workflows():
+    """供扩展拉取所有流程列表（免认证，扩展内部使用）"""
+    db = SessionLocal()
+    try:
+        rows = db.query(models.Workflow).order_by(models.Workflow.created_at.desc()).all()
+        return [
+            {"id": wf.id, "name": wf.name, "url": wf.url or ""}
+            for wf in rows
+        ]
+    finally:
+        db.close()
+
+
+@router.get("/elements")
+def list_extension_elements(workflow_id: int):
+    """供扩展拉取指定流程的元素库（免认证，扩展内部使用）"""
+    db = SessionLocal()
+    try:
+        items = (
+            db.query(models.WorkflowElement)
+            .filter(models.WorkflowElement.workflow_id == workflow_id)
+            .order_by(models.WorkflowElement.created_at.desc())
+            .all()
+        )
+        result = []
+        for item in items:
+            result.append({
+                "id": item.id,
+                "name": item.name,
+                "targetMode": item.target_mode,
+                "webSelector": item.web_selector,
+                "drissionSelector": item.drission_selector,
+                "cssCandidates": json.loads(item.css_candidates) if item.css_candidates else [],
+                "xpathCandidates": json.loads(item.xpath_candidates) if item.xpath_candidates else [],
+                "drissionCandidates": json.loads(item.drission_candidates) if item.drission_candidates else [],
+                "domPath": json.loads(item.dom_path) if item.dom_path else [],
+                "attributes": json.loads(item.attributes) if item.attributes else {},
+                "screenshot": item.screenshot,
+                "pageUrl": item.page_url,
+            })
+        return result
+    finally:
+        db.close()

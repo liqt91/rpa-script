@@ -6,3 +6,11 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-05-20 16:33 | session_end | prompt_input_exit | master | (none) | 46417a93-89a2-4b0a-97e1-87aa34f878f7
 2026-05-21 17:01 | session_end | clear | master | 1b6ed03 | 441a4439-4d11-473b-84f9-f8516dd931df
 2026-05-22 17:30 | command-params-table-edit | done | NodeForm extraFields rendered as table with SchemaControl
+2026-05-27 09:49 | session_end | prompt_input_exit | feat/browser-extension-agent | 280810f | 1ce6555c-ba48-49ed-84f6-e6861bf59410
+2026-05-27 13:27 | session_end | prompt_input_exit | feat/browser-extension-agent | 280810f | 53dda9e9-ba32-4e43-8b15-c9785abba04b
+2026-05-28 13:59 | session_end | clear | feat/browser-extension-agent | 280810f | 20d065ae-dfa6-4795-be72-9bc8420e00e4
+2026-06-02 16:01 | session_end | clear | feat/browser-extension-agent | 280810f | aa0aceb6-489f-4a59-bbb7-87328edc4b81
+2026-06-02 16:43 | session_end | prompt_input_exit | feat/browser-extension-agent | 280810f | 3184bc3a-5395-497b-992e-66cb5371b78f
+2026-06-02 19:08 | session_end | prompt_input_exit | feat/browser-extension-agent | 280810f | 39efe462-dc59-4952-a6fd-0c99a7bcd9d1
+2026-06-03 11:19 | session_end | clear | feat/browser-extension-agent | 9a5ed7d | 59f0f99c-4e1d-4d7f-9705-8dbbd99f1f44
+2026-06-04 11:42 | session_end | clear | feat/browser-extension-agent | 9a5ed7d | 4b982e8a-1e8c-404b-ab06-0caded232ede

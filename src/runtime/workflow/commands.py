@@ -12,26 +12,8 @@ from typing import Any
 
 # ─── Field type helpers ───────────────────────────────────────────
 
-def _locator_field(required: bool = True) -> dict:
-    return {"name": "locator", "label": "元素定位器", "type": "locator", "required": required}
-
-def _locator_type_field(default: str = "css") -> dict:
-    return {
-        "name": "locator_type",
-        "label": "定位方式",
-        "type": "select",
-        "options": ["css", "xpath", "id", "class", "text", "data-attr"],
-        "default": default,
-    }
-
-def _method_field(default: str = "ele") -> dict:
-    return {
-        "name": "method",
-        "label": "查找方法",
-        "type": "select",
-        "options": ["ele", "eles", "s_ele", "s_eles"],
-        "default": default,
-    }
+def _element_name_field(required: bool = True) -> dict:
+    return {"name": "element_name", "label": "元素", "type": "elementName", "required": required}
 
 def _timeout_field(default: int = 10) -> dict:
     return {"name": "timeout", "label": "超时(秒)", "type": "number", "default": default, "group": "advanced"}
@@ -39,12 +21,25 @@ def _timeout_field(default: int = 10) -> dict:
 def _var_field(name: str = "varName", label: str = "保存到变量") -> dict:
     return {"name": name, "label": label, "type": "varName", "required": False, "group": "output"}
 
+def _scope_field() -> dict:
+    return {
+        "name": "scope",
+        "label": "搜索范围",
+        "type": "select",
+        "options": [
+            {"label": "相对（循环元素内）", "value": "local"},
+            {"label": "全局", "value": "global"},
+        ],
+        "default": "local",
+        "group": "advanced",
+    }
+
 def _on_error_field(default: str = "stop") -> dict:
     return {
         "name": "onError",
         "label": "执行失败时",
         "type": "select",
-        "options": ["stop", "continue", "retry"],
+        "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
         "default": default,
         "group": "advanced",
     }
@@ -62,14 +57,14 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
     """为指令字段列表附加通用高级参数（如果不存在）。"""
     result = copy.deepcopy(fields)
     names = {f.get("name") for f in result}
-    has_locator = "locator" in names
+    has_element = "element_name" in names
     if "onError" not in names:
         result.append(_on_error_field())
     if "retryCount" not in names:
         result.append(_retry_count_field())
     if "timeout" not in names:
         result.append(_timeout_field())
-    if has_locator and "visibleOnly" not in names:
+    if has_element and "visibleOnly" not in names:
         result.append(
             {
                 "name": "visibleOnly",
@@ -92,6 +87,34 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
     return result
 
 # ─── Command registry ─────────────────────────────────────────────
+#
+# Runtime 映射标准（content.js handlers ↔ 指令类型）
+#
+# 【一对一】指令行为与 handler 完全对应，直接映射：
+#   navigate, click, input, clearInput, pressKey, selectOption,
+#   goBack, goForward, refresh, newTab, hover, executeJs
+#
+# 【多对一】多个指令共享一个通用 handler，通过 extra 字段区分行为：
+#   extract → getText(None), getAttr(attrName), getHtml(innerHTML), getValue(value)
+#   scroll  → scrollToBottom, scrollToTop, scrollOneScreen, scrollIntoView, scrollBy
+#   wait    → sleep(seconds), waitForElement(timeout) — 待扩展
+#
+# 【后端本地】不操作页面 DOM，由 extension_runner._handle_local 直接执行：
+#   setVar, appendToList, stringConcat, increment,
+#   log, pushItem, saveToFile, httpRequest,
+#   callWorkflow, return, callAiApp
+#
+# 【不需要 runtime】容器/结构标记/自定义代码，emitter 自动跳过：
+#   容器: ifElementExists~ifVarGreaterThan, forEachElement~whileCondition, try, catch, else
+#   结构: endIf, endFor, endTry
+#   自定义: custom
+#
+# 【待实现】content.js 暂无对应 handler，后续需补充：
+#   doubleClick, rightClick, clickByIndex, clickIfExists,
+#   closeTab, switchTab, switchToFrame, switchToMain,
+#   getCurrentUrl, getPageTitle, getElementCount, getElementList,
+#   takeScreenshot, keyCombo, infiniteScroll,
+#   waitForElementHide, waitForLoad, waitForText, waitForUrl
 
 COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
@@ -173,7 +196,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
-            {"name": "by", "label": "切换方式", "type": "select", "options": ["index", "url", "title"], "default": "index"},
+            {"name": "by", "label": "切换方式", "type": "select", "options": [{"label": "索引", "value": "index"}, {"label": "URL", "value": "url"}, {"label": "标题", "value": "title"}], "default": "index"},
             {"name": "value", "label": "值", "type": "text", "required": True, "placeholder": "0 或 https://... 或 标题"},
         ],
     },
@@ -185,8 +208,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
         ],
     },
     "switchToMain": {
@@ -229,9 +251,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "click", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
+            _scope_field(),
             {"name": "forceJs", "label": "强制JS点击", "type": "bool", "default": False},
         ],
     },
@@ -243,9 +264,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
+            _scope_field(),
         ],
     },
     "rightClick": {
@@ -256,9 +276,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
+            _scope_field(),
         ],
     },
     "clickByIndex": {
@@ -269,8 +288,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
             {"name": "index", "label": "序号(从0开始)", "type": "number", "default": 0},
         ],
     },
@@ -282,9 +300,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
         ],
     },
 
@@ -300,8 +316,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "input", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
+            _scope_field(),
             {"name": "text", "label": "输入内容", "type": "text", "required": True},
             {"name": "clearFirst", "label": "先清空", "type": "bool", "default": True},
         ],
@@ -315,8 +331,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "input", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
+            _scope_field(),
             {"name": "text", "label": "输入内容", "type": "text", "required": True},
             {"name": "clearFirst", "label": "先清空", "type": "bool", "default": True},
         ],
@@ -330,8 +346,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "clearInput", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
         ],
     },
     "pressKey": {
@@ -343,7 +358,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "pressKey", "local": False}},
         "fields": [
-            {"name": "key", "label": "按键", "type": "select", "options": ["Enter", "Tab", "Esc", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Space", "Backspace"], "default": "Enter"},
+            {"name": "key", "label": "按键", "type": "select", "options": [{"label": "回车", "value": "Enter"}, {"label": "Tab", "value": "Tab"}, {"label": "Esc", "value": "Esc"}, {"label": "向下箭头", "value": "ArrowDown"}, {"label": "向上箭头", "value": "ArrowUp"}, {"label": "PageDown", "value": "PageDown"}, {"label": "PageUp", "value": "PageUp"}, {"label": "空格", "value": "Space"}, {"label": "退格", "value": "Backspace"}], "default": "Enter"},
         ],
     },
     "selectOption": {
@@ -355,9 +370,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "selectOption", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            {"name": "by", "label": "选择方式", "type": "select", "options": ["value", "label", "index"], "default": "label"},
+            _element_name_field(),
+            {"name": "by", "label": "选择方式", "type": "select", "options": [{"label": "值", "value": "value"}, {"label": "文本", "value": "label"}, {"label": "索引", "value": "index"}], "default": "label"},
             {"name": "value", "label": "值", "type": "text", "required": True},
         ],
     },
@@ -374,9 +388,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
+            _scope_field(),
             _var_field(),
         ],
     },
@@ -389,9 +402,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
+            _scope_field(),
             {"name": "attrName", "label": "属性名", "type": "text", "required": True, "placeholder": "href / src / data-id"},
             _var_field(),
         ],
@@ -405,10 +417,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
-            {"name": "mode", "label": "模式", "type": "select", "options": ["inner", "outer"], "default": "inner"},
+            _element_name_field(),
+            {"name": "mode", "label": "模式", "type": "select", "options": [{"label": "内部HTML", "value": "inner"}, {"label": "包含标签", "value": "outer"}], "default": "inner"},
             _var_field(),
         ],
     },
@@ -421,8 +431,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
             _var_field(),
         ],
     },
@@ -434,8 +443,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-green-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
+            _scope_field(),
             _var_field(),
         ],
     },
@@ -447,8 +456,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-green-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
+            _scope_field(),
             _var_field(),
         ],
     },
@@ -465,7 +474,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
-            {"name": "smooth", "label": "平滑滚动", "type": "bool", "default": False},
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
     "scrollToTop": {
@@ -477,7 +486,19 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
-            {"name": "smooth", "label": "平滑滚动", "type": "bool", "default": False},
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
+        ],
+    },
+    "scrollOneScreen": {
+        "label": "滚动一屏",
+        "category": "滚动",
+        "icon": "fa-desktop",
+        "iconColor": "text-cyan-500",
+        "bgColor": "bg-cyan-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "scroll", "local": False}},
+        "fields": [
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
     "scrollIntoView": {
@@ -487,10 +508,11 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-cyan-500",
         "bgColor": "bg-cyan-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            {"name": "block", "label": "对齐方式", "type": "select", "options": ["start", "center", "end", "nearest"], "default": "center"},
+            _element_name_field(),
+            {"name": "block", "label": "对齐方式", "type": "select", "options": [{"label": "顶部", "value": "start"}, {"label": "居中", "value": "center"}, {"label": "底部", "value": "end"}, {"label": "最近边", "value": "nearest"}], "default": "center"},
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
     "scrollBy": {
@@ -504,6 +526,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [
             {"name": "x", "label": "水平距离(px)", "type": "number", "default": 0},
             {"name": "y", "label": "垂直距离(px)", "type": "number", "default": 500},
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
     "infiniteScroll": {
@@ -545,8 +568,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "wait", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
+            _scope_field(),
             _timeout_field(10),
         ],
     },
@@ -558,8 +581,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
+            _scope_field(),
             _timeout_field(10),
         ],
     },
@@ -571,8 +594,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
             {"name": "text", "label": "期望文本", "type": "text", "required": True},
             _timeout_field(10),
         ],
@@ -597,7 +619,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
-            {"name": "state", "label": "加载状态", "type": "select", "options": ["domcontentloaded", "networkidle"], "default": "networkidle"},
+            {"name": "state", "label": "加载状态", "type": "select", "options": [{"label": "DOM就绪", "value": "domcontentloaded"}, {"label": "网络空闲", "value": "networkidle"}], "default": "networkidle"},
             _timeout_field(30),
         ],
     },
@@ -606,55 +628,50 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # 7. 条件判断 (Condition) — 影刀式精细拆分 ⭐
     # ═══════════════════════════════════════════════════════════════
     "ifElementExists": {
-        "label": "如果元素存在",
+        "label": "如果元素存在/不存在",
+        "description": "多元素组合逻辑：存在=任一元素存在即成立（OR）；不存在=所有元素都不存在才成立（AND）。",
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
         "bgColor": "bg-orange-50",
         "isContainer": True,
+        "closesWith": "endIf",
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
-        ],
-    },
-    "ifElementNotExists": {
-        "label": "如果元素不存在",
-        "category": "条件判断",
-        "icon": "fa-code-branch",
-        "iconColor": "text-orange-500",
-        "bgColor": "bg-orange-50",
-        "isContainer": True,
-        "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
+            {"name": "element_names", "label": "附加元素", "type": "elementNameList", "required": False},
+            _scope_field(),
+            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "存在", "value": "exists"}, {"label": "不存在", "value": "notExists"}], "default": "exists"},
         ],
     },
     "ifElementVisible": {
-        "label": "如果元素可见",
+        "label": "如果元素可见/不可见",
+        "description": "多元素组合逻辑：可见=任一元素可见即成立（OR）；不可见=所有元素都不可见才成立（AND）。",
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
         "bgColor": "bg-orange-50",
         "isContainer": True,
+        "closesWith": "endIf",
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
+            {"name": "element_names", "label": "附加元素", "type": "elementNameList", "required": False},
+            _scope_field(),
+            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "可见", "value": "visible"}, {"label": "不可见", "value": "notVisible"}], "default": "visible"},
         ],
     },
     "ifTextContains": {
-        "label": "如果元素文本包含",
+        "label": "如果元素文本",
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
         "bgColor": "bg-orange-50",
         "isContainer": True,
+        "closesWith": "endIf",
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            {"name": "text", "label": "包含文本", "type": "text", "required": True},
+            _element_name_field(),
+            _scope_field(),
+            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "包含", "value": "contains"}, {"label": "不包含", "value": "notContains"}, {"label": "开头为", "value": "startsWith"}, {"label": "结尾为", "value": "endsWith"}], "default": "contains"},
+            {"name": "text", "label": "文本", "type": "text", "required": True},
         ],
     },
     "ifTextEquals": {
@@ -664,9 +681,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-orange-500",
         "bgColor": "bg-orange-50",
         "isContainer": True,
+        "closesWith": "endIf",
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
             {"name": "text", "label": "等于文本", "type": "text", "required": True},
         ],
     },
@@ -677,33 +694,64 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-orange-500",
         "bgColor": "bg-orange-50",
         "isContainer": True,
+        "closesWith": "endIf",
         "fields": [
             {"name": "urlPattern", "label": "URL包含", "type": "text", "required": True},
         ],
     },
     "ifVarEquals": {
-        "label": "如果变量等于",
+        "label": "如果变量比较",
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
         "bgColor": "bg-orange-50",
         "isContainer": True,
+        "closesWith": "endIf",
         "fields": [
             {"name": "varName", "label": "变量名", "type": "varName", "required": True},
+            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "等于", "value": "equals"}, {"label": "大于", "value": "greaterThan"}, {"label": "小于", "value": "lessThan"}], "default": "equals"},
             {"name": "value", "label": "比较值", "type": "text", "required": True},
-            {"name": "valueType", "label": "值类型", "type": "select", "options": ["string", "number", "bool"], "default": "string"},
+            {"name": "valueType", "label": "值类型", "type": "select", "options": [{"label": "字符串", "value": "string"}, {"label": "数字", "value": "number"}, {"label": "布尔值", "value": "bool"}], "default": "string"},
         ],
     },
-    "ifVarGreaterThan": {
-        "label": "如果变量大于",
+    "ifVarContains": {
+        "label": "如果变量匹配",
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
         "bgColor": "bg-orange-50",
         "isContainer": True,
+        "closesWith": "endIf",
         "fields": [
             {"name": "varName", "label": "变量名", "type": "varName", "required": True},
-            {"name": "value", "label": "比较值", "type": "number", "required": True},
+            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "包含", "value": "contains"}, {"label": "不包含", "value": "notContains"}, {"label": "开头为", "value": "startsWith"}, {"label": "结尾为", "value": "endsWith"}], "default": "contains"},
+            {"name": "value", "label": "值", "type": "text", "required": True},
+        ],
+    },
+    "ifListContains": {
+        "label": "如果列表包含",
+        "category": "条件判断",
+        "icon": "fa-code-branch",
+        "iconColor": "text-orange-500",
+        "bgColor": "bg-orange-50",
+        "isContainer": True,
+        "closesWith": "endIf",
+        "fields": [
+            {"name": "listName", "label": "列表变量", "type": "varName", "required": True},
+            {"name": "value", "label": "包含值", "type": "text", "required": True},
+        ],
+    },
+    "ifDictContains": {
+        "label": "如果字典包含键",
+        "category": "条件判断",
+        "icon": "fa-code-branch",
+        "iconColor": "text-orange-500",
+        "bgColor": "bg-orange-50",
+        "isContainer": True,
+        "closesWith": "endIf",
+        "fields": [
+            {"name": "dictName", "label": "字典变量", "type": "varName", "required": True},
+            {"name": "key", "label": "键", "type": "text", "required": True},
         ],
     },
     "else": {
@@ -714,6 +762,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-orange-50",
         "isContainer": True,
         "isBranch": True,
+        "closesWith": "endIf",
         "fields": [],
     },
     "endIf": {
@@ -737,9 +786,10 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-purple-500",
         "bgColor": "bg-purple-50",
         "isContainer": True,
+        "closesWith": "endFor",
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
+            _element_name_field(),
+            _scope_field(),
             {"name": "itemVar", "label": "元素变量名", "type": "varName", "default": "item"},
             {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},
         ],
@@ -751,6 +801,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-purple-500",
         "bgColor": "bg-purple-50",
         "isContainer": True,
+        "closesWith": "endFor",
         "fields": [
             {"name": "start", "label": "起始值", "type": "number", "default": 0},
             {"name": "end", "label": "结束值", "type": "number", "default": 10},
@@ -765,9 +816,23 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-purple-500",
         "bgColor": "bg-purple-50",
         "isContainer": True,
+        "closesWith": "endFor",
         "fields": [
             {"name": "listVar", "label": "列表变量", "type": "varName", "required": True},
             {"name": "itemVar", "label": "元素变量名", "type": "varName", "default": "item"},
+            {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},
+        ],
+    },
+    "forEachTableRow": {
+        "label": "循环表格",
+        "category": "循环",
+        "icon": "fa-table",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": True,
+        "closesWith": "endFor",
+        "fields": [
+            {"name": "itemVar", "label": "行变量名", "type": "varName", "default": "row"},
             {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},
         ],
     },
@@ -778,10 +843,11 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-purple-500",
         "bgColor": "bg-purple-50",
         "isContainer": True,
+        "closesWith": "endFor",
         "fields": [
-            {"name": "conditionType", "label": "条件类型", "type": "select", "options": ["elementExists", "elementNotExists", "urlContains", "varEquals"], "default": "elementExists"},
-            {"name": "locator", "label": "元素定位器", "type": "locator", "required": False},
-            {"name": "locator_type", "label": "定位方式", "type": "select", "options": ["css", "xpath", "text"], "default": "css"},
+            {"name": "conditionType", "label": "条件类型", "type": "select", "options": [{"label": "元素存在", "value": "elementExists"}, {"label": "元素不存在", "value": "elementNotExists"}, {"label": "URL包含", "value": "urlContains"}, {"label": "变量等于", "value": "varEquals"}, {"label": "变量包含", "value": "varContains"}], "default": "elementExists"},
+            _element_name_field(required=False),
+            _scope_field(),
             {"name": "urlPattern", "label": "URL包含", "type": "text", "required": False},
             {"name": "varName", "label": "变量名", "type": "varName", "required": False},
             {"name": "varValue", "label": "变量值", "type": "text", "required": False},
@@ -798,7 +864,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [],
     },
     "continue": {
-        "label": "继续下一次",
+        "label": "继续下一次循环",
         "category": "循环",
         "icon": "fa-forward-step",
         "iconColor": "text-purple-500",
@@ -831,7 +897,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [
             {"name": "name", "label": "变量名", "type": "varName", "required": True},
             {"name": "value", "label": "值", "type": "text", "required": True},
-            {"name": "valueType", "label": "值类型", "type": "select", "options": ["string", "number", "bool", "list"], "default": "string"},
+            {"name": "valueType", "label": "值类型", "type": "select", "options": [{"label": "字符串", "value": "string"}, {"label": "数字", "value": "number"}, {"label": "布尔值", "value": "bool"}, {"label": "列表", "value": "list"}, {"label": "字典", "value": "dict"}], "default": "string"},
         ],
     },
     "appendToList": {
@@ -841,6 +907,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-indigo-500",
         "bgColor": "bg-indigo-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "appendToList", "local": True}},
         "fields": [
             {"name": "listName", "label": "列表变量", "type": "varName", "required": True},
             {"name": "value", "label": "值", "type": "text", "required": True},
@@ -853,6 +920,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-indigo-500",
         "bgColor": "bg-indigo-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "stringConcat", "local": True}},
         "fields": [
             {"name": "targetVar", "label": "目标变量", "type": "varName", "required": True},
             {"name": "part1", "label": "片段1", "type": "text", "required": True},
@@ -867,9 +935,105 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-indigo-500",
         "bgColor": "bg-indigo-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "increment", "local": True}},
         "fields": [
             {"name": "varName", "label": "变量名", "type": "varName", "required": True},
             {"name": "step", "label": "步长", "type": "number", "default": 1},
+        ],
+    },
+    "setDictValue": {
+        "label": "设置字典值",
+        "category": "变量与数据",
+        "icon": "fa-pen-to-square",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "setDictValue", "local": True}},
+        "fields": [
+            {"name": "dictName", "label": "字典变量", "type": "varName", "required": True},
+            {"name": "key", "label": "键", "type": "text", "required": True},
+            {"name": "value", "label": "值", "type": "text", "required": True},
+        ],
+    },
+    "getDictValue": {
+        "label": "获取字典值",
+        "category": "变量与数据",
+        "icon": "fa-book-open",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "getDictValue", "local": True}},
+        "fields": [
+            {"name": "dictName", "label": "字典变量", "type": "varName", "required": True},
+            {"name": "key", "label": "键", "type": "text", "required": True},
+            _var_field("varName", "保存到变量"),
+        ],
+    },
+    "removeDictKey": {
+        "label": "删除字典键",
+        "category": "变量与数据",
+        "icon": "fa-eraser",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "removeDictKey", "local": True}},
+        "fields": [
+            {"name": "dictName", "label": "字典变量", "type": "varName", "required": True},
+            {"name": "key", "label": "键", "type": "text", "required": True},
+        ],
+    },
+    "readTableCell": {
+        "label": "读取表格单元格",
+        "category": "数据表格",
+        "icon": "fa-table-cells",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "readTableCell", "local": True}},
+        "fields": [
+            {"name": "rowIndex", "label": "行号(从0开始)", "type": "number", "default": 0},
+            {"name": "columnName", "label": "列名", "type": "text", "required": True},
+            _var_field("varName", "保存到变量"),
+        ],
+    },
+    "writeTableCell": {
+        "label": "写入表格单元格",
+        "category": "数据表格",
+        "icon": "fa-pen-to-square",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "writeTableCell", "local": True}},
+        "fields": [
+            {"name": "rowIndex", "label": "行号(从0开始)", "type": "number", "default": 0},
+            {"name": "columnName", "label": "列名", "type": "text", "required": True},
+            {"name": "value", "label": "值", "type": "text", "required": True},
+        ],
+    },
+    "getTableRowCount": {
+        "label": "获取表格行数",
+        "category": "数据表格",
+        "icon": "fa-list-ol",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "getTableRowCount", "local": True}},
+        "fields": [
+            _var_field("varName", "保存到变量"),
+        ],
+    },
+    "writeTableRow": {
+        "label": "写入表格行",
+        "category": "数据表格",
+        "icon": "fa-table-cells-row",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "writeTableRow", "local": True}},
+        "fields": [
+            {"name": "writeMode", "label": "写入方式", "type": "select", "options": [{"label": "追加一行", "value": "append"}, {"label": "插入一行", "value": "insert"}, {"label": "覆盖一行", "value": "overwrite"}], "default": "append"},
+            {"name": "rowIndex", "label": "行号(插入/覆盖时生效)", "type": "number", "default": 0},
+            {"name": "rowData", "label": "行数据(列表或字典)", "type": "textarea", "required": True},
         ],
     },
 
@@ -886,7 +1050,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "log", "local": True}},
         "fields": [
             {"name": "message", "label": "日志内容", "type": "text", "required": True},
-            {"name": "level", "label": "级别", "type": "select", "options": ["info", "warn", "error"], "default": "info"},
+            {"name": "level", "label": "级别", "type": "select", "options": [{"label": "信息", "value": "info"}, {"label": "警告", "value": "warn"}, {"label": "错误", "value": "error"}], "default": "info"},
         ],
     },
     "pushItem": {
@@ -896,6 +1060,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-gray-600",
         "bgColor": "bg-gray-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "pushItem", "local": True}},
         "fields": [
             {"name": "dataExpr", "label": "数据(JSON)", "type": "textarea", "required": True, "placeholder": '{"title": "${titleVar}", "url": "${urlVar}"}'},
         ],
@@ -910,7 +1075,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [
             {"name": "savePath", "label": "保存路径", "type": "text", "required": True, "placeholder": "screenshots/001.png"},
             {"name": "fullPage", "label": "整页截图", "type": "bool", "default": False},
-            {"name": "locator", "label": "元素定位器(可选,仅截元素)", "type": "locator", "required": False},
+            _element_name_field(required=False),
         ],
     },
     "saveToFile": {
@@ -920,10 +1085,11 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-gray-600",
         "bgColor": "bg-gray-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "saveToFile", "local": True}},
         "fields": [
             {"name": "dataVar", "label": "数据变量", "type": "varName", "required": True},
             {"name": "filePath", "label": "文件路径", "type": "text", "required": True},
-            {"name": "format", "label": "格式", "type": "select", "options": ["json", "csv"], "default": "json"},
+            {"name": "format", "label": "格式", "type": "select", "options": [{"label": "JSON", "value": "json"}, {"label": "CSV", "value": "csv"}], "default": "json"},
         ],
     },
 
@@ -952,8 +1118,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-700",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "httpRequest", "local": True}},
         "fields": [
-            {"name": "method", "label": "方法", "type": "select", "options": ["GET", "POST", "PUT", "DELETE"], "default": "GET"},
+            {"name": "method", "label": "方法", "type": "select", "options": [{"label": "GET", "value": "GET"}, {"label": "POST", "value": "POST"}, {"label": "PUT", "value": "PUT"}, {"label": "DELETE", "value": "DELETE"}], "default": "GET"},
             {"name": "url", "label": "URL", "type": "text", "required": True},
             {"name": "headers", "label": "Headers(JSON)", "type": "textarea", "required": False},
             {"name": "body", "label": "Body", "type": "textarea", "required": False},
@@ -972,6 +1139,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-indigo-500",
         "bgColor": "bg-indigo-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "callAiApp", "local": True}},
         "fields": [
             {"name": "appType", "label": "AI应用类型", "type": "text", "required": True},
             {"name": "inputs", "label": "输入参数(JSON)", "type": "textarea", "required": True},
@@ -989,6 +1157,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-pink-500",
         "bgColor": "bg-pink-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "callWorkflow", "local": True}},
         "fields": [
             {"name": "workflowId", "label": "流程ID", "type": "number", "required": True},
             {"name": "inputs", "label": "输入参数(JSON)", "type": "textarea", "required": False},
@@ -1001,6 +1170,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-pink-500",
         "bgColor": "bg-pink-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "return", "local": True}},
         "fields": [
             {"name": "resultExpr", "label": "返回数据(JSON)", "type": "textarea", "required": False},
         ],
@@ -1016,6 +1186,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-red-500",
         "bgColor": "bg-red-50",
         "isContainer": True,
+        "closesWith": "endTry",
         "fields": [],
     },
     "catch": {
@@ -1026,6 +1197,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-red-50",
         "isContainer": True,
         "isBranch": True,
+        "closesWith": "endTry",
         "fields": [
             {"name": "errorVar", "label": "错误变量名", "type": "varName", "default": "error"},
         ],
@@ -1051,17 +1223,19 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-gray-500",
         "bgColor": "bg-gray-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "custom", "local": True}},
         "fields": [
             {"name": "code", "label": "Python代码", "type": "textarea", "required": True, "rows": 6, "placeholder": "# 直接插入的Python代码\nprint('hello')"},
             {"name": "description", "label": "描述", "type": "text", "required": False},
+            _var_field("resultVar", "返回值变量"),
         ],
     },
     "executeJs": {
         "label": "执行JS",
         "category": "自定义",
         "icon": "fa-js",
-        "iconColor": "text-yellow-500",
-        "bgColor": "bg-yellow-50",
+        "iconColor": "text-gray-500",
+        "bgColor": "bg-gray-50",
         "isContainer": False,
         "runtimes": {"extension": {"handler": "executeJs", "local": False}},
         "fields": [
@@ -1082,10 +1256,119 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "hover", "local": False}},
         "fields": [
-            _locator_field(),
-            _locator_type_field(),
-            _method_field(),
+            _element_name_field(),
+            _scope_field(),
         ],
+    },
+
+    # ═══════════════════════════════════════════════════════════════
+    # 18. 网络拦截 (Network Interception)
+    # ═══════════════════════════════════════════════════════════════
+    "traceNetwork": {
+        "label": "追踪网络请求",
+        "category": "网络拦截",
+        "description": "监听页面所有网络请求，只记录URL和方法（不读取响应体），用于发现目标API地址。执行后会阻塞指定时长，结束后返回期间捕获的所有请求列表。",
+        "icon": "fa-network-wired",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "traceNetwork", "local": False}},
+        "fields": [
+            {"name": "duration", "label": "追踪时长(秒)", "type": "number", "default": 5, "placeholder": "5"},
+            {"name": "urlPattern", "label": "URL过滤(*匹配所有)", "type": "text", "required": False, "placeholder": "*edith.xiaohongshu.com/api*"},
+            _var_field("varName", "保存到变量"),
+        ],
+    },
+    "interceptNetwork": {
+        "label": "启动网络拦截",
+        "category": "网络拦截",
+        "description": "在页面注入拦截脚本，覆盖fetch/XHR，匹配指定URL模式的请求会被捕获响应体并存入缓存队列。执行后立即返回不阻塞，后续用waitForNetwork/getInterceptedData读取数据。",
+        "icon": "fa-shield-halved",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "interceptNetwork", "local": False}},
+        "fields": [
+            {"name": "urlPattern", "label": "URL匹配模式", "type": "text", "required": False, "placeholder": "*api/sns/v6/feed*"},
+            {"name": "method", "label": "请求方法", "type": "select", "options": [{"label": "全部", "value": "ALL"}, {"label": "GET", "value": "GET"}, {"label": "POST", "value": "POST"}, {"label": "PUT", "value": "PUT"}, {"label": "DELETE", "value": "DELETE"}], "default": "ALL"},
+            {"name": "captureResponse", "label": "捕获响应体", "type": "bool", "default": True},
+            {"name": "maxCount", "label": "最大拦截条数", "type": "number", "default": 100},
+        ],
+    },
+    "waitForNetwork": {
+        "label": "等待网络请求",
+        "category": "网络拦截",
+        "description": "阻塞轮询缓存队列，直到出现匹配URL模式的请求或超时。若拦截未启动会自动启用。匹配成功后将该条请求的响应数据保存到变量。",
+        "icon": "fa-hourglass-half",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "waitForNetwork", "local": False}},
+        "fields": [
+            {"name": "urlPattern", "label": "等待的URL模式", "type": "text", "required": False, "placeholder": "*feed*"},
+            _timeout_field(10),
+            _var_field("varName", "保存到变量"),
+        ],
+    },
+    "getInterceptedData": {
+        "label": "获取拦截数据",
+        "category": "网络拦截",
+        "description": "将缓存队列中所有已拦截的数据一次性导出到变量。返回数组，每条包含url、method、status和解析后的响应体data。适合批量采集后统一处理。",
+        "icon": "fa-database",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "getInterceptedData", "local": False}},
+        "fields": [
+            _var_field("varName", "保存到变量"),
+            {"name": "limit", "label": "最大条数", "type": "number", "default": 100},
+        ],
+    },
+    "previewInterceptData": {
+        "label": "预览拦截数据",
+        "category": "网络拦截",
+        "description": "只读取缓存队列第一条拦截数据的完整响应体，用于了解JSON结构、确认字段路径。不批量导出，适合调试阶段快速查看数据格式。",
+        "icon": "fa-eye",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "previewInterceptData", "local": False}},
+        "fields": [
+            _var_field("varName", "保存到变量"),
+        ],
+    },
+    "logInterceptedData": {
+        "label": "打印拦截摘要",
+        "category": "网络拦截",
+        "description": "将已拦截的数据摘要输出到浏览器控制台和后端日志。显示前5条的URL、方法和响应体前180字符预览，不保存到变量，纯调试用。",
+        "icon": "fa-terminal",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "logInterceptedData", "local": False}},
+        "fields": [],
+    },
+    "clearInterceptedData": {
+        "label": "清空拦截缓存",
+        "category": "网络拦截",
+        "description": "清空当前缓存队列中所有已拦截的数据。适合在下一轮采集前清理旧数据，避免混淆。",
+        "icon": "fa-trash",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "clearInterceptedData", "local": False}},
+        "fields": [],
+    },
+    "stopIntercept": {
+        "label": "停止网络拦截",
+        "category": "网络拦截",
+        "description": "移除页面中注入的拦截脚本，停止继续捕获请求，释放资源。已缓存的数据保留，可继续用getInterceptedData读取。",
+        "icon": "fa-stop",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "stopIntercept", "local": False}},
+        "fields": [],
     },
 }
 
@@ -1143,3 +1426,29 @@ def get_structural_types() -> list[str]:
 def get_branch_types() -> list[str]:
     """返回分支切换型指令（else/catch）— 既关闭前一分支又开启新分支"""
     return [t for t, c in COMMAND_REGISTRY.items() if c.get("isBranch")]
+
+
+def enrich_command_meta(row: dict) -> dict:
+    """从 COMMAND_REGISTRY 读取 runtime 元数据并附加到数据库行字典。
+    若数据库已存储 handler/local，优先使用数据库值（允许运行时覆盖）。"""
+    reg = COMMAND_REGISTRY.get(row.get("type", ""), {})
+    ext = reg.get("runtimes", {}).get("extension")
+
+    # 优先数据库值，其次 registry
+    db_handler = row.get("handler")
+    db_local = row.get("local")
+    if db_handler is not None or db_local is not None:
+        row["handler"] = db_handler
+        row["local"] = db_local
+        row["hasRuntime"] = bool(db_handler is not None)
+    else:
+        row["handler"] = ext.get("handler") if ext else None
+        row["local"] = ext.get("local") if ext else None
+        row["hasRuntime"] = bool(ext)
+
+    # 补充结构元数据（若数据库未存储）
+    if not row.get("closesWith"):
+        row["closesWith"] = reg.get("closesWith") or None
+    return row
+
+

@@ -3,12 +3,13 @@
 """
 
 import uuid as _uuid
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Float
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from src.config import settings as config
 from src.config.utils import utcnow
 
-engine = create_engine(config.DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in config.DATABASE_URL else {})
+_sqlite_args = {"check_same_thread": False} if "sqlite" in config.DATABASE_URL else {}
+engine = create_engine(config.DATABASE_URL, connect_args=_sqlite_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -49,12 +50,19 @@ class Result(Base):
     __tablename__ = "results"
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=True, index=True)
+    run_id = Column(String(64), default="", index=True)
     url = Column(Text)
     total = Column(Integer, default=0)
     data = Column(Text)  # JSON
     extract_time = Column(DateTime, default=utcnow)
     client_id = Column(String(64))
+    trigger_type = Column(String(16), default="manual")  # manual / scheduled
+    log_dir = Column(Text, default="")  # 本地日志目录路径
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
     task = relationship("Task", foreign_keys=[task_id])
+    workflow = relationship("Workflow", foreign_keys=[workflow_id])
 
 
 class AIAppConfig(Base):
@@ -78,11 +86,29 @@ class Workflow(Base):
     description = Column(Text, default="")
     url = Column(Text, default="")          # 目标页面 URL
     framework = Column(String(32), default="DrissionPage")
+    target_browser = Column(String(16), default="")  # chrome / edge / ""=任意
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     nodes = relationship("WorkflowNode", back_populates="workflow",
                          cascade="all, delete-orphan",
                          order_by="WorkflowNode.order")
+    data_tables = relationship("DataTable", back_populates="workflow",
+                               cascade="all, delete-orphan")
+    elements = relationship("WorkflowElement", back_populates="workflow",
+                            cascade="all, delete-orphan")
+
+
+class DataTable(Base):
+    __tablename__ = "data_tables"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False, index=True)
+    name = Column(String(128), nullable=False)
+    columns = Column(Text, default='[]')   # JSON: [{"name": "A", "type": "text"}, ...]
+    rows = Column(Text, default='[]')      # JSON: [{"A": "v1", "B": "v2"}, ...]
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    workflow = relationship("Workflow", back_populates="data_tables")
 
 
 class WorkflowNode(Base):
@@ -91,38 +117,39 @@ class WorkflowNode(Base):
     workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
     parent_id = Column(Integer, ForeignKey("workflow_nodes.id"), nullable=True)  # 嵌套: forEach/if body
     order = Column(Integer, default=0)
-    type = Column(String(32), nullable=False)   # click|input|getText|hover|getAttr|findWithin|waitFor|forEach|if|else|endFor|endIf|custom
-    locator = Column(Text, nullable=True)
-    locator_type = Column(String(16), nullable=True)  # css|id|class|xpath|text|data-attr|tag_text|...
-    method = Column(String(16), nullable=True)        # ele|eles|s_ele|s_eles
+    # node types: click|input|getText|hover|getAttr|findWithin|waitFor|forEach|if|else|endFor|endIf|custom
+    type = Column(String(32), nullable=False)
     action = Column(String(32), nullable=True)
-    element_id = Column(Integer, ForeignKey("captured_elements.id"), nullable=True)  # 关联元素库
+    element_name = Column(String(128), nullable=True)  # 引用 workflow_elements.name
     extra = Column(Text, default="{}")        # JSON: {text, attrName, subSelector, seconds, description}
+    enabled = Column(Integer, default=1)       # 1=启用 0=禁用（执行时跳过）
     created_at = Column(DateTime, default=utcnow)
     workflow = relationship("Workflow", back_populates="nodes")
     parent = relationship("WorkflowNode", remote_side="WorkflowNode.id", backref="children")
 
 
-class CapturedElement(Base):
-    __tablename__ = "captured_elements"
+class WorkflowElement(Base):
+    __tablename__ = "workflow_elements"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False, index=True)
     name = Column(String(128), nullable=False)
-    description = Column(Text, default="")
-    locator = Column(Text, nullable=False)
-    locator_type = Column(String(16), default="css")
-    method = Column(String(16), default="ele")
-    candidates = Column(Text, default="[]")    # JSON
-    features = Column(Text, default="{}")      # JSON
-    css_selector = Column(Text)
-    tag = Column(String(32))
-    text_preview = Column(String(128))
+    target_mode = Column(String(16), default="single")   # single | list
+    css_candidates = Column(Text, default="[]")          # JSON
+    xpath_candidates = Column(Text, default="[]")        # JSON
+    drission_candidates = Column(Text, default="[]")     # JSON
+    web_selector = Column(Text, default="")              # css/xpath，供扩展执行用
+    drission_selector = Column(Text, default="")         # 供 Python 导出用
+    dom_path = Column(Text, default="[]")                # JSON: DOM path hierarchy
+    attributes = Column(Text, default="{}")              # JSON: 元素属性
+    screenshot = Column(Text)                              # base64 dataURL
     page_url = Column(Text)
-    hostname = Column(String(128), nullable=False, index=True)
-    screenshot = Column(Text)    # base64 dataURL
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
-    user = relationship("User")
+    workflow = relationship("Workflow", back_populates="elements")
+
+    __table_args__ = (
+        UniqueConstraint("workflow_id", "name", name="uq_workflow_element_name"),
+    )
 
 
 class WorkflowCommand(Base):
@@ -138,8 +165,12 @@ class WorkflowCommand(Base):
     is_branch = Column(Integer, default=0)
     is_structural = Column(Integer, default=0)
     fields = Column(Text, default="[]")
+    description = Column(Text, default="")         # 指令说明，在编辑器中展示
+    handler = Column(String(32), nullable=True)    # content.js handler name
+    local = Column(Integer, default=0)             # 1 = local execution (backend), 0 = send to extension
     is_builtin = Column(Integer, default=0)
     enabled = Column(Integer, default=1)
+    reviewed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 

@@ -8,7 +8,7 @@ import importlib
 import threading
 import uuid
 from datetime import timedelta
-from typing import Optional, Any
+from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Form
@@ -306,7 +306,7 @@ def create_script(
 
     # 验证 job_yaml 格式
     try:
-        meta_data = pyyaml.safe_load(job_yaml) or {}
+        pyyaml.safe_load(job_yaml) or {}
     except Exception as e:
         raise HTTPException(400, f"job.yaml 格式错误: {e}")
 

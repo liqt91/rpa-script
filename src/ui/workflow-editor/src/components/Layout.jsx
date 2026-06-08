@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import Toolbar from './Toolbar';
 import CommandPanel from './CommandPanel';
@@ -19,8 +19,7 @@ export default function Layout() {
     loadElements();
   }, []);
 
-  // 恢复保存的布局尺寸
-  useEffect(() => {
+  function restoreLayout() {
     try {
       const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}');
       if (saved.leftWidth && leftRef.current?.previousElementSibling) {
@@ -35,6 +34,13 @@ export default function Layout() {
     } catch {
       // ignore
     }
+  }
+
+  // 恢复保存的布局尺寸（在绘制前执行，避免闪烁；并延迟一次确保子组件已稳定）
+  useLayoutEffect(() => {
+    restoreLayout();
+    const id = requestAnimationFrame(() => restoreLayout());
+    return () => cancelAnimationFrame(id);
   }, []);
 
   function initResize(handle, direction) {

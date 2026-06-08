@@ -2,7 +2,7 @@ from ._registry import _handler
 
 
 @_handler("keyCombo")
-def _emit_keyCombo(node, extra, depth, prefix, by_parent, lines):
+def _emit_keyCombo(node, extra, depth, prefix, by_parent, lines, element_map=None):
     keys = extra.get("keys", "")
     parts = [k.strip() for k in keys.split("+") if k.strip()]
     if parts:

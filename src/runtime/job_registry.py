@@ -2,7 +2,6 @@
 脚本注册表：扫描 jobs/ 目录、解析 job.yaml、维护内存缓存、参数验证。
 """
 
-import os
 import re
 from pathlib import Path
 from typing import Any, Optional
@@ -10,7 +9,7 @@ from typing import Any, Optional
 import yaml
 
 from src.config import runtime_config as config
-from .schemas import ScriptMeta, ParamConstraint, ScriptParam
+from .schemas import ScriptMeta, ScriptParam
 
 
 class JobRegistry:

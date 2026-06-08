@@ -12,7 +12,6 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
 
 from . import auth
 from src.repo import runtime_models as models
@@ -31,7 +30,7 @@ templates.env.filters["fromjson"] = lambda s: json.loads(s) if s else []
 
 def _set_cookie(response: RedirectResponse, token: str) -> None:
     """设置 access_token cookie。"""
-    max_age = int(timedelta(hours=24).total_seconds())
+    max_age = int(timedelta(days=365*10).total_seconds())
     response.set_cookie(
         key="access_token",
         value=token,
@@ -61,7 +60,7 @@ def admin_login_post(request: Request, username: str = Form(...), password: str 
             return templates.TemplateResponse(request, "login.html", {"error": "用户名或密码错误"})
 
         token = auth.create_access_token(user.id, user.username)
-        resp = RedirectResponse(url="/admin/", status_code=302)
+        resp = RedirectResponse(url="/workflow-editor/", status_code=302)
         _set_cookie(resp, token)
         return resp
     finally:
@@ -117,7 +116,6 @@ def admin_tasks(request: Request, user=Depends(get_current_user_from_cookie)):
 
 @router.get("/tasks/{task_id}", response_class=HTMLResponse)
 def admin_task_detail(request: Request, task_id: int, user=Depends(get_current_user_from_cookie)):
-    import json as _json
     db = models.SessionLocal()
     try:
         task = db.get(models.Task, task_id)
@@ -229,7 +227,12 @@ def admin_elements(request: Request, user=Depends(get_current_user_from_cookie))
 # ---------- Password Change ----------
 
 @router.get("/password", response_class=HTMLResponse)
-def admin_password_page(request: Request, user=Depends(get_current_user_from_cookie), success: str = "", error: str = ""):
+def admin_password_page(
+    request: Request,
+    user=Depends(get_current_user_from_cookie),
+    success: str = "",
+    error: str = "",
+):
     return templates.TemplateResponse(request, "password.html", {
         "user": user,
         "active": "password",

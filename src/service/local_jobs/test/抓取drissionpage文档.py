@@ -183,7 +183,7 @@ class DrissionPageCrawler:
                     success_count += 1
                     print(f"      ✅ 已保存: {content_data['title']} ({len(content_data['content'])} 字符)")
                 else:
-                    print(f"      ⚠️ 未提取到内容")
+                    print("      ⚠️ 未提取到内容")
                     
             except Exception as e:
                 print(f"      ❌ 错误: {e}")

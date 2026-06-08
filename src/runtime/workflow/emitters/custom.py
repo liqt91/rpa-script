@@ -2,7 +2,7 @@ from ._registry import _handler, _var_ref
 
 
 @_handler("custom")
-def _emit_custom(node, extra, depth, prefix, by_parent, lines):
+def _emit_custom(node, extra, depth, prefix, by_parent, lines, element_map=None):
     code = extra.get("code", "")
     desc = extra.get("description", "")
     if desc:
@@ -12,7 +12,7 @@ def _emit_custom(node, extra, depth, prefix, by_parent, lines):
 
 
 @_handler("executeJs")
-def _emit_executeJs(node, extra, depth, prefix, by_parent, lines):
+def _emit_executeJs(node, extra, depth, prefix, by_parent, lines, element_map=None):
     script = extra.get("script", "")
     result_var = _var_ref(extra.get("resultVar", "jsResult"))
     lines.append(f"{prefix}{result_var} = tab.run_js('''{script}''')")

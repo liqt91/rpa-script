@@ -60,16 +60,27 @@ export const api = {
   }),
   exportPython: (wfId) => request(`/api/workflows/${wfId}/export/python`),
   runWorkflow: (wfId) => request(`/api/workflows/${wfId}/run`, { method: 'POST' }),
-  runWorkflowExtension: (wfId, runId) => request(`/api/workflows/${wfId}/run/extension?run_id=${encodeURIComponent(runId)}`, { method: 'POST' }),
+  runWorkflowExtension: (wfId, runId, tableData) => request(`/api/workflows/${wfId}/run/extension?run_id=${encodeURIComponent(runId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ initialTableData: tableData }),
+  }),
+  pauseRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/pause`, { method: 'POST' }),
+  resumeRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/resume`, { method: 'POST' }),
+  stopRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/stop`, { method: 'POST' }),
   getCommands: () => request('/api/workflows/commands'),
 
-  // Elements
-  getElements: (hostname) => request(`/api/elements${hostname ? `?hostname=${encodeURIComponent(hostname)}` : ''}`),
-  getElementHosts: () => request('/api/elements/hosts'),
-  deleteElement: (id) => request(`/api/elements/${id}`, { method: 'DELETE' }),
-  updateElement: (id, payload) => request(`/api/elements/${id}`, {
-    method: 'PATCH',
+  // Workflow Elements (per-workflow element library)
+  getWorkflowElements: (wfId) => request(`/api/workflows/${wfId}/elements`),
+  createWorkflowElement: (wfId, payload) => request(`/api/workflows/${wfId}/elements`, {
+    method: 'POST',
     body: JSON.stringify(payload),
+  }),
+  updateWorkflowElement: (wfId, elId, payload) => request(`/api/workflows/${wfId}/elements/${elId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  deleteWorkflowElement: (wfId, elId) => request(`/api/workflows/${wfId}/elements/${elId}`, {
+    method: 'DELETE',
   }),
 
   // AI
@@ -78,6 +89,36 @@ export const api = {
     body: JSON.stringify({ capability, payload }),
   }),
   getAICapabilities: () => request('/api/ai/capabilities'),
+
+  // Data Table (每个流程唯一)
+  getDataTable: (wfId) => request(`/api/workflows/${wfId}/data-table`),
+  updateDataTable: (wfId, payload) => request(`/api/workflows/${wfId}/data-table`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  importDataTable: (wfId, csvText) => request(`/api/workflows/${wfId}/data-table/import`, {
+    method: 'POST',
+    body: JSON.stringify({ csv: csvText }),
+  }),
+  exportDataTable: (wfId) => fetch(`/api/workflows/${wfId}/data-table/export`, {
+    headers: authHeaders(),
+  }),
+  clearDataTable: (wfId) => request(`/api/workflows/${wfId}/data-table/clear`, { method: 'POST' }),
+  getLastRunTable: (wfId) => request(`/api/workflows/${wfId}/data-table/last-run`),
+
+  // System
+  getBrowserPaths: () => request('/api/workflows/system/browser-paths'),
+  updateWorkflow: (id, payload) => request(`/api/workflows/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+
+  // Run logs
+  listAllRuns: () => request('/api/workflows/runs'),
+  getActiveRuns: () => request('/api/workflows/runs/active'),
+  getRunLog: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/log`),
+  getRunTable: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/table`),
+  openRunFolder: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/open-folder`, { method: 'POST' }),
 
   // Extension (浏览器扩展通信)
   getExtensionStatus: () => request('/api/extension/status'),

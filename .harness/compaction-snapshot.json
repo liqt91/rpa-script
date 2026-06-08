@@ -1,8 +1,8 @@
 {
-  "compacted_at": "2026-05-21T06:47:52Z",
-  "branch": "master",
-  "sha": "(none)",
-  "uncommitted": 12,
+  "compacted_at": "2026-06-05T09:33:44Z",
+  "branch": "feat/browser-extension-agent",
+  "sha": "9a5ed7d",
+  "uncommitted": 149,
   "feature": "health-endpoint — GET /health returns {status:'ok'}",
   "trigger": "auto",
   "estimated_tokens_removed": 0

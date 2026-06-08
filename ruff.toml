@@ -1,0 +1,13 @@
+line-length = 120
+
+exclude = [
+    "src/service/local_jobs/_generated",
+    "src/service/local_jobs/test",
+    "src/service/jobs",
+]
+
+ignore = ["F403", "E402"]
+
+[per-file-ignores]
+"src/runtime/workflow/commands.py" = ["E501"]
+"src/shared/extraction_engine.py" = ["E501"]

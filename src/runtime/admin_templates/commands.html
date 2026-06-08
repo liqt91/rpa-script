@@ -5,6 +5,12 @@
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-white">指令管理</h1>
     <div class="flex gap-3">
+      <button onclick="runValidation()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors text-sm">
+        <i class="fas fa-shield-halved mr-2"></i>验证一致性
+      </button>
+      <button onclick="enableAll()" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors text-sm">
+        <i class="fas fa-toggle-on mr-2"></i>全部启用
+      </button>
       <a href="/api/commands/export/csv" class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors text-sm">
         <i class="fas fa-file-csv mr-2"></i>导出 CSV
       </a>
@@ -15,7 +21,7 @@
   </div>
 
   <!-- Filter -->
-  <div class="mb-4 flex gap-3">
+  <div class="mb-4 flex gap-3 items-center flex-wrap">
     <select id="categoryFilter" onchange="loadCommands()" class="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm">
       <option value="">全部分类</option>
     </select>
@@ -23,25 +29,25 @@
       <input type="checkbox" id="enabledOnly" checked onchange="loadCommands()" class="rounded bg-gray-700 border-gray-600">
       仅显示启用
     </label>
+    <label class="flex items-center gap-2 text-sm text-gray-300 ml-auto">
+      <input type="checkbox" id="auditMode" onchange="toggleAuditMode()" class="rounded bg-gray-700 border-gray-600">
+      <i class="fas fa-glasses text-purple-400"></i>审核模式
+    </label>
   </div>
 
-  <!-- Table -->
-  <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-    <table class="w-full text-sm text-left">
-      <thead class="bg-gray-700 text-gray-300">
-        <tr>
-          <th class="px-4 py-3">分类</th>
-          <th class="px-4 py-3">指令类型</th>
-          <th class="px-4 py-3">显示名称</th>
-          <th class="px-4 py-3">参数</th>
-          <th class="px-4 py-3">容器</th>
-          <th class="px-4 py-3">状态</th>
-          <th class="px-4 py-3 text-right">操作</th>
-        </tr>
-      </thead>
-      <tbody id="commandTable"></tbody>
-    </table>
+  <!-- Audit progress -->
+  <div id="auditProgress" class="hidden mb-4 bg-gray-800 border border-gray-700 rounded-lg p-3">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-sm text-gray-300">审核进度</span>
+      <span id="auditProgressText" class="text-sm text-purple-300 font-mono">0 / 0</span>
+    </div>
+    <div class="w-full bg-gray-700 rounded-full h-2">
+      <div id="auditProgressBar" class="bg-purple-500 h-2 rounded-full transition-all" style="width:0%"></div>
+    </div>
   </div>
+
+  <!-- Command blocks by category -->
+  <div id="commandBlocks" class="space-y-4"></div>
 </div>
 
 <!-- Modal -->
@@ -76,6 +82,10 @@
           <input type="text" id="cmdBgColor" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="bg-gray-50">
         </div>
       </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">指令说明（会在流程编辑器节点属性中展示）</label>
+        <textarea id="cmdDescription" rows="3" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="说明该指令的作用、用法和输出内容..."></textarea>
+      </div>
       <div class="flex gap-4">
         <label class="flex items-center gap-2 text-sm text-gray-300">
           <input type="checkbox" id="cmdIsContainer" class="rounded bg-gray-700 border-gray-600">
@@ -89,6 +99,84 @@
           <input type="checkbox" id="cmdIsStructural" class="rounded bg-gray-700 border-gray-600">
           结构标记（endIf/endFor）
         </label>
+      </div>
+
+      <!-- Runtime config -->
+      <div class="border border-gray-600 rounded-lg p-4 space-y-3">
+        <h3 class="text-sm font-medium text-gray-300">Extension Runtime</h3>
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-2 text-sm text-gray-300">
+            <input type="checkbox" id="cmdHasRuntime" class="rounded bg-gray-700 border-gray-600">
+            启用 Extension 执行
+          </label>
+          <span class="text-xs text-gray-500">（勾选后才需要填下方内容）</span>
+        </div>
+        <div id="runtimeFields" class="grid grid-cols-2 gap-3 hidden">
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Handler 名称</label>
+            <select id="cmdHandler" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono">
+              <option value="">-- 选择 content.js handler --</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <label class="flex items-center gap-2 text-sm text-gray-300 pb-2">
+              <input type="checkbox" id="cmdLocal" class="rounded bg-gray-700 border-gray-600">
+              本地执行（后端不经过浏览器）
+            </label>
+          </div>
+        </div>
+
+        <!-- Runtime 判定标准速查表 -->
+        <div class="bg-gray-900/50 rounded p-3 text-xs space-y-1">
+          <p class="text-gray-400 font-medium mb-1">判定标准速查</p>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-0.5">
+            <span class="text-gray-500">容器/结构标记/自定义代码</span>
+            <span class="text-red-400">不启用 runtime</span>
+            <span class="text-gray-500">页面交互（点击/输入/滚动/提取）</span>
+            <span class="text-green-400">启用 → handler=JS函数名 → local=否</span>
+            <span class="text-gray-500">等待（sleep/waitForElement）</span>
+            <span class="text-green-400">启用 → handler=wait → local=否</span>
+            <span class="text-gray-500">后端变量/子流程/HTTP/AI/文件</span>
+            <span class="text-blue-400">启用 → handler任意 → local=是</span>
+          </div>
+        </div>
+
+        <!-- 容器上下文与作用域 -->
+        <div class="bg-gray-900/50 rounded p-3 text-xs space-y-1">
+          <p class="text-gray-400 font-medium mb-1">容器上下文与作用域（scope）</p>
+          <p class="text-gray-500">以下容器的 body 内子指令会自动以容器元素为上下文进行查找：</p>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1">
+            <span class="text-gray-500">forEachElement</span>
+            <span class="text-green-400">注入上下文</span>
+            <span class="text-gray-500">ifElementExists / ifElementVisible</span>
+            <span class="text-green-400">注入上下文</span>
+            <span class="text-gray-500">ifTextContains / ifTextEquals</span>
+            <span class="text-green-400">注入上下文</span>
+            <span class="text-gray-500">ifElementNotExists / ifUrlContains / ifVarEquals</span>
+            <span class="text-red-400">不注入</span>
+          </div>
+          <p class="text-gray-500 mt-1">子指令可通过 <code class="text-blue-300">extra.scope</code> 控制查找范围：</p>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-0.5">
+            <span class="text-gray-500">scope: "local"（默认）</span>
+            <span class="text-green-400">在当前容器元素内查找</span>
+            <span class="text-gray-500">scope: "global"</span>
+            <span class="text-yellow-400">在整页全局查找（跳出容器上下文）</span>
+          </div>
+        </div>
+
+        <!-- Smart audit button -->
+        <div class="flex items-center gap-3 pt-1">
+          <button type="button" onclick="runSmartAudit()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs transition-colors">
+            <i class="fas fa-wand-magic-sparkles mr-1"></i>智能检验
+          </button>
+          <span id="auditLoading" class="hidden text-xs text-gray-400">分析中…</span>
+        </div>
+
+        <!-- Audit results -->
+        <div id="auditResults" class="hidden space-y-2">
+          <div id="auditRecommendation" class="text-xs"></div>
+          <div id="auditIssues" class="space-y-1"></div>
+        </div>
       </div>
       <div>
         <label class="block text-sm text-gray-300 mb-1">参数定义</label>
@@ -132,6 +220,63 @@
 <script>
 const API = '/api/commands';
 let allCategories = [];
+let auditMode = false;
+let currentData = [];
+let availableHandlers = [];
+
+async function loadHandlers() {
+  try {
+    const res = await fetch(`${API}/handlers`);
+    const data = await res.json();
+    availableHandlers = data.handlers || [];
+    const sel = document.getElementById('cmdHandler');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">-- 选择 content.js handler --</option>' +
+      availableHandlers.map(h => `<option value="${esc(h)}">${esc(h)}</option>`).join('');
+    if (current && availableHandlers.includes(current)) sel.value = current;
+  } catch (e) {
+    console.warn('加载 handlers 失败:', e);
+  }
+}
+
+async function runValidation() {
+  const btn = document.querySelector('button[onclick="runValidation()"]');
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>验证中…';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/validate`, { method: 'POST' });
+    const data = await res.json();
+    const output = (data.stdout || '') + (data.stderr || '');
+    if (data.passed) {
+      alert('✅ 指令一致性验证通过\n\n' + output);
+    } else {
+      alert('❌ 指令一致性验证失败\n\n' + output);
+    }
+  } catch (e) {
+    alert('验证请求失败: ' + e.message);
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
+}
+
+async function enableAll() {
+  if (!confirm('确定启用所有指令？')) return;
+  try {
+    const res = await fetch(`${API}/enable-all`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      alert(`已启用 ${data.count} 个指令`);
+      loadCommands();
+    } else {
+      alert('启用失败');
+    }
+  } catch (e) {
+    alert('请求失败: ' + e.message);
+  }
+}
 
 async function loadCommands() {
   const cat = document.getElementById('categoryFilter').value;
@@ -142,35 +287,141 @@ async function loadCommands() {
 
   const res = await fetch(url);
   const data = await res.json();
-  renderTable(data);
+  currentData = data;
+  renderBlocks(data);
   updateCategoryFilter(data);
+  if (auditMode) updateAuditProgress(data);
 }
 
-function renderTable(data) {
-  const tbody = document.getElementById('commandTable');
+async function toggleEnabled(id, checked) {
+  const res = await fetch(`${API}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: checked }),
+  });
+  if (res.ok) {
+    const row = currentData.find(c => c.id === id);
+    if (row) row.enabled = checked;
+  } else {
+    alert('更新状态失败');
+    loadCommands();
+  }
+}
+
+function toggleAuditMode() {
+  auditMode = document.getElementById('auditMode').checked;
+  document.getElementById('auditProgress').classList.toggle('hidden', !auditMode);
+  renderBlocks(currentData);
+  if (auditMode) updateAuditProgress(currentData);
+}
+
+function updateAuditProgress(data) {
+  const total = data.length;
+  const reviewed = data.filter(c => c.reviewedAt).length;
+  const pct = total ? Math.round((reviewed / total) * 100) : 0;
+  document.getElementById('auditProgressText').textContent = `${reviewed} / ${total}`;
+  document.getElementById('auditProgressBar').style.width = `${pct}%`;
+}
+
+async function toggleReviewed(id, checked) {
+  const payload = { reviewedAt: checked ? new Date().toISOString() : null };
+  const res = await fetch(`${API}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (res.ok) {
+    const row = currentData.find(c => c.id === id);
+    if (row) row.reviewedAt = checked ? new Date().toISOString() : null;
+    updateAuditProgress(currentData);
+  } else {
+    alert('更新审核状态失败');
+    loadCommands();
+  }
+}
+
+function renderBlocks(data) {
+  const container = document.getElementById('commandBlocks');
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">暂无指令</td></tr>';
+    container.innerHTML = '<div class="text-center text-gray-500 py-12">暂无指令</div>';
     return;
   }
-  tbody.innerHTML = data.map(c => `
-    <tr class="border-t border-gray-700 hover:bg-gray-700/50">
-      <td class="px-4 py-3 text-gray-300">${esc(c.category)}</td>
-      <td class="px-4 py-3 font-mono text-xs text-gray-400">${esc(c.type)}</td>
-      <td class="px-4 py-3 text-white">${esc(c.label)}</td>
-      <td class="px-4 py-3 text-gray-400">${c.fields?.length || 0} 个</td>
-      <td class="px-4 py-3">${c.isContainer ? '<span class="text-orange-400 text-xs">是</span>' : '<span class="text-gray-500 text-xs">-</span>'}</td>
-      <td class="px-4 py-3">
-        <span class="px-2 py-0.5 rounded text-xs ${c.enabled ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}">
-          ${c.enabled ? '启用' : '禁用'}
-        </span>
-        ${c.isBuiltin ? '<span class="ml-1 px-2 py-0.5 rounded text-xs bg-blue-900/40 text-blue-300">内置</span>' : ''}
-      </td>
-      <td class="px-4 py-3 text-right">
-        <button onclick="editCommand(${c.id})" class="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs mr-1">编辑</button>
-        ${!c.isBuiltin ? `<button onclick="deleteCommand(${c.id})" class="px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs">删除</button>` : ''}
-      </td>
-    </tr>
-  `).join('');
+
+  // Group by category
+  const byCat = {};
+  for (const c of data) {
+    if (!byCat[c.category]) byCat[c.category] = [];
+    byCat[c.category].push(c);
+  }
+
+  container.innerHTML = Object.entries(byCat).map(([cat, cmds]) => {
+    return `
+      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div class="px-4 py-2.5 bg-gray-700/60 border-b border-gray-700 flex items-center justify-between">
+          <span class="text-sm font-medium text-gray-200">${esc(cat)}</span>
+          <span class="text-xs text-gray-500">${cmds.length} 个指令</span>
+        </div>
+        <div class="divide-y divide-gray-700/60">
+          ${cmds.map(c => renderCommandCard(c)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderCommandCard(c) {
+  const issues = [];
+  if (c.isBuiltin && !c.hasRuntime && !c.isContainer && !c.isStructural && c.type !== 'custom') {
+    issues.push('无runtime');
+  }
+  if (!c.isContainer && !c.isStructural && c.fields?.length === 0) {
+    issues.push('无参数');
+  }
+  const issueHtml = issues.length
+    ? `<div class="flex flex-wrap gap-1 mt-1">${issues.map(i => `<span class="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-300">${i}</span>`).join('')}</div>`
+    : '';
+
+  const auditHtml = auditMode ? `
+    <div class="flex items-center gap-2 mt-1">
+      <input type="checkbox" ${c.reviewedAt ? 'checked' : ''} onchange="toggleReviewed(${c.id}, this.checked)"
+        class="rounded bg-gray-700 border-gray-600" title="已审核">
+      <span class="text-xs font-mono ${c.handler ? 'text-green-400' : 'text-gray-500'}">
+        ${c.handler ? esc(c.handler) + (c.local ? ' <span class="text-blue-400">(local)</span>' : '') : '-'}
+      </span>
+      ${issueHtml}
+    </div>
+  ` : '';
+
+  return `
+    <div class="px-4 py-3 flex items-center gap-3 hover:bg-gray-700/30 transition-colors ${c.enabled ? '' : 'opacity-50'}">
+      <input type="checkbox" ${c.enabled ? 'checked' : ''} onchange="toggleEnabled(${c.id}, this.checked)"
+        class="rounded bg-gray-700 border-gray-600 shrink-0" title="${c.enabled ? '禁用' : '启用'}">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center ${esc(c.bgColor)} ${esc(c.iconColor)} text-xs shrink-0">
+        <i class="fas ${esc(c.icon)}"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-white">${esc(c.label)}</span>
+          ${c.isBuiltin ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-900/40 text-blue-300">内置</span>' : ''}
+          ${c.isContainer ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-orange-900/40 text-orange-300">容器</span>' : ''}
+          ${c.isStructural ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/40 text-purple-300">结构</span>' : ''}
+        </div>
+        <div class="text-xs text-gray-500 font-mono">${esc(c.type)} · ${c.fields?.length || 0} 个参数</div>
+        ${auditHtml}
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <button onclick="editCommand(${c.id})" class="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs transition-colors">编辑</button>
+        ${!c.isBuiltin ? `<button onclick="deleteCommand(${c.id})" class="px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs transition-colors">删除</button>` : ''}
+      </div>
+    </div>`;
+}
+
+async function toggleAllReviewed(checked) {
+  for (const c of currentData) {
+    if ((!!c.reviewedAt) !== checked) {
+      await toggleReviewed(c.id, checked);
+    }
+  }
+  loadCommands();
 }
 
 function updateCategoryFilter(data) {
@@ -188,7 +439,10 @@ function showCreateModal() {
   document.getElementById('commandForm').reset();
   document.getElementById('cmdId').value = '';
   document.getElementById('cmdType').disabled = false;
+  document.getElementById('cmdHasRuntime').checked = false;
+  toggleRuntimeFields();
   renderFieldsTable([]);
+  loadHandlers();
   document.getElementById('modal').classList.remove('hidden');
   document.getElementById('modal').classList.add('flex');
 }
@@ -199,9 +453,12 @@ function hideModal() {
 }
 
 async function editCommand(id) {
-  const res = await fetch(API);
-  const data = await res.json();
-  const c = data.find(x => x.id === id);
+  let c = currentData.find(x => x.id === id);
+  if (!c) {
+    const res = await fetch(`${API}?enabled_only=false`);
+    const data = await res.json();
+    c = data.find(x => x.id === id);
+  }
   if (!c) return alert('指令不存在');
 
   document.getElementById('modalTitle').textContent = '编辑指令';
@@ -216,8 +473,15 @@ async function editCommand(id) {
   document.getElementById('cmdIsContainer').checked = c.isContainer;
   document.getElementById('cmdIsBranch').checked = c.isBranch;
   document.getElementById('cmdIsStructural').checked = c.isStructural;
+  const hasRuntime = c.hasRuntime || false;
+  document.getElementById('cmdHasRuntime').checked = hasRuntime;
+  document.getElementById('cmdHandler').value = c.handler || '';
+  document.getElementById('cmdLocal').checked = !!c.local;
+  document.getElementById('cmdDescription').value = c.description || '';
+  toggleRuntimeFields();
   renderFieldsTable(c.fields || []);
   document.getElementById('cmdEnabled').checked = c.enabled;
+  loadHandlers();
 
   document.getElementById('modal').classList.remove('hidden');
   document.getElementById('modal').classList.add('flex');
@@ -281,9 +545,70 @@ function renderFieldsTable(fields = []) {
   (fields || []).forEach(f => addFieldRow(f));
 }
 
+function toggleRuntimeFields() {
+  const hasRuntime = document.getElementById('cmdHasRuntime').checked;
+  document.getElementById('runtimeFields').classList.toggle('hidden', !hasRuntime);
+}
+document.getElementById('cmdHasRuntime').addEventListener('change', toggleRuntimeFields);
+
+async function runSmartAudit() {
+  const btn = document.querySelector('button[onclick="runSmartAudit()"]');
+  const loading = document.getElementById('auditLoading');
+  const resultsDiv = document.getElementById('auditResults');
+  const recDiv = document.getElementById('auditRecommendation');
+  const issuesDiv = document.getElementById('auditIssues');
+
+  btn.disabled = true;
+  loading.classList.remove('hidden');
+  resultsDiv.classList.add('hidden');
+
+  const payload = {
+    type: document.getElementById('cmdType').value.trim(),
+    fields: getFieldsFromTable(),
+    isContainer: document.getElementById('cmdIsContainer').checked,
+    isStructural: document.getElementById('cmdIsStructural').checked,
+    hasRuntime: document.getElementById('cmdHasRuntime').checked,
+    handler: document.getElementById('cmdHandler').value,
+    local: document.getElementById('cmdLocal').checked,
+  };
+
+  try {
+    const res = await fetch(`${API}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    const rec = data.recommendation;
+    const recColor = rec.confidence === 'high' ? 'text-green-400' : rec.confidence === 'medium' ? 'text-yellow-400' : 'text-gray-400';
+    recDiv.innerHTML = `
+      <div class="${recColor} font-medium">${rec.needsRuntime ? '推荐启用 runtime' : '推荐不启用 runtime'}（置信度: ${rec.confidence}）</div>
+      <div class="text-gray-400 mt-0.5">${esc(rec.reason)}</div>
+      ${rec.handler ? `<div class="text-gray-300 mt-0.5">推荐 handler: <span class="font-mono">${esc(rec.handler)}</span>${rec.local ? '，local=是' : '，local=否'}</div>` : ''}
+    `;
+
+    if (data.issues.length > 0) {
+      issuesDiv.innerHTML = data.issues.map(i =>
+        `<div class="px-2 py-1 rounded text-xs bg-red-900/40 text-red-300">${esc(i)}</div>`
+      ).join('');
+    } else {
+      issuesDiv.innerHTML = `<div class="px-2 py-1 rounded text-xs bg-green-900/40 text-green-300">当前配置与推荐一致，无问题</div>`;
+    }
+
+    resultsDiv.classList.remove('hidden');
+  } catch (e) {
+    alert('检验请求失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    loading.classList.add('hidden');
+  }
+}
+
 document.getElementById('commandForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fields = getFieldsFromTable();
+  const hasRuntime = document.getElementById('cmdHasRuntime').checked;
 
   const id = document.getElementById('cmdId').value;
   const payload = {
@@ -297,7 +622,10 @@ document.getElementById('commandForm').addEventListener('submit', async (e) => {
     isBranch: document.getElementById('cmdIsBranch').checked,
     isStructural: document.getElementById('cmdIsStructural').checked,
     fields,
+    description: document.getElementById('cmdDescription').value.trim(),
     enabled: document.getElementById('cmdEnabled').checked,
+    handler: hasRuntime ? document.getElementById('cmdHandler').value.trim() : null,
+    local: hasRuntime ? document.getElementById('cmdLocal').checked : false,
   };
 
   const url = id ? `${API}/${id}` : API;
@@ -334,5 +662,6 @@ function esc(s) {
 }
 
 loadCommands();
+loadHandlers();
 </script>
 {% endblock %}

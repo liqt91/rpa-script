@@ -208,7 +208,22 @@ class ExtensionManager:
                     conn.tab_info = payload
                 elif action == "register":
                     # 扩展上报自身信息（浏览器类型、版本等）
-                    conn.browser = payload.get("browser", "")
+                    browser = payload.get("browser", "")
+                    # 同一浏览器只允许一个连接：关闭该浏览器的旧连接
+                    if browser:
+                        dead = []
+                        for cid, other in list(self._connections.items()):
+                            if other.client_id != conn.client_id and other.browser == browser:
+                                dead.append(cid)
+                        for cid in dead:
+                            old = self._connections.pop(cid, None)
+                            if old:
+                                try:
+                                    await old.ws.close()
+                                except Exception:
+                                    pass
+                                logger.info(f"扩展重复连接，断开旧连接: {cid}")
+                    conn.browser = browser
                     logger.info(f"扩展注册: {conn.client_id} browser={conn.browser}")
                 else:
                     await self.dispatch(action, payload, conn.client_id)

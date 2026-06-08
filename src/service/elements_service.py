@@ -1,60 +1,143 @@
 """
-Element capture service — business logic for saving captured DOM elements.
+Element capture service — business logic for saving captured DOM elements
+into per-workflow element libraries.
 
 Runtime routers delegate here; this layer orchestrates repo calls.
 """
 
 import json
-from urllib.parse import urlparse
 
 from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
 
 
-async def save_captured_element(payload: dict) -> models.CapturedElement | None:
+def _partition_candidates(candidates: list) -> tuple[list, list, list]:
+    """Split candidates by family into css/xpath/drission lists."""
+    css, xpath, drission = [], [], []
+    for c in candidates:
+        family = c.get("family") or c.get("type") or "css"
+        if family == "css":
+            css.append(c)
+        elif family == "xpath":
+            xpath.append(c)
+        elif family == "drission":
+            drission.append(c)
+        else:
+            # fallback: treat unknown as css
+            css.append(c)
+    return css, xpath, drission
+
+
+async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
     """
-    Persist a captured element from the browser extension.
+    Persist a captured element from the browser extension into a workflow's element library.
     Returns the saved element or None on failure.
     """
     db = SessionLocal()
     try:
+        workflow_id = payload.get("workflowId")
+        if not workflow_id:
+            print("[elements_service] missing workflowId in capture payload")
+            return None
+
         page_url = payload.get("pageUrl", "")
-        hostname = urlparse(page_url).hostname or ""
-        locator = payload.get("locator", "")
+        raw_name = payload.get("name", "").strip()
         tag = payload.get("tag", "element")
         text_preview = (payload.get("text", "") or "").strip()
-        raw_name = payload.get("name", "")
-        print(f"[elements_service] raw_name={raw_name!r} tag={tag} locator={locator[:30]}")
+
         name = raw_name
         if not name:
             if text_preview:
                 name = f"{tag}_{text_preview[:20]}"
-            elif locator:
-                name = f"{tag}_{locator[:30]}"
             else:
                 name = f"{tag}_unknown"
 
-        el = models.CapturedElement(
-            user_id=1,  # local single-user mode
+        # Partition candidates by family
+        candidates = payload.get("candidates", [])
+        css_cands, xpath_cands, drission_cands = _partition_candidates(candidates)
+
+        # Build attributes from payload
+        attributes = payload.get("attrs", {}) or {}
+        if payload.get("id"):
+            attributes["id"] = payload["id"]
+        if payload.get("classes"):
+            attributes["class"] = " ".join(payload["classes"])
+
+        # Store list detection metadata (from browser extension structural fingerprint algorithm)
+        list_container = payload.get("listContainer", "")
+        list_item = payload.get("listItem", "")
+        list_size = payload.get("listSize", 0)
+        if list_container or list_item or list_size:
+            attributes["__rpa_list_container"] = list_container
+            attributes["__rpa_list_item"] = list_item
+            attributes["__rpa_list_size"] = list_size
+
+        # Determine selectors
+        web_selector = payload.get("webSelector", "") or payload.get("selector", "") or payload.get("locator", "")
+        drission_selector = payload.get("drissionSelector", "") or ""
+
+        # If no explicit drission_selector, try to find a drission candidate
+        if not drission_selector and drission_cands:
+            drission_selector = drission_cands[0].get("syntax", "")
+
+        # If no explicit web_selector, try css then xpath candidates
+        if not web_selector:
+            if css_cands:
+                web_selector = css_cands[0].get("syntax", "")
+            elif xpath_cands:
+                web_selector = xpath_cands[0].get("syntax", "")
+
+        target_mode = payload.get("targetMode", "single")
+
+        # Check for existing element with same name in this workflow
+        existing = (
+            db.query(models.WorkflowElement)
+            .filter(
+                models.WorkflowElement.workflow_id == workflow_id,
+                models.WorkflowElement.name == name,
+            )
+            .first()
+        )
+
+        if existing:
+            # Update existing element
+            existing.target_mode = target_mode
+            existing.css_candidates = json.dumps(css_cands)
+            existing.xpath_candidates = json.dumps(xpath_cands)
+            existing.drission_candidates = json.dumps(drission_cands)
+            existing.web_selector = web_selector
+            existing.drission_selector = drission_selector
+            existing.dom_path = json.dumps(payload.get("path", []))
+            existing.attributes = json.dumps(attributes)
+            existing.screenshot = payload.get("screenshot")
+            existing.page_url = page_url
+            db.commit()
+            db.refresh(existing)
+            print(f"[elements_service] updated element '{name}' in workflow {workflow_id}")
+            return existing
+
+        # Create new element
+        el = models.WorkflowElement(
+            workflow_id=workflow_id,
             name=name,
-            description="",
-            locator=locator,
-            locator_type=payload.get("locatorType", "css"),
-            method="ele",
-            candidates=json.dumps(payload.get("candidates", [])),
-            features=json.dumps(payload.get("features", {})),
-            css_selector=locator if payload.get("locatorType") == "css" else None,
-            tag=tag,
-            text_preview=(payload.get("text", "") or "")[:128],
-            page_url=page_url,
-            hostname=hostname,
+            target_mode=target_mode,
+            css_candidates=json.dumps(css_cands),
+            xpath_candidates=json.dumps(xpath_cands),
+            drission_candidates=json.dumps(drission_cands),
+            web_selector=web_selector,
+            drission_selector=drission_selector,
+            dom_path=json.dumps(payload.get("path", [])),
+            attributes=json.dumps(attributes),
             screenshot=payload.get("screenshot"),
+            page_url=page_url,
         )
         db.add(el)
         db.commit()
         db.refresh(el)
+        print(f"[elements_service] saved element '{name}' in workflow {workflow_id}")
         return el
-    except Exception:
+    except Exception as e:
+        print(f"[elements_service] save failed: {e}")
         return None
     finally:
         db.close()

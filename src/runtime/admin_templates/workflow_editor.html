@@ -55,31 +55,18 @@
         </select>
       </div>
       <div>
-        <label class="block text-sm text-gray-300 mb-1">定位器 locator</label>
-        <input type="text" name="locator" id="nodeLocator" placeholder="@data-testid=search-btn"
-               class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono text-sm">
+        <label class="block text-sm text-gray-300 mb-1">定位器 locator（可添加多个作为备选）</label>
+        <div id="locatorList" class="space-y-2"></div>
+        <button type="button" id="addLocatorBtn" class="mt-2 px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded">+ 添加备选选择器</button>
       </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-sm text-gray-300 mb-1">定位类型</label>
-          <select name="locator_type" id="nodeLocatorType" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
-            <option value="data-attr">data-attr</option>
-            <option value="css">css</option>
-            <option value="id">id</option>
-            <option value="class">class</option>
-            <option value="xpath">xpath</option>
-            <option value="text">text</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm text-gray-300 mb-1">method</label>
-          <select name="method" id="nodeMethod" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
-            <option value="ele">ele()</option>
-            <option value="eles">eles()</option>
-            <option value="s_ele">s_ele()</option>
-            <option value="s_eles">s_eles()</option>
-          </select>
-        </div>
+      <div>
+        <label class="block text-sm text-gray-300 mb-1">method</label>
+        <select name="method" id="nodeMethod" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+          <option value="ele">ele()</option>
+          <option value="eles">eles()</option>
+          <option value="s_ele">s_ele()</option>
+          <option value="s_eles">s_eles()</option>
+        </select>
       </div>
       <div>
         <label class="block text-sm text-gray-300 mb-1">Extra (JSON)</label>
@@ -100,6 +87,61 @@ const API_BASE = `/api/workflows/${WF_ID}`;
 let allNodes = [];
 let capturedElements = [];
 
+const LOCATOR_TYPES = [
+  { value: 'css', label: 'css' },
+  { value: 'xpath', label: 'xpath' },
+  { value: 'id', label: 'id' },
+  { value: 'class', label: 'class' },
+  { value: 'data-attr', label: 'data-attr' },
+  { value: 'text', label: 'text' },
+];
+
+function addLocatorRow(locator, type) {
+  const container = document.getElementById('locatorList');
+  const row = document.createElement('div');
+  row.className = 'locator-row flex gap-2';
+  const typeOptions = LOCATOR_TYPES.map(t => `<option value="${t.value}"${t.value === type ? ' selected' : ''}>${t.label}</option>
+  ).join('');
+  row.innerHTML = `
+    <input type="text" class="locator-input flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono text-sm" placeholder="选择器" value="${esc(locator || '')}">
+    <select class="locator-type w-28 px-2 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm">${typeOptions}</select>
+    <button type="button" class="locator-del px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-sm">-</button>
+  `;
+  row.querySelector('.locator-del').addEventListener('click', () => row.remove());
+  container.appendChild(row);
+}
+
+function getLocators() {
+  const rows = document.querySelectorAll('.locator-row');
+  const list = [];
+  rows.forEach(row => {
+    const sel = row.querySelector('.locator-input').value.trim();
+    const type = row.querySelector('.locator-type').value;
+    if (sel) list.push({ locator: sel, locatorType: type });
+  });
+  if (list.length === 0) return null;
+  if (list.length === 1) return list[0].locator;
+  return list;
+}
+
+function setLocators(val) {
+  document.getElementById('locatorList').innerHTML = '';
+  if (!val) {
+    addLocatorRow('', 'css');
+    return;
+  }
+  if (Array.isArray(val)) {
+    val.forEach(item => {
+      if (typeof item === 'string') addLocatorRow(item, 'css');
+      else addLocatorRow(item.locator || item.selector || '', item.locatorType || item.type || 'css');
+    });
+  } else {
+    addLocatorRow(val, 'css');
+  }
+}
+
+document.getElementById('addLocatorBtn').addEventListener('click', () => addLocatorRow('', 'css'));
+
 async function loadCapturedElements() {
   const res = await fetch('/api/elements');
   if (!res.ok) return;
@@ -117,9 +159,8 @@ document.getElementById('nodeElementSelect').addEventListener('change', (e) => {
   if (!id) return;
   const el = capturedElements.find(x => x.id === id);
   if (!el) return;
-  document.getElementById('nodeLocator').value = el.locator || '';
-  document.getElementById('nodeLocatorType').value = el.locator_type || 'css';
-  document.getElementById('nodeMethod').value = el.method || 'ele';
+  setLocators(el.locator || '');
+  document.getElementById('nodeMethod').value = el.target_mode || 'single';
 });
 
 async function loadWorkflow() {
@@ -164,8 +205,15 @@ function renderTree() {
     let html = '';
     for (const n of nodes) {
       const pad = depth * 24;
-      const loc = n.locator ? `<code class="text-xs text-yellow-400 bg-gray-900 px-1 rounded">${esc(n.locator)}</code>` : '';
-      const method = n.method ? `<span class="text-xs text-blue-400">${esc(n.method)}()</span>` : '';
+      let locText = '';
+      if (Array.isArray(n.locator)) {
+        const first = typeof n.locator[0] === 'string' ? n.locator[0] : (n.locator[0].locator || n.locator[0].selector || '');
+        locText = `[${n.locator.length}个备选] ${first.slice(0, 30)}`;
+      } else if (n.locator) {
+        locText = String(n.locator).slice(0, 40);
+      }
+      const loc = locText ? `<code class="text-xs text-yellow-400 bg-gray-900 px-1 rounded">${esc(locText)}</code>` : '';
+      const method = n.target_mode ? `<span class="text-xs text-blue-400">${esc(n.target_mode)}</span>` : '';
       html += `
         <div class="flex items-center gap-2 py-2 px-3 bg-gray-700/50 rounded hover:bg-gray-700 transition-colors" style="margin-left:${pad}px">
           <span class="text-xs text-gray-500 w-6">${n.order}</span>
@@ -189,7 +237,14 @@ function populateParentSelect() {
   sel.innerHTML = '<option value="">无 (顶层)</option>';
   for (const n of allNodes) {
     if (n.type === 'forEach' || n.type === 'if') {
-      sel.innerHTML += `<option value="${n.id}">#${n.order} ${esc(n.type)} - ${esc((n.locator || '').slice(0, 30))}</option>`;
+      let locLabel = '';
+      if (Array.isArray(n.locator)) {
+        const first = typeof n.locator[0] === 'string' ? n.locator[0] : (n.locator[0].locator || n.locator[0].selector || '');
+        locLabel = `[${n.locator.length}个备选] ${first}`;
+      } else {
+        locLabel = n.locator || '';
+      }
+      sel.innerHTML += `<option value="${n.id}">#${n.order} ${esc(n.type)} - ${esc(locLabel.slice(0, 30))}</option>`;
     }
   }
 }
@@ -197,6 +252,7 @@ function populateParentSelect() {
 function addNode() {
   document.getElementById('nodeId').value = '';
   document.getElementById('nodeForm').reset();
+  setLocators('');
   document.getElementById('modalTitle').textContent = '添加节点';
   document.getElementById('nodeModal').classList.remove('hidden');
 }
@@ -207,9 +263,8 @@ async function editNode(id) {
   document.getElementById('nodeId').value = n.id;
   document.getElementById('nodeType').value = n.type;
   document.getElementById('nodeParent').value = n.parent_id || '';
-  document.getElementById('nodeLocator').value = n.locator || '';
-  document.getElementById('nodeLocatorType').value = n.locator_type || 'data-attr';
-  document.getElementById('nodeMethod').value = n.method || 'ele';
+  setLocators(n.locator || '');
+  document.getElementById('nodeMethod').value = n.target_mode || 'single';
   document.getElementById('nodeExtra').value = n.extra ? JSON.stringify(n.extra, null, 2) : '';
   document.getElementById('modalTitle').textContent = '编辑节点 #' + n.order;
   document.getElementById('nodeModal').classList.remove('hidden');
@@ -226,11 +281,12 @@ document.getElementById('nodeForm').addEventListener('submit', async (e) => {
   let extra = {};
   try { extra = extraStr ? JSON.parse(extraStr) : {}; } catch (e) { alert('Extra JSON 格式错误'); return; }
 
+  const locators = getLocators();
+  // 兼容旧格式：单 locator 仍存字符串，多 locator 存数组
   const payload = {
     type: document.getElementById('nodeType').value,
     parent_id: document.getElementById('nodeParent').value || null,
-    locator: document.getElementById('nodeLocator').value || null,
-    locator_type: document.getElementById('nodeLocatorType').value || null,
+    locator: locators,
     method: document.getElementById('nodeMethod').value || null,
     action: document.getElementById('nodeType').value,
     extra: extra,

@@ -6,9 +6,9 @@ Emit handlers live in emitters/ and are auto-discovered on import.
 """
 
 import json
-from typing import Any
 
 from src.repo import runtime_models as models
+from src.repo.models import SessionLocal
 
 # Trigger emitter registration
 import src.runtime.workflow.emitters  # noqa: F401
@@ -43,6 +43,42 @@ def build_python(wf: models.Workflow, flat_nodes: list[models.WorkflowNode], rep
         "            pass",
         "    return eles[0] if eles else None",
         "",
+        "def _try_locators(tab, locs, method='ele', visible_only=False):",
+        "    for loc in locs:",
+        "        try:",
+        "            if method == 'ele':",
+        "                if visible_only:",
+        "                    eles = tab.eles(loc)",
+        "                    for e in eles:",
+        "                        try:",
+        "                            if e.is_displayed():",
+        "                                return e",
+        "                        except Exception:",
+        "                            pass",
+        "                    if eles:",
+        "                        return eles[0]",
+        "                else:",
+        "                    el = tab.ele(loc)",
+        "                    if el:",
+        "                        return el",
+        "            elif method == 'eles':",
+        "                els = tab.eles(loc)",
+        "                if els:",
+        "                    return els",
+        "            elif method == 's_ele':",
+        "                el = tab.s_ele(loc)",
+        "                if el:",
+        "                    return el",
+        "            elif method == 's_eles':",
+        "                els = tab.s_eles(loc)",
+        "                if els:",
+        "                    return els",
+        "        except Exception:",
+        "            continue",
+        "    if method in ('ele', 's_ele'):",
+        "        return None",
+        "    return []",
+        "",
         "# Workflow error handler — fallback for exceptions outside instruction wrappers",
         "import traceback, re",
         "",
@@ -67,7 +103,8 @@ def build_python(wf: models.Workflow, flat_nodes: list[models.WorkflowNode], rep
         "                break",
         "        t = tb.tb_next",
         "    if node_info:",
-        "        print(f\"[WF_ERROR] 指令 #{node_info['id']} ({node_info['type']}) {node_info['label']}\", file=sys.stderr)",
+        "        label = node_info['label']",
+        "        print(f\"[WF_ERROR] 指令 #{node_info['id']} ({node_info['type']}) {label}\", file=sys.stderr)"
         "    traceback.print_exception(exc_type, exc_value, tb)",
         "",
         "sys.excepthook = _wf_excepthook",
@@ -91,13 +128,25 @@ def build_python(wf: models.Workflow, flat_nodes: list[models.WorkflowNode], rep
     for children in by_parent.values():
         children.sort(key=lambda n: n.order)
 
+    # Load workflow elements for selector resolution
+    db = SessionLocal()
+    try:
+        elements = (
+            db.query(models.WorkflowElement)
+            .filter(models.WorkflowElement.workflow_id == wf.id)
+            .all()
+        )
+        element_map = {el.name: el for el in elements}
+    finally:
+        db.close()
+
     # Collect results container
     lines.append("_results = []")
     lines.append("")
 
     def _emit(node: models.WorkflowNode, depth: int = 0) -> None:
         extra = json.loads(node.extra) if node.extra else {}
-        _emit_dispatch(node, extra, depth, by_parent, lines)
+        _emit_dispatch(node, extra, depth, by_parent, lines, element_map)
 
     # Emit root nodes
     for n in by_parent.get(None, []):
@@ -105,5 +154,5 @@ def build_python(wf: models.Workflow, flat_nodes: list[models.WorkflowNode], rep
 
     lines.append("")
     lines.append("print('Workflow completed')")
-    lines.append(f"print(f'Results: {{len(_results)}} items')")
+    lines.append("print(f'Results: {len(_results)} items')")
     return lines

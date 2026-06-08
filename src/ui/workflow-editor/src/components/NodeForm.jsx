@@ -4,14 +4,6 @@ import { useWorkflow } from '../store/WorkflowContext';
 
 // ─── Variable extraction helpers ─────────────────────────────────
 
-function formatLocatorLabel(locator) {
-  if (Array.isArray(locator)) {
-    const first = typeof locator[0] === 'string' ? locator[0] : (locator[0].locator || locator[0].selector || '');
-    return `[${locator.length}个备选] ${first}`.slice(0, 25);
-  }
-  return String(locator || '').slice(0, 25);
-}
-
 const VAR_FIELD_NAMES = ['varName', 'itemVar', 'indexVar', 'listVar', 'dataVar', 'errorVar', 'name', 'targetVar'];
 
 function extractVarsFromNode(node) {
@@ -45,55 +37,17 @@ function useAvailableVars(selectedNode, nodes) {
   }, [selectedNode, nodes]);
 }
 
-// Top-level DB columns that are shared across many element commands
-const TOP_LEVEL_FIELDS = new Set(['locator', 'locator_type', 'method']);
-
-function getCandidateValue(cand) {
-  if (typeof cand === 'string') return cand;
-  if (cand && typeof cand === 'object') {
-    return cand.syntax || cand.locator || cand.selector || JSON.stringify(cand);
-  }
-  return String(cand);
-}
-
-function findElementByLocator(locatorValue, elements) {
-  if (!locatorValue) return null;
-  const str = String(locatorValue).trim();
-  for (const el of elements) {
-    if (el.locator && String(el.locator).trim() === str) {
-      return el;
-    }
-    if (el.candidates && Array.isArray(el.candidates)) {
-      for (const cand of el.candidates) {
-        if (getCandidateValue(cand) === str) {
-          return el;
-        }
-      }
-    }
-  }
-  return null;
-}
+// Top-level DB columns that are rendered in the "元素" tab
+const TOP_LEVEL_FIELDS = new Set(['element_name']);
 
 export default function NodeForm() {
   const { selectedNode, updateNode, elements, NODE_TYPE_MAP, containerNodes, nodes } = useWorkflow();
   const [form, setForm] = useState({});
   const [extra, setExtra] = useState({});
-  const [entries, setEntries] = useState([{ host: '', elementId: null, locator: '', locatorType: 'css' }]);
   const [activeTab, setActiveTab] = useState('params');
 
   const command = selectedNode ? NODE_TYPE_MAP[selectedNode.type] : null;
   const availableVars = useAvailableVars(selectedNode, nodes);
-
-  const hosts = useMemo(() => {
-    const set = new Set();
-    for (const e of elements) {
-      if (e.hostname) set.add(e.hostname);
-    }
-    return Array.from(set).sort();
-  }, [elements]);
-
-  const getElementById = useCallback((id) => elements.find(e => e.id === id) || null, [elements]);
-  const getElementsByHost = (host) => host ? elements.filter(e => e.hostname === host) : elements;
 
   // Separate schema fields into top-level vs extra
   const { topFields, extraFields } = useMemo(() => {
@@ -110,43 +64,29 @@ export default function NodeForm() {
     return { topFields: top, extraFields: ext };
   }, [command]);
 
-  const hasLocator = topFields.some(f => f.name === 'locator');
+  const hasElementName = topFields.some(f => f.name === 'element_name');
+  const elementListExtraFields = extraFields.filter(f => f.type === 'elementNameList');
+  const elementExtraFields = extraFields.filter(f => f.type === 'elementName');
+  const nonElementExtraFields = extraFields.filter(f => f.type !== 'elementName' && f.type !== 'elementNameList');
 
-  // 构建保存用的 payload（统一为对象数组格式）
-  const buildPayload = (nextForm, nextExtra, nextEntries) => {
+  // 构建保存用的 payload
+  const buildPayload = (nextForm, nextExtra) => {
     const f = nextForm || form;
     const e = nextExtra || extra;
-    const ents = nextEntries || entries;
-
-    const nonEmpty = (ents || []).filter(en => en.locator && String(en.locator).trim());
-    const locatorPayload = nonEmpty.length > 0
-      ? nonEmpty.map(en => ({
-          locator: en.locator,
-          locatorType: en.locatorType || 'css',
-          elementId: en.elementId,
-          host: en.host,
-        }))
-      : null;
-    const locatorTypePayload = nonEmpty.length > 0 ? (nonEmpty[0].locatorType || 'css') : null;
-    const firstElementId = nonEmpty.find(en => en.elementId)?.elementId || null;
-
     return {
       id: selectedNode.id,
       type: f.type,
       parent_id: (f.parent_id !== undefined && f.parent_id !== '') ? f.parent_id : null,
-      locator: locatorPayload,
-      locator_type: locatorTypePayload,
-      method: null,
+      element_name: f.element_name || null,
       action: f.type,
-      element_id: firstElementId,
       extra: e,
     };
   };
 
   // 自动保存到本地
-  const commit = (nextForm, nextExtra, nextEntries) => {
+  const commit = (nextForm, nextExtra) => {
     if (!selectedNode) return;
-    const payload = buildPayload(nextForm, nextExtra, nextEntries);
+    const payload = buildPayload(nextForm, nextExtra);
     console.log(`[NodeForm] autoSave id=${selectedNode.id} type=${payload.type}`, payload);
     updateNode(payload);
   };
@@ -155,54 +95,11 @@ export default function NodeForm() {
 
   useEffect(() => {
     if (selectedNode) {
-      const nodeLoc = selectedNode.locator;
-      let baseEntries;
-      if (Array.isArray(nodeLoc)) {
-        baseEntries = nodeLoc.map(item => {
-          if (typeof item === 'string') {
-            const matched = findElementByLocator(item, elements);
-            return {
-              host: matched?.hostname || '',
-              elementId: matched?.id || null,
-              locator: item,
-              locatorType: selectedNode.locator_type || 'css',
-            };
-          }
-          const locator = item.locator || item.selector || '';
-          const locatorType = item.locatorType || item.type || selectedNode.locator_type || 'css';
-          if (item.elementId) {
-            const el = getElementById(item.elementId);
-            return {
-              host: item.host || el?.hostname || '',
-              elementId: item.elementId,
-              locator,
-              locatorType,
-            };
-          }
-          const matched = findElementByLocator(locator, elements);
-          return {
-            host: matched?.hostname || '',
-            elementId: matched?.id || null,
-            locator,
-            locatorType,
-          };
-        });
-      } else if (nodeLoc && typeof nodeLoc === 'string') {
-        const matched = findElementByLocator(nodeLoc, elements);
-        baseEntries = [{
-          host: matched?.hostname || '',
-          elementId: matched?.id || null,
-          locator: nodeLoc,
-          locatorType: selectedNode.locator_type || 'css',
-        }];
-      } else {
-        baseEntries = [{ host: '', elementId: null, locator: '', locatorType: 'css' }];
-      }
       queueMicrotask(() => {
-        setEntries(baseEntries);
         setForm({
           type: selectedNode.type || '',
           parent_id: selectedNode.parent_id || '',
+          element_name: selectedNode.element_name || '',
         });
         setExtra(selectedNode.extra && typeof selectedNode.extra === 'object'
           ? selectedNode.extra
@@ -217,31 +114,10 @@ export default function NodeForm() {
       queueMicrotask(() => {
         setForm({});
         setExtra({});
-        setEntries([{ host: '', elementId: null, locator: '', locatorType: 'css' }]);
       });
       prevNodeIdRef.current = null;
     }
-  }, [selectedNode, elements, getElementById]);
-
-  // 元素库加载后，为已有 locator 但尚未匹配到元素的 entry 做反向查找
-  useEffect(() => {
-    if (!elements.length) return;
-    queueMicrotask(() => {
-      setEntries(prev => {
-        let changed = false;
-        const next = prev.map(en => {
-          if (en.elementId || !en.locator) return en;
-          const matched = findElementByLocator(en.locator, elements);
-          if (matched) {
-            changed = true;
-            return { ...en, elementId: matched.id, host: matched.hostname || '' };
-          }
-          return en;
-        });
-        return changed ? next : prev;
-      });
-    });
-  }, [elements]);
+  }, [selectedNode]);
 
   const handleChange = (field, value) => {
     const newForm = { ...form, [field]: value };
@@ -253,24 +129,6 @@ export default function NodeForm() {
     const newExtra = { ...extra, [field]: value };
     setExtra(newExtra);
     commit(form, newExtra);
-  };
-
-  const addEntry = () => {
-    const newEntries = [...entries, { host: '', elementId: null, locator: '', locatorType: 'css' }];
-    setEntries(newEntries);
-    commit(undefined, undefined, newEntries);
-  };
-
-  const removeEntry = (idx) => {
-    const newEntries = entries.filter((_, i) => i !== idx);
-    setEntries(newEntries);
-    commit(undefined, undefined, newEntries);
-  };
-
-  const updateEntry = (idx, patch) => {
-    const newEntries = entries.map((en, i) => i === idx ? { ...en, ...patch } : en);
-    setEntries(newEntries);
-    commit(undefined, undefined, newEntries);
   };
 
   if (!selectedNode) {
@@ -317,97 +175,55 @@ export default function NodeForm() {
         <div className="p-4 space-y-3">
           {activeTab === 'element' && (
             <div className="space-y-3">
-              {hasLocator ? (
+              {hasElementName ? (
                 <>
-                  {entries.map((entry, idx) => {
-                    const filteredEls = getElementsByHost(entry.host);
-                    const selectedEl = getElementById(entry.elementId);
-                    const candidates = selectedEl?.candidates || [];
-                    return (
-                      <div key={idx} className="bg-gray-50 border border-[#d9d9d9] rounded p-2.5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-gray-600">元素 {idx + 1}</span>
-                          {entries.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeEntry(idx)}
-                              className="px-2 py-0.5 bg-red-50 text-red-500 rounded text-[10px] hover:bg-red-100"
-                            >
-                              删除
-                            </button>
-                          )}
+                  <div>
+                    <label className="block text-[10px] text-gray-400 mb-1">选择元素</label>
+                    <select
+                      value={form.element_name || ''}
+                      onChange={(e) => handleChange('element_name', e.target.value || null)}
+                      className="w-full px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
+                    >
+                      <option value="">-- 选择元素 --</option>
+                      {elements.map(el => (
+                        <option key={el.name} value={el.name}>
+                          {el.name}
+                        </option>
+                      ))}
+                    </select>
+                    {form.element_name && (
+                      <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 rounded px-2 py-1.5 space-y-0.5">
+                        <div>目标模式: {elements.find(e => e.name === form.element_name)?.target_mode || 'single'}</div>
+                        <div className="font-mono truncate">
+                          Web: {elements.find(e => e.name === form.element_name)?.web_selector || '-'}
                         </div>
-
-                        {/* 站点筛选 */}
-                        {hosts.length > 0 && (
-                          <div>
-                            <label className="block text-[10px] text-gray-400 mb-1">站点</label>
-                            <select
-                              value={entry.host}
-                              onChange={(e) => updateEntry(idx, { host: e.target.value, elementId: null, locator: '' })}
-                              className="w-full px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
-                            >
-                              <option value="">全部站点</option>
-                              {hosts.map(h => (
-                                <option key={h} value={h}>{h}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-
-                        {/* 元素库选择 */}
-                        <div>
-                          <label className="block text-[10px] text-gray-400 mb-1">元素库</label>
-                          <select
-                            value={entry.elementId || ''}
-                            onChange={(e) => {
-                              const elId = e.target.value ? parseInt(e.target.value, 10) : null;
-                              const el = getElementById(elId);
-                              const firstCand = el?.candidates?.[0];
-                              const firstVal = firstCand ? getCandidateValue(firstCand) : '';
-                              updateEntry(idx, { elementId: elId, locator: firstVal });
-                            }}
-                            className="w-full px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
-                          >
-                            <option value="">-- 选择元素 --</option>
-                            {filteredEls.map(el => (
-                              <option key={el.id} value={el.id}>
-                                {el.name} ({el.locator_type})
-                              </option>
-                            ))}
-                          </select>
+                        <div className="font-mono truncate">
+                          Drission: {elements.find(e => e.name === form.element_name)?.drission_selector || '-'}
                         </div>
-
-                        {/* 定位器下拉框（候选方案） */}
-                        {selectedEl ? (
-                          <LocatorDropdown
-                            candidates={candidates}
-                            value={entry.locator}
-                            onChange={(val) => updateEntry(idx, { locator: val })}
-                          />
-                        ) : (
-                          <div>
-                            <label className="block text-[10px] text-gray-400 mb-1">定位器</label>
-                            <input
-                              type="text"
-                              value={entry.locator}
-                              onChange={(e) => updateEntry(idx, { locator: e.target.value })}
-                              placeholder="输入定位器或选择元素"
-                              className="w-full px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 font-mono outline-none focus:border-[#1677ff]"
-                            />
-                          </div>
-                        )}
                       </div>
-                    );
-                  })}
-
-                  <button
-                    type="button"
-                    onClick={addEntry}
-                    className="w-full px-3 py-2 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200 border border-dashed border-gray-300"
-                  >
-                    + 新增元素
-                  </button>
+                    )}
+                  </div>
+                  {elementExtraFields.map(field => (
+                    <div key={field.name}>
+                      <label className="block text-[10px] text-gray-400 mb-1">{field.label || field.name}</label>
+                      <SchemaControl
+                        field={field}
+                        value={extra[field.name]}
+                        onChange={(v) => handleExtraChange(field.name, v)}
+                        availableVars={availableVars}
+                        elements={elements}
+                      />
+                    </div>
+                  ))}
+                  {elementListExtraFields.map(field => (
+                    <ElementNameListField
+                      key={field.name}
+                      field={field}
+                      value={extra[field.name]}
+                      onChange={(v) => handleExtraChange(field.name, v)}
+                      elements={elements}
+                    />
+                  ))}
                 </>
               ) : (
                 <div className="text-xs text-gray-400 py-6 text-center">该指令不涉及元素操作</div>
@@ -417,7 +233,7 @@ export default function NodeForm() {
 
           {activeTab === 'params' && (
             <div className="space-y-3">
-              {extraFields.length > 0 ? (
+              {nonElementExtraFields.length > 0 ? (
                 <div className="border border-[#d9d9d9] rounded overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-[#fafafa]">
@@ -428,7 +244,7 @@ export default function NodeForm() {
                     </thead>
                     <tbody>
                       {['input', 'output', 'advanced'].map(group => {
-                        const groupFields = extraFields.filter(f => (f.group || 'input') === group);
+                        const groupFields = nonElementExtraFields.filter(f => (f.group || 'input') === group);
                         if (groupFields.length === 0) return null;
                         const groupLabel = group === 'input' ? '输入参数' : group === 'output' ? '输出参数' : '高级参数';
                         return (
@@ -447,6 +263,7 @@ export default function NodeForm() {
                                     value={extra[field.name]}
                                     onChange={(v) => handleExtraChange(field.name, v)}
                                     availableVars={availableVars}
+                                    elements={elements}
                                   />
                                 </td>
                               </tr>
@@ -476,7 +293,7 @@ export default function NodeForm() {
                     <option value="">无 (顶层)</option>
                     {containerNodes.map(n => (
                       <option key={n.id} value={n.id}>
-                        #{n.order} {NODE_TYPE_MAP[n.type]?.label || n.type} - {formatLocatorLabel(n.locator)}
+                        #{n.order} {NODE_TYPE_MAP[n.type]?.label || n.type}{n.element_name ? ` - ${n.element_name}` : ''}
                       </option>
                     ))}
                   </select>
@@ -734,10 +551,66 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
 }
 
 /**
- * Schema-driven control renderer (no label wrapper).
- * Supports: text, number, select, bool, textarea, varName
+ * List of element names with add/remove buttons (minimum 1 item).
  */
-function SchemaControl({ field, value, onChange, availableVars = [] }) {
+function ElementNameListField({ field, value, onChange, elements = [] }) {
+  const list = Array.isArray(value) ? value : [];
+
+  const add = () => {
+    onChange([...list, '']);
+  };
+
+  const remove = (idx) => {
+    const next = list.filter((_, i) => i !== idx);
+    onChange(next);
+  };
+
+  const update = (idx, val) => {
+    const next = list.map((v, i) => (i === idx ? val : v));
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-[10px] text-gray-400 mb-1">{field.label || field.name}</label>
+      {list.map((name, idx) => (
+        <div key={idx} className="flex items-center gap-2">
+          <select
+            value={name || ''}
+            onChange={(e) => update(idx, e.target.value || '')}
+            className="flex-1 px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
+          >
+            <option value="">-- 选择元素 --</option>
+            {elements.map(el => (
+              <option key={el.name} value={el.name}>{el.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => remove(idx)}
+            className="px-2 py-1 bg-red-50 text-red-500 rounded text-xs hover:bg-red-100"
+            title="删除"
+          >
+            -
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="w-full px-2 py-1.5 bg-[#fafafa] border border-dashed border-[#d9d9d9] rounded text-xs text-gray-600 hover:border-[#1677ff] hover:text-[#1677ff]"
+      >
+        + 添加元素
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Schema-driven control renderer (no label wrapper).
+ * Supports: text, number, select, bool, textarea, varName, elementName
+ */
+function SchemaControl({ field, value, onChange, availableVars = [], elements = [] }) {
   const inputClass = "w-full px-2 py-1.5 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]";
   const currentValue = value !== undefined ? value : (field.default ?? '');
 
@@ -793,6 +666,22 @@ function SchemaControl({ field, value, onChange, availableVars = [] }) {
         />
       );
 
+    case 'elementName':
+      return (
+        <select
+          value={currentValue || ''}
+          onChange={(e) => onChange(e.target.value || null)}
+          className={inputClass}
+        >
+          <option value="">-- 选择元素 --</option>
+          {elements.map(el => (
+            <option key={el.name} value={el.name}>
+              {el.name}
+            </option>
+          ))}
+        </select>
+      );
+
     case 'locator':
     case 'varName':
     case 'text':
@@ -808,82 +697,3 @@ function SchemaControl({ field, value, onChange, availableVars = [] }) {
       );
   }
 }
-
-/**
- * 自定义定位器下拉选择组件
- * 展示 label、matchCount、syntax，matchCount === 1 标绿色
- */
-function LocatorDropdown({ candidates, value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const selectedCand = candidates.find(c => getCandidateValue(c) === value) || candidates[0];
-
-  return (
-    <div ref={containerRef} className="relative">
-      <label className="block text-xs text-gray-500 mb-1">定位器</label>
-      {/* 触发区域 */}
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full px-2 py-1.5 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-left outline-none focus:border-[#1677ff] hover:border-[#b3b3b3] transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-gray-700 truncate flex-1">
-            {selectedCand && typeof selectedCand === 'object' ? (selectedCand.label || selectedCand.syntax || '') : (selectedCand || '')}
-          </span>
-          <i className={`fas fa-chevron-down text-[10px] text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}></i>
-        </div>
-      </button>
-
-      {/* 下拉列表 */}
-      {open && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-[#d9d9d9] rounded shadow-lg max-h-60 overflow-y-auto">
-          {candidates.map((cand, idx) => {
-            const val = getCandidateValue(cand);
-            const isSelected = val === value;
-            const isObj = cand && typeof cand === 'object';
-            const label = isObj ? (cand.label || '-') : '-';
-            const matchCount = isObj ? (cand.matchCount ?? '-') : '-';
-            const syntax = isObj ? (cand.syntax || val) : val;
-            const isUnique = isObj && cand.matchCount === 1;
-
-            return (
-              <div
-                key={idx}
-                onClick={() => {
-                  onChange(val);
-                  setOpen(false);
-                }}
-                className={`px-3 py-2 cursor-pointer border-b border-gray-100 last:border-0 hover:bg-blue-50 ${
-                  isSelected ? 'bg-blue-50' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-xs font-medium text-gray-700 truncate">{label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                    isUnique ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    匹配: {matchCount}
-                  </span>
-                </div>
-                <div className="text-[10px] text-gray-400 font-mono truncate">{syntax}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-

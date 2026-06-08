@@ -7,7 +7,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from fastapi.responses import StreamingResponse
@@ -16,10 +15,11 @@ from sqlalchemy.orm import Session
 from .. import schemas, auth
 from src.repo import runtime_models as models
 from src.config import runtime_config as config
-from ..workflow.commands import COMMAND_REGISTRY, list_categories, list_commands_by_category, get_container_types, get_branch_types
+from ..workflow.commands import COMMAND_REGISTRY, get_command, enrich_command_meta
 from ..workflow.exporter import build_python
 from ..workflow.extension_runner import run_workflow_extension
 from src.providers import run_progress
+from src.repo.browser_utils import detect_browser_paths
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -34,6 +34,50 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# ---------- Run logs (must register before /{wf_id}) ----------
+
+@router.get("/runs")
+def list_all_runs(
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user)
+):
+    """List all run history across workflows."""
+    rows = (db.query(models.Result, models.Workflow)
+            .join(models.Workflow, models.Result.workflow_id == models.Workflow.id, isouter=True)
+            .order_by(models.Result.started_at.desc())
+            .limit(limit)
+            .all())
+    out = []
+    for r, wf in rows:
+        d = json.loads(r.data) if r.data else {}
+        out.append({
+            "id": r.id,
+            "runId": r.run_id,
+            "workflowId": r.workflow_id,
+            "workflowName": wf.name if wf else None,
+            "triggerType": r.trigger_type,
+            "startedAt": r.started_at.isoformat() if r.started_at else None,
+            "completedAt": r.completed_at.isoformat() if r.completed_at else None,
+            "success": d.get("success"),
+            "totalSteps": d.get("total_steps", 0),
+            "completedSteps": r.total,
+            "error": d.get("error"),
+            "logDir": r.log_dir,
+        })
+    return out
+
+
+@router.get("/runs/active")
+def list_active_runs(user=Depends(auth.get_current_user)):
+    """返回当前正在运行的扩展工作流 run_id 列表。"""
+    from ..workflow.extension_runner import _active_runners
+    return [
+        {"runId": rid, "clientId": r.client_id}
+        for rid, r in _active_runners.items()
+    ]
 
 
 # ---------- Workflow CRUD ----------
@@ -60,13 +104,51 @@ def create_workflow(payload: schemas.WorkflowCreate, db: Session = Depends(get_d
 
 
 @router.get("/commands")
-def list_commands(user=Depends(auth.get_current_user)):
-    """Return the full command registry for the workflow editor."""
+def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Return enabled commands for the workflow editor."""
+    rows = db.query(models.WorkflowCommand).filter(models.WorkflowCommand.enabled == 1).all()
+
+    categories = []
+    commands_by_cat = {}
+    enabled_types = set()
+
+    for row in rows:
+        enabled_types.add(row.type)
+        reg_cmd = get_command(row.type)
+        if not reg_cmd:
+            continue
+
+        cat = row.category or reg_cmd.get("category", "其他")
+        cmd = {
+            **reg_cmd,
+            "type": row.type,
+            "label": row.label or reg_cmd.get("label", row.type),
+            "category": cat,
+            "icon": row.icon or reg_cmd.get("icon", "fa-circle"),
+            "iconColor": row.icon_color or reg_cmd.get("iconColor", "text-gray-500"),
+            "bgColor": row.bg_color or reg_cmd.get("bgColor", "bg-gray-50"),
+            "description": row.description or reg_cmd.get("description", ""),
+        }
+
+        db_row = {"type": row.type, "handler": row.handler, "local": row.local}
+        enrich_command_meta(db_row)
+        cmd["handler"] = db_row.get("handler")
+        cmd["local"] = db_row.get("local")
+        cmd["hasRuntime"] = db_row.get("hasRuntime", False)
+
+        if cat not in commands_by_cat:
+            commands_by_cat[cat] = []
+            categories.append(cat)
+        commands_by_cat[cat].append(cmd)
+
+    container_types = [t for t in enabled_types if COMMAND_REGISTRY.get(t, {}).get("isContainer")]
+    branch_types = [t for t in enabled_types if COMMAND_REGISTRY.get(t, {}).get("isBranch")]
+
     return {
-        "categories": list_categories(),
-        "commands": list_commands_by_category(),
-        "containerTypes": get_container_types(),
-        "branchTypes": get_branch_types(),
+        "categories": categories,
+        "commands": commands_by_cat,
+        "containerTypes": container_types,
+        "branchTypes": branch_types,
     }
 
 
@@ -76,7 +158,7 @@ def get_workflow(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.ge
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
     for n in wf.nodes:
-        _parse_node_extra(n)
+        _parse_node_fields(n)
     return wf
 
 
@@ -91,7 +173,7 @@ def update_workflow(wf_id: int, payload: schemas.WorkflowUpdate, db: Session = D
     db.commit()
     db.refresh(wf)
     for n in wf.nodes:
-        _parse_node_extra(n)
+        _parse_node_fields(n)
     return wf
 
 
@@ -114,12 +196,21 @@ def list_nodes(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.get_
                .order_by(models.WorkflowNode.order)
                .all())
     for n in nodes:
-        _parse_node_extra(n)
+        _parse_node_fields(n)
     return nodes
 
 
-def _parse_node_extra(node):
-    """把数据库中的 JSON 字符串 extra 反序列化为 dict,供 Pydantic 输出"""
+def _parse_node_fields(node):
+    """把数据库中的 JSON 字符串 extra/locator 反序列化为原生对象,供 Pydantic 输出。
+    反序列化前将对象从 SQLAlchemy session 中 expunge，避免 dict 类型触发 dirty tracking
+    导致后续 commit 时生成 UPDATE 语句（SQLite 不支持 dict 参数绑定）。"""
+    from sqlalchemy.orm import object_session
+    from sqlalchemy import inspect as sa_inspect
+
+    sess = object_session(node)
+    if sess and sa_inspect(node).persistent:
+        sess.expunge(node)
+
     if node.extra and isinstance(node.extra, str):
         try:
             node.extra = json.loads(node.extra)
@@ -149,17 +240,15 @@ def add_node(wf_id: int, payload: schemas.WorkflowNodeIn, db: Session = Depends(
         parent_id=payload.parent_id,
         order=order,
         type=payload.type,
-        locator=payload.locator,
-        locator_type=payload.locator_type,
-        method=payload.method,
         action=payload.action,
-        element_id=payload.element_id,
+        element_name=payload.element_name,
+        enabled=1 if payload.enabled is None else payload.enabled,
         extra=json.dumps(payload.extra or {}),
     )
     db.add(node)
     db.commit()
     db.refresh(node)
-    return _parse_node_extra(node)
+    return _parse_node_fields(node)
 
 
 @router.put("/{wf_id}/nodes/batch")
@@ -186,6 +275,7 @@ def batch_update_nodes(wf_id: int, payload: List[dict] = Body(...),
 
     # Step 1: Create / update all nodes, record temp_id -> node mapping
     temp_id_map: dict[str, models.WorkflowNode] = {}
+    new_id_map: dict[int, models.WorkflowNode] = {}   # track newly created nodes by their original id
     for item in payload:
         nid = item.get("id")
         temp_id = item.get("temp_id")
@@ -193,7 +283,11 @@ def batch_update_nodes(wf_id: int, payload: List[dict] = Body(...),
         if nid and nid in existing:
             # Update existing node
             node = existing[nid]
-            for field in ["parent_id", "order", "type", "locator", "locator_type", "method", "action", "element_id"]:
+            fields = [
+                "parent_id", "order", "type", "action",
+                "element_name", "enabled",
+            ]
+            for field in fields:
                 if field in item:
                     setattr(node, field, item[field])
             if "extra" in item:
@@ -205,22 +299,23 @@ def batch_update_nodes(wf_id: int, payload: List[dict] = Body(...),
                 parent_id=item.get("parent_id"),
                 order=item.get("order", 0),
                 type=item["type"],
-                locator=item.get("locator"),
-                locator_type=item.get("locator_type"),
-                method=item.get("method"),
                 action=item.get("action"),
-                element_id=item.get("element_id"),
+                element_name=item.get("element_name"),
+                enabled=1 if item.get("enabled") is None else item["enabled"],
                 extra=json.dumps(item.get("extra") or {}),
             )
             db.add(node)
             if temp_id:
                 temp_id_map[temp_id] = node
+            if nid is not None:
+                new_id_map[nid] = node
 
     db.flush()  # Flush to get real IDs assigned before fixing parent_id
 
     # Step 2: Fix parent_id references
     #   a) str  -> temp_id map (new node -> new node)
     #   b) int  -> pointing to deleted node -> set to None
+    #   c) int  -> newly created node id -> map to real id
     for item in payload:
         temp_id = item.get("temp_id")
         nid = item.get("id")
@@ -231,6 +326,8 @@ def batch_update_nodes(wf_id: int, payload: List[dict] = Body(...),
             target_node = temp_id_map[temp_id]
         elif nid and nid in existing:
             target_node = existing[nid]
+        elif nid and nid in new_id_map:
+            target_node = new_id_map[nid]
         else:
             continue
 
@@ -245,6 +342,11 @@ def batch_update_nodes(wf_id: int, payload: List[dict] = Body(...),
         # Case B: parent_ref is a temp_id -> map to real id
         if isinstance(parent_ref, str) and parent_ref in temp_id_map:
             target_node.parent_id = temp_id_map[parent_ref].id
+            continue
+
+        # Case C: parent_ref is an integer id of a newly created node -> map to real id
+        if isinstance(parent_ref, int) and parent_ref in new_id_map:
+            target_node.parent_id = new_id_map[parent_ref].id
 
     db.commit()
 
@@ -254,7 +356,7 @@ def batch_update_nodes(wf_id: int, payload: List[dict] = Body(...),
                .order_by(models.WorkflowNode.order)
                .all())
     for n in nodes:
-        _parse_node_extra(n)
+        _parse_node_fields(n)
     return nodes
 
 
@@ -271,7 +373,7 @@ def update_node(wf_id: int, node_id: int, payload: schemas.WorkflowNodeIn,
             setattr(node, field, val)
     db.commit()
     db.refresh(node)
-    return _parse_node_extra(node)
+    return _parse_node_fields(node)
 
 
 @router.delete("/{wf_id}/nodes/{node_id}")
@@ -280,6 +382,15 @@ def delete_node(wf_id: int, node_id: int, db: Session = Depends(get_db),
     node = db.get(models.WorkflowNode, node_id)
     if not node or node.workflow_id != wf_id:
         raise HTTPException(status_code=404, detail="Node not found")
+
+    # Cascade delete all descendants
+    def delete_children(nid):
+        children = db.query(models.WorkflowNode).filter(models.WorkflowNode.parent_id == nid).all()
+        for child in children:
+            delete_children(child.id)
+            db.delete(child)
+
+    delete_children(node_id)
     db.delete(node)
     db.commit()
     return {"success": True}
@@ -309,17 +420,15 @@ def add_node_anonymous(wf_id: int, payload: schemas.WorkflowNodeIn, db: Session 
         parent_id=payload.parent_id,
         order=order,
         type=payload.type,
-        locator=payload.locator,
-        locator_type=payload.locator_type,
-        method=payload.method,
         action=payload.action,
-        element_id=payload.element_id,
+        element_name=payload.element_name,
+        enabled=1 if payload.enabled is None else payload.enabled,
         extra=json.dumps(payload.extra or {}),
     )
     db.add(node)
     db.commit()
     db.refresh(node)
-    return _parse_node_extra(node)
+    return _parse_node_fields(node)
 
 
 @router.get("/{wf_id}/nodes/anonymous", response_model=list[schemas.WorkflowNodeOut])
@@ -329,6 +438,8 @@ def list_nodes_anonymous(wf_id: int, db: Session = Depends(get_db)):
                .filter(models.WorkflowNode.workflow_id == wf_id)
                .order_by(models.WorkflowNode.order)
                .all())
+    for n in nodes:
+        _parse_node_fields(n)
     return nodes
 
 
@@ -346,7 +457,190 @@ def reorder_nodes(wf_id: int, orders: list[dict], db: Session = Depends(get_db),
     return {"success": True}
 
 
-# ---------- Run workflow ----------
+# ---------- Workflow Elements (per-workflow element library) ----------
+
+@router.get("/{wf_id}/elements", response_model=list[schemas.WorkflowElementOut])
+def list_workflow_elements(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """List all elements in a workflow's element library."""
+    items = (
+        db.query(models.WorkflowElement)
+        .filter(models.WorkflowElement.workflow_id == wf_id)
+        .order_by(models.WorkflowElement.created_at.desc())
+        .all()
+    )
+    for item in items:
+        try:
+            item.css_candidates = json.loads(item.css_candidates) if item.css_candidates else []
+        except Exception:
+            item.css_candidates = []
+        try:
+            item.xpath_candidates = json.loads(item.xpath_candidates) if item.xpath_candidates else []
+        except Exception:
+            item.xpath_candidates = []
+        try:
+            item.drission_candidates = json.loads(item.drission_candidates) if item.drission_candidates else []
+        except Exception:
+            item.drission_candidates = []
+        try:
+            item.dom_path = json.loads(item.dom_path) if item.dom_path else []
+        except Exception:
+            item.dom_path = []
+        try:
+            item.attributes = json.loads(item.attributes) if item.attributes else {}
+        except Exception:
+            item.attributes = {}
+    return items
+
+
+@router.post("/{wf_id}/elements", response_model=schemas.WorkflowElementOut)
+def create_workflow_element(
+    wf_id: int, payload: schemas.WorkflowElementIn,
+    db: Session = Depends(get_db), user=Depends(auth.get_current_user)
+):
+    """Create a new element in the workflow's element library."""
+    wf = db.get(models.Workflow, wf_id)
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    el = models.WorkflowElement(
+        workflow_id=wf_id,
+        name=payload.name,
+        target_mode=payload.target_mode,
+        css_candidates=json.dumps(payload.css_candidates),
+        xpath_candidates=json.dumps(payload.xpath_candidates),
+        drission_candidates=json.dumps(payload.drission_candidates),
+        web_selector=payload.web_selector,
+        drission_selector=payload.drission_selector,
+        dom_path=json.dumps(payload.dom_path),
+        attributes=json.dumps(payload.attributes),
+        screenshot=payload.screenshot,
+        page_url=payload.page_url,
+    )
+    db.add(el)
+    db.commit()
+    db.refresh(el)
+    try:
+        el.css_candidates = json.loads(el.css_candidates) if el.css_candidates else []
+    except Exception:
+        el.css_candidates = []
+    try:
+        el.xpath_candidates = json.loads(el.xpath_candidates) if el.xpath_candidates else []
+    except Exception:
+        el.xpath_candidates = []
+    try:
+        el.drission_candidates = json.loads(el.drission_candidates) if el.drission_candidates else []
+    except Exception:
+        el.drission_candidates = []
+    try:
+        el.dom_path = json.loads(el.dom_path) if el.dom_path else []
+    except Exception:
+        el.dom_path = []
+    try:
+        el.attributes = json.loads(el.attributes) if el.attributes else {}
+    except Exception:
+        el.attributes = {}
+    return el
+
+
+@router.put("/{wf_id}/elements/{el_id}", response_model=schemas.WorkflowElementOut)
+def update_workflow_element(
+    wf_id: int, el_id: int, payload: schemas.WorkflowElementIn,
+    db: Session = Depends(get_db), user=Depends(auth.get_current_user)
+):
+    """Update an element in the workflow's element library."""
+    el = db.query(models.WorkflowElement).filter(
+        models.WorkflowElement.id == el_id,
+        models.WorkflowElement.workflow_id == wf_id,
+    ).first()
+    if not el:
+        raise HTTPException(status_code=404, detail="Element not found")
+    el.name = payload.name
+    el.target_mode = payload.target_mode
+    el.css_candidates = json.dumps(payload.css_candidates)
+    el.xpath_candidates = json.dumps(payload.xpath_candidates)
+    el.drission_candidates = json.dumps(payload.drission_candidates)
+    el.web_selector = payload.web_selector
+    el.drission_selector = payload.drission_selector
+    el.dom_path = json.dumps(payload.dom_path)
+    el.attributes = json.dumps(payload.attributes)
+    if payload.screenshot is not None:
+        el.screenshot = payload.screenshot
+    if payload.page_url is not None:
+        el.page_url = payload.page_url
+    db.commit()
+    db.refresh(el)
+    try:
+        el.css_candidates = json.loads(el.css_candidates) if el.css_candidates else []
+    except Exception:
+        el.css_candidates = []
+    try:
+        el.xpath_candidates = json.loads(el.xpath_candidates) if el.xpath_candidates else []
+    except Exception:
+        el.xpath_candidates = []
+    try:
+        el.drission_candidates = json.loads(el.drission_candidates) if el.drission_candidates else []
+    except Exception:
+        el.drission_candidates = []
+    try:
+        el.dom_path = json.loads(el.dom_path) if el.dom_path else []
+    except Exception:
+        el.dom_path = []
+    try:
+        el.attributes = json.loads(el.attributes) if el.attributes else {}
+    except Exception:
+        el.attributes = {}
+    return el
+
+
+@router.delete("/{wf_id}/elements/{el_id}")
+def delete_workflow_element(
+    wf_id: int, el_id: int,
+    db: Session = Depends(get_db), user=Depends(auth.get_current_user)
+):
+    """Delete an element from the workflow's element library."""
+    el = db.query(models.WorkflowElement).filter(
+        models.WorkflowElement.id == el_id,
+        models.WorkflowElement.workflow_id == wf_id,
+    ).first()
+    if not el:
+        raise HTTPException(status_code=404, detail="Element not found")
+    db.delete(el)
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/{wf_id}/elements/by-name/{name}", response_model=schemas.WorkflowElementOut)
+def get_workflow_element_by_name(
+    wf_id: int, name: str,
+    db: Session = Depends(get_db), user=Depends(auth.get_current_user)
+):
+    """Get an element by name from the workflow's element library."""
+    el = db.query(models.WorkflowElement).filter(
+        models.WorkflowElement.workflow_id == wf_id,
+        models.WorkflowElement.name == name,
+    ).first()
+    if not el:
+        raise HTTPException(status_code=404, detail="Element not found")
+    try:
+        el.css_candidates = json.loads(el.css_candidates) if el.css_candidates else []
+    except Exception:
+        el.css_candidates = []
+    try:
+        el.xpath_candidates = json.loads(el.xpath_candidates) if el.xpath_candidates else []
+    except Exception:
+        el.xpath_candidates = []
+    try:
+        el.drission_candidates = json.loads(el.drission_candidates) if el.drission_candidates else []
+    except Exception:
+        el.drission_candidates = []
+    try:
+        el.dom_path = json.loads(el.dom_path) if el.dom_path else []
+    except Exception:
+        el.dom_path = []
+    try:
+        el.attributes = json.loads(el.attributes) if el.attributes else {}
+    except Exception:
+        el.attributes = {}
+    return el
 
 
 # ---------- Export to Python ----------
@@ -404,7 +698,7 @@ def run_workflow(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.ge
 
     try:
         # Run with a 120-second timeout, inject repo root so generated script can import shared.chrome_utils
-        print(f"[run_workflow] executing subprocess...")
+        print("[run_workflow] executing subprocess...")
         env = {**os.environ, "RPA_REPO_ROOT": config.REPO_DIR}
         result = subprocess.run(
             [sys.executable, path],
@@ -413,7 +707,10 @@ def run_workflow(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.ge
             timeout=120,
             env=env,
         )
-        print(f"[run_workflow] done returncode={result.returncode} stdout_len={len(result.stdout)} stderr_len={len(result.stderr)}")
+        print(
+            f"[run_workflow] done returncode={result.returncode} "
+            f"stdout_len={len(result.stdout)} stderr_len={len(result.stderr)}"
+        )
         return {
             "success": result.returncode == 0,
             "returncode": result.returncode,
@@ -421,7 +718,7 @@ def run_workflow(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.ge
             "stderr": result.stderr,
         }
     except subprocess.TimeoutExpired:
-        print(f"[run_workflow] timed out after 120s")
+        print("[run_workflow] timed out after 120s")
         return {
             "success": False,
             "returncode": -1,
@@ -471,16 +768,50 @@ async def run_workflow_stream(wf_id: int, run_id: str = Query(...), user=Depends
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+# ─── Pause / Resume / Stop controls ───────────────────────────────
+
+@router.post("/{wf_id}/run/{run_id}/pause")
+def pause_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
+    from ..workflow.extension_runner import _active_runners
+    runner = _active_runners.get(run_id)
+    print(f"[pause_run] run_id={run_id} found={runner is not None} keys={list(_active_runners.keys())}")
+    if runner:
+        runner.pause()
+    return {"success": True, "runId": run_id, "action": "pause"}
+
+
+@router.post("/{wf_id}/run/{run_id}/resume")
+def resume_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
+    from ..workflow.extension_runner import _active_runners
+    runner = _active_runners.get(run_id)
+    print(f"[resume_run] run_id={run_id} found={runner is not None} keys={list(_active_runners.keys())}")
+    if runner:
+        runner.resume()
+    return {"success": True, "runId": run_id, "action": "resume"}
+
+
+@router.post("/{wf_id}/run/{run_id}/stop")
+def stop_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
+    from ..workflow.extension_runner import _active_runners
+    runner = _active_runners.get(run_id)
+    print(f"[stop_run] run_id={run_id} found={runner is not None} keys={list(_active_runners.keys())}")
+    if runner:
+        runner.stop()
+    return {"success": True, "runId": run_id, "action": "stop"}
+
+
 @router.post("/{wf_id}/run/extension")
 async def run_workflow_extension_endpoint(
     wf_id: int,
     run_id: str = Query(default=""),
+    payload: dict = Body(default={}),
     db: Session = Depends(get_db),
     user=Depends(auth.get_current_user)
 ):
     """Run workflow via browser extension (WebSocket).
     Requires an active extension connection.
     Supply run_id (e.g. a UUID) so the matching SSE stream can receive progress.
+    Optional body: {"initialTableData": {"columns": [...], "rows": [...]}}
     """
     wf = db.get(models.Workflow, wf_id)
     if not wf:
@@ -490,13 +821,27 @@ async def run_workflow_extension_endpoint(
                .filter(models.WorkflowNode.workflow_id == wf_id)
                .order_by(models.WorkflowNode.order)
                .all())
+    for n in nodes:
+        _parse_node_fields(n)
 
-    result = await run_workflow_extension(wf, nodes, run_id=run_id or None)
+    initial_table_data = payload.get("initialTableData")
+    import datetime as _dt
+    started_at = _dt.datetime.now()
+    # 默认使用 chrome 并自动启动（若未运行）
+    result = await run_workflow_extension(
+        wf, nodes,
+        run_id=run_id or None,
+        initial_table_data=initial_table_data,
+        target_browser=wf.target_browser or "chrome",
+    )
+    completed_at = _dt.datetime.now()
 
     # Save run log to Result table
     try:
         log = models.Result(
             task_id=None,
+            workflow_id=wf_id,
+            run_id=result.get("runId", run_id or ""),
             url=wf.url or "",
             total=result.get("completedSteps", 0),
             data=json.dumps({
@@ -505,8 +850,13 @@ async def run_workflow_extension_endpoint(
                 "success": result.get("success"),
                 "total_steps": result.get("totalSteps"),
                 "failed_step": result.get("failedStep"),
+                "error": result.get("error"),
             }),
             client_id=None,
+            trigger_type=payload.get("triggerType", "manual"),
+            log_dir=result.get("logDir", ""),
+            started_at=started_at,
+            completed_at=completed_at,
         )
         db.add(log)
         db.commit()
@@ -514,3 +864,112 @@ async def run_workflow_extension_endpoint(
         print(f"[WorkflowsRouter] failed to save run log: {e}")
 
     return result
+
+
+@router.get("/{wf_id}/runs")
+def list_workflow_runs(
+    wf_id: int,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user)
+):
+    """List run history for a workflow."""
+    rows = (db.query(models.Result)
+            .filter(models.Result.workflow_id == wf_id)
+            .order_by(models.Result.started_at.desc())
+            .limit(limit)
+            .all())
+    out = []
+    for r in rows:
+        d = json.loads(r.data) if r.data else {}
+        out.append({
+            "id": r.id,
+            "runId": r.run_id,
+            "workflowId": r.workflow_id,
+            "triggerType": r.trigger_type,
+            "startedAt": r.started_at.isoformat() if r.started_at else None,
+            "completedAt": r.completed_at.isoformat() if r.completed_at else None,
+            "success": d.get("success"),
+            "totalSteps": d.get("total_steps", 0),
+            "completedSteps": r.total,
+            "error": d.get("error"),
+            "logDir": r.log_dir,
+        })
+    return out
+
+
+@router.get("/{wf_id}/runs/{run_id}/log")
+def get_run_log(
+    wf_id: int,
+    run_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user)
+):
+    """Read persisted run log file."""
+    row = (db.query(models.Result)
+           .filter(models.Result.workflow_id == wf_id, models.Result.run_id == run_id)
+           .first())
+    if not row or not row.log_dir:
+        raise HTTPException(status_code=404, detail="Run log not found")
+    log_path = os.path.join(row.log_dir, "run.log")
+    if not os.path.exists(log_path):
+        raise HTTPException(status_code=404, detail="Log file not found")
+    with open(log_path, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    events = []
+    for line in lines:
+        try:
+            events.append(json.loads(line))
+        except Exception:
+            events.append({"raw": line})
+    return {"events": events}
+
+
+@router.get("/{wf_id}/runs/{run_id}/table")
+def get_run_table(
+    wf_id: int,
+    run_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user)
+):
+    """Read persisted run table file."""
+    row = (db.query(models.Result)
+           .filter(models.Result.workflow_id == wf_id, models.Result.run_id == run_id)
+           .first())
+    if not row or not row.log_dir:
+        raise HTTPException(status_code=404, detail="Run table not found")
+    table_path = os.path.join(row.log_dir, "table.json")
+    if not os.path.exists(table_path):
+        raise HTTPException(status_code=404, detail="Table file not found")
+    with open(table_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+@router.post("/{wf_id}/runs/{run_id}/open-folder")
+def open_run_folder(
+    wf_id: int,
+    run_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user)
+):
+    """在文件资源管理器中打开日志所在文件夹（仅支持本地运行）。"""
+    row = (db.query(models.Result)
+           .filter(models.Result.workflow_id == wf_id, models.Result.run_id == run_id)
+           .first())
+    if not row or not row.log_dir:
+        raise HTTPException(status_code=404, detail="Run log folder not found")
+    if not os.path.exists(row.log_dir):
+        raise HTTPException(status_code=404, detail="Log folder does not exist")
+    if os.name == 'nt':
+        os.startfile(row.log_dir)
+    else:
+        subprocess.Popen(['xdg-open', row.log_dir])
+    return {"opened": True, "path": row.log_dir}
+
+
+# ---------- Browser detection ----------
+
+@router.get("/system/browser-paths")
+def get_browser_paths(user=Depends(auth.get_current_user)):
+    """检测系统中 Chrome 和 Edge 的安装路径。"""
+    return detect_browser_paths()

@@ -1,16 +1,16 @@
 import json
-from ._registry import _handler, _var_ref
+from ._registry import _handler
 
 
 @_handler("callWorkflow")
-def _emit_callWorkflow(node, extra, depth, prefix, by_parent, lines):
+def _emit_callWorkflow(node, extra, depth, prefix, by_parent, lines, element_map=None):
     wf_id = extra.get("workflowId", 0)
-    inputs = extra.get("inputs", "")
+    extra.get("inputs", "")
     lines.append(f"{prefix}# TODO: call workflow {wf_id}")
 
 
 @_handler("return")
-def _emit_return(node, extra, depth, prefix, by_parent, lines):
+def _emit_return(node, extra, depth, prefix, by_parent, lines, element_map=None):
     expr = extra.get("resultExpr", "")
     if expr:
         try:

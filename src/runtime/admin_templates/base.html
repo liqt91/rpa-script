@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}管理后台{% endblock %} - 分布式脚本执行平台</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/workflow-editor/assets/tailwindcss.js"></script>
   <script>
     tailwind.config = { darkMode: 'class' }
   </script>
@@ -30,7 +30,7 @@
           ('/admin/ai', 'ai', 'AI 分析', 'M13 10V3L4 14h7v7l9-11h-7z'),
           ('/admin/ai-apps', 'ai-apps', 'AI 应用', 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M12 15a3 3 0 100-6 3 3 0 000 6z'),
           ('/admin/scripts', 'scripts', '脚本管理', 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4'),
-          ('/admin/workflows', 'workflows', '工作流编排', 'M4 6h16M4 12h16M4 18h16'),
+          ('/workflow-editor/', 'workflows', '工作流编排', 'M4 6h16M4 12h16M4 18h16'),
           ('/admin/commands', 'commands', '指令管理', 'M4 6h16M4 10h16M4 14h16M4 18h16'),
         ] %}
         {% for href, key, label, icon in nav_items %}

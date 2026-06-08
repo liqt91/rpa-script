@@ -13,7 +13,6 @@ const BOTTOM_TABS = [
 
 export default function ElementLibraryTab() {
   const { elements, loadElements, runLogs, runStatus, wfId } = useWorkflow();
-  const [selectedHost, setSelectedHost] = useState('');
   const [activeTab, setActiveTab] = useState('elements');
   const [expanded, setExpanded] = useState(() => {
     try { return localStorage.getItem('wf_editor_bottom_expanded') !== 'false'; }
@@ -25,6 +24,7 @@ export default function ElementLibraryTab() {
   const [extBrowsers, setExtBrowsers] = useState([]);  // [{browser, count}]
   const [targetBrowser, setTargetBrowser] = useState(''); // '' = all, 'chrome', 'edge'
   const [capturing, setCapturing] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [toast, setToast] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renamingValue, setRenamingValue] = useState('');
@@ -76,15 +76,6 @@ export default function ElementLibraryTab() {
   }, [runLogs]);
 
   const selectedElement = elements.find(e => e.id === selectedElementId) || null;
-
-  // 从 elements 派生站点列表，捕获新站点后自动更新
-  const hosts = useMemo(() => {
-    const set = new Set();
-    for (const e of elements) {
-      if (e.hostname) set.add(e.hostname);
-    }
-    return Array.from(set).sort();
-  }, [elements]);
 
   useEffect(() => {
     if (renamingId && renameRef.current) {
@@ -159,9 +150,7 @@ export default function ElementLibraryTab() {
     return () => clearInterval(timer);
   }, [activeTab]);
 
-  const filtered = selectedHost
-    ? elements.filter(e => e.hostname === selectedHost)
-    : elements;
+  const filtered = elements;
 
   const showToast = (msg, type = 'info') => {
     setToast({ msg, type });
@@ -171,7 +160,7 @@ export default function ElementLibraryTab() {
   const handleDelete = async (id, name) => {
     if (!window.confirm(`确认删除元素 "${name}"？`)) return;
     try {
-      await api.deleteElement(id);
+      await api.deleteWorkflowElement(wfId, id);
       showToast(`已删除 "${name}"`);
       if (selectedElementId === id) setSelectedElementId(null);
       await refresh();
@@ -192,7 +181,9 @@ export default function ElementLibraryTab() {
       return;
     }
     try {
-      await api.updateElement(id, { name });
+      const el = elements.find(e => e.id === id);
+      if (!el) return;
+      await api.updateWorkflowElement(wfId, id, { ...el, name });
       showToast('重命名成功');
       setRenamingId(null);
       await refresh();
@@ -204,61 +195,8 @@ export default function ElementLibraryTab() {
 
   const cancelRename = () => setRenamingId(null);
 
-  const handleCapture = async () => {
-    if (!extOnline) {
-      showToast('浏览器扩展未连接，请确认扩展已安装并刷新页面', 'error');
-      return;
-    }
-    setCapturing(true);
-    try {
-      const res = await api.sendExtensionCommand('enterCaptureMode', {}, targetBrowser || undefined);
-      if (res.success) {
-        const browserLabel = targetBrowser ? `[${targetBrowser}] ` : '';
-        showToast(`${browserLabel}已发送抓取命令，请点击元素捕获`);
-      } else {
-        showToast('抓取命令发送失败: ' + (res.error || '未知错误'), 'error');
-        setCapturing(false);
-      }
-    } catch (e) {
-      showToast('抓取失败: ' + e.message, 'error');
-      setCapturing(false);
-    }
-  };
-
-  const handleExport = async () => {
-    try {
-      const res = await api.exportElements();
-      const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `elements-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast(`已导出 ${data.length} 个元素`);
-    } catch (e) {
-      showToast('导出失败: ' + e.message, 'error');
-    }
-  };
-
-  const handleImport = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    try {
-      const text = await file.text();
-      const items = JSON.parse(text);
-      if (!Array.isArray(items)) {
-        showToast('文件格式错误: 应为 JSON 数组', 'error');
-        return;
-      }
-      const result = await api.importElements(items);
-      showToast(`导入完成: ${result.imported} 个成功${result.failed ? `, ${result.failed} 个失败` : ''}`);
-      await refresh();
-    } catch (err) {
-      showToast('导入失败: ' + err.message, 'error');
-    }
+  const handleCapture = () => {
+    setShowGuide(true);
   };
 
   if (!expanded) {
@@ -297,7 +235,7 @@ export default function ElementLibraryTab() {
 
       {/* 内容区 */}
       <div className="flex-1 flex overflow-hidden">
-        {activeTab === 'logs' ? (
+        {activeTab === 'logs' && (
           <div ref={logsRef} className="flex-1 overflow-y-auto p-2 font-mono text-xs select-text">
             {runLogs.length === 0 ? (
               <div className="text-center text-gray-400 py-8">
@@ -332,45 +270,13 @@ export default function ElementLibraryTab() {
               </div>
             )}
           </div>
-        ) : activeTab === 'dataTable' ? (
-          <DataTableTab wfId={wfId} />
-        ) : activeTab === 'elements' ? (
+        )}
+        {activeTab === 'elements' && (
           <>
             {/* 左侧元素树 */}
             <div className="w-[280px] border-r border-[#e8e8e8] overflow-y-auto p-2">
               <div className="flex items-center gap-2 mb-2">
-                <select
-                  value={selectedHost}
-                  onChange={(e) => setSelectedHost(e.target.value)}
-                  className="flex-1 px-2 py-1 bg-[#fafafa] border border-[#d9d9d9] rounded text-xs text-gray-700 outline-none"
-                >
-                  <option value="">全部站点</option>
-                  {hosts.map(h => (
-                    <option key={h} value={h}>{h}</option>
-                  ))}
-                </select>
-                <span className="text-xs text-gray-400">{filtered.length}</span>
-                <button
-                  onClick={handleExport}
-                  className="text-gray-400 hover:text-blue-500 px-1"
-                  title="导出全部"
-                >
-                  <i className="fas fa-download text-[10px]"></i>
-                </button>
-                <button
-                  onClick={() => importRef.current?.click()}
-                  className="text-gray-400 hover:text-green-500 px-1"
-                  title="导入"
-                >
-                  <i className="fas fa-upload text-[10px]"></i>
-                </button>
-                <input
-                  ref={importRef}
-                  type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={handleImport}
-                />
+                <span className="text-xs text-gray-400 flex-1">{filtered.length} 个元素</span>
               </div>
               {filtered.length === 0 ? (
                 <div className="text-center text-gray-400 text-xs py-8">暂无元素</div>
@@ -408,7 +314,7 @@ export default function ElementLibraryTab() {
                             <div className={`text-xs truncate ${
                               selectedElementId === el.id ? 'text-blue-700 font-medium' : 'text-gray-700'
                             }`}>{el.name}</div>
-                            <div className="text-[10px] text-gray-400 truncate">{el.locator}</div>
+                            <div className="text-[10px] text-gray-400 truncate">{el.web_selector || el.drission_selector || '-'}</div>
                           </>
                         )}
                       </div>
@@ -430,7 +336,7 @@ export default function ElementLibraryTab() {
                           </button>
                         </div>
                       )}
-                      <span className="text-[10px] text-gray-400">{el.locator_type}</span>
+                      <span className="text-[10px] text-gray-400">{el.target_mode || 'single'}</span>
                     </div>
                   ))}
                 </div>
@@ -464,17 +370,12 @@ export default function ElementLibraryTab() {
                   </span>
                 </div>
                 <button
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors ${
-                    extOnline
-                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-orange-500 hover:bg-orange-600 text-white"
                   onClick={handleCapture}
-                  disabled={!extOnline || capturing}
-                  title={extOnline ? `发送到: ${targetBrowser || '所有浏览器'}` : '扩展未连接'}
+                  title="查看捕获指南"
                 >
-                  <i className={`fas ${capturing ? 'fa-spinner fa-spin' : 'fa-plus'} text-[10px]`}></i>
-                  <span>{capturing ? '等待捕获...' : '捕获新元素'}</span>
+                  <i className="fas fa-plus text-[10px]"></i>
+                  <span>捕获新元素</span>
                 </button>
               </div>
               {selectedElement ? (
@@ -522,105 +423,101 @@ export default function ElementLibraryTab() {
                   {/* 定位信息 */}
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     <div>
-                      <div className="text-[10px] text-gray-400 mb-0.5">定位方式</div>
-                      <div className="text-xs text-gray-700 font-mono bg-gray-50 px-2 py-1 rounded">
-                        {selectedElement.locator_type}
-                      </div>
+                      <div className="text-[10px] text-gray-400 mb-0.5">目标模式</div>
+                      <select
+                        value={selectedElement.target_mode || 'single'}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          try {
+                            await api.updateWorkflowElement(wfId, selectedElement.id, { ...selectedElement, target_mode: val });
+                            await refresh();
+                          } catch (err) {
+                            showToast('更新失败: ' + err.message, 'error');
+                          }
+                        }}
+                        className="w-full text-xs text-gray-700 bg-white border border-gray-200 rounded px-2 py-1 outline-none focus:border-blue-400"
+                      >
+                        <option value="single">single</option>
+                        <option value="list">list</option>
+                      </select>
                     </div>
                     <div>
-                      <div className="text-[10px] text-gray-400 mb-0.5">方法</div>
-                      <div className="text-xs text-gray-700 font-mono bg-gray-50 px-2 py-1 rounded">
-                        {selectedElement.method}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-gray-400 mb-0.5">站点</div>
-                      <div className="text-xs text-gray-700 truncate bg-gray-50 px-2 py-1 rounded" title={selectedElement.hostname}>
-                        {selectedElement.hostname}
+                      <div className="text-[10px] text-gray-400 mb-0.5">页面 URL</div>
+                      <div className="text-xs text-gray-700 truncate bg-gray-50 px-2 py-1 rounded" title={selectedElement.page_url}>
+                        {selectedElement.page_url || '-'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Locator */}
-                  <div className="mb-3">
-                    <div className="text-[10px] text-gray-400 mb-0.5">Locator</div>
-                    <code className="block text-xs text-gray-700 bg-gray-50 px-2 py-1.5 rounded break-all font-mono">
-                      {selectedElement.locator}
-                    </code>
-                  </div>
-
-                  {/* CSS Selector */}
-                  {selectedElement.css_selector && (
+                  {/* Web Selector */}
+                  {selectedElement.web_selector && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-0.5">CSS Selector</div>
+                      <div className="text-[10px] text-gray-400 mb-0.5">网页选择器（扩展执行用）</div>
                       <code className="block text-xs text-gray-700 bg-gray-50 px-2 py-1.5 rounded break-all font-mono">
-                        {selectedElement.css_selector}
+                        {selectedElement.web_selector}
                       </code>
                     </div>
                   )}
 
-                  {/* 描述 */}
-                  {selectedElement.description && (
+                  {/* Drission Selector */}
+                  {selectedElement.drission_selector && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-0.5">描述</div>
-                      <div className="text-xs text-gray-600">{selectedElement.description}</div>
-                    </div>
-                  )}
-
-                  {/* 文本预览 */}
-                  {selectedElement.text_preview && (
-                    <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-0.5">文本预览</div>
-                      <div className="text-xs text-gray-600 bg-yellow-50 px-2 py-1.5 rounded border border-yellow-100">
-                        {selectedElement.text_preview}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 页面 URL */}
-                  {selectedElement.page_url && (
-                    <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-0.5">页面 URL</div>
-                      <a
-                        href={selectedElement.page_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline truncate block"
-                        title={selectedElement.page_url}
-                      >
-                        {selectedElement.page_url}
-                      </a>
+                      <div className="text-[10px] text-gray-400 mb-0.5">Drission 选择器（Python 导出用）</div>
+                      <code className="block text-xs text-gray-700 bg-gray-50 px-2 py-1.5 rounded break-all font-mono">
+                        {selectedElement.drission_selector}
+                      </code>
                     </div>
                   )}
 
                   {/* 候选方案 */}
-                  {selectedElement.candidates && selectedElement.candidates.length > 0 && (
+                  {selectedElement.css_candidates && selectedElement.css_candidates.length > 0 && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-1">
-                        候选方案 ({selectedElement.candidates.length})
-                      </div>
+                      <div className="text-[10px] text-gray-400 mb-1">CSS 候选方案 ({selectedElement.css_candidates.length})</div>
                       <div className="space-y-1">
-                        {selectedElement.candidates.map((cand, idx) => (
+                        {selectedElement.css_candidates.map((cand, idx) => (
                           <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded">
                             <span className="text-gray-400 mr-1">#{idx + 1}</span>
-                            <span className="text-gray-600 font-mono">
-                              {typeof cand === 'string' ? cand : JSON.stringify(cand)}
-                            </span>
+                            <span className="text-gray-600 font-mono">{cand.syntax || cand}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedElement.xpath_candidates && selectedElement.xpath_candidates.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-[10px] text-gray-400 mb-1">XPath 候选方案 ({selectedElement.xpath_candidates.length})</div>
+                      <div className="space-y-1">
+                        {selectedElement.xpath_candidates.map((cand, idx) => (
+                          <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded">
+                            <span className="text-gray-400 mr-1">#{idx + 1}</span>
+                            <span className="text-gray-600 font-mono">{cand.syntax || cand}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedElement.drission_candidates && selectedElement.drission_candidates.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-[10px] text-gray-400 mb-1">Drission 候选方案 ({selectedElement.drission_candidates.length})</div>
+                      <div className="space-y-1">
+                        {selectedElement.drission_candidates.map((cand, idx) => (
+                          <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded">
+                            <span className="text-gray-400 mr-1">#{idx + 1}</span>
+                            <span className="text-gray-600 font-mono">{cand.syntax || cand}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* 特征 */}
-                  {selectedElement.features && Object.keys(selectedElement.features).length > 0 && (
+                  {/* DOM Path */}
+                  {selectedElement.dom_path && selectedElement.dom_path.length > 0 && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-1">特征</div>
-                      <div className="grid grid-cols-2 gap-1">
-                        {Object.entries(selectedElement.features).map(([k, v]) => (
-                          <div key={k} className="text-xs bg-gray-50 px-2 py-1 rounded flex justify-between">
-                            <span className="text-gray-400">{k}</span>
-                            <span className="text-gray-600 font-mono truncate ml-2">{String(v)}</span>
+                      <div className="text-[10px] text-gray-400 mb-1">DOM 层级 ({selectedElement.dom_path.length})</div>
+                      <div className="space-y-0.5">
+                        {selectedElement.dom_path.map((node, idx) => (
+                          <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded font-mono">
+                            {'  '.repeat(idx)}&lt;{node.tag || 'div'}{node.id ? ` #${node.id}` : ''}{node.classes?.length ? ` .${node.classes.join('.')}` : ''} /&gt;
                           </div>
                         ))}
                       </div>
@@ -644,7 +541,8 @@ export default function ElementLibraryTab() {
               )}
             </div>
           </>
-        ) : (
+        )}
+        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
               <i className="fas fa-inbox text-gray-400 text-xl"></i>
@@ -653,6 +551,11 @@ export default function ElementLibraryTab() {
             <p className="text-gray-400 text-xs mt-1">暂无内容</p>
           </div>
         )}
+
+        {/* DataTableTab 始终挂载，通过 hidden 控制显隐，确保运行时事件不丢失 */}
+        <div className={`flex-1 flex flex-col ${activeTab === 'dataTable' ? '' : 'hidden'}`}>
+          <DataTableTab wfId={wfId} />
+        </div>
       </div>
 
       {/* Toast 提示 */}
@@ -661,6 +564,73 @@ export default function ElementLibraryTab() {
           toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'
         }`}>
           {toast.msg}
+        </div>
+      )}
+
+      {/* 捕获指南弹窗 */}
+      {showGuide && (
+        <div
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
+          onClick={() => setShowGuide(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-gray-800">
+                <i className="fas fa-info-circle text-orange-500 mr-1.5"></i>
+                捕获新元素
+              </h3>
+              <button
+                onClick={() => setShowGuide(false)}
+                className="text-gray-400 hover:text-gray-600 w-6 h-6 flex items-center justify-center"
+              >
+                <i className="fas fa-times text-xs"></i>
+              </button>
+            </div>
+            <div className="space-y-3 text-xs text-gray-600">
+              <p className="text-orange-600 font-medium bg-orange-50 px-3 py-2 rounded">
+                请在已安装插件的浏览器中完成元素捕获。
+              </p>
+
+              <div>
+                <div className="font-medium text-gray-700 mb-1.5 flex items-center gap-1">
+                  <i className="fas fa-list-ol text-[10px] text-gray-400"></i>
+                  捕获步骤
+                </div>
+                <ol className="list-decimal pl-4 space-y-1 text-gray-600">
+                  <li>打开需要捕获元素的网页</li>
+                  <li>点击浏览器工具栏中的 RPA 扩展图标</li>
+                  <li>点击"捕获元素"按钮进入捕获模式</li>
+                  <li>将鼠标悬停在目标元素上，点击左键确认捕获</li>
+                  <li>输入元素名称后保存，元素将自动同步到编辑器</li>
+                </ol>
+              </div>
+
+              <div>
+                <div className="font-medium text-gray-700 mb-1.5 flex items-center gap-1">
+                  <i className="fas fa-puzzle-piece text-[10px] text-gray-400"></i>
+                  插件安装方式
+                </div>
+                <ol className="list-decimal pl-4 space-y-1 text-gray-600">
+                  <li>打开 Chrome/Edge 的扩展管理页面（<code className="bg-gray-100 px-1 rounded text-[10px]">chrome://extensions</code> 或 <code className="bg-gray-100 px-1 rounded text-[10px]">edge://extensions</code>）</li>
+                  <li>开启右上角"开发者模式"</li>
+                  <li>点击"加载已解压的扩展程序"</li>
+                  <li>选择项目目录下的 <code className="bg-gray-100 px-1 rounded text-[10px]">extension/</code> 文件夹</li>
+                  <li>扩展图标将出现在浏览器工具栏中，点击即可使用</li>
+                </ol>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setShowGuide(false)}
+                className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors"
+              >
+                知道了
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -23,27 +23,73 @@
   let capturedScreenshot = null;
   let altPressed = false;
   let altComboUsed = false;
+  let captureEnabled = false;
 
-  // ─── Helpers: stability scoring ──────────────────────────────────
+  // ─── Helpers: stability scoring (inspired by @medv/finder) ───────
+
+  /** Check if a token looks like a human word, not a generated hash. */
+  function wordLike(name) {
+    if (!name || name.length < 3 || name.length > 50) return false;
+    if (/^[a-f0-9]{8,}$/i.test(name)) return false; // pure hex hash
+    const words = name.split(/[-_]/);
+    for (const word of words) {
+      if (word.length <= 2) return false;
+      const lettersOnly = word.replace(/[0-9]/g, '');
+      if (lettersOnly.length >= 4 && /[^aeiouAEIOU]{4,}/.test(lettersOnly)) return false;
+      // 高数字比例通常是 hash（如 189h5o3）
+      const digits = (word.match(/[0-9]/g) || []).length;
+      if (digits > 0 && digits / word.length > 0.5) return false;
+    }
+    return true;
+  }
+
+  const CLASS_BLACKLIST = [
+    /^css-[a-z0-9]{4,}$/i,          // CSS-in-JS
+    /^_[a-f0-9]{6,}$/i,             // Emotion / CSS Modules hash
+    /_{2,}[a-z0-9]{4,}/i,           // Scoped CSS
+    /^orch-/i,                      // Orchestration markers
+    /^mui-/, /^chakra-/, /^ant-/,   // Component lib prefixes
+    /^v-[a-f0-9]{6,}$/i,            // Vue scoped
+    /^[a-z]{1,2}_[a-zA-Z0-9]{5,}$/, // Short prefix + hash
+    /^sc-[a-zA-Z]{4,}$/,            // styled-components generated
+  ];
+
+  function isBlacklistedClass(cls) {
+    return CLASS_BLACKLIST.some(p => p.test(cls));
+  }
 
   function isStableId(id) {
     if (!id || id.length > 50) return false;
     if (/^:[Rr][a-z0-9]*:$/.test(id)) return false;
     if (/^css-[a-z0-9]{4,}$/i.test(id)) return false;
     if (/^(mui|chakra|ant|ember|ng|vue|svelte)[-_][a-z0-9]{4,}/i.test(id)) return false;
-    if (/^[a-f0-9]{10,}$/i.test(id)) return false;
-    const hashSegs = (id.match(/_[a-f0-9]{6,}/g) || []).length;
-    if (hashSegs >= 2) return false;
-    return /^[a-zA-Z][a-zA-Z0-9_\-:]*$/.test(id);
+    return wordLike(id);
   }
 
   function isStableClass(cls) {
     if (!cls || cls.length < 2) return false;
-    if (/^orch-/i.test(cls)) return false;
-    if (/_{2,}[a-z0-9]{4,}/i.test(cls)) return false;
-    if (/^css-[a-z0-9]{4,}$/i.test(cls)) return false;
-    if (/^_[a-f0-9]{6,}$/i.test(cls)) return false;
-    return true;
+    if (isBlacklistedClass(cls)) return false;
+    return wordLike(cls);
+  }
+
+  function containsUnstableClass(css) {
+    const matches = css.match(/\.([a-zA-Z0-9_-]+)/g);
+    if (!matches) return false;
+    return matches.some(cls => isBlacklistedClass(cls.slice(1)));
+  }
+
+  /** Fragile attributes that change across renders or sessions. */
+  const FRAGILE_ATTR_PATTERNS = [
+    /^style$/i,
+    /^on\w+$/i,                         // event handlers: onclick, onchange, ...
+    /^data-react\w*$/i,                 // data-reactroot, data-reactid, data-react-checksum
+    /^data-v-[a-f0-9]+$/i,              // Vue scoped style markers
+    /^_ngcontent-[a-z0-9-]+$/i,         // Angular scoped style markers
+    /^_nghost-[a-z0-9-]+$/i,
+    /^aria-(owns|activedescendant|busy|live|relevant)$/i, // dynamic ARIA
+  ];
+  function isFragileAttr(name) {
+    return FRAGILE_ATTR_PATTERNS.some(p => p.test(name));
   }
 
   function getDirectText(el) {
@@ -54,13 +100,48 @@
     return t.trim().replace(/\s+/g, ' ');
   }
 
+  // ─── web-verse text fingerprint ──────────────────────────────────
+
+  function generateVerseFingerprint(text) {
+    if (!text || text.length < 5) return null;
+    const sentences = text
+      .split(/[。！？.!?;；\n\r]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (sentences.length === 0) return null;
+
+    const first = sentences[0];
+    const last = sentences[sentences.length - 1];
+
+    function prefix3(sentence) {
+      const words = sentence.split(/[^\w一-龥]+/).filter(Boolean);
+      const chars = [];
+      for (let i = 0; i < words.length && chars.length < 3; i++) {
+        const w = words[i];
+        // 纯中文按字拆分，避免整句只取1个字导致 fingerprint 过短
+        if (/^[一-龥]+$/.test(w)) {
+          for (const ch of w) {
+            chars.push(ch);
+            if (chars.length >= 3) break;
+          }
+        } else {
+          const m = w.match(/[a-zA-Z一-龥]/);
+          chars.push(m ? m[0].toLowerCase() : w.charAt(0).toLowerCase());
+        }
+      }
+      return chars.join('');
+    }
+
+    const fp = prefix3(first) + prefix3(last);
+    return fp.length >= 3 ? fp.slice(0, 6) : null;
+  }
+
   function buildFeatureSnapshot(element) {
     if (!element || element.nodeType !== Node.ELEMENT_NODE) return {};
-    const EXCLUDE = [/^data-v-[a-f0-9]+$/i, /^data-react/i, /^v-/i, /^_ng/i, /^style$/i, /^class$/i, /^id$/i];
     const attrs = {};
     try {
       for (const attr of element.attributes) {
-        if (EXCLUDE.some(p => p.test(attr.name))) continue;
+        if (attr.name === 'class' || attr.name === 'id' || isFragileAttr(attr.name)) continue;
         attrs[attr.name] = attr.value?.length > 200 ? attr.value.slice(0, 200) + '…' : attr.value;
       }
     } catch (e) {}
@@ -76,6 +157,69 @@
     };
   }
 
+  function isMeaningfulNode(el) {
+    if (!el) return false;
+    const tag = el.tagName.toLowerCase();
+    if (el.id && isStableId(el.id)) return true;
+    if (el.classList && Array.from(el.classList).some(isStableClass)) return true;
+    for (const attr of el.attributes || []) {
+      if (attr.name.startsWith('data-')) return true;
+    }
+    if (['header','main','footer','nav','aside','article','section','form'].includes(tag)) return true;
+    return false;
+  }
+
+  function buildElementPath(element) {
+    const path = [];
+    let cur = element;
+    while (cur && cur !== document.body && cur !== document.documentElement) {
+      const parent = cur.parentElement;
+      const tag = cur.tagName.toLowerCase();
+      const attrs = {};
+      const classes = [];
+      for (const attr of cur.attributes || []) {
+        try {
+          if (attr.name === 'id') continue;
+          if (attr.name === 'class') {
+            classes.push(...(attr.value || '').split(/\s+/).filter(Boolean));
+          } else if (!isFragileAttr(attr.name)) {
+            let v = attr.value || '';
+            if (v.length > 100) v = v.slice(0, 100) + '…';
+            attrs[attr.name] = v;
+          }
+        } catch (e) {}
+      }
+      // 补充框架通过 IDL property 设置的值（attributes 集合中可能缺失）
+      if (cur.href !== undefined && !attrs.href) attrs.href = cur.href;
+      if (cur.src !== undefined && !attrs.src) attrs.src = cur.src;
+      if (cur.value !== undefined && !attrs.value) attrs.value = String(cur.value);
+      if (cur.checked !== undefined && !attrs.checked) attrs.checked = String(cur.checked);
+
+      let index = 0;
+      const childrenTags = [];
+      let siblingInfo = [];
+      let realIndex = 0;
+      if (parent) {
+        const siblings = Array.from(parent.children);
+        childrenTags.push(...siblings.map((c) => c.tagName.toLowerCase()));
+        const sameTag = siblings.filter((c) => c.tagName === cur.tagName);
+        index = sameTag.indexOf(cur);
+        realIndex = siblings.indexOf(cur);
+        if (cur === element) {
+          siblingInfo = siblings.map((sib) => ({
+            tag: sib.tagName.toLowerCase(),
+            id: sib.id || '',
+            classes: sib.classList ? Array.from(sib.classList).filter((c) => !/^orch-/i.test(c)).slice(0, 4) : [],
+          }));
+        }
+      }
+      path.unshift({ tag, id: cur.id || '', classes, attrs, index, realIndex, childrenTags, siblings: siblingInfo });
+      cur = parent;
+      if (path.length > 15) break;
+    }
+    return path;
+  }
+
   function attrValNeedsCssFallback(v) {
     return /[@'"\n\r\t]/.test(v) || v.includes('=');
   }
@@ -85,7 +229,23 @@
   }
 
   function cssEscape(v) {
-    return v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+      return CSS.escape(v);
+    }
+    return v.replace(/[\0-\x1f\x7f-\x9f!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, (char) => '\\' + char);
+  }
+
+  /** Escape attribute value for CSS [attr="value"] — only quotes and backslashes. */
+  function attrValueEscape(v) {
+    return String(v).replace(/["\\]/g, '\\$&').replace(/\n/g, ' ');
+  }
+
+  /** Build an XPath string literal, handling both quote types. */
+  function xpathLiteral(v) {
+    if (typeof v !== 'string') v = String(v);
+    if (!v.includes("'")) return "'" + v + "'";
+    if (!v.includes('"')) return '"' + v + '"';
+    return "concat('" + v.split("'").join("', \"'\", '") + "')";
   }
 
   function getOldCssSelector(element) {
@@ -94,11 +254,11 @@
     const dataAttrs = ['data-testid', 'data-id', 'data-key', 'data-name', 'data-e2e'];
     for (const attr of dataAttrs) {
       const val = element.getAttribute(attr);
-      if (val) return `[${attr}="${val}"]`;
+      if (val) return `[${attr}="${attrValueEscape(val)}"]`;
     }
     if (element.classList && element.classList.length > 0) {
       const classes = Array.from(element.classList)
-        .filter(c => c.length > 2 && !c.includes('_') && !/^orch-/i.test(c))
+        .filter(isStableClass)
         .slice(0, 2);
       if (classes.length > 0) return '.' + classes.join('.');
     }
@@ -107,9 +267,26 @@
       const siblings = Array.from(parent.children).filter(c => c.tagName === element.tagName);
       const idx = siblings.indexOf(element) + 1;
       const tag = element.tagName.toLowerCase();
-      return siblings.length === 1 ? tag : `${tag}:nth-child(${idx})`;
+      return siblings.length === 1 ? tag : `${tag}:nth-of-type(${idx})`;
     }
     return element.tagName.toLowerCase();
+  }
+
+  function getOldCssSelectorFromPath(path) {
+    if (!path || path.length === 0) return 'body';
+    const target = path[path.length - 1];
+    const tag = target.tag;
+    if (target.id && /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(target.id)) return '#' + target.id;
+    const dataAttrs = ['data-testid', 'data-id', 'data-key', 'data-name', 'data-e2e'];
+    for (const attr of dataAttrs) {
+      const val = target.attrs[attr];
+      if (val) return `[${attr}="${attrValueEscape(val)}"]`;
+    }
+    const stableClasses = (target.classes || []).filter(isStableClass).slice(0, 2);
+    if (stableClasses.length > 0) return '.' + stableClasses.join('.');
+    const sameTagCount = (target.childrenTags || []).filter(t => t === tag).length;
+    const idx = target.index + 1;
+    return sameTagCount === 1 ? tag : `${tag}:nth-of-type(${idx})`;
   }
 
   function getElementXPath(element) {
@@ -129,59 +306,62 @@
     return '//body/' + segs.join('/');
   }
 
-  function convertToCssForTest(syntax, type) {
+  function getElementXPathFromPath(path) {
+    if (!path || path.length === 0) return { selector: '/html/body', pathMapping: [] };
+    const segs = [];
+    const pathMapping = [];
+    for (let i = path.length - 1; i >= 0; i--) {
+      const node = path[i];
+      const sameTagCount = (node.childrenTags || []).filter(t => t === node.tag).length;
+      const seg = sameTagCount <= 1 ? node.tag : `${node.tag}[${node.index + 1}]`;
+      segs.unshift(seg);
+      pathMapping.unshift(i);
+    }
+    return { selector: '//body/' + segs.join('/'), pathMapping };
+  }
+
+  function convertToCssForTest(syntax, family) {
     try {
-      switch (type) {
-        case 'id': return syntax;
-        case 'class': return syntax;
-        case 'data-attr':
-        case 'aria':
-        case 'name': {
-          const m = syntax.match(/^@([\w\-:]+)=(.+)$/);
-          if (!m) return null;
-          return `[${m[1]}="${cssEscape(m[2])}"]`;
-        }
-        case 'tag_text': {
-          const m = syntax.match(/^tag:(\w+)@text\(\)=(.+)$/);
-          if (!m) return null;
-          return `${m[1]}:contains("${cssEscape(m[2])}")`;
-        }
-        case 'text': {
-          const m = syntax.match(/^text=(.+)$/);
-          if (!m) return null;
-          return `*:contains("${cssEscape(m[1])}")`;
-        }
-        case 'tag_attr': {
-          const m = syntax.match(/^tag:(\w+)@(\w+)=(.+)$/);
-          if (!m) return null;
-          return `${m[1]}[${m[2]}="${cssEscape(m[3])}"]`;
-        }
-        case 'tag_class': {
-          const m = syntax.match(/^tag:(\w+)@class=(.+)$/);
-          if (!m) return null;
-          return `${m[1]}.${m[2]}`;
-        }
-        case 'multi_attr': {
-          const parts = syntax.match(/@@class:([^@]+)/g);
-          if (!parts) return null;
-          return parts.map(p => '.' + p.replace('@@class:', '')).join('');
-        }
+      switch (family) {
         case 'css': return syntax.replace(/^css:/, '');
         case 'xpath': return null;
+        case 'drission': {
+          if (syntax.startsWith('@')) {
+            const m = syntax.match(/^@([\w\-:]+)=(.+)$/);
+            if (!m) return null;
+            return `[${m[1]}="${attrValueEscape(m[2])}"]`;
+          }
+          const m1 = syntax.match(/^tag:(\w+)@class=(.+)$/);
+          if (m1) return `${m1[1]}.${m1[2]}`;
+          const m2 = syntax.match(/^tag:(\w+)@([\w\-:]+)=(.+)$/);
+          if (m2) return `${m2[1]}[${m2[2]}="${attrValueEscape(m2[3])}"]`;
+          const parts = syntax.match(/@@class:([^@]+)/g);
+          if (parts) return parts.map(p => '.' + p.replace('@@class:', '')).join('');
+          return null;
+        }
         default: return syntax;
       }
     } catch (e) { return null; }
   }
 
-  function verifyLocator(syntax, type) {
-    if (type === 'xpath') {
+  function verifyLocator(syntax, family) {
+    if (family === 'xpath') {
       const xp = syntax.replace(/^xpath:/, '');
       try {
         const r = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
         return r.snapshotLength;
       } catch (e) { return -1; }
     }
-    const css = convertToCssForTest(syntax, type);
+    // verse / tag_text / text 依赖非 CSS 逻辑（XPath 或 fingerprint），
+    // convertToCssForTest 对它们生成的是 jQuery :contains 或原始 syntax，
+    // 原生 querySelectorAll 不支持，直接复用 resolveAllForVerify 计数。
+    if (family === 'drission' && (syntax.startsWith('verse:') || syntax.startsWith('text=') || /^tag:\w+@text\(\)=/.test(syntax))) {
+      let subType = 'text';
+      if (syntax.startsWith('verse:')) subType = 'verse';
+      else if (/^tag:\w+@text\(\)=/.test(syntax)) subType = 'tag_text';
+      return resolveAllForVerify(syntax, subType).length;
+    }
+    const css = convertToCssForTest(syntax, family);
     if (!css) return -1;
     try { return document.querySelectorAll(css).length; } catch (e) { return -1; }
   }
@@ -193,7 +373,7 @@
     for (const a of dataAttrs) {
       const v = el.getAttribute(a);
       if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
-        return `[${a}="${cssEscape(v)}"]`;
+        return `[${a}="${attrValueEscape(v)}"]`;
       }
     }
     const tag = el.tagName.toLowerCase();
@@ -203,6 +383,92 @@
       if (stable.length > 0) return '.' + stable[0];
     }
     return null;
+  }
+
+  function findAnchor(element) {
+    let cur = element.parentElement;
+    while (cur && cur !== document.body) {
+      if (cur.id && isStableId(cur.id)) return { el: cur, sel: '#' + cur.id };
+
+      const dataAttrs = ['data-testid', 'data-test', 'data-id', 'data-name', 'data-key', 'data-e2e'];
+      for (const attr of dataAttrs) {
+        const v = cur.getAttribute(attr);
+        if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
+          return { el: cur, sel: `[${attr}="${attrValueEscape(v)}"]` };
+        }
+      }
+
+      const role = cur.getAttribute('role');
+      if (role) return { el: cur, sel: `[role="${attrValueEscape(role)}"]` };
+
+      const ariaLabel = cur.getAttribute('aria-label');
+      if (ariaLabel && ariaLabel.length < 80 && !attrValNeedsCssFallback(ariaLabel)) {
+        return { el: cur, sel: `[aria-label="${attrValueEscape(ariaLabel)}"]` };
+      }
+
+      const tag = cur.tagName.toLowerCase();
+      if (['header', 'main', 'footer', 'nav', 'aside', 'article', 'section'].includes(tag)) {
+        return { el: cur, sel: tag };
+      }
+
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+
+  function buildAnchorDescendantCandidates(element, candidates) {
+    const anchor = findAnchor(element);
+    if (!anchor) return;
+
+    const tag = element.tagName.toLowerCase();
+    const ancSel = anchor.sel;
+
+    // 1) 简单后代: 锚点内直接用 tag
+    const simpleSel = `${ancSel} ${tag}`;
+    let count = verifyLocator(simpleSel, 'css');
+    if (count === 1) {
+      candidates.push({ syntax: 'css:' + simpleSel, label: simpleSel + ' (锚点)', family: 'css', score: 90, matchCount: 1 });
+      return;
+    }
+
+    // 2) tag + class
+    if (element.classList) {
+      const stableClasses = Array.from(element.classList).filter(isStableClass);
+      for (const c of stableClasses) {
+        const sel = `${ancSel} ${tag}.${c}`;
+        count = verifyLocator(sel, 'css');
+        if (count === 1) {
+          candidates.push({ syntax: 'css:' + sel, label: sel + ' (锚点)', family: 'css', score: 85, matchCount: 1 });
+          return;
+        }
+      }
+    }
+
+    // 3) tag + data-*
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
+    for (const attr of dataAttrs) {
+      const v = element.getAttribute(attr);
+      if (!v || v.length > 80 || attrValNeedsCssFallback(v)) continue;
+      const sel = `${ancSel} ${tag}[${attr}="${attrValueEscape(v)}"]`;
+      count = verifyLocator(sel, 'css');
+      if (count === 1) {
+        candidates.push({ syntax: 'css:' + sel, label: sel + ' (锚点)', family: 'css', score: 88, matchCount: 1 });
+        return;
+      }
+    }
+
+    // 4) tag + 语义属性
+    const semanticAttrs = ['aria-label', 'name', 'placeholder', 'title', 'role'];
+    for (const attr of semanticAttrs) {
+      const v = element.getAttribute(attr);
+      if (!v || v.length > 80) continue;
+      const sel = `${ancSel} ${tag}[${attr}="${attrValueEscape(v)}"]`;
+      count = verifyLocator(sel, 'css');
+      if (count === 1) {
+        candidates.push({ syntax: 'css:' + sel, label: sel + ' (锚点)', family: 'css', score: 82, matchCount: 1 });
+        return;
+      }
+    }
   }
 
   function buildStructuralCss(element) {
@@ -235,6 +501,33 @@
     return segs.length ? segs.join(' > ') : null;
   }
 
+  function buildStructuralCssFromPath(path) {
+    if (!path || path.length === 0) return null;
+    const segs = [];
+    const pathMapping = [];
+    for (let i = path.length - 1; i >= 0; i--) {
+      const node = path[i];
+      const sameTagCount = (node.childrenTags || []).filter(t => t === node.tag).length;
+      const stableClasses = (node.classes || []).filter(isStableClass);
+      let seg;
+      if (node.id && isStableId(node.id)) {
+        seg = '#' + cssEscape(node.id);
+      } else if (stableClasses.length > 0) {
+        seg = sameTagCount === 1
+          ? `${node.tag}.${cssEscape(stableClasses[0])}`
+          : `${node.tag}.${cssEscape(stableClasses[0])}:nth-of-type(${node.index + 1})`;
+      } else {
+        seg = sameTagCount === 1 ? node.tag : `${node.tag}:nth-of-type(${node.index + 1})`;
+      }
+      segs.unshift(seg);
+      pathMapping.unshift(i);
+      const trial = segs.join(' > ');
+      try { if (document.querySelectorAll(trial).length === 1) return { selector: trial, pathMapping }; } catch (e) {}
+      if (seg.startsWith('#')) break;
+    }
+    return { selector: segs.length ? segs.join(' > ') : null, pathMapping };
+  }
+
   function getElementCssPath(element) {
     if (!element || element === document.body) return 'body';
     const segs = [];
@@ -250,7 +543,9 @@
       if (cur.id && isStableId(cur.id)) {
         seg = '#' + cur.id;
       } else if (stableClasses.length > 0) {
-        seg = `${tag}.${stableClasses[0]}:nth-of-type(${idx})`;
+        seg = sameTag.length === 1
+          ? `${tag}.${stableClasses[0]}`
+          : `${tag}.${stableClasses[0]}:nth-of-type(${idx})`;
       } else {
         seg = `${tag}:nth-of-type(${idx})`;
       }
@@ -261,101 +556,906 @@
     return segs.join(' > ');
   }
 
+  function getElementCssPathFromPath(path) {
+    if (!path || path.length === 0) return { selector: 'body', pathMapping: [] };
+    const segs = [];
+    const pathMapping = [];
+    for (let i = path.length - 1; i >= 0; i--) {
+      const node = path[i];
+      const sameTagCount = (node.childrenTags || []).filter(t => t === node.tag).length;
+      const stableClasses = (node.classes || []).filter(isStableClass);
+      let seg;
+      if (node.id && isStableId(node.id)) {
+        seg = '#' + cssEscape(node.id);
+      } else if (stableClasses.length > 0) {
+        seg = sameTagCount === 1
+          ? `${node.tag}.${cssEscape(stableClasses[0])}`
+          : `${node.tag}.${cssEscape(stableClasses[0])}:nth-of-type(${node.index + 1})`;
+      } else {
+        seg = `${node.tag}:nth-of-type(${node.index + 1})`;
+      }
+      segs.unshift(seg);
+      pathMapping.unshift(i);
+      if (seg.startsWith('#')) break;
+    }
+    return { selector: segs.join(' > '), pathMapping };
+  }
+
+  function computeScore(c) {
+    let score = c.score;
+    const syntax = c.syntax;
+
+    // 1. nth-of-type / xpath[n] 惩罚：每个 -50 分（位置信息最后才用，Robula+ 原则）
+    const nthCount = ((syntax.match(/:nth-of-type\(\d+\)/g) || []).length +
+                      (syntax.match(/\[\d+\]/g) || []).length);
+    score -= nthCount * 50;
+
+    // 2. 深度惩罚：每多一层 > 或 / 减 10 分（层级越少越好）
+    let depth = 0;
+    if (syntax.startsWith('css:')) {
+      const css = syntax.slice(4);
+      depth = (css.match(/>/g) || []).length;
+    } else if (syntax.startsWith('xpath:')) {
+      const xp = syntax.slice(6);
+      depth = (xp.match(/\//g) || []).length - 2;
+    }
+    score -= Math.max(0, depth - 1) * 10;
+
+    // 3. 属性选择器惩罚：每个 -8 分（属性越少越好）
+    const attrCount = (syntax.match(/\[[^\]]+\]/g) || []).length;
+    score -= attrCount * 8;
+
+    // 4. class 数量惩罚：超过 1 个的每个 -4 分
+    const classCount = (syntax.match(/\./g) || []).length;
+    score -= Math.max(0, classCount - 1) * 4;
+
+    // 5. 简洁奖励：总长度越短分越高
+    const clean = syntax.replace(/^(css:|xpath:|verse:|text=|tag:)/, '');
+    if (clean.length < 15) score += 8;
+    else if (clean.length < 25) score += 4;
+
+    return Math.max(score, 1);
+  }
+
+  /** Try to remove intermediate levels from a unique CSS selector (finder optimize pattern). */
+  function optimizeSelector(selector, element) {
+    if (!selector.startsWith('css:')) return selector;
+    let css = selector.slice(4);
+    const segs = css.split(/\s*>\s*/);
+    if (segs.length <= 2) return selector;
+
+    for (let i = 1; i < segs.length - 1; i++) {
+      const reduced = [...segs];
+      reduced.splice(i, 1);
+      const trial = reduced.join(' > ');
+      try {
+        const nodes = document.querySelectorAll(trial);
+        if (nodes.length === 1 && nodes[0] === element) {
+          return optimizeSelector('css:' + trial, element);
+        }
+      } catch (e) {}
+    }
+    return selector;
+  }
+
+  // ─── Finder-style level-combination search ───────────────────────
+
+  function _levelCandidates(el) {
+    const level = [];
+    const elId = el.getAttribute('id');
+    if (elId && isStableId(elId)) {
+      level.push({ name: '#' + cssEscape(elId), penalty: 0 });
+    }
+    if (el.classList) {
+      for (const c of Array.from(el.classList).filter(isStableClass)) {
+        level.push({ name: '.' + cssEscape(c), penalty: 1 });
+      }
+    }
+    const acceptedAttrs = new Set(['role', 'name', 'aria-label', 'rel', 'href']);
+    for (const attr of el.attributes || []) {
+      if (isFragileAttr(attr.name)) continue;
+      if (acceptedAttrs.has(attr.name) || attr.name.startsWith('data-')) {
+        if (attr.value && !attrValNeedsCssFallback(attr.value) && attr.value.length < 100) {
+          level.push({ name: `[${cssEscape(attr.name)}="${attrValueEscape(attr.value)}"]`, penalty: 2 });
+        }
+      }
+    }
+    const tag = el.tagName.toLowerCase();
+    level.push({ name: tag, penalty: 5 });
+    const parent = el.parentElement;
+    if (parent) {
+      const sameTag = Array.from(parent.children).filter(c => c.tagName === el.tagName);
+      const idx = sameTag.indexOf(el) + 1;
+      if (sameTag.length > 1) {
+        level.push({ name: `${tag}:nth-of-type(${idx})`, penalty: 10 });
+      }
+    }
+    return level;
+  }
+
+  function _levelCandidatesFromNode(node) {
+    const level = [];
+    if (node.id && isStableId(node.id)) {
+      level.push({ name: '#' + cssEscape(node.id), penalty: 0 });
+    }
+    if (node.classes) {
+      for (const c of node.classes.filter(isStableClass)) {
+        level.push({ name: '.' + cssEscape(c), penalty: 1 });
+      }
+    }
+    const acceptedAttrs = new Set(['role', 'name', 'aria-label', 'rel', 'href']);
+    for (const [name, value] of Object.entries(node.attrs || {})) {
+      if (isFragileAttr(name)) continue;
+      if (acceptedAttrs.has(name) || name.startsWith('data-')) {
+        if (value && !attrValNeedsCssFallback(value) && value.length < 100) {
+          level.push({ name: `[${cssEscape(name)}="${attrValueEscape(value)}"]`, penalty: 2 });
+        }
+      }
+    }
+    level.push({ name: node.tag, penalty: 5 });
+    const sameTagCount = (node.childrenTags || []).filter(t => t === node.tag).length;
+    if (sameTagCount > 1) {
+      level.push({ name: `${node.tag}:nth-of-type(${node.index + 1})`, penalty: 10 });
+    }
+    return level;
+  }
+
+  function* _combinations(stack, path = []) {
+    if (stack.length > 0) {
+      for (const node of stack[0]) {
+        yield* _combinations(stack.slice(1), path.concat(node));
+      }
+    } else {
+      yield path;
+    }
+  }
+
+  function _selectorFromPath(path) {
+    let query = path[0].name;
+    for (let i = 1; i < path.length; i++) {
+      const level = path[i].level || 0;
+      if (path[i - 1].level === level - 1) {
+        query = `${path[i].name} > ${query}`;
+      } else {
+        query = `${path[i].name} ${query}`;
+      }
+    }
+    return query;
+  }
+
+  function _penalty(path) {
+    return path.reduce((acc, n) => acc + n.penalty, 0);
+  }
+
+  function buildFinderCandidates(element, candidates) {
+    const root = document.body;
+    const stack = [];
+    let current = element;
+    let i = 0;
+    while (current && current !== root && i < 6) {
+      let level = _levelCandidates(current);
+      level = level.slice(0, 4); // cap per-level to avoid combinatorial explosion
+      for (const node of level) {
+        node.level = i;
+      }
+      stack.push(level);
+      current = current.parentElement;
+      i++;
+    }
+
+    const combos = [];
+    for (const combo of _combinations(stack)) {
+      combos.push(combo);
+    }
+    combos.sort((a, b) => _penalty(a) - _penalty(b));
+
+    let checked = 0;
+    const maxChecks = 80;
+    const seen = new Set();
+    for (const combo of combos) {
+      if (checked >= maxChecks) break;
+      const css = _selectorFromPath(combo);
+      if (seen.has(css)) continue;
+      seen.add(css);
+      checked++;
+      try {
+        if (document.querySelectorAll(css).length === 1) {
+          candidates.push({
+            syntax: 'css:' + css,
+            label: css + ' (组合搜索)',
+            family: 'css',
+            score: 94 - _penalty(combo),
+            matchCount: 1,
+          });
+        }
+      } catch (e) {}
+    }
+  }
+
+  function buildFinderCandidatesFromPath(path, candidates) {
+    const stack = [];
+    const maxLevels = Math.min(path.length, 6);
+    for (let i = 0; i < maxLevels; i++) {
+      const node = path[path.length - 1 - i];
+      let level = _levelCandidatesFromNode(node);
+      level = level.slice(0, 4);
+      for (const item of level) {
+        item.level = i;
+        item.pathIndex = path.length - 1 - i;
+      }
+      stack.push(level);
+    }
+
+    const combos = [];
+    for (const combo of _combinations(stack)) {
+      combos.push(combo);
+    }
+    combos.sort((a, b) => _penalty(a) - _penalty(b));
+
+    let checked = 0;
+    const maxChecks = 80;
+    const seen = new Set();
+    for (const combo of combos) {
+      if (checked >= maxChecks) break;
+      const css = _selectorFromPath(combo);
+      if (seen.has(css)) continue;
+      seen.add(css);
+      checked++;
+      try {
+        if (document.querySelectorAll(css).length === 1) {
+          const pathMapping = combo.slice().reverse().map(n => n.pathIndex);
+          candidates.push({
+            syntax: 'css:' + css,
+            label: css + ' (组合搜索)',
+            family: 'css',
+            score: 94 - _penalty(combo),
+            matchCount: 1,
+            pathMapping,
+          });
+        }
+      } catch (e) {}
+    }
+  }
+
+  // ─── Sibling anchor strategy ─────────────────────────────────────
+
+  function buildSiblingAnchorCandidates(element, candidates) {
+    const tag = element.tagName.toLowerCase();
+    const parent = element.parentElement;
+    if (!parent) return;
+
+    const siblings = Array.from(parent.children);
+    if (siblings.length < 2) return;
+
+    const myIdx = siblings.indexOf(element);
+    const directions = [];
+
+    // Adjacent previous siblings (up to 3)
+    for (let i = myIdx - 1; i >= Math.max(0, myIdx - 3); i--) {
+      directions.push({ dir: '+', anchor: siblings[i], desc: '前兄弟' });
+    }
+    // General sibling: any previous sibling with stable id
+    for (let i = myIdx - 1; i >= 0; i--) {
+      const sib = siblings[i];
+      if (sib.id && isStableId(sib.id)) {
+        directions.push({ dir: '~', anchor: sib, desc: '前兄弟~' });
+        break;
+      }
+    }
+
+    for (const { dir, anchor, desc } of directions) {
+      const ancSel = getSimpleAncestorSelector(anchor);
+      if (!ancSel) continue;
+
+      // anchor + tag
+      const sel1 = `${ancSel}${dir}${tag}`;
+      let count = -1;
+      try { count = document.querySelectorAll(sel1).length; } catch (e) {}
+      if (count === 1) {
+        candidates.push({ syntax: 'css:' + sel1, label: `${sel1} (${desc})`, family: 'css', score: 80, matchCount: 1 });
+        continue;
+      }
+
+      // anchor + tag.class
+      if (element.classList) {
+        const stableClasses = Array.from(element.classList).filter(isStableClass);
+        let found = false;
+        for (const c of stableClasses) {
+          const sel3 = `${ancSel}${dir}${tag}.${cssEscape(c)}`;
+          try { count = document.querySelectorAll(sel3).length; } catch (e) {}
+          if (count === 1) {
+            candidates.push({ syntax: 'css:' + sel3, label: `${sel3} (${desc})`, family: 'css', score: 83, matchCount: 1 });
+            found = true;
+            break;
+          }
+        }
+        if (found) continue;
+      }
+
+      // anchor + *
+      const sel2 = `${ancSel}${dir}*`;
+      try { count = document.querySelectorAll(sel2).length; } catch (e) {}
+      if (count === 1) {
+        candidates.push({ syntax: 'css:' + sel2, label: `${sel2} (${desc})`, family: 'css', score: 78, matchCount: 1 });
+      }
+    }
+  }
+
+  // ─── List / similar element detection (structural fingerprint + ancestor voting)
+
+  /**
+   * Build a structural fingerprint for list-item similarity comparison.
+   * Avoids text content (too fragile) and focuses on shape/attrs/children.
+   */
+  function makeStructuralFingerprint(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return null;
+    const tag = el.tagName.toLowerCase();
+    const stableClasses = el.classList ? Array.from(el.classList).filter(isStableClass) : [];
+    const meaningfulAttrs = [];
+    for (const attr of el.attributes || []) {
+      const name = attr.name;
+      if (name === 'class' || name === 'id' || isFragileAttr(name)) continue;
+      if (name.startsWith('data-') || ['role', 'aria-label', 'name', 'type', 'rel'].includes(name)) {
+        meaningfulAttrs.push(name);
+      }
+    }
+    // Child tag sequence (depth-1 only; cheap and stable enough)
+    const childTags = [];
+    for (const child of el.children) {
+      childTags.push(child.tagName.toLowerCase());
+    }
+    // Semantic flags
+    const hasLink = el.querySelector('a') !== null || el.tagName === 'A';
+    const hasImg = el.querySelector('img') !== null || el.tagName === 'IMG';
+    const hasText = el.textContent && el.textContent.trim().length > 0;
+    return {
+      tag,
+      stableClasses,
+      meaningfulAttrs,
+      childTags,
+      hasLink,
+      hasImg,
+      hasText,
+      depth: 0, // filled later if needed
+    };
+  }
+
+  function jaccard(a, b) {
+    if (!a.length || !b.length) return 0;
+    const setA = new Set(a);
+    const setB = new Set(b);
+    const inter = new Set([...setA].filter(x => setB.has(x)));
+    return inter.size / (setA.size + setB.size - inter.size);
+  }
+
+  /**
+   * Similarity score [0, 1] between two structural fingerprints.
+   */
+  function fingerprintSimilarity(a, b) {
+    if (!a || !b) return 0;
+    if (a.tag !== b.tag) return 0;
+    let score = 0.35; // same tag baseline
+    score += jaccard(a.stableClasses, b.stableClasses) * 0.30;
+    score += jaccard(a.meaningfulAttrs, b.meaningfulAttrs) * 0.15;
+    score += jaccard(a.childTags, b.childTags) * 0.15;
+    if (a.hasLink === b.hasLink) score += 0.025;
+    if (a.hasImg === b.hasImg) score += 0.025;
+    if (a.hasText === b.hasText) score += 0.025;
+    return Math.min(1.0, score);
+  }
+
+  /**
+   * Detect the list family for a target element.
+   * Walks up ancestors and scores each by (similar sibling ratio * similar sibling count).
+   *
+   * Returns: {
+   *   container: Element | null,
+   *   items: Element[],
+   *   score: number,
+   *   similarity: number, // average similarity of items to target
+   * }
+   */
+  function detectListFamily(target, options = {}) {
+    const maxDepth = options.maxDepth || 6;
+    const minItems = options.minItems || 2;
+    const similarityThreshold = options.similarityThreshold || 0.60;
+    const targetFp = makeStructuralFingerprint(target);
+    if (!targetFp) return { container: null, items: [], score: 0, similarity: 0 };
+
+    let best = { container: null, items: [], score: 0, similarity: 0 };
+    let cur = target.parentElement;
+    let depth = 0;
+
+    while (cur && cur !== document.body && cur !== document.documentElement && depth < maxDepth) {
+      const children = Array.from(cur.children);
+      if (children.length >= minItems) {
+        const similar = [];
+        let totalSim = 0;
+        for (const child of children) {
+          const childFp = makeStructuralFingerprint(child);
+          if (!childFp) continue;
+          const sim = fingerprintSimilarity(targetFp, childFp);
+          if (sim >= similarityThreshold) {
+            similar.push(child);
+            totalSim += sim;
+          }
+        }
+        const ratio = similar.length / children.length;
+        // score = count * ratio, with a small depth penalty
+        const score = similar.length * ratio * (1 - depth * 0.05);
+        const avgSim = similar.length > 0 ? totalSim / similar.length : 0;
+        if (score > best.score && similar.length >= minItems) {
+          best = { container: cur, items: similar, score, similarity: avgSim };
+        }
+      }
+      cur = cur.parentElement;
+      depth++;
+    }
+
+    return best;
+  }
+
+  /**
+   * Build a CSS selector for an element that is stable enough for list-item matching.
+   * Tries: data-* > stable class > role > tag.
+   */
+  function buildListItemSelector(el) {
+    if (!el) return '';
+    const tag = el.tagName.toLowerCase();
+
+    // 1) data-*
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
+    for (const attr of dataAttrs) {
+      const v = el.getAttribute(attr);
+      if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
+        // For list items, a data-* value that appears on all items is usually structural.
+        // If value looks unique, don't use it.
+        if (!/[0-9]{4,}/.test(v) && !/^[a-f0-9]{6,}$/i.test(v)) {
+          return `${tag}[${attr}="${attrValueEscape(v)}"]`;
+        }
+      }
+    }
+
+    // 2) stable class (prefer class that is present and not over-qualified)
+    const stableClasses = el.classList ? Array.from(el.classList).filter(isStableClass) : [];
+    if (stableClasses.length > 0) {
+      return `${tag}.${stableClasses.map(cssEscape).join('.')}`;
+    }
+
+    // 3) role
+    const role = el.getAttribute('role');
+    if (role) return `${tag}[role="${attrValueEscape(role)}"]`;
+
+    // 4) fallback to tag (often too broad, but caller will verify count)
+    return tag;
+  }
+
+  /**
+   * Build a stable CSS selector for a list container.
+   */
+  function buildListContainerSelector(container) {
+    if (!container) return '';
+    if (container.id && isStableId(container.id)) return '#' + container.id;
+
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-id', 'data-name', 'data-role'];
+    for (const attr of dataAttrs) {
+      const v = container.getAttribute(attr);
+      if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
+        return `[${attr}="${attrValueEscape(v)}"]`;
+      }
+    }
+
+    const tag = container.tagName.toLowerCase();
+    const stableClasses = container.classList ? Array.from(container.classList).filter(isStableClass) : [];
+    if (stableClasses.length > 0) {
+      return `${tag}.${stableClasses.map(cssEscape).join('.')}`;
+    }
+    if (['header', 'main', 'footer', 'nav', 'aside', 'article', 'section'].includes(tag)) return tag;
+    return '';
+  }
+
+  /**
+   * Generalize a selector so it matches all list items (not just the target index).
+   * Strips :nth-of-type() / :nth-child() and overly specific IDs.
+   */
+  function generalizeListSelector(sel) {
+    if (!sel) return sel;
+    return sel
+      .replace(/:nth-of-type\(\d+\)/g, '')
+      .replace(/:nth-child\(\d+\)/g, '')
+      .replace(/\[\d+\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function generateListCandidates(element) {
+    const candidates = [];
+    if (!element || element === document.body) return candidates;
+
+    const tag = element.tagName.toLowerCase();
+
+    // ── Phase 1: structural fingerprint + ancestor voting ──
+    const family = detectListFamily(element, { maxDepth: 6, minItems: 2, similarityThreshold: 0.55 });
+    if (family.container && family.items.length >= 2) {
+      const listItem = family.items.find(item => item === element || item.contains(element)) || element;
+      const containerSel = buildListContainerSelector(family.container);
+      const itemSel = buildListItemSelector(listItem);
+
+      // A) container > item (direct child)
+      if (containerSel && itemSel) {
+        const directSel = `${containerSel} > ${itemSel}`;
+        const directCount = verifyLocator(directSel, 'css');
+        if (directCount >= 2 && directCount <= 200) {
+          candidates.push({
+            syntax: 'css:' + directSel,
+            label: `${directSel} (列表, ${directCount}个)`,
+            family: 'css', score: 88, matchCount: directCount, isList: true,
+            listContainer: containerSel, listItem: itemSel,
+          });
+        }
+      }
+
+      // B) container item (any depth)
+      if (containerSel && itemSel) {
+        const anyDepthSel = `${containerSel} ${itemSel}`;
+        const anyDepthCount = verifyLocator(anyDepthSel, 'css');
+        if (anyDepthCount >= 2 && anyDepthCount <= 200) {
+          candidates.push({
+            syntax: 'css:' + anyDepthSel,
+            label: `${anyDepthSel} (列表, ${anyDepthCount}个)`,
+            family: 'css', score: 82, matchCount: anyDepthCount, isList: true,
+            listContainer: containerSel, listItem: itemSel,
+          });
+        }
+      }
+
+      // C) just the item selector (verified across whole page)
+      if (itemSel) {
+        const itemCount = verifyLocator(itemSel, 'css');
+        if (itemCount >= 2 && itemCount <= 200) {
+          candidates.push({
+            syntax: 'css:' + itemSel,
+            label: `${itemSel} (列表, ${itemCount}个)`,
+            family: 'css', score: itemCount === family.items.length ? 80 : 55,
+            matchCount: itemCount, isList: true,
+            listItem: itemSel,
+          });
+        }
+      }
+
+      // D) container selector alone (for users who want the list wrapper)
+      if (containerSel) {
+        const containerCount = verifyLocator(containerSel, 'css');
+        if (containerCount >= 1) {
+          candidates.push({
+            syntax: 'css:' + containerSel,
+            label: `${containerSel} (列表容器)`,
+            family: 'css', score: 45, matchCount: containerCount, isList: true,
+            listContainer: containerSel,
+          });
+        }
+      }
+    }
+
+    // ── Phase 2: legacy quick heuristics as fallback ──
+    const parent = element.parentElement;
+    if (parent) {
+      const siblings = Array.from(parent.children).filter(c => c.tagName === element.tagName);
+      const stableClasses = element.classList ? Array.from(element.classList).filter(isStableClass) : [];
+
+      if (siblings.length >= 2) {
+        for (const c of stableClasses) {
+          const sel = `${tag}.${c}`;
+          const count = verifyLocator(sel, 'css');
+          if (count >= 2) {
+            candidates.push({
+              syntax: 'css:' + sel, label: sel + ` (列表, ${count}个)`,
+              family: 'css', score: 60, matchCount: count, isList: true,
+            });
+          }
+        }
+        if (stableClasses.length >= 2) {
+          const sel = `${tag}.${stableClasses.slice(0, 3).join('.')}`;
+          const count = verifyLocator(sel, 'css');
+          if (count >= 2) {
+            candidates.push({
+              syntax: 'css:' + sel, label: sel + ` (列表, ${count}个)`,
+              family: 'css', score: 62, matchCount: count, isList: true,
+            });
+          }
+        }
+      }
+
+      // Walk up ancestors (up to 3 levels) to find stable context
+      let ancestor = element.parentElement;
+      let depth = 0;
+      while (ancestor && ancestor !== document.body && depth < 3) {
+        const ancSel = getSimpleAncestorSelector(ancestor);
+        if (ancSel) {
+          const sel1 = `${ancSel} ${tag}`;
+          const count1 = verifyLocator(sel1, 'css');
+          if (count1 >= 2 && count1 <= 200) {
+            candidates.push({
+              syntax: 'css:' + sel1, label: sel1 + ` (列表, ${count1}个)`,
+              family: 'css', score: 50, matchCount: count1, isList: true,
+            });
+          }
+          const sel2 = `${ancSel} > ${tag}`;
+          const count2 = verifyLocator(sel2, 'css');
+          if (count2 >= 2 && count2 <= 200) {
+            candidates.push({
+              syntax: 'css:' + sel2, label: sel2 + ` (列表, ${count2}个)`,
+              family: 'css', score: 52, matchCount: count2, isList: true,
+            });
+          }
+          for (const cc of stableClasses) {
+            const sel3 = `${ancSel} ${tag}.${cc}`;
+            const count3 = verifyLocator(sel3, 'css');
+            if (count3 >= 2 && count3 <= 200) {
+              candidates.push({
+                syntax: 'css:' + sel3, label: sel3 + ` (列表, ${count3}个)`,
+                family: 'css', score: 58, matchCount: count3, isList: true,
+              });
+            }
+          }
+        }
+        ancestor = ancestor.parentElement;
+        depth++;
+      }
+    }
+
+    // bare tag fallback (if count is reasonable)
+    const tagCount = verifyLocator(tag, 'css');
+    if (tagCount >= 2 && tagCount <= 80) {
+      candidates.push({
+        syntax: 'css:' + tag, label: `${tag} (列表, ${tagCount}个)`,
+        family: 'css', score: 25, matchCount: tagCount, isList: true,
+      });
+    }
+
+    return candidates;
+  }
+
+  /**
+   * Robula+ inspired: try short target-only XPath locators first.
+   * Start from the most generic //* and add one robust predicate at a time.
+   * If a selector is unique, it gets a high score.
+   */
+  function buildTargetOnlyXPathCandidates(path, candidates, element) {
+    if (!path || path.length === 0) return;
+    const targetNode = path[path.length - 1];
+    const tag = targetNode.tag;
+    const targetPathIndex = path.length - 1;
+
+    function tryXPath(xp, score, label) {
+      try {
+        const r = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        if (r.snapshotLength === 1) {
+          candidates.push({
+            syntax: 'xpath:' + xp,
+            label: label + ' (唯一)',
+            family: 'xpath',
+            score,
+            pathMapping: [targetPathIndex],
+          });
+        }
+      } catch (_e) {}
+    }
+
+    // id is king
+    if (targetNode.id) {
+      tryXPath(`//*[@id=${xpathLiteral(targetNode.id)}]`, 100, `id=${targetNode.id}`);
+      tryXPath(`//${tag}[@id=${xpathLiteral(targetNode.id)}]`, 98, `id=${targetNode.id}`);
+    }
+
+    // data-* attrs (highest priority after id)
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
+    for (const attr of dataAttrs) {
+      const v = targetNode.attrs[attr];
+      if (!v || v.length > 80) continue;
+      tryXPath(`//${tag}[@${attr}=${xpathLiteral(v)}]`, 95, `${attr}=${v}`);
+      tryXPath(`//*[@${attr}=${xpathLiteral(v)}]`, 93, `${attr}=${v}`);
+    }
+
+    // semantic attrs
+    const semanticAttrs = [
+      { name: 'aria-label', score: 90 },
+      { name: 'name', score: 88 },
+      { name: 'placeholder', score: 80 },
+      { name: 'title', score: 75 },
+      { name: 'rel', score: 78 },
+    ];
+    for (const { name, score } of semanticAttrs) {
+      const v = targetNode.attrs[name];
+      if (!v || v.length > 80) continue;
+      tryXPath(`//${tag}[@${name}=${xpathLiteral(v)}]`, score, `${name}=${v}`);
+      tryXPath(`//*[@${name}=${xpathLiteral(v)}]`, score - 2, `${name}=${v}`);
+    }
+
+    // text (direct text only; more robust than [n], less robust than stable attrs)
+    if (element) {
+      let text = getDirectText(element);
+      if (!text && element.textContent) {
+        text = element.textContent.trim().replace(/\s+/g, ' ');
+      }
+      if (text && text.length > 0 && text.length < 50) {
+        tryXPath(`//${tag}[contains(text(),${xpathLiteral(text)})]`, 80, `text~"${text}"`);
+        tryXPath(`//*[contains(text(),${xpathLiteral(text)})]`, 78, `text~"${text}"`);
+      }
+    }
+
+    // href (only if it looks stable: no session tokens, not too long)
+    const href = targetNode.attrs.href;
+    if (href && href.length < 100 && !/[?&](token|sid|session|_csrf)=/i.test(href)) {
+      tryXPath(`//${tag}[@href=${xpathLiteral(href)}]`, 85, `href=${href}`);
+    }
+
+    // role + another semantic attr combo
+    const role = targetNode.attrs.role;
+    if (role) {
+      for (const { name } of semanticAttrs) {
+        const v = targetNode.attrs[name];
+        if (!v || v.length > 80) continue;
+        tryXPath(`//${tag}[@role=${xpathLiteral(role)}][@${name}=${xpathLiteral(v)}]`, 82, `role=${role} + ${name}`);
+      }
+    }
+
+    // stable class (contains)
+    const stableClasses = (targetNode.classes || []).filter(isStableClass);
+    for (const cls of stableClasses.slice(0, 2)) {
+      tryXPath(`//${tag}[contains(@class,${xpathLiteral(cls)})]`, 72, `class~${cls}`);
+    }
+
+    // type attr for input/button
+    const typeAttr = targetNode.attrs.type;
+    if (typeAttr && (tag === 'input' || tag === 'button')) {
+      tryXPath(`//${tag}[@type=${xpathLiteral(typeAttr)}]`, 65, `type=${typeAttr}`);
+    }
+  }
+
   function generateLocators(element) {
     if (!element || element === document.body) {
       return [{ syntax: 'tag:body', label: 'body', type: 'tag', score: 10, matchCount: 1 }];
     }
-    const tag = element.tagName.toLowerCase();
+    const path = buildElementPath(element);
+    const targetNode = path[path.length - 1];
+    const tag = targetNode.tag;
     const candidates = [];
+    const targetPathIndex = path.length - 1;
 
     // 1. id
-    const id = element.id;
-    if (id) {
-      const stable = isStableId(id);
-      candidates.push({ syntax: '#' + id, label: 'id: ' + id, type: 'id', score: stable ? 100 : 35 });
+    if (targetNode.id) {
+      const stable = isStableId(targetNode.id);
+      candidates.push({ syntax: '#' + targetNode.id, label: 'id: ' + targetNode.id, family: 'css', score: stable ? 100 : 35, pathMapping: [targetPathIndex] });
     }
 
     // 2. data-*
     const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
     for (const attr of dataAttrs) {
-      const v = element.getAttribute(attr);
+      const v = targetNode.attrs[attr];
       if (!v || v.length > 80) continue;
       if (attrValNeedsCssFallback(v)) {
-        candidates.push({ syntax: `css:[${attr}="${cssEscape(v)}"]`, label: `${attr}=${v} (css)`, type: 'css', score: 92 });
+        candidates.push({ syntax: `css:[${attr}="${attrValueEscape(v)}"]`, label: `${attr}=${v} (css)`, family: 'css', score: 92, pathMapping: [targetPathIndex] });
       } else {
-        candidates.push({ syntax: `@${attr}=${escapeAttrVal(v)}`, label: `${attr}=${v}`, type: 'data-attr', score: 95 });
+        candidates.push({ syntax: `@${attr}=${escapeAttrVal(v)}`, label: `${attr}=${v}`, family: 'drission', score: 95, pathMapping: [targetPathIndex] });
       }
     }
 
     // 3. semantic attrs
     const semanticAttrs = [
-      { name: 'aria-label', score: 88, type: 'aria' },
-      { name: 'name', score: 85, type: 'name' },
-      { name: 'role', score: 60, type: 'aria' },
-      { name: 'placeholder', score: 65, type: 'aria' },
-      { name: 'title', score: 60, type: 'aria' },
+      { name: 'aria-label', score: 88, family: 'drission' },
+      { name: 'name', score: 85, family: 'drission' },
+      { name: 'role', score: 60, family: 'drission' },
+      { name: 'placeholder', score: 65, family: 'drission' },
+      { name: 'title', score: 60, family: 'drission' },
     ];
-    for (const { name, score, type } of semanticAttrs) {
-      const v = element.getAttribute(name);
+    for (const { name, score, family } of semanticAttrs) {
+      const v = targetNode.attrs[name];
       if (!v || v.length > 80) continue;
       if (attrValNeedsCssFallback(v)) {
-        candidates.push({ syntax: `css:[${name}="${cssEscape(v)}"]`, label: `${name}=${v} (css)`, type: 'css', score: score - 5 });
+        candidates.push({ syntax: `css:[${name}="${attrValueEscape(v)}"]`, label: `${name}=${v} (css)`, family: 'css', score: score - 5, pathMapping: [targetPathIndex] });
       } else {
-        candidates.push({ syntax: `@${name}=${escapeAttrVal(v)}`, label: `${name}=${v}`, type, score });
+        candidates.push({ syntax: `@${name}=${escapeAttrVal(v)}`, label: `${name}=${v}`, family, score, pathMapping: [targetPathIndex] });
       }
     }
 
+    // 3.5 Robula+ style: short target-only XPath locators
+    buildTargetOnlyXPathCandidates(path, candidates, element);
+
     // 4. direct text
-    const directText = getDirectText(element);
-    if (directText && directText.length > 0 && directText.length < 30 && !/['"]/.test(directText)) {
-      candidates.push({ syntax: `tag:${tag}@text()=${directText}`, label: `${tag} + 文本: "${directText}"`, type: 'tag_text', score: 82 });
-      candidates.push({ syntax: `text=${directText}`, label: `text: "${directText}"`, type: 'text', score: 75 });
+    let directText = getDirectText(element);
+    // Fallback: nested text (e.g. button > span)
+    if (!directText && element.textContent) {
+      directText = element.textContent.trim().replace(/\s+/g, ' ');
+    }
+    if (directText && directText.length > 0 && directText.length < 50) {
+      candidates.push({ syntax: `tag:${tag}@text()=${directText}`, label: `${tag} + 文本: "${directText}"`, family: 'drission', score: 82 });
+      candidates.push({ syntax: `text=${directText}`, label: `text: "${directText}"`, family: 'drission', score: 75 });
+    }
+
+    // 5. web-verse fingerprint (DOM-change resistant)
+    const verseText = (element.innerText || element.textContent || '').trim();
+    if (verseText.length > 10) {
+      const fp = generateVerseFingerprint(verseText);
+      if (fp) {
+        candidates.push({ syntax: `verse:${fp}`, label: `verse 指纹: ${fp}`, family: 'drission', score: 78 });
+      }
     }
 
     // 5. type attr
     if (tag === 'input' || tag === 'button') {
-      const typeAttr = element.getAttribute('type');
+      const typeAttr = targetNode.attrs.type;
       if (typeAttr) {
-        candidates.push({ syntax: `tag:${tag}@type=${typeAttr}`, label: `${tag}[type=${typeAttr}]`, type: 'tag_attr', score: 50 });
+        candidates.push({ syntax: `tag:${tag}@type=${typeAttr}`, label: `${tag}[type=${typeAttr}]`, family: 'drission', score: 50, pathMapping: [targetPathIndex] });
       }
     }
 
-    // 6. class
-    if (element.classList && element.classList.length > 0) {
-      const stableClasses = Array.from(element.classList).filter(isStableClass);
+    // 6. class（只输出稳定 class，不稳定的直接跳过）
+    if (targetNode.classes && targetNode.classes.length > 0) {
+      const stableClasses = targetNode.classes.filter(isStableClass);
       if (stableClasses.length === 1) {
         const c = stableClasses[0];
-        candidates.push({ syntax: '.' + c, label: 'class: .' + c, type: 'class', score: 65 });
-        candidates.push({ syntax: `tag:${tag}@class=${c}`, label: `${tag}.${c}`, type: 'tag_class', score: 70 });
+        candidates.push({ syntax: '.' + c, label: 'class: .' + c, family: 'css', score: 65, pathMapping: [targetPathIndex] });
+        candidates.push({ syntax: `tag:${tag}@class=${c}`, label: `${tag}.${c}`, family: 'drission', score: 70, pathMapping: [targetPathIndex] });
       } else if (stableClasses.length >= 2) {
         const top2 = stableClasses.slice(0, 2);
-        candidates.push({ syntax: `@@class:${top2[0]}@@class:${top2[1]}`, label: `class 包含: ${top2[0]} & ${top2[1]}`, type: 'multi_attr', score: 72 });
-        candidates.push({ syntax: '.' + top2[0], label: 'class: .' + top2[0], type: 'class', score: 55 });
-      } else if (element.classList.length > 0) {
-        const first = Array.from(element.classList).find(c => !/^orch-/i.test(c));
-        if (first) {
-          candidates.push({ syntax: '.' + first, label: 'class(弱): .' + first.slice(0, 30), type: 'class', score: 25 });
-        }
+        candidates.push({ syntax: `@@class:${top2[0]}@@class:${top2[1]}`, label: `class 包含: ${top2[0]} & ${top2[1]}`, family: 'drission', score: 72, pathMapping: [targetPathIndex] });
+        candidates.push({ syntax: '.' + top2[0], label: 'class: .' + top2[0], family: 'css', score: 55, pathMapping: [targetPathIndex] });
       }
     }
 
-    // 7. xpath & css path fallbacks
-    candidates.push({ syntax: 'xpath:' + getElementXPath(element), label: 'xpath (路径)', type: 'xpath', score: 15 });
-    candidates.push({ syntax: 'css:' + getElementCssPath(element), label: 'css (完整结构)', type: 'css', score: 16 });
-    candidates.push({ syntax: 'css:' + getOldCssSelector(element), label: 'css (原算法)', type: 'css', score: 12 });
+    // 7. finder-generated optimal selector
+    try {
+      if (window.__rpaFinder) {
+        const finderSel = window.__rpaFinder(element, {
+          seedMinLength: 1,
+          optimizedMinLength: 2,
+          className: wordLike,
+          idName: wordLike,
+          attr: (name, value) => {
+            const accepted = new Set(['role', 'name', 'aria-label', 'rel', 'href']);
+            if (accepted.has(name)) return wordLike(value) && value.length < 100;
+            if (name.startsWith('data-')) return wordLike(name) && wordLike(value) && value.length < 100;
+            return false;
+          },
+        });
+        if (finderSel) {
+          candidates.push({ syntax: 'css:' + finderSel, label: finderSel + ' (finder)', family: 'css', score: 93 });
+        }
+      }
+    } catch (_e) {}
 
-    // 8. verify & sort
-    candidates.forEach(c => { c.matchCount = verifyLocator(c.syntax, c.type); });
+    // 8. anchor + descendant (影刀式简洁路径)
+    buildAnchorDescendantCandidates(element, candidates);
 
-    // ancestor narrowing
-    const hasCssUnique = candidates.some(c => c.type !== 'xpath' && c.matchCount === 1);
+    // 9. finder-style combination search (跨层组合，基于 path)
+    buildFinderCandidatesFromPath(path, candidates);
+
+    // 10. sibling anchor strategy
+    buildSiblingAnchorCandidates(element, candidates);
+
+    // 11. xpath & css path fallbacks
+    const xpathResult = getElementXPathFromPath(path);
+    if (xpathResult.selector) {
+      candidates.push({ syntax: 'xpath:' + xpathResult.selector, label: xpathResult.selector + ' (路径)', family: 'xpath', score: 15, pathMapping: xpathResult.pathMapping });
+    }
+    const cssPathResult = getElementCssPathFromPath(path);
+    if (cssPathResult.selector) {
+      candidates.push({ syntax: 'css:' + cssPathResult.selector, label: cssPathResult.selector + ' (完整结构)', family: 'css', score: 16, pathMapping: cssPathResult.pathMapping });
+    }
+    candidates.push({ syntax: 'css:' + getOldCssSelectorFromPath(path), label: 'css (原算法)', family: 'css', score: 12, pathMapping: [targetPathIndex] });
+
+    // 12. ancestor narrowing
+    const hasCssUnique = candidates.some(c => c.family !== 'xpath' && c.matchCount === 1);
     if (!hasCssUnique && element !== document.body) {
       const seenBase = new Set();
       const bases = [];
       for (const c of candidates) {
-        if (c.type === 'xpath' || c.matchCount === 0) continue;
-        const css = convertToCssForTest(c.syntax, c.type);
-        if (css && !seenBase.has(css)) { seenBase.add(css); bases.push(css); }
+        if (c.family === 'xpath') continue;
+        const css = convertToCssForTest(c.syntax, c.family);
+        if (!css || seenBase.has(css)) continue;
+        if (containsUnstableClass(css)) continue; // 不稳定 class 不作为 ancestor narrowing 的 base
+        seenBase.add(css); bases.push(css);
       }
       let cur = element.parentElement;
       let depth = 0;
@@ -368,7 +1468,7 @@
             let count = -1;
             try { count = document.querySelectorAll(combined).length; } catch (e) {}
             if (count >= 1) {
-              candidates.push({ syntax: `css:${combined}`, label: `${combined} (祖先收窄)`, type: 'css', score: count === 1 ? 78 : 28, matchCount: count });
+              candidates.push({ syntax: `css:${combined}`, label: `${combined} (祖先收窄)`, family: 'css', score: count === 1 ? 78 : 28 });
               if (count === 1) foundUnique = true;
             }
           }
@@ -378,25 +1478,63 @@
       }
     }
 
-    // structural css fallback
-    const stillNoCssUnique = !candidates.some(c => c.type !== 'xpath' && c.matchCount === 1);
+    // 13. structural css fallback
+    const stillNoCssUnique = !candidates.some(c => c.family !== 'xpath' && c.matchCount === 1);
     if (stillNoCssUnique && element !== document.body) {
-      const struct = buildStructuralCss(element);
-      if (struct) {
+      const structResult = buildStructuralCssFromPath(path);
+      if (structResult.selector) {
         let count = -1;
-        try { count = document.querySelectorAll(struct).length; } catch (e) {}
+        try { count = document.querySelectorAll(structResult.selector).length; } catch (e) {}
         if (count >= 1) {
-          candidates.push({ syntax: 'css:' + struct, label: struct + ' (结构路径)', type: 'css', score: count === 1 ? 76 : 22, matchCount: count });
+          candidates.push({ syntax: 'css:' + structResult.selector, label: structResult.selector + ' (结构路径)', family: 'css', score: count === 1 ? 76 : 22, pathMapping: structResult.pathMapping });
         }
       }
     }
 
+    // 14. List / similar elements selector
+    const listCandidates = generateListCandidates(element);
+    candidates.push(...listCandidates);
+
+    // verify & re-score all candidates
+    candidates.forEach(c => { c.matchCount = verifyLocator(c.syntax, c.family); });
+
+    // optimize unique CSS selectors: remove intermediate levels if still unique (finder pattern)
+    candidates.forEach(c => {
+      if (c.matchCount === 1 && c.family === 'css' && c.syntax.startsWith('css:')) {
+        const optimized = optimizeSelector(c.syntax, element);
+        if (optimized !== c.syntax) {
+          c.syntax = optimized;
+          c.label = c.label.replace(/\(finder\)|\(祖先收窄\)|\(结构路径\)/, '(优化)');
+          delete c.pathMapping; // optimization changes segment count; mapping is no longer valid
+        }
+      }
+    });
+
+    // Auto-tag list selectors: any multi-match CSS candidate without position pinning
+    candidates.forEach(c => {
+      if (c.isList) return;
+      if (c.matchCount < 2) return;
+      if (c.family !== 'css') return;
+      const sel = c.syntax.replace(/^css:/, '');
+      if (/:nth-of-type\(\d+\)|:nth-child\(\d+\)/.test(sel)) return;
+      if (/^#[a-zA-Z][a-zA-Z0-9_-]*$/.test(sel)) return;
+      c.isList = true;
+      c.label = c.label.replace(/\((祖先收窄|结构路径|优化)\)/, '(列表, ' + c.matchCount + '个)');
+    });
+
+    candidates.forEach(c => { c.score = computeScore(c); });
+
     return candidates
       .filter(c => c.matchCount !== 0)
       .sort((a, b) => {
-        const aUnique = a.matchCount === 1 ? 2 : (a.matchCount === -1 ? 1 : 0);
-        const bUnique = b.matchCount === 1 ? 2 : (b.matchCount === -1 ? 1 : 0);
+        const aUnique = a.matchCount === 1 ? 3 : (a.matchCount === -1 ? 2 : 1);
+        const bUnique = b.matchCount === 1 ? 3 : (b.matchCount === -1 ? 2 : 1);
         if (aUnique !== bUnique) return bUnique - aUnique;
+        // Within non-unique group, list candidates first
+        if (a.matchCount !== 1 && b.matchCount !== 1) {
+          if (a.isList && !b.isList) return -1;
+          if (!a.isList && b.isList) return 1;
+        }
         return b.score - a.score;
       });
   }
@@ -497,11 +1635,7 @@
     }
     lastHoveredEl = target;
     lockedElement = target;
-    lockedCandidates = generateLocators(target);
-    if (lockedCandidates.length > 0) {
-      lockedLocator = lockedCandidates[0].syntax;
-      lockedLocatorType = lockedCandidates[0].type;
-    }
+    lockedCandidates = [];
     redrawHighlight();
   }
 
@@ -509,226 +1643,237 @@
     if (!captureMode || !e.altKey) return;
     e.preventDefault();
     e.stopPropagation();
-    if (!lockedElement || lockedCandidates.length === 0) {
+    const el = lockedElement;
+    if (!el) {
       showToast('没有可捕获的元素');
       return;
     }
-    showConfirmModal();
+
+    // 先退出捕获模式移除高亮框，再截图避免外框和蒙层入镜
+    exitCaptureMode();
+    // 等浏览器完成重绘（两帧确保渲染管线清空）
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    const rect = el.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    let screenshot = null;
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        action: 'captureElementScreenshot',
+        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+        dpr,
+      });
+      if (resp?.dataUrl) screenshot = resp.dataUrl;
+    } catch (e) {
+      console.warn('[RPA Capture] screenshot failed:', e);
+    }
+
+    // 异步计算候选方案并通过 Side Panel 展示
+    const computePayload = () => {
+      lockedCandidates = generateLocators(el);
+      if (lockedCandidates.length === 0) {
+        showToast('无法为此元素生成选择器');
+        return;
+      }
+      const path = buildElementPath(el);
+      const features = buildFeatureSnapshot(el);
+      let defaultName = features.tag;
+      if (features.id) defaultName += '_' + features.id;
+      else if (features.inner_text) {
+        const text = features.inner_text.trim().replace(/\s+/g, '_').slice(0, 20);
+        if (text) defaultName += '_' + text;
+      }
+
+      const verseCand = lockedCandidates.find((c) => c.family === 'drission' && c.syntax.startsWith('verse:'));
+      const verseFp = verseCand ? verseCand.syntax.replace(/^verse:/, '') : null;
+      const best = lockedCandidates[0] || {};
+
+      // Per-family top 10: CSS 拆为单个/列表，XPath / Drission 各取前 10，互不挤占
+      function pickCandidatesByFamily(all, limitPerFamily = 10) {
+        const byFamily = {};
+        for (const c of all) {
+          const family = c.family || c.type || 'css';
+          const key = family === 'css' ? (c.isList ? 'css-list' : 'css-single') : family;
+          if (!byFamily[key]) byFamily[key] = [];
+          byFamily[key].push(c);
+        }
+        const selected = [];
+        for (const key of Object.keys(byFamily)) {
+          selected.push(...byFamily[key].slice(0, limitPerFamily));
+        }
+        return selected;
+      }
+      const payloadCandidates = pickCandidatesByFamily(lockedCandidates);
+
+      // Detect list family for rich list metadata
+      const listFamily = detectListFamily(el, { maxDepth: 6, minItems: 2, similarityThreshold: 0.55 });
+      const listMeta = {};
+      if (listFamily.container && listFamily.items.length >= 2) {
+        const listItem = listFamily.items.find(item => item === el || item.contains(el)) || el;
+        const containerSel = buildListContainerSelector(listFamily.container);
+        const itemSel = buildListItemSelector(listItem);
+        listMeta.listContainer = containerSel || '';
+        listMeta.listItem = itemSel || '';
+        listMeta.listSize = listFamily.items.length;
+        listMeta.listSimilarity = Math.round(listFamily.similarity * 100) / 100;
+      }
+
+      const payload = {
+        name: defaultName,
+        tag: features.tag,
+        id: features.id,
+        classes: features.classes,
+        attrs: features.attrs,
+        path,
+        screenshot,
+        selectorFamily: best.family || 'css',
+        targetMode: best.isList ? 'list' : 'single',
+        candidates: payloadCandidates.map((c) => ({
+          syntax: c.syntax, family: c.family, score: c.score, matchCount: c.matchCount, isList: c.isList || false,
+          pathMapping: c.pathMapping,
+          listContainer: c.listContainer || undefined,
+          listItem: c.listItem || undefined,
+        })),
+        pageUrl: window.location.href,
+        inner_text: features.inner_text,
+        verse_fp: verseFp,
+        ...listMeta,
+      };
+
+      chrome.runtime.sendMessage({ action: 'captureElement', payload })
+        .catch((err) => showToast('发送失败: ' + err.message));
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(computePayload, { timeout: 200 });
+    } else {
+      setTimeout(computePayload, 0);
+    }
   }
 
-  // ─── Confirm Modal ───────────────────────────────────────────────
+  // ─── Element highlighting (used by Side Panel verify) ────────────
 
-  function showConfirmModal() {
-    const el = lockedElement;
-    const cands = lockedCandidates;
-    // 弹出确认框后立即退出捕获模式，避免鼠标在框上移动时重新锁定目标
-    exitCaptureMode();
-    const features = buildFeatureSnapshot(el);
-    const best = cands[0];
-    let selectedIdx = 0;
+  let editorHighlightTimer = null;
 
-    const overlay = document.createElement('div');
-    overlay.id = 'rpa-capture-modal';
-    overlay.style.cssText = `
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5); z-index: 2147483646;
-      display: flex; align-items: center; justify-content: center;
-      font-family: system-ui, sans-serif;
-    `;
+  function removeEditorHighlights() {
+    document.querySelectorAll('.rpa-editor-highlight').forEach((el) => el.remove());
+  }
 
-    const card = document.createElement('div');
-    card.style.cssText = `
-      background: #fff; border-radius: 8px; width: 520px; max-width: 90vw;
-      max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      display: flex; flex-direction: column;
-    `;
-
-    // Header
-    const header = document.createElement('div');
-    header.style.cssText = 'padding: 16px 20px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 15px; color: #333;';
-    header.textContent = '确认捕获元素';
-    card.appendChild(header);
-
-    // Body
-    const body = document.createElement('div');
-    body.style.cssText = 'padding: 16px 20px; flex: 1; overflow-y: auto;';
-
-    // Element info
-    const info = document.createElement('div');
-    info.style.cssText = 'margin-bottom: 12px; padding: 10px; background: #f5f5f5; border-radius: 6px; font-size: 12px; color: #555;';
-    const cls = features.classes?.slice(0, 3).join('.') || '';
-    info.innerHTML = `
-      <div><b>标签:</b> ${features.tag}${features.id ? '#' + features.id : ''}${cls ? '.' + cls : ''}</div>
-      <div><b>文本:</b> ${features.inner_text?.slice(0, 60) || '无'}</div>
-      <div><b>页面:</b> ${window.location.href.slice(0, 60)}</div>
-    `;
-    body.appendChild(info);
-
-    // Element name input
-    const nameWrap = document.createElement('div');
-    nameWrap.style.cssText = 'margin-bottom: 12px;';
-    const nameLabel = document.createElement('label');
-    nameLabel.textContent = '元素名称';
-    nameLabel.style.cssText = 'display: block; font-size: 12px; font-weight: 500; color: #333; margin-bottom: 4px;';
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    // Build a readable default name: tag + id or text
-    let defaultName = features.tag;
-    if (features.id) {
-      defaultName += '_' + features.id;
-    } else if (features.inner_text) {
-      const text = features.inner_text.trim().replace(/\s+/g, '_').slice(0, 20);
-      if (text) defaultName += '_' + text;
+  function resolveAllForVerify(selector, type) {
+    try {
+      if (type === 'css' || !type) {
+        const s = selector.startsWith('css:') ? selector.slice(4) : selector;
+        return Array.from(document.querySelectorAll(s));
+      }
+      if (type === 'xpath') {
+        const s = selector.startsWith('xpath:') ? selector.slice(6) : selector;
+        const r = document.evaluate(s, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        const arr = [];
+        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        return arr;
+      }
+      if (type === 'id') {
+        const s = selector.startsWith('#') ? selector : '#' + selector;
+        const el = document.querySelector(s);
+        return el ? [el] : [];
+      }
+      if (type === 'class') {
+        const s = selector.startsWith('.') ? selector : '.' + selector;
+        return Array.from(document.querySelectorAll(s));
+      }
+      if (type === 'data-attr' || type === 'aria' || type === 'name') {
+        let l = selector;
+        if (l.startsWith('@')) l = l.slice(1);
+        const eq = l.indexOf('=');
+        if (eq > 0) {
+          return Array.from(document.querySelectorAll(`[${l.slice(0, eq)}="${attrValueEscape(l.slice(eq + 1))}"]`));
+        }
+        return [];
+      }
+      if (type === 'tag_attr') {
+        const m = selector.match(/^tag:(\w+)@([\w\-:]+)=(.+)$/);
+        if (m) return Array.from(document.querySelectorAll(`${m[1]}[${m[2]}="${attrValueEscape(m[3])}"]`));
+        return [];
+      }
+      if (type === 'tag_class') {
+        const m = selector.match(/^tag:(\w+)@class=(.+)$/);
+        if (m) return Array.from(document.querySelectorAll(`${m[1]}.${m[2]}`));
+        return [];
+      }
+      if (type === 'tag_text') {
+        const m = selector.match(/^tag:(\w+)@text\(\)=(.+)$/);
+        if (m) {
+          const r = document.evaluate(`//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          const arr = [];
+          for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+          return arr;
+        }
+        return [];
+      }
+      if (type === 'text') {
+        const text = selector.startsWith('text=') ? selector.slice(5) : selector;
+        const r = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        const arr = [];
+        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        return arr;
+      }
+      if (type === 'multi_attr') {
+        const parts = selector.match(/@@class:([^@]+)/g);
+        if (parts) {
+          const s = parts.map(p => '.' + p.replace('@@class:', '')).join('');
+          return Array.from(document.querySelectorAll(s));
+        }
+        return [];
+      }
+      if (type === 'verse') {
+        const fp = selector.replace(/^verse:/, '');
+        const nodes = document.querySelectorAll('body, body *');
+        const arr = [];
+        let checked = 0;
+        for (const node of nodes) {
+          if (checked++ > 20000) break;
+          const text = (node.innerText || node.textContent || '').trim();
+          if (text.length > 5 && generateVerseFingerprint(text) === fp) {
+            arr.push(node);
+          }
+        }
+        return arr;
+      }
+      if (selector.startsWith('css:')) {
+        return Array.from(document.querySelectorAll(selector.slice(4)));
+      }
+      if (selector.startsWith('xpath:')) {
+        const r = document.evaluate(selector.slice(6), document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        const arr = [];
+        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        return arr;
+      }
+      return Array.from(document.querySelectorAll(selector));
+    } catch (e) {
+      return [];
     }
-    nameInput.value = defaultName;
-    nameInput.style.cssText = 'width: 100%; padding: 6px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; box-sizing: border-box;';
-    nameWrap.appendChild(nameLabel);
-    nameWrap.appendChild(nameInput);
-    body.appendChild(nameWrap);
+  }
 
-    // Element screenshot
-    const screenshotWrap = document.createElement('div');
-    screenshotWrap.style.cssText = 'margin-bottom: 12px;';
-    const screenshotLabel = document.createElement('div');
-    screenshotLabel.textContent = '元素截图';
-    screenshotLabel.style.cssText = 'font-size: 12px; font-weight: 500; color: #333; margin-bottom: 4px;';
-    const screenshotBox = document.createElement('div');
-    screenshotBox.style.cssText = 'width: 100%; background: #f5f5f5; border-radius: 6px; overflow: hidden; min-height: 60px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px;';
-    screenshotBox.textContent = '正在截图...';
-    screenshotWrap.appendChild(screenshotLabel);
-    screenshotWrap.appendChild(screenshotBox);
-    body.appendChild(screenshotWrap);
+  function highlightSelectorMatches(selector, type) {
+    removeEditorHighlights();
+    const nodes = resolveAllForVerify(selector, type);
 
-    // Request element screenshot from background.js
-    const rect = el.getBoundingClientRect();
-    chrome.runtime.sendMessage({
-      action: 'captureElementScreenshot',
-      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-      dpr: window.devicePixelRatio || 1,
-    }, (resp) => {
-      if (resp?.dataUrl) {
-        capturedScreenshot = resp.dataUrl;
-        const img = document.createElement('img');
-        img.src = resp.dataUrl;
-        img.style.cssText = 'display: block; max-width: 100%; height: auto; margin: 0 auto;';
-        screenshotBox.innerHTML = '';
-        screenshotBox.style.minHeight = '';
-        screenshotBox.appendChild(img);
-      } else {
-        screenshotBox.textContent = '截图失败';
-      }
-    });
-
-    // Locator input
-    const inputWrap = document.createElement('div');
-    inputWrap.style.cssText = 'margin-bottom: 12px;';
-    const inputLabel = document.createElement('label');
-    inputLabel.textContent = '定位器';
-    inputLabel.style.cssText = 'display: block; font-size: 12px; font-weight: 500; color: #333; margin-bottom: 4px;';
-    const inputEl = document.createElement('input');
-    inputEl.type = 'text';
-    inputEl.value = best.syntax;
-    inputEl.style.cssText = 'width: 100%; padding: 6px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; font-family: monospace; box-sizing: border-box;';
-    inputWrap.appendChild(inputLabel);
-    inputWrap.appendChild(inputEl);
-    body.appendChild(inputWrap);
-
-    // Candidates list
-    const listLabel = document.createElement('div');
-    listLabel.textContent = '候选选择器';
-    listLabel.style.cssText = 'font-size: 12px; font-weight: 500; color: #333; margin-bottom: 6px;';
-    body.appendChild(listLabel);
-
-    const list = document.createElement('div');
-    list.style.cssText = 'border: 1px solid #eee; border-radius: 6px; overflow: hidden;';
-    cands.slice(0, 6).forEach((c, idx) => {
-      const row = document.createElement('div');
-      row.style.cssText = `
-        padding: 8px 10px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
-        display: flex; align-items: center; gap: 8px;
-        ${idx === 0 ? 'background: #e6f7ff;' : ''}
+    nodes.forEach((node) => {
+      if (!node.getBoundingClientRect) return;
+      const rect = node.getBoundingClientRect();
+      const hl = document.createElement('div');
+      hl.className = 'rpa-editor-highlight';
+      hl.style.cssText = `
+        position: fixed; pointer-events: none; z-index: 2147483646;
+        left: ${rect.left}px; top: ${rect.top}px;
+        width: ${rect.width}px; height: ${rect.height}px;
+        border: 2px dashed #1677ff; background: rgba(22,119,255,0.08);
+        box-sizing: border-box;
       `;
-      const uniqueBadge = c.matchCount === 1
-        ? '<span style="background:#52c41a;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;">唯一</span>'
-        : `<span style="background:#f0f0f0;color:#666;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;">${c.matchCount} 匹配</span>`;
-      row.innerHTML = `
-        <input type="radio" name="rpa-cand" ${idx === 0 ? 'checked' : ''} style="margin:0;">
-        <span style="flex:1;min-width:0;">
-          <span style="color:#333;font-weight:500;">${c.label}</span>
-          <span style="color:#999;margin-left:6px;font-size:11px;">score:${c.score}</span>
-        </span>
-        ${uniqueBadge}
-      `;
-      row.addEventListener('click', () => {
-        selectedIdx = idx;
-        inputEl.value = c.syntax;
-        Array.from(list.children).forEach((r, i) => {
-          r.style.background = i === idx ? '#e6f7ff' : '';
-          r.querySelector('input').checked = i === idx;
-        });
-      });
-      list.appendChild(row);
-    });
-    body.appendChild(list);
-
-    card.appendChild(body);
-
-    // Footer
-    const footer = document.createElement('div');
-    footer.style.cssText = 'padding: 12px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 8px;';
-
-    const btnCancel = document.createElement('button');
-    btnCancel.textContent = '取消';
-    btnCancel.style.cssText = 'padding: 6px 16px; border: 1px solid #d9d9d9; background: #fff; border-radius: 4px; cursor: pointer; font-size: 13px;';
-    btnCancel.addEventListener('click', () => overlay.remove());
-
-    const btnOk = document.createElement('button');
-    btnOk.textContent = '确认捕获';
-    btnOk.style.cssText = 'padding: 6px 16px; border: none; background: #1677ff; color: #fff; border-radius: 4px; cursor: pointer; font-size: 13px;';
-    btnOk.addEventListener('click', async () => {
-      const sel = cands[selectedIdx];
-      const customSyntax = inputEl.value.trim() || sel.syntax;
-      const payload = {
-        action: 'captureElement',
-        payload: {
-          name: nameInput.value.trim() || defaultName,
-          locator: customSyntax,
-          locatorType: sel.type,
-          score: sel.score,
-          matchCount: sel.matchCount,
-          tag: features.tag,
-          text: features.inner_text?.slice(0, 50) || '',
-          pageUrl: window.location.href,
-          candidates: cands.slice(0, 5).map(c => ({ syntax: c.syntax, type: c.type, score: c.score, matchCount: c.matchCount })),
-          features,
-          screenshot: capturedScreenshot,
-        },
-      };
-      overlay.remove();
-      try {
-        console.log('[RPA Capture] sending payload:', JSON.stringify(payload.payload));
-        await chrome.runtime.sendMessage(payload);
-        // 延迟广播，等后端保存完成
-        setTimeout(() => {
-          console.log('[RPA Capture] sending broadcast after 500ms');
-          chrome.runtime.sendMessage({
-            action: 'notifyElementCaptured',
-            payload: { name: nameInput.value.trim() || defaultName },
-          }).catch((err) => console.warn('[RPA Capture] broadcast send failed:', err));
-        }, 500);
-        showToast(`已捕获: ${sel.label} (${sel.matchCount === 1 ? '唯一' : sel.matchCount + ' 匹配'})`);
-      } catch (err) {
-        console.error('[RPA Capture] send failed:', err);
-        showToast('发送失败: ' + err.message);
-      }
+      document.body.appendChild(hl);
     });
 
-    footer.appendChild(btnCancel);
-    footer.appendChild(btnOk);
-    card.appendChild(footer);
-
-    overlay.appendChild(card);
-    document.body.appendChild(overlay);
+    if (editorHighlightTimer) clearTimeout(editorHighlightTimer);
+    editorHighlightTimer = setTimeout(removeEditorHighlights, 3000);
   }
 
   // ─── Toast ───────────────────────────────────────────────────────
@@ -754,6 +1899,7 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Alt') {
+      if (!captureEnabled) return;
       altPressed = true;
       altComboUsed = false;
       e.preventDefault();
@@ -780,6 +1926,12 @@
   // Use window.postMessage to notify page main world (bypasses CSP)
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'setCaptureEnabled') {
+      captureEnabled = message.enabled;
+      if (!captureEnabled && captureMode) exitCaptureMode();
+      sendResponse({ ok: true });
+      return false;
+    }
     if (message.action === 'elementCaptured') {
       console.log('[RPA Capture] received broadcast, posting to page');
       window.postMessage(
@@ -787,8 +1939,47 @@
         '*'
       );
       sendResponse({ dispatched: true });
+      return false;
+    }
+    if (message.action === 'verifyElement') {
+      const { selector, type } = message.payload || {};
+      let count = 0;
+      let matchedSelector = selector;
+      // 支持多选择器数组：逐个试，命中即停
+      if (Array.isArray(selector) && selector.length > 0) {
+        for (const sel of selector) {
+          const nodes = resolveAllForVerify(sel, type);
+          if (nodes.length > 0) {
+            count = nodes.length;
+            matchedSelector = sel;
+            highlightSelectorMatches(sel, type);
+            break;
+          }
+        }
+      } else {
+        const nodes = resolveAllForVerify(selector, type);
+        count = nodes.length;
+        highlightSelectorMatches(selector, type);
+      }
+      sendResponse({ count, matchedSelector });
+      // Also broadcast result so side panel can pick it up
+      chrome.runtime.sendMessage({ action: 'verifyResult', payload: { count } }).catch(() => {});
+      return false;
     }
   });
+
+  // 页面刷新/导航后，主动向 background 查询 side panel 是否已打开
+  //（避免 side panel 已打开但新页面收不到 setCaptureEnabled 广播）
+  try {
+    chrome.runtime.sendMessage({ action: 'queryCaptureState' })
+      .then((resp) => {
+        if (resp?.captureEnabled) {
+          captureEnabled = true;
+          console.log('[RPA Capture] side panel already open, capture enabled');
+        }
+      })
+      .catch(() => {});
+  } catch (_e) {}
 
   console.log('[RPA Capture] 捕获模块已加载，按 Alt 进入捕获模式');
 })();

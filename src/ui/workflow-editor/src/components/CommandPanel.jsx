@@ -69,7 +69,7 @@ export default function CommandPanel() {
       const defaultExtra = {};
       if (cmd?.fields) {
         for (const f of cmd.fields) {
-          if (f.default !== undefined && !['locator', 'locator_type', 'method'].includes(f.name)) {
+          if (f.default !== undefined && !['locator', 'selector_family', 'target_mode'].includes(f.name)) {
             defaultExtra[f.name] = f.default;
           }
         }
@@ -82,8 +82,8 @@ export default function CommandPanel() {
         type: nodeType.type,
         parent_id: parentId,
         locator: '',
-        locator_type: 'css',
-        method: 'ele',
+        selector_family: 'css',
+        target_mode: 'single',
         extra: defaultExtra,
       });
     } catch (e) {

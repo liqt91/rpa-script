@@ -44,9 +44,9 @@ def _extract_content_js_handlers() -> set[str]:
         block_lines.append(c)
         i += 1
     block = "".join(block_lines)
-    # Match lines like `  navigate({ extra }) {` or `  click({ ... }) {`
+    # Match lines like `  navigate({ extra }) {` or `  async click({ ... }) {`
     # Only top-level keys in the handlers object; exclude JS control-flow keywords
-    keys = re.findall(r"^\s*([A-Za-z_]\w*)\s*\([^)]*\)\s*\{", block, re.MULTILINE)
+    keys = re.findall(r"^\s*(?:async\s+)?([A-Za-z_]\w*)\s*\([^)]*\)\s*\{", block, re.MULTILINE)
     js_keywords = {"if", "while", "for", "switch", "catch", "with"}
     return set(k for k in keys if k not in js_keywords)
 
