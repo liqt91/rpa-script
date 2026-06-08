@@ -293,6 +293,7 @@ class ExtensionRunner:
                 key = m.group(1) or m.group(2)
                 if key in vars_dict:
                     return str(vars_dict[key])
+                logger.warning(f"[ExtensionRunner] resolve_vars: key '{key}' not found in vars={list(vars_dict.keys())}")
                 return m.group(0)
             return _VAR_PLACEHOLDER_RE.sub(_repl, obj)
         if isinstance(obj, list):
@@ -907,6 +908,7 @@ class ExtensionRunner:
         if cmd_type == "log":
             msg = extra.get("message", "")
             level = extra.get("level", "info")
+            logger.info(f"[ExtensionRunner] LOG vars={list(self.vars.keys())} msg={msg!r}")
             resolved_msg = self._resolve_vars(msg, self.vars)
             logger.info(f"[ExtensionRunner] LOG [{level}] {resolved_msg}")
             self.results.append({
@@ -1572,8 +1574,9 @@ class ExtensionRunner:
 
                 # Save results to variable if requested (extracted, navigatedTo, or whole result)
                 save_to_var = _get_output_var(resolved_instr.get("extra") or {})
+                logger.info(f"[ExtensionRunner] save check step={step_id} cmd={cmd_type} save_to_var={save_to_var!r} result={result!r}")
                 if save_to_var and result:
-                    value = result.get("extracted") or result.get("navigatedTo") or result
+                    value = result.get("extracted") or result.get("navigatedTo") or result.get("value") or result
                     self.vars[save_to_var] = value
                     logger.info(f"[ExtensionRunner] saved result to var {save_to_var}: {value!r}")
 

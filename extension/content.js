@@ -878,9 +878,14 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      let el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
 
       await visualConfirmDelay();
+
+      // Re-resolve to avoid stale reference if React/Vue re-rendered during delay
+      const fresh = resolveLocator(locator, selectorFamily, visibleOnly);
+      if (fresh && fresh !== document) el = fresh;
+
       await humanClick(el, humanLike);
       return { clicked: true, tagName: el.tagName };
     },
@@ -1176,7 +1181,7 @@
     },
 
     getCurrentUrl() {
-      return { url: window.location.href };
+      return window.location.href;
     },
 
     async findElements({ locator, selectorFamily, extra }) {
@@ -1401,7 +1406,10 @@
         }
 
         addRunLog(`${type} 完成`);
-        safeRespond({ status: 'success', result: { ...result, matchedIndex, matchedCount } });
+        const responseResult = (result && typeof result === 'object' && !Array.isArray(result))
+          ? { ...result, matchedIndex, matchedCount }
+          : { value: result, matchedIndex, matchedCount };
+        safeRespond({ status: 'success', result: responseResult });
       } catch (e) {
         console.error(`[RPA Agent] step ${type} failed:`, e);
         clearTimeout(timeoutId);

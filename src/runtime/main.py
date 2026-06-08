@@ -229,4 +229,4 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("src.runtime.main:app", host=HOST, port=PORT, reload=False)
+    uvicorn.run("src.runtime.main:app", host=HOST, port=PORT, reload=False, timeout_graceful_shutdown=2)

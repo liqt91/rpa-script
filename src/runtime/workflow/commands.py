@@ -227,6 +227,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
+        "runtimes": {"extension": {"handler": "getCurrentUrl", "local": False}},
         "fields": [_var_field()],
     },
     "getPageTitle": {
