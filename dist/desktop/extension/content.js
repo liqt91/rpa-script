@@ -76,58 +76,63 @@
     return locator;
   }
 
-  function normalizeLocatorType(locator, locatorType) {
-    if (locatorType) return locatorType;
+  function normalizeSelectorFamily(locator, selectorFamily) {
+    if (selectorFamily) return selectorFamily;
     if (Array.isArray(locator) && locator.length > 0) {
       const first = locator[0];
       if (first && typeof first === 'object') {
-        return first.locatorType || first.type || 'css';
+        return first.selectorFamily || first.selectorFamily || first.type || 'css';
       }
     }
     return 'css';
   }
 
-  function inferLocatorType(locator) {
+  function inferSelectorFamily(locator) {
     locator = normalizeLocator(locator);
-    if (!locator || typeof locator !== 'string') return null;
+    if (!locator || typeof locator !== 'string') return 'css';
     if (locator.startsWith('css:')) return 'css';
-    if (locator.startsWith('xpath:')) return 'xpath';
-    if (locator.startsWith('tag:') && locator.includes('@class=')) return 'tag_class';
-    if (locator.startsWith('tag:') && locator.includes('@text()=')) return 'tag_text';
-    if (locator.startsWith('tag:') && locator.includes('@')) return 'tag_attr';
-    if (locator.startsWith('@@class:')) return 'multi_attr';
-    if (locator.startsWith('verse:')) return 'verse';
-    if (locator.startsWith('text=')) return 'text';
-    if (locator.startsWith('@')) return 'data-attr';
-    if (locator.startsWith('#')) return 'id';
-    if (locator.startsWith('.')) return 'class';
-    if (locator.startsWith('//')) return 'xpath';
-    return null;
+    if (locator.startsWith('xpath:') || locator.startsWith('//')) return 'xpath';
+    if (locator.startsWith('@') || locator.startsWith('tag:') || locator.startsWith('verse:') || locator.startsWith('text=') || locator.startsWith('@@class:')) return 'drission';
+    return 'css';
   }
 
-  function resolveAllLocators(locator, locatorType) {
+  function resolveAllLocators(locator, selectorFamily) {
     locator = normalizeLocator(locator);
-    locatorType = normalizeLocatorType(locator, locatorType);
+    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
     if (!locator) return [];
-    if (locator.startsWith('css:')) { locator = locator.slice(4); locatorType = 'css'; }
-    if (locator.startsWith('xpath:')) { locator = locator.slice(6); locatorType = 'xpath'; }
-    const inferred = inferLocatorType(locator);
-    if (inferred && inferred !== locatorType) locatorType = inferred;
+    if (locator.startsWith('css:')) { locator = locator.slice(4); selectorFamily = 'css'; }
+    if (locator.startsWith('xpath:')) { locator = locator.slice(6); selectorFamily = 'xpath'; }
+    const inferred = inferSelectorFamily(locator);
+    if (inferred && inferred !== selectorFamily) selectorFamily = inferred;
 
-    if (locatorType === 'xpath') {
+    if (selectorFamily === 'xpath') {
       const r = document.evaluate(locator, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
       const arr = [];
       for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
       return arr;
     }
-    if (locatorType === 'text') {
-      const text = locator.startsWith('text=') ? locator.slice(5) : locator;
-      const r = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-      const arr = [];
-      for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
-      return arr;
-    }
-    if (locatorType === 'tag_text') {
+    if (selectorFamily === 'drission') {
+      if (locator.startsWith('verse:')) {
+        const fp = locator.replace(/^verse:/, '');
+        const nodes = document.querySelectorAll('body, body *');
+        const arr = [];
+        let checked = 0;
+        for (const node of nodes) {
+          if (checked++ > 20000) break;
+          const text = (node.innerText || node.textContent || '').trim();
+          if (text.length > 5 && generateVerseFingerprint(text) === fp) {
+            arr.push(node);
+          }
+        }
+        return arr;
+      }
+      if (locator.startsWith('text=')) {
+        const text = locator.slice(5);
+        const r = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        const arr = [];
+        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        return arr;
+      }
       const m = locator.match(/^tag:(\w+)@text\(\)=(.+)$/);
       if (m) {
         const r = document.evaluate(`//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
@@ -135,141 +140,77 @@
         for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
         return arr;
       }
-      return [];
-    }
-    if (locatorType === 'verse') {
-      const fp = locator.replace(/^verse:/, '');
-      const nodes = document.querySelectorAll('body, body *');
-      const arr = [];
-      let checked = 0;
-      for (const node of nodes) {
-        if (checked++ > 20000) break;
-        const text = (node.innerText || node.textContent || '').trim();
-        if (text.length > 5 && generateVerseFingerprint(text) === fp) {
-          arr.push(node);
+      let selector = locator;
+      if (locator.startsWith('@')) {
+        const l = locator.slice(1);
+        const eq = l.indexOf('=');
+        if (eq > 0) {
+          selector = `[${l.slice(0, eq)}=${JSON.stringify(l.slice(eq + 1))}]`;
+        } else {
+          selector = `[data-${l}]`;
+        }
+      } else {
+        const m1 = locator.match(/^tag:(\w+)@class=(.+)$/);
+        if (m1) selector = `${m1[1]}.${m1[2]}`;
+        else {
+          const m2 = locator.match(/^tag:(\w+)@(\w+)=(.+)$/);
+          if (m2) selector = `${m2[1]}[${m2[2]}=${JSON.stringify(m2[3])}]`;
+          else {
+            const parts = locator.match(/@@class:([^@]+)/g);
+            if (parts) selector = parts.map(p => '.' + p.replace('@@class:', '')).join('');
+          }
         }
       }
-      return arr;
+      try { return Array.from(document.querySelectorAll(selector)); } catch (e) {}
+      return [];
     }
 
-    let selector = locator;
-    if (locatorType === 'id') selector = locator.startsWith('#') ? locator : '#' + locator;
-    else if (locatorType === 'class') selector = locator.startsWith('.') ? locator : '.' + locator;
-    else if (locatorType === 'data-attr' || locatorType === 'aria' || locatorType === 'name') {
-      let l = locator;
-      if (l.startsWith('@')) l = l.slice(1);
-      const eq = l.indexOf('=');
-      if (eq > 0) {
-        selector = `[${l.slice(0, eq)}=${JSON.stringify(l.slice(eq + 1))}]`;
-      } else {
-        selector = `[data-${l}]`;
-      }
-    } else if (locatorType === 'tag_attr') {
-      const m = locator.match(/^tag:(\w+)@(\w+)=(.+)$/);
-      if (m) selector = `${m[1]}[${m[2]}=${JSON.stringify(m[3])}]`;
-    } else if (locatorType === 'tag_class') {
-      const m = locator.match(/^tag:(\w+)@class=(.+)$/);
-      if (m) selector = `${m[1]}.${m[2]}`;
-    } else if (locatorType === 'multi_attr') {
-      const parts = locator.match(/@@class:([^@]+)/g);
-      if (parts) selector = parts.map(p => '.' + p.replace('@@class:', '')).join('');
-    }
-    try { return Array.from(document.querySelectorAll(selector)); } catch (e) {}
+    // css family
+    try { return Array.from(document.querySelectorAll(locator)); } catch (e) {}
     return [];
   }
 
-  function resolveLocator(locator, locatorType, visibleOnly) {
+  function resolveLocator(locator, selectorFamily, visibleOnly) {
     locator = normalizeLocator(locator);
-    locatorType = normalizeLocatorType(locator, locatorType);
+    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
     if (!locator) return document;
 
     // Normalize css:/xpath: prefixes
     if (locator.startsWith('css:')) {
       locator = locator.slice(4);
-      locatorType = 'css';
+      selectorFamily = 'css';
     }
     if (locator.startsWith('xpath:')) {
       locator = locator.slice(6);
-      locatorType = 'xpath';
+      selectorFamily = 'xpath';
     }
-    const inferred = inferLocatorType(locator);
-    if (inferred && inferred !== locatorType) locatorType = inferred;
+    const inferred = inferSelectorFamily(locator);
+    if (inferred && inferred !== selectorFamily) selectorFamily = inferred;
 
     let el = null;
-    switch (locatorType) {
+    switch (selectorFamily) {
       case 'xpath':
         el = document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
         break;
-      case 'id':
-        el = locator.startsWith('#') ? document.querySelector(locator) : document.getElementById(locator);
-        break;
-      case 'class':
-        el = document.querySelector(locator.startsWith('.') ? locator : '.' + locator);
-        break;
-      case 'text': {
-        const text = locator.startsWith('text=') ? locator.slice(5) : locator;
-        el = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-        break;
-      }
-      case 'tag_text': {
-        const m = locator.match(/^tag:(\w+)@text\(\)=(.+)$/);
-        if (m) {
-          el = document.evaluate(`//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-        }
-        break;
-      }
-      case 'data-attr':
-      case 'aria':
-      case 'name': {
-        let l = locator;
-        if (l.startsWith('@')) l = l.slice(1);
-        const eq = l.indexOf('=');
-        if (eq > 0) {
-          el = document.querySelector(`[${l.slice(0, eq)}=${JSON.stringify(l.slice(eq + 1))}]`);
+      case 'drission': {
+        if (locator.startsWith('verse:')) {
+          const fp = locator.replace(/^verse:/, '');
+          const nodes = document.querySelectorAll('body, body *');
+          let checked = 0;
+          for (const node of nodes) {
+            if (checked++ > 20000) break;
+            const text = (node.innerText || node.textContent || '').trim();
+            if (text.length > 5 && generateVerseFingerprint(text) === fp) {
+              el = node;
+              break;
+            }
+          }
+        } else if (locator.startsWith('text=')) {
+          const text = locator.slice(5);
+          el = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
         } else {
-          el = document.querySelector(`[data-${l}]`);
-        }
-        break;
-      }
-      case 'tag_attr': {
-        const m = locator.match(/^tag:(\w+)@(\w+)=(.+)$/);
-        if (m) el = document.querySelector(`${m[1]}[${m[2]}=${JSON.stringify(m[3])}]`);
-        break;
-      }
-      case 'tag_class': {
-        const m = locator.match(/^tag:(\w+)@class=(.+)$/);
-        if (m) el = document.querySelector(`${m[1]}.${m[2]}`);
-        break;
-      }
-      case 'multi_attr': {
-        const parts = locator.match(/@@class:([^@]+)/g);
-        if (parts) {
-          const cls = parts.map(p => '.' + p.replace('@@class:', '')).join('');
-          el = document.querySelector(cls);
-        }
-        break;
-      }
-      case 'verse': {
-        const fp = locator.replace(/^verse:/, '');
-        console.log(`[RPA resolveLocator] verse mode, fp=${fp}, rawLocator=${locator}`);
-        const nodes = document.querySelectorAll('body, body *');
-        let checked = 0;
-        let matched = 0;
-        for (const node of nodes) {
-          if (checked++ > 20000) {
-            console.log(`[RPA resolveLocator] verse hit limit 20000, checked=${checked}, matchedSoFar=${matched}`);
-            break;
-          }
-          const text = (node.innerText || node.textContent || '').trim();
-          if (text.length > 5 && generateVerseFingerprint(text) === fp) {
-            matched++;
-            console.log(`[RPA resolveLocator] verse MATCH #${matched} tag=${node.tagName}, text=${text.slice(0, 60)}`);
-            el = node;
-            break;
-          }
-        }
-        if (!el) {
-          console.log(`[RPA resolveLocator] verse NO MATCH, totalChecked=${checked}, totalNodes=${nodes.length}`);
+          const css = drissionToCss(locator);
+          if (css) el = document.querySelector(css);
         }
         break;
       }
@@ -285,23 +226,23 @@
 
     if (!el || !visibleOnly) return el;
     if (!isVisible(el)) {
-      const all = resolveAllLocators(locator, locatorType);
+      const all = resolveAllLocators(locator, selectorFamily);
       const v = all.find(isVisible);
       if (v) return v;
     }
     return el;
   }
 
-  function waitForElement(locator, locatorType, visibleOnly, timeoutMs = 10000, pollMs = 200) {
+  function waitForElement(locator, selectorFamily, visibleOnly, timeoutMs = 10000, pollMs = 200) {
     locator = normalizeLocator(locator);
-    locatorType = normalizeLocatorType(locator, locatorType);
-    console.log(`[RPA waitForElement] normLocator=${locator} normType=${locatorType} visibleOnly=${visibleOnly} timeout=${timeoutMs}`);
+    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
+    console.log(`[RPA waitForElement] normLocator=${locator} normType=${selectorFamily} visibleOnly=${visibleOnly} timeout=${timeoutMs}`);
     const start = Date.now();
     let ticks = 0;
     return new Promise((resolve, reject) => {
       const tick = () => {
         ticks++;
-        const el = resolveLocator(locator, locatorType, visibleOnly);
+        const el = resolveLocator(locator, selectorFamily, visibleOnly);
         if (el && el !== document) {
           console.log(`[RPA waitForElement] FOUND after ${ticks} ticks, ${Date.now() - start}ms`);
           return resolve(el);
@@ -318,17 +259,17 @@
 
   // ─── Relative/context element resolution ─────────────────────────
 
-  function resolveLocatorInContext(locator, locatorType, rootElement) {
+  function resolveLocatorInContext(locator, selectorFamily, rootElement) {
     locator = normalizeLocator(locator);
-    locatorType = normalizeLocatorType(locator, locatorType);
-    if (!rootElement) return resolveLocator(locator, locatorType, true);
+    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
+    if (!rootElement) return resolveLocator(locator, selectorFamily, true);
 
     // Normalize css:/xpath: prefixes
     let l = locator;
-    let lt = locatorType;
+    let lt = selectorFamily;
     if (l.startsWith('css:')) { l = l.slice(4); lt = 'css'; }
     if (l.startsWith('xpath:')) { l = l.slice(6); lt = 'xpath'; }
-    const inferred = inferLocatorType(l);
+    const inferred = inferSelectorFamily(l);
     if (inferred && inferred !== lt) lt = inferred;
 
     let el = null;
@@ -336,69 +277,50 @@
       case 'xpath':
         el = document.evaluate(l, rootElement, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
         break;
-      case 'id':
-        el = rootElement.querySelector(l.startsWith('#') ? l : '#' + l);
-        break;
-      case 'class':
-        el = rootElement.querySelector(l.startsWith('.') ? l : '.' + l);
-        break;
-      case 'text': {
-        const text = l.startsWith('text=') ? l.slice(5) : l;
-        const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, null, false);
-        while (walker.nextNode()) {
-          const node = walker.currentNode;
-          if ((node.textContent || '').includes(text)) { el = node; break; }
-        }
-        break;
-      }
-      case 'tag_text': {
-        const m = l.match(/^tag:(\w+)@text\(\)=(.+)$/);
-        if (m) {
-          const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, {
-            acceptNode: (node) => node.tagName.toLowerCase() === m[1].toLowerCase() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP
-          }, false);
+      case 'drission': {
+        if (l.startsWith('verse:')) {
+          const fp = l.replace(/^verse:/, '');
+          const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, null, false);
+          let checked = 0;
+          while (walker.nextNode()) {
+            if (checked++ > 5000) break;
+            const node = walker.currentNode;
+            const text = (node.innerText || node.textContent || '').trim();
+            if (text.length > 5 && generateVerseFingerprint(text) === fp) {
+              el = node;
+              break;
+            }
+          }
+        } else if (l.startsWith('text=')) {
+          const text = l.slice(5);
+          const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, null, false);
           while (walker.nextNode()) {
             const node = walker.currentNode;
-            if ((node.textContent || '').includes(m[2])) { el = node; break; }
+            if ((node.textContent || '').includes(text)) { el = node; break; }
           }
-        }
-        break;
-      }
-      case 'data-attr':
-      case 'aria':
-      case 'name': {
-        let attr = l;
-        if (attr.startsWith('@')) attr = attr.slice(1);
-        const eq = attr.indexOf('=');
-        if (eq > 0) {
-          el = rootElement.querySelector(`[${attr.slice(0, eq)}=${JSON.stringify(attr.slice(eq + 1))}]`);
         } else {
-          el = rootElement.querySelector(`[data-${attr}]`);
-        }
-        break;
-      }
-      case 'tag_attr': {
-        const m = l.match(/^tag:(\w+)@(\w+)=(.+)$/);
-        if (m) el = rootElement.querySelector(`${m[1]}[${m[2]}=${JSON.stringify(m[3])}]`);
-        break;
-      }
-      case 'tag_class': {
-        const m = l.match(/^tag:(\w+)@class=(.+)$/);
-        if (m) el = rootElement.querySelector(`${m[1]}.${m[2]}`);
-        break;
-      }
-      case 'verse': {
-        const fp = l.replace(/^verse:/, '');
-        const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, null, false);
-        let checked = 0;
-        while (walker.nextNode()) {
-          if (checked++ > 5000) break;
-          const node = walker.currentNode;
-          const text = (node.innerText || node.textContent || '').trim();
-          if (text.length > 5 && generateVerseFingerprint(text) === fp) {
-            el = node;
-            break;
+          let selector = l;
+          if (l.startsWith('@')) {
+            const attr = l.slice(1);
+            const eq = attr.indexOf('=');
+            if (eq > 0) {
+              selector = `[${attr.slice(0, eq)}=${JSON.stringify(attr.slice(eq + 1))}]`;
+            } else {
+              selector = `[data-${attr}]`;
+            }
+          } else {
+            const m1 = l.match(/^tag:(\w+)@class=(.+)$/);
+            if (m1) selector = `${m1[1]}.${m1[2]}`;
+            else {
+              const m2 = l.match(/^tag:(\w+)@(\w+)=(.+)$/);
+              if (m2) selector = `${m2[1]}[${m2[2]}=${JSON.stringify(m2[3])}]`;
+              else {
+                const parts = l.match(/@@class:([^@]+)/g);
+                if (parts) selector = parts.map(p => '.' + p.replace('@@class:', '')).join('');
+              }
+            }
           }
+          el = rootElement.querySelector(selector);
         }
         break;
       }
@@ -409,16 +331,16 @@
     return el;
   }
 
-  function resolveAllLocatorsInContext(locator, locatorType, rootElement) {
+  function resolveAllLocatorsInContext(locator, selectorFamily, rootElement) {
     locator = normalizeLocator(locator);
-    locatorType = normalizeLocatorType(locator, locatorType);
-    if (!rootElement) return resolveAllLocators(locator, locatorType);
+    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
+    if (!rootElement) return resolveAllLocators(locator, selectorFamily);
 
     let l = locator;
-    let lt = locatorType;
+    let lt = selectorFamily;
     if (l.startsWith('css:')) { l = l.slice(4); lt = 'css'; }
     if (l.startsWith('xpath:')) { l = l.slice(6); lt = 'xpath'; }
-    const inferred = inferLocatorType(l);
+    const inferred = inferSelectorFamily(l);
     if (inferred && inferred !== lt) lt = inferred;
 
     if (lt === 'xpath') {
@@ -427,17 +349,32 @@
       for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
       return arr;
     }
-    if (lt === 'text') {
-      const text = l.startsWith('text=') ? l.slice(5) : l;
-      const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, null, false);
-      const arr = [];
-      while (walker.nextNode()) {
-        const node = walker.currentNode;
-        if ((node.textContent || '').includes(text)) arr.push(node);
+    if (lt === 'drission') {
+      if (l.startsWith('verse:')) {
+        const fp = l.replace(/^verse:/, '');
+        const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, null, false);
+        const arr = [];
+        let checked = 0;
+        while (walker.nextNode()) {
+          if (checked++ > 5000) break;
+          const node = walker.currentNode;
+          const text = (node.innerText || node.textContent || '').trim();
+          if (text.length > 5 && generateVerseFingerprint(text) === fp) {
+            arr.push(node);
+          }
+        }
+        return arr;
       }
-      return arr;
-    }
-    if (lt === 'tag_text') {
+      if (l.startsWith('text=')) {
+        const text = l.slice(5);
+        const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, null, false);
+        const arr = [];
+        while (walker.nextNode()) {
+          const node = walker.currentNode;
+          if ((node.textContent || '').includes(text)) arr.push(node);
+        }
+        return arr;
+      }
       const m = l.match(/^tag:(\w+)@text\(\)=(.+)$/);
       if (m) {
         const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, {
@@ -450,57 +387,43 @@
         }
         return arr;
       }
-      return [];
-    }
-    if (lt === 'verse') {
-      const fp = l.replace(/^verse:/, '');
-      const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_ELEMENT, null, false);
-      const arr = [];
-      let checked = 0;
-      while (walker.nextNode()) {
-        if (checked++ > 5000) break;
-        const node = walker.currentNode;
-        const text = (node.innerText || node.textContent || '').trim();
-        if (text.length > 5 && generateVerseFingerprint(text) === fp) {
-          arr.push(node);
+      let selector = l;
+      if (l.startsWith('@')) {
+        const attr = l.slice(1);
+        const eq = attr.indexOf('=');
+        if (eq > 0) {
+          selector = `[${attr.slice(0, eq)}=${JSON.stringify(attr.slice(eq + 1))}]`;
+        } else {
+          selector = `[data-${attr}]`;
+        }
+      } else {
+        const m1 = l.match(/^tag:(\w+)@class=(.+)$/);
+        if (m1) selector = `${m1[1]}.${m1[2]}`;
+        else {
+          const m2 = l.match(/^tag:(\w+)@(\w+)=(.+)$/);
+          if (m2) selector = `${m2[1]}[${m2[2]}=${JSON.stringify(m2[3])}]`;
+          else {
+            const parts = l.match(/@@class:([^@]+)/g);
+            if (parts) selector = parts.map(p => '.' + p.replace('@@class:', '')).join('');
+          }
         }
       }
-      return arr;
+      try { return Array.from(rootElement.querySelectorAll(selector)); } catch (e) {}
+      return [];
     }
 
-    let selector = l;
-    if (lt === 'id') selector = l.startsWith('#') ? l : '#' + l;
-    else if (lt === 'class') selector = l.startsWith('.') ? l : '.' + l;
-    else if (lt === 'data-attr' || lt === 'aria' || lt === 'name') {
-      let attr = l;
-      if (attr.startsWith('@')) attr = attr.slice(1);
-      const eq = attr.indexOf('=');
-      if (eq > 0) {
-        selector = `[${attr.slice(0, eq)}=${JSON.stringify(attr.slice(eq + 1))}]`;
-      } else {
-        selector = `[data-${attr}]`;
-      }
-    } else if (lt === 'tag_attr') {
-      const m = l.match(/^tag:(\w+)@(\w+)=(.+)$/);
-      if (m) selector = `${m[1]}[${m[2]}=${JSON.stringify(m[3])}]`;
-    } else if (lt === 'tag_class') {
-      const m = l.match(/^tag:(\w+)@class=(.+)$/);
-      if (m) selector = `${m[1]}.${m[2]}`;
-    } else if (lt === 'multi_attr') {
-      const parts = l.match(/@@class:([^@]+)/g);
-      if (parts) selector = parts.map(p => '.' + p.replace('@@class:', '')).join('');
-    }
-    try { return Array.from(rootElement.querySelectorAll(selector)); } catch (e) {}
+    // css family
+    try { return Array.from(rootElement.querySelectorAll(l)); } catch (e) {}
     return [];
   }
 
-  function waitForElementInContext(locator, locatorType, rootElement, timeoutMs = 10000, pollMs = 200) {
+  function waitForElementInContext(locator, selectorFamily, rootElement, timeoutMs = 10000, pollMs = 200) {
     locator = normalizeLocator(locator);
-    locatorType = normalizeLocatorType(locator, locatorType);
+    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
     const start = Date.now();
     return new Promise((resolve, reject) => {
       const tick = () => {
-        const el = resolveLocatorInContext(locator, locatorType, rootElement);
+        const el = resolveLocatorInContext(locator, selectorFamily, rootElement);
         if (el && el !== rootElement) return resolve(el);
         if (Date.now() - start >= timeoutMs) {
           return reject(new Error(`元素未在 ${timeoutMs}ms 内出现: ${locator}`));
@@ -826,6 +749,121 @@
     }
   });
 
+  // ─── Running UI ──────────────────────────────────────────────────
+
+  let _bannerTimer = null;
+  let _runLogs = [];
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function addRunLog(msg) {
+    _runLogs.push({ time: new Date().toLocaleTimeString('zh-CN', { hour12: false }), msg });
+    if (_runLogs.length > 20) _runLogs.shift();
+    updateRunningUI();
+  }
+
+  function updateRunningUI() {
+    let container = document.getElementById('__rpa_ui_container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = '__rpa_ui_container';
+      document.body.appendChild(container);
+
+      if (!document.getElementById('__rpa_banner_style')) {
+        const style = document.createElement('style');
+        style.id = '__rpa_banner_style';
+        style.textContent = `@keyframes rpa-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`;
+        document.head.appendChild(style);
+      }
+    }
+
+    const corners = [
+      { id: '__rpa_corner_tl', style: 'top:12px;left:12px;' },
+      { id: '__rpa_corner_tr', style: 'top:12px;right:12px;' },
+      { id: '__rpa_corner_bl', style: 'bottom:48px;left:12px;' },
+      { id: '__rpa_corner_br', style: 'bottom:48px;right:12px;' },
+    ];
+
+    corners.forEach(c => {
+      let el = document.getElementById(c.id);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = c.id;
+        el.style.cssText = `
+          position: fixed;
+          ${c.style}
+          z-index: 999999;
+          background: rgba(0,0,0,0.65);
+          color: #fff;
+          padding: 3px 10px;
+          border-radius: 10px;
+          font-size: 11px;
+          font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+          pointer-events: none;
+          backdrop-filter: blur(3px);
+          white-space: nowrap;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          transition: opacity 0.3s;
+        `;
+        container.appendChild(el);
+      }
+      el.innerHTML = `
+        <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;animation:rpa-pulse 1.5s infinite;"></span>
+        <span>RPA 运行中</span>
+      `;
+      el.style.opacity = '1';
+    });
+
+    let logEl = document.getElementById('__rpa_bottom_logs');
+    if (!logEl) {
+      logEl = document.createElement('div');
+      logEl.id = '__rpa_bottom_logs';
+      logEl.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 999998;
+        background: rgba(0,0,0,0.6);
+        color: #e5e7eb;
+        padding: 5px 12px;
+        font-size: 11px;
+        font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+        pointer-events: none;
+        backdrop-filter: blur(3px);
+        transition: opacity 0.3s;
+        line-height: 1.45;
+      `;
+      container.appendChild(logEl);
+    }
+    const recent = _runLogs.slice(-3);
+    logEl.innerHTML = recent.length
+      ? recent.map(l => `<div><span style="color:#9ca3af;">${escapeHtml(l.time)}</span> ${escapeHtml(l.msg)}</div>`).join('')
+      : '<div style="color:#6b7280;">等待执行...</div>';
+    logEl.style.opacity = '1';
+  }
+
+  function hideRunningUI() {
+    _bannerTimer = null;
+    const container = document.getElementById('__rpa_ui_container');
+    if (container) {
+      container.style.opacity = '0';
+      setTimeout(() => container?.remove(), 300);
+    }
+  }
+
+  function showRunningBanner(stepType) {
+    addRunLog(stepType ? `执行: ${stepType}` : '开始运行');
+    if (_bannerTimer) clearTimeout(_bannerTimer);
+    _bannerTimer = setTimeout(hideRunningUI, 8000);
+  }
+
   // ─── Step handlers ───────────────────────────────────────────────
 
   const handlers = {
@@ -836,22 +874,27 @@
       return { navigatedTo: url };
     },
 
-    async click({ locator, locatorType, extra }) {
+    async click({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+      let el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
 
       await visualConfirmDelay();
+
+      // Re-resolve to avoid stale reference if React/Vue re-rendered during delay
+      const fresh = resolveLocator(locator, selectorFamily, visibleOnly);
+      if (fresh && fresh !== document) el = fresh;
+
       await humanClick(el, humanLike);
       return { clicked: true, tagName: el.tagName };
     },
 
-    async input({ locator, locatorType, extra }) {
+    async input({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
 
       const text = extra?.text ?? '';
       const clearFirst = extra?.clearFirst !== false;
@@ -873,7 +916,7 @@
       return { input: true, length: text.length };
     },
 
-    async extract({ locator, locatorType, extra }) {
+    async extract({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
@@ -886,14 +929,14 @@
         const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
         const parent = parents[ctxIndex];
         if (!parent) throw new Error('上下文元素未找到');
-        el = await waitForElementInContext(locator, locatorType, parent, timeoutMs);
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
         if (visibleOnly && !isVisible(el)) {
-          const all = resolveAllLocatorsInContext(locator, locatorType, parent);
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
           const v = all.find(isVisible);
           if (v) el = v;
         }
       } else {
-        el = await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
       }
 
       const attr = extra?.attribute;
@@ -917,7 +960,7 @@
       });
     },
 
-    async scroll({ locator, locatorType, extra }) {
+    async scroll({ locator, selectorFamily, extra }) {
       const scrollType = extra?.scrollType || 'toBottom';
       const humanLike = extra?.humanLike ?? true;
       const smooth = extra?.smooth ?? true;
@@ -926,7 +969,7 @@
       if (scrollType === 'intoView' || locator) {
         const visibleOnly = extra?.visibleOnly ?? true;
         const timeoutMs = (extra?.timeout ?? 10) * 1000;
-        const el = await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+        const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
         if (humanLike) {
           const rect = el.getBoundingClientRect();
           const targetY = rect.top + window.scrollY;
@@ -942,8 +985,9 @@
 
       // Page scroll modes
       if (scrollType === 'oneScreen') {
-        await humanScroll('down', window.innerHeight, humanLike);
-        return { scrolled: 'oneScreen', amount: window.innerHeight };
+        const amount = window.innerHeight * 3;
+        await humanScroll('down', amount, humanLike);
+        return { scrolled: 'oneScreen', amount };
       }
 
       const direction = {
@@ -991,11 +1035,11 @@
       return { pressed: key };
     },
 
-    async hover({ locator, locatorType, extra }) {
+    async hover({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
       const point = getClickPoint(el, humanLike);
       const rect = el.getBoundingClientRect();
       const startX = rect.left + rect.width / 2;
@@ -1009,21 +1053,21 @@
       return { hovered: true, tagName: el.tagName };
     },
 
-    async clearInput({ locator, locatorType, extra }) {
+    async clearInput({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
       if (humanLike) await visualConfirmDelay();
       setInputValue(el, '');
       return { cleared: true };
     },
 
-    async selectOption({ locator, locatorType, extra }) {
+    async selectOption({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
       const value = extra?.value;
       if (!value) throw new Error('selectOption: value required');
       if (humanLike) await visualConfirmDelay();
@@ -1064,7 +1108,7 @@
 
     // ─── Condition check handlers ───────────────────────────────────
 
-    async checkElementExists({ locator, locatorType, extra }) {
+    async checkElementExists({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const ctxLocator = extra?.contextLocator;
@@ -1075,9 +1119,9 @@
           const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
           const parent = parents[ctxIndex];
           if (!parent) return { exists: false };
-          await waitForElementInContext(locator, locatorType, parent, timeoutMs);
+          await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
         } else {
-          await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+          await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
         }
         return { exists: true };
       } catch (e) {
@@ -1085,12 +1129,12 @@
       }
     },
 
-    async checkElementVisible({ locator, locatorType, extra }) {
+    async checkElementVisible({ locator, selectorFamily, extra }) {
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const ctxLocator = extra?.contextLocator;
       const ctxLocatorType = extra?.contextLocatorType;
       const ctxIndex = extra?.contextIndex ?? 0;
-      console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${locatorType} ctx=${ctxLocator ? 'yes' : 'no'} timeout=${timeoutMs}`);
+      console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${selectorFamily} ctx=${ctxLocator ? 'yes' : 'no'} timeout=${timeoutMs}`);
       try {
         let el;
         if (ctxLocator) {
@@ -1100,9 +1144,9 @@
             console.log('[RPA checkElementVisible] context parent not found');
             return { visible: false };
           }
-          el = await waitForElementInContext(locator, locatorType, parent, timeoutMs);
+          el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
         } else {
-          el = await waitForElement(locator, locatorType, false, timeoutMs);
+          el = await waitForElement(locator, selectorFamily, false, timeoutMs);
         }
         const vis = isVisible(el);
         console.log(`[RPA checkElementVisible] result tag=${el?.tagName} visible=${vis}`);
@@ -1113,7 +1157,7 @@
       }
     },
 
-    async getElementText({ locator, locatorType, extra }) {
+    async getElementText({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const ctxLocator = extra?.contextLocator;
@@ -1124,23 +1168,23 @@
         const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
         const parent = parents[ctxIndex];
         if (!parent) throw new Error('上下文元素未找到');
-        el = await waitForElementInContext(locator, locatorType, parent, timeoutMs);
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
         if (visibleOnly && !isVisible(el)) {
-          const all = resolveAllLocatorsInContext(locator, locatorType, parent);
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
           const v = all.find(isVisible);
           if (v) el = v;
         }
       } else {
-        el = await waitForElement(locator, locatorType, visibleOnly, timeoutMs);
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
       }
       return { text: el.textContent?.trim() ?? '' };
     },
 
     getCurrentUrl() {
-      return { url: window.location.href };
+      return window.location.href;
     },
 
-    async findElements({ locator, locatorType, extra }) {
+    async findElements({ locator, selectorFamily, extra }) {
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const ctxLocator = extra?.contextLocator;
       const ctxLocatorType = extra?.contextLocatorType;
@@ -1152,10 +1196,10 @@
           const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
           const parent = parents[ctxIndex];
           if (parent) {
-            elements = resolveAllLocatorsInContext(locator, locatorType, parent);
+            elements = resolveAllLocatorsInContext(locator, selectorFamily, parent);
           }
         } else {
-          elements = resolveAllLocators(locator, locatorType);
+          elements = resolveAllLocators(locator, selectorFamily);
         }
         if (elements.length > 0) break;
         await sleep(200);
@@ -1266,11 +1310,21 @@
   // ─── Message listener ────────────────────────────────────────────
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'setRunningBanner') {
+      if (request.visible) showRunningBanner(request.stepType);
+      else hideRunningUI();
+      sendResponse({ ok: true });
+      return false;
+    }
+
     if (request.action !== 'executeStep') return false;
 
     const { step } = request;
-    const { type, locator, locatorType, extra } = step;
-    console.log(`[RPA executeStep] type=${type} locator=${JSON.stringify(locator)} locatorType=${locatorType}`);
+    const { type, locator, selectorFamily, extra } = step;
+    console.log(`[RPA executeStep] type=${type} locator=${JSON.stringify(locator)} selectorFamily=${selectorFamily}`);
+
+    showRunningBanner(type);
+
     const handler = handlers[type];
 
     if (!handler) {
@@ -1302,13 +1356,13 @@
 
         // 支持多 locator 数组：按优先级逐个试，命中即停
         let targetLocator = locator;
-        let targetLocatorType = locatorType;
+        let targetLocatorType = selectorFamily;
         let matchedIndex = -1;
         if (Array.isArray(locator) && locator.length > 0) {
           for (let i = 0; i < locator.length; i++) {
             const item = locator[i];
             const itemLocator = typeof item === 'string' ? item : (item.locator || item.syntax || item.selector || '');
-            const itemType = typeof item === 'string' ? locatorType : (item.locatorType || item.type || locatorType);
+            const itemType = typeof item === 'string' ? selectorFamily : (item.selectorFamily || item.type || selectorFamily);
             const el = resolveLocator(itemLocator, itemType, false);
             if (el) {
               targetLocator = itemLocator;
@@ -1319,13 +1373,14 @@
           }
           if (matchedIndex === -1) {
             clearTimeout(timeoutId);
+            addRunLog(`${type} 失败: 未匹配到元素`);
             safeRespond({ status: 'error', error: 'None of the locators matched any element' });
             return;
           }
         }
 
         console.log(`[RPA Agent] executing step type=${type} humanLike=${extra?.humanLike ?? true} matchedIndex=${matchedIndex}`);
-        const result = await handler({ locator: targetLocator, locatorType: targetLocatorType, extra: extra || {} });
+        const result = await handler({ locator: targetLocator, selectorFamily: targetLocatorType, extra: extra || {} });
         _lastOpTime = performance.now();
         clearTimeout(timeoutId);
 
@@ -1350,10 +1405,15 @@
           console.log(`[RPA Agent] matched ${matchedCount} element(s) for locator=${targetLocator}`);
         }
 
-        safeRespond({ status: 'success', result: { ...result, matchedIndex, matchedCount } });
+        addRunLog(`${type} 完成`);
+        const responseResult = (result && typeof result === 'object' && !Array.isArray(result))
+          ? { ...result, matchedIndex, matchedCount }
+          : { value: result, matchedIndex, matchedCount };
+        safeRespond({ status: 'success', result: responseResult });
       } catch (e) {
         console.error(`[RPA Agent] step ${type} failed:`, e);
         clearTimeout(timeoutId);
+        addRunLog(`${type} 失败: ${e?.message || String(e)}`);
         safeRespond({ status: 'error', error: e?.message || String(e) });
       }
     })();

@@ -17,6 +17,7 @@ export default function WorkflowList() {
   const runningRef = useRef(false); // 同步锁，防止 React state 异步更新导致双击穿透
   const [runResult, setRunResult] = useState(null);
   const [editingBrowser, setEditingBrowser] = useState({});  // wfId -> target_browser
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
 
   useEffect(() => {
     loadWorkflows();
@@ -82,10 +83,31 @@ export default function WorkflowList() {
     sessionStorage.setItem('wf_run_id', runId);
     setRunResult(null);
     try {
-      const result = await api.runWorkflowExtension(wf.id, runId, null);
+      const getDesignTableData = () => {
+        try {
+          const raw = localStorage.getItem(`workflow_table_${wf.id}`);
+          return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+      };
+      const result = await api.runWorkflowExtension(wf.id, runId, getDesignTableData());
       setRunResult({ wfId: wf.id, ...result });
     } catch (e) {
       setRunResult({ wfId: wf.id, success: false, error: e.message });
+    } finally {
+      runningRef.current = false;
+      setRunningId(null);
+      sessionStorage.removeItem('wf_running_id');
+      sessionStorage.removeItem('wf_run_id');
+    }
+  }
+
+  async function handleStop(wf) {
+    const runId = sessionStorage.getItem('wf_run_id');
+    if (!runId) return;
+    try {
+      await api.stopRun(wf.id, runId);
+    } catch (e) {
+      console.error('[WorkflowList] stop failed:', e);
     } finally {
       runningRef.current = false;
       setRunningId(null);
@@ -231,7 +253,27 @@ export default function WorkflowList() {
                 </>
               );
             })()}
+            <button
+              onClick={() => setShowInstallGuide(v => !v)}
+              className="ml-auto text-xs text-blue-400 hover:text-blue-300"
+            >
+              <i className={`fas ${showInstallGuide ? 'fa-chevron-up' : 'fa-chevron-down'} mr-1`}></i>
+              {showInstallGuide ? '收起说明' : '安装说明'}
+            </button>
           </div>
+          {showInstallGuide && (
+            <div className="mt-2 text-xs text-gray-400 bg-[#0f172a] border border-gray-700 rounded p-3 space-y-2">
+              <p className="font-medium text-gray-300">浏览器扩展安装步骤：</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>打开 Chrome 或 Edge 浏览器，进入扩展管理页面（地址栏输入 <code className="text-blue-300">chrome://extensions</code> 或 <code className="text-blue-300">edge://extensions</code>）</li>
+                <li>开启右上角「开发者模式」</li>
+                <li>点击「加载已解压的扩展程序」</li>
+                <li>选择本项目 <code className="text-yellow-300">extension/</code> 文件夹（或 <code className="text-yellow-300">dist/desktop/extension/</code>）</li>
+                <li>安装完成后刷新本页面，扩展状态将显示为「已安装 · 在线」</li>
+              </ol>
+              <p className="text-gray-500">提示：运行工作流前需确保目标浏览器对应的扩展已安装并在线。</p>
+            </div>
+          )}
         </div>
 
         {/* 执行结果 Toast */}
@@ -334,19 +376,23 @@ export default function WorkflowList() {
                     <td className="px-4 py-3 text-gray-400">{formatDate(wf.updated_at)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleRun(wf)}
-                          disabled={runningId === wf.id}
-                          className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 disabled:bg-green-900/20 text-green-300 disabled:text-green-700 rounded text-xs transition-colors"
-                          title="执行"
-                        >
-                          {runningId === wf.id ? (
-                            <i className="fas fa-circle-notch fa-spin mr-1"></i>
-                          ) : (
-                            <i className="fas fa-play mr-1"></i>
-                          )}
-                          执行
-                        </button>
+                        {runningId === wf.id ? (
+                          <button
+                            onClick={() => handleStop(wf)}
+                            className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs transition-colors"
+                            title="停止"
+                          >
+                            <i className="fas fa-stop mr-1"></i>停止
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleRun(wf)}
+                            className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 text-green-300 rounded text-xs transition-colors"
+                            title="执行"
+                          >
+                            <i className="fas fa-play mr-1"></i>执行
+                          </button>
+                        )}
                         <button
                           onClick={() => navigate(`/editor/${wf.id}`)}
                           className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs transition-colors"

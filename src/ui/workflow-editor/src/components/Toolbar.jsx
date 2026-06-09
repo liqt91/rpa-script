@@ -2,6 +2,31 @@ import { useState, useEffect, useRef } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 
+function formatResult(result) {
+  if (typeof result !== 'object' || result === null) return String(result);
+  const parts = [];
+  if (result.element) parts.push(`元素「${result.element}」`);
+  if (result.clicked) parts.push('点击成功');
+  if (result.input !== undefined) parts.push(`输入 ${result.length ?? '?'} 个字符`);
+  if (result.text !== undefined) parts.push(`文本: ${String(result.text).slice(0, 40)}`);
+  if (result.extracted !== undefined) parts.push(`提取: ${String(result.extracted).slice(0, 40)}`);
+  if (result.scrolled) parts.push(`滚动: ${result.scrolled}`);
+  if (result.navigatedTo) parts.push(`导航: ${result.navigatedTo}`);
+  if (result.hovered) parts.push('悬停成功');
+  if (result.pressed) parts.push(`按键: ${result.pressed}`);
+  if (result.selected) parts.push(`选择: ${result.text || result.selected}`);
+  if (result.cleared) parts.push('已清空');
+  if (result.匹配元素数 !== undefined) parts.push(`(匹配 ${result.匹配元素数} 个)`);
+  if (result.使用备选方案) parts.push(`[${result.使用备选方案}]`);
+  if (result.forList !== undefined) parts.push(`列表项: ${result.forList}`);
+  if (result.forEachElement !== undefined) parts.push(`元素数: ${result.forEachElement}`);
+  if (result.setVar) parts.push(`设置变量 ${result.setVar} = ${JSON.stringify(result.value).slice(0, 40)}`);
+  if (result.ifElementVisible !== undefined) parts.push(`元素可见: ${result.ifElementVisible}`);
+  if (result.ifElementExists !== undefined) parts.push(`元素存在: ${result.ifElementExists}`);
+  if (parts.length === 0) return JSON.stringify(result).slice(0, 200);
+  return parts.join(' ');
+}
+
 export default function Toolbar() {
   const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch, elements } = useWorkflow();
   const [running, setRunning] = useState(false);
@@ -10,6 +35,8 @@ export default function Toolbar() {
   const [runResult, setRunResult] = useState(null);
   const [runMode, setRunMode] = useState('extension'); // 'python' | 'extension'
   const [extStatus, setExtStatus] = useState(null);
+  const [editingName, setEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
   const importInputRef = useRef(null);
   const stoppedRef = useRef(false);
 
@@ -48,14 +75,23 @@ export default function Toolbar() {
     }
   };
 
-  // 收集节点引用的 element_name
+  // 收集节点引用的 element_name（包括 extra.element_names 中的附加元素）
   const resolveElementNamesFromNode = (node) => {
     const names = new Set();
     if (node.element_name) names.add(node.element_name);
+    let extra = node.extra;
+    if (typeof extra === 'string') {
+      try { extra = JSON.parse(extra); } catch { extra = {}; }
+    }
+    if (extra?.element_names && Array.isArray(extra.element_names)) {
+      for (const name of extra.element_names) {
+        if (name) names.add(name);
+      }
+    }
     return names;
   };
 
-  const handleExportJSON = () => {
+  const handleExportJSON = async () => {
     const usedElementNames = new Set();
     for (const n of nodes) {
       for (const name of resolveElementNamesFromNode(n)) {
@@ -75,7 +111,18 @@ export default function Toolbar() {
 
     // 桌面应用（pywebview）通过桥接调用系统保存对话框
     if (typeof window !== 'undefined' && window.pywebview?.api) {
-      window.pywebview.api.saveFileDialog(jsonStr, filename);
+      try {
+        const res = await window.pywebview.api.saveFileDialog(jsonStr, filename);
+        if (res?.success) {
+          alert(`已保存到: ${res.path}`);
+        } else if (res?.cancelled) {
+          // 用户取消，不提示
+        } else {
+          alert('保存失败: ' + (res?.error || '未知错误'));
+        }
+      } catch (e) {
+        alert('保存失败: ' + e.message);
+      }
       return;
     }
 
@@ -103,22 +150,29 @@ export default function Toolbar() {
         e.target.value = '';
         return;
       }
-      // 先导入元素到当前流程（元素以 name 为键，同名会覆盖）
+      // 先导入元素到当前流程：同名更新，不同名创建
       if (Array.isArray(data.elements) && data.elements.length > 0) {
         try {
+          const existing = await api.getWorkflowElements(wfId);
+          const existingByName = new Map(existing.map(e => [e.name, e]));
           for (const el of data.elements) {
             const payload = { ...el };
             delete payload.id;
             delete payload.workflow_id;
             delete payload.created_at;
             delete payload.updated_at;
-            await api.createWorkflowElement(wfId, payload);
+            const old = existingByName.get(el.name);
+            if (old) {
+              await api.updateWorkflowElement(wfId, old.id, payload);
+            } else {
+              await api.createWorkflowElement(wfId, payload);
+            }
           }
-          // 刷新元素库
           const fresh = await api.getWorkflowElements(wfId);
           dispatch({ type: 'SET_ELEMENTS', payload: fresh });
         } catch (err) {
           console.error('[Toolbar] import elements failed:', err);
+          alert('元素库导入失败: ' + err.message);
         }
       }
       // 重新生成 temp_id 并修正 parent_id 映射，避免与现有节点 ID 冲突
@@ -154,6 +208,21 @@ export default function Toolbar() {
       await commit();
     } catch (e) {
       alert('保存失败: ' + e.message);
+    }
+  };
+
+  const handleSaveName = async () => {
+    const newName = editNameValue.trim();
+    if (!newName || newName === workflow?.name) {
+      setEditingName(false);
+      return;
+    }
+    try {
+      await api.updateWorkflow(wfId, { name: newName });
+      dispatch({ type: 'SET_WORKFLOW', payload: { ...workflow, name: newName } });
+      setEditingName(false);
+    } catch (e) {
+      alert('重命名失败: ' + e.message);
     }
   };
 
@@ -200,7 +269,7 @@ export default function Toolbar() {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: null } });
             const node = nodes.find(n => n.id === evt.nodeId);
             const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
-            const resultStr = evt.result ? JSON.stringify(evt.result).slice(0, 200) : '完成';
+            const resultStr = evt.result ? formatResult(evt.result) : '完成';
             dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'success', msg: `${label}: ${resultStr}` } });
             if (evt.result?.prints?.length) {
               for (const line of evt.result.prints) {
@@ -234,6 +303,12 @@ export default function Toolbar() {
       };
       es.onerror = (err) => {
         console.error('[Toolbar] SSE error', err);
+        // Recover UI when SSE connection drops unexpectedly
+        setRunning(false);
+        setPaused(false);
+        setCurrentRunId(null);
+        dispatch({ type: 'RUN_DONE', payload: { success: false, stopped: false } });
+        dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'warn', msg: '连接中断，执行状态未知' } });
       };
     }
 
@@ -254,23 +329,20 @@ export default function Toolbar() {
       if (!stoppedRef.current) {
         setRunResult(data);
       }
-      // Final table data: push to DataTableTab and persist to localStorage
+      // Final table data: push to DataTableTab for display only (do NOT overwrite design-time data)
       if (data.tableRows || data.tableColumns) {
         const finalTable = { rows: data.tableRows || [], columns: data.tableColumns || [] };
         window.dispatchEvent(new CustomEvent('runtime-table-update', {
           detail: { wfId, tableData: finalTable }
         }));
-        try {
-          localStorage.setItem(`workflow_table_${wfId}`, JSON.stringify(finalTable));
-        } catch {}
       }
-      dispatch({ type: 'RUN_DONE', payload: { success: data.success } });
+      dispatch({ type: 'RUN_DONE', payload: { success: data.success, stopped: data.stopped } });
     } catch (e) {
       console.error(`[Toolbar] runWorkflow failed: ${e.message}`);
       if (!stoppedRef.current) {
         setRunResult({ success: false, stderr: e.message, stdout: '', returncode: -1 });
       }
-      dispatch({ type: 'RUN_DONE', payload: { success: false } });
+      dispatch({ type: 'RUN_DONE', payload: { success: false, stopped: false } });
     } finally {
       setRunning(false);
       setPaused(false);
@@ -314,6 +386,10 @@ export default function Toolbar() {
     } catch (e) {
       console.error('[Toolbar] stop failed:', e);
     }
+    // Reset UI immediately regardless of API success — the runner will eventually emit done
+    setRunning(false);
+    setPaused(false);
+    setCurrentRunId(null);
   };
 
   const closeResult = () => setRunResult(null);
@@ -329,12 +405,53 @@ export default function Toolbar() {
             <div className="w-6 h-6 bg-[#1677ff] rounded flex items-center justify-center text-white text-xs font-bold">
               <i className="fas fa-project-diagram text-[10px]"></i>
             </div>
-            <span className="text-sm font-medium text-gray-700 truncate max-w-[200px]">
-              {workflow?.name || '加载中...'}
-            </span>
+            {editingName ? (
+              <input
+                autoFocus
+                className="text-sm font-medium text-gray-700 border border-[#1677ff] rounded px-1.5 py-0.5 outline-none w-48"
+                value={editNameValue}
+                onChange={(e) => setEditNameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveName();
+                  } else if (e.key === 'Escape') {
+                    setEditingName(false);
+                  }
+                }}
+                onBlur={handleSaveName}
+              />
+            ) : (
+              <span
+                className="text-sm font-medium text-gray-700 truncate max-w-[200px] cursor-pointer hover:text-[#1677ff]"
+                onClick={() => {
+                  setEditNameValue(workflow?.name || '');
+                  setEditingName(true);
+                }}
+                title="点击修改流程名称"
+              >
+                {workflow?.name || '加载中...'}
+              </span>
+            )}
           </div>
           {saving && <span className="text-xs text-gray-400">保存中...</span>}
           {isDirty && !saving && <span className="text-xs text-orange-500">● 未保存</span>}
+          <select
+            className="h-6 px-1.5 text-xs border border-gray-200 rounded bg-white text-gray-600 outline-none focus:border-[#1677ff] cursor-pointer"
+            value={workflow?.target_browser || 'chrome'}
+            onChange={async (e) => {
+              const val = e.target.value;
+              try {
+                await api.updateWorkflow(wfId, { target_browser: val });
+                dispatch({ type: 'SET_WORKFLOW', payload: { ...workflow, target_browser: val } });
+              } catch (err) {
+                alert('浏览器设置保存失败: ' + err.message);
+              }
+            }}
+            title="选择目标浏览器"
+          >
+            <option value="chrome">Chrome</option>
+            <option value="edge">Edge</option>
+          </select>
         </div>
 
         {/* 中间：工具按钮 */}
@@ -556,12 +673,16 @@ function RunResultModal({ result, onClose, mode, nodes, typeMap }) {
             </div>
           )}
 
-          {isExtension && result.failedStep && (
+          {isExtension && result.failedSteps && result.failedSteps.length > 0 && (
             <div>
               <div className="text-xs text-red-500 mb-1 font-medium">失败步骤</div>
-              <pre className="bg-red-50 rounded p-3 text-xs text-red-700 whitespace-pre-wrap font-mono">
-                {getLabel(result.failedStep)}: {result.failedStep.error}
-              </pre>
+              <div className="bg-red-50 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
+                {result.failedSteps.map((s, i) => (
+                  <pre key={i} className="text-xs text-red-700 whitespace-pre-wrap font-mono">
+                    {getLabel(s)}: {s.error}
+                  </pre>
+                ))}
+              </div>
             </div>
           )}
 

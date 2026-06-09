@@ -35,6 +35,7 @@ os.makedirs(USER_DATA_DIR, exist_ok=True)
 
 # 通过环境变量覆盖配置
 os.environ.setdefault("RPA_REPO_ROOT", BUNDLE_DIR)
+os.environ.setdefault("RPA_LOG_DIR", USER_DATA_DIR)
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{os.path.join(USER_DATA_DIR, 'data.db')}")
 
 # 打包后默认端口 8811，与开发环境 8000 区分，避免冲突
@@ -97,27 +98,26 @@ def _wait_for_server(timeout: float = 30.0) -> bool:
 class Api:
     def saveFileDialog(self, content, defaultFilename):
         """弹出系统保存文件对话框，将 content 写入用户选择的文件"""
-        window = webview.active_window()
-        if not window:
-            return {"success": False, "error": "no active window"}
-
-        file_path = window.create_file_dialog(
-            webview.SAVE_DIALOG,
-            save_filename=defaultFilename,
-        )
-        if not file_path:
-            return {"success": False, "cancelled": True}
-
         try:
-            # pywebview SAVE_DIALOG 在 Windows 返回字符串路径
-            if isinstance(file_path, list):
-                file_path = file_path[0] if file_path else None
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".json",
+                initialfile=defaultFilename,
+                filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+            )
+            root.destroy()
             if not file_path:
                 return {"success": False, "cancelled": True}
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
+            print(f"[desktop] saveFileDialog OK: {file_path}")
             return {"success": True, "path": str(file_path)}
         except Exception as e:
+            print(f"[desktop] saveFileDialog error: {e}")
             return {"success": False, "error": str(e)}
 
 

@@ -132,7 +132,7 @@ class ExtensionRunner:
         self.vars: dict[str, Any] = {}
         self.results: list[dict] = []
         self.completed = 0
-        self.failed_step: dict | None = None
+        self.failed_steps: list[dict] = []
         self.queue = asyncio.Queue()
         self._step_seq = 0
         self._paused = asyncio.Event()
@@ -162,6 +162,14 @@ class ExtensionRunner:
     def stop(self) -> None:
         self._stopped = True
         self._paused.set()  # wake up if currently paused
+        # Cancel the pending step future so _wait_future_with_stop exits immediately
+        if self._current_step:
+            step_id = self._current_step.get("stepId")
+            if step_id:
+                try:
+                    ext_manager.cancel_step_future(step_id)
+                except Exception:
+                    pass
         logger.info(f"[ExtensionRunner] run_id={self.run_id} stopped")
 
     async def _wait_future_with_stop(self, future: asyncio.Future, timeout: float) -> Any:
@@ -193,7 +201,7 @@ class ExtensionRunner:
 
     def _next_step_id(self) -> str:
         self._step_seq += 1
-        return f"int_{self._step_seq}"
+        return f"{self.run_id}_int_{self._step_seq}"
 
     async def _wait_if_paused(self) -> bool:
         """Block while paused; return False if stopped."""
@@ -253,20 +261,20 @@ class ExtensionRunner:
                     self.completed += 1
 
             return {
-                "success": self.failed_step is None and not self._stopped,
+                "success": not self._stopped,
                 "completedSteps": self.completed,
                 "totalSteps": len(instructions),
-                "failedStep": self.failed_step,
+                "failedSteps": self.failed_steps,
                 "results": self.results,
                 "stopped": self._stopped,
             }
         finally:
             await self._emit({
                 "type": "done",
-                "success": self.failed_step is None and not self._stopped,
+                "success": not self._stopped,
                 "completedSteps": self.completed,
                 "totalSteps": len(instructions),
-                "failedStep": self.failed_step,
+                "failedSteps": self.failed_steps,
                 "stopped": self._stopped,
             })
             # 保存数据表格到日志目录
@@ -864,7 +872,7 @@ class ExtensionRunner:
         extra = instr.get("extra") or {}
         if cmd_type == "setVar":
             var_name = _clean_var_ref(extra.get("name", ""))
-            var_value = extra.get("value", "")
+            var_value = self._resolve_vars(extra.get("value", ""), self.vars)
             vtype = extra.get("valueType", "string")
             if vtype == "number":
                 try:
@@ -889,6 +897,24 @@ class ExtensionRunner:
                         var_value = ast.literal_eval(var_value)
                     except Exception:
                         var_value = {}
+            elif vtype == "string":
+                val_str = str(var_value)
+                # Support simple string concatenation: "a" + "b" or a + "b"
+                if "+" in val_str:
+                    parts = val_str.split("+")
+                    has_quoted = any(
+                        (p.strip().startswith('"') and p.strip().endswith('"')) or
+                        (p.strip().startswith("'") and p.strip().endswith("'"))
+                        for p in parts
+                    )
+                    if has_quoted:
+                        merged = []
+                        for p in parts:
+                            p = p.strip()
+                            if (p.startswith('"') and p.endswith('"')) or (p.startswith("'") and p.endswith("'")):
+                                p = p[1:-1]
+                            merged.append(p)
+                        var_value = "".join(merged)
             self.vars[var_name] = var_value
             logger.info(f"[ExtensionRunner] setVar {var_name} = {var_value!r}")
             self.results.append({
@@ -1455,12 +1481,12 @@ class ExtensionRunner:
                 return True
             except Exception as e:
                 logger.error(f"[ExtensionRunner] custom failed: {e}")
-                self.failed_step = {
+                self.failed_steps.append({
                     "stepId": step_id,
                     "nodeId": instr.get("nodeId"),
                     "instruction": instr,
                     "error": str(e),
-                }
+                })
                 self.results.append({
                     "stepId": step_id,
                     "nodeId": instr.get("nodeId"),
@@ -1476,12 +1502,12 @@ class ExtensionRunner:
                 return False
 
         # Unknown local command — fail so we know to register a handler
-        self.failed_step = {
+        self.failed_steps.append({
             "stepId": step_id,
             "nodeId": instr.get("nodeId"),
             "instruction": instr,
             "error": f"No local handler for {cmd_type}",
-        }
+        })
         self.results.append({
             "stepId": step_id,
             "nodeId": instr.get("nodeId"),
@@ -1515,12 +1541,12 @@ class ExtensionRunner:
                 raise
             except Exception as e:
                 logger.error(f"[ExtensionRunner] compound {instr.get('cmdType')} failed: {e}")
-                self.failed_step = {
+                self.failed_steps.append({
                     "stepId": step_id,
                     "nodeId": instr.get("nodeId"),
                     "instruction": instr,
                     "error": str(e),
-                }
+                })
                 self.results.append({
                     "stepId": step_id,
                     "nodeId": instr.get("nodeId"),
@@ -1584,11 +1610,14 @@ class ExtensionRunner:
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"[ExtensionRunner] {step_id} attempt {attempt + 1}/{retry_count + 1} failed: {e}")
+                if self._stopped:
+                    logger.info(f"[ExtensionRunner] {step_id} stop requested, breaking retry loop")
+                    break
                 if attempt < retry_count:
                     await asyncio.sleep(1.0)
 
         # All retries exhausted
-        self.failed_step = {"stepId": step_id, "nodeId": instr.get("nodeId"), "instruction": instr, "error": last_error}
+        self.failed_steps.append({"stepId": step_id, "nodeId": instr.get("nodeId"), "instruction": instr, "error": last_error})
         self.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"), "status": "error", "error": last_error})
         await self._emit({
             "type": "stepError",
@@ -1662,8 +1691,9 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
 
     _run_id = run_id or f"run_{int(time.time() * 1000)}"
 
-    # 创建日志目录
-    log_dir = os.path.join(config.REPO_DIR, "data", "run_logs", str(wf.id), _run_id)
+    # 创建日志目录（打包后通过 RPA_LOG_DIR 指向持久化用户目录）
+    log_root = os.environ.get("RPA_LOG_DIR", config.REPO_DIR)
+    log_dir = os.path.join(log_root, "data", "run_logs", str(wf.id), _run_id)
     os.makedirs(log_dir, exist_ok=True)
 
     target = client_id

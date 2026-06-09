@@ -797,7 +797,7 @@ def stop_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
     print(f"[stop_run] run_id={run_id} found={runner is not None} keys={list(_active_runners.keys())}")
     if runner:
         runner.stop()
-    return {"success": True, "runId": run_id, "action": "stop"}
+    return {"success": True, "runId": run_id, "action": "stop", "found": runner is not None}
 
 
 @router.post("/{wf_id}/run/extension")
@@ -849,7 +849,7 @@ async def run_workflow_extension_endpoint(
                 "mode": "extension",
                 "success": result.get("success"),
                 "total_steps": result.get("totalSteps"),
-                "failed_step": result.get("failedStep"),
+                "failed_steps": result.get("failedSteps"),
                 "error": result.get("error"),
             }),
             client_id=None,
