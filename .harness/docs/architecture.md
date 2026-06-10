@@ -44,6 +44,7 @@ implementation.
 
 (Most recent first. Created automatically by `/add-adr`.)
 
+- `0005-gitea-update-check.md` — Gitea releases 作为桌面端 Plan A 更新源，仅检查/提示，不自动下载安装。
 - `0004-css-xpath-selector-strategy.md` — CSS/XPath 选择器生成、校验、双向一致性与优先级策略。
 - `0003-extension-handler-routing.md` — 指令使用 extension handler 的三条判定标准与映射规则。
 - `0001-use-agent-harness-kit.md` — Adopt agent-harness-kit as the harness layer.
