@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import zipfile
 import io
 import importlib
@@ -10,7 +11,6 @@ import uuid
 from datetime import timedelta
 from typing import Optional
 
-import asyncio
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Form
 from fastapi.responses import StreamingResponse
@@ -19,11 +19,10 @@ from sqlalchemy.orm import Session
 from .. import schemas, auth
 from src.repo import runtime_models as models
 from src.config import runtime_config as config
+from src.repo.chrome_utils import get_chrome_path, get_edge_path
 from ..utils import utcnow
 from ..job_registry import get_registry
 from ..dify_client import get_dify_client
-from ..websocket_manager import ext_manager
-from src.service.extension_installer import install_chrome_extension
 
 
 # 脚本测试结果缓存（内存）
@@ -201,25 +200,25 @@ def check_update():
     }
 
 
-@system_router.post("/install-extension")
-async def install_extension():
-    """一键启动 Chrome 并加载 bundled 扩展（仅支持 Chrome）。"""
-    result = await asyncio.to_thread(install_chrome_extension)
-    if not result.get("success"):
-        return result
+@system_router.post("/open-extensions-page")
+def open_extensions_page(browser: str = "chrome"):
+    """帮用户打开对应浏览器的扩展管理页面。"""
+    browser = (browser or "chrome").lower()
+    if browser == "edge":
+        exe = get_edge_path()
+        url = "edge://extensions/"
+    else:
+        exe = get_chrome_path()
+        url = "chrome://extensions/"
 
-    # Chrome 启动后，通过 WebSocket 在线状态判断扩展是否真正连上，
-    # 比扫描本地 Extensions 目录更可靠（命令行加载的 unpacked 扩展不一定立即写入配置）。
-    for _ in range(15):
-        if ext_manager.is_any_online:
-            return {**result, "installed": True, "error": ""}
-        await asyncio.sleep(1)
+    if not exe:
+        return {"success": False, "error": f"未找到 {browser} 浏览器"}
 
-    return {
-        **result,
-        "installed": False,
-        "error": "Chrome 已启动，但扩展尚未连上，请稍等后刷新页面",
-    }
+    try:
+        subprocess.Popen([exe, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {"success": True, "browser": browser, "url": url}
+    except Exception as e:
+        return {"success": False, "error": f"打开失败: {e}"}
 
 
 # ====== Scripts ======

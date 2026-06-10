@@ -70,6 +70,35 @@ def _chrome_already_running() -> bool:
         return False
 
 
+def get_edge_path():
+    """定位 msedge.exe：常见安装路径 -> 注册表。"""
+    candidates = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%LocalAppData%\Microsoft\Edge\Application\msedge.exe"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+
+    try:
+        import winreg
+        k = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe",
+        )
+        p = winreg.QueryValue(k, None)
+        winreg.CloseKey(k)
+        if os.path.exists(p):
+            return p
+    except Exception:
+        pass
+
+    return None
+
+
 def launch_chrome(home_url: str = "about:blank"):
     """以 USER_DATA_DIR + 远程调试端口启动 Chrome。
 

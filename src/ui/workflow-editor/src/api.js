@@ -109,7 +109,7 @@ export const api = {
   // System
   getBrowserPaths: () => request('/api/workflows/system/browser-paths'),
   getUpdateInfo: () => request('/api/system/update'),
-  installExtension: () => request('/api/system/install-extension', { method: 'POST' }),
+  openExtensionsPage: (browser) => request(`/api/system/open-extensions-page?browser=${encodeURIComponent(browser || 'chrome')}`, { method: 'POST' }),
   updateWorkflow: (id, payload) => request(`/api/workflows/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
