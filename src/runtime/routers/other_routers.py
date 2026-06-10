@@ -215,7 +215,7 @@ def open_extensions_page(browser: str = "chrome"):
         return {"success": False, "error": f"未找到 {browser} 浏览器"}
 
     try:
-        subprocess.Popen([exe, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen([exe, "--new-tab", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return {"success": True, "browser": browser, "url": url}
     except Exception as e:
         return {"success": False, "error": f"打开失败: {e}"}
