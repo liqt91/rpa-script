@@ -307,9 +307,9 @@ export default function WorkflowList() {
                       <button
                         onClick={() => handleOpenExtPage('chrome')}
                         className="ml-2 px-2 py-0.5 bg-blue-700/60 hover:bg-blue-700 text-blue-100 rounded text-[10px] transition-colors"
-                        title="打开 Chrome 扩展管理页面"
+                        title="打开 Chrome 浏览器"
                       >
-                        打开扩展页
+                        打开浏览器
                       </button>
                     )}
                   </span>
@@ -326,9 +326,9 @@ export default function WorkflowList() {
                       <button
                         onClick={() => handleOpenExtPage('edge')}
                         className="ml-2 px-2 py-0.5 bg-blue-700/60 hover:bg-blue-700 text-blue-100 rounded text-[10px] transition-colors"
-                        title="打开 Edge 扩展管理页面"
+                        title="打开 Edge 浏览器"
                       >
-                        打开扩展页
+                        打开浏览器
                       </button>
                     )}
                   </span>

@@ -202,21 +202,18 @@ def check_update():
 
 @system_router.post("/open-extensions-page")
 def open_extensions_page(browser: str = "chrome"):
-    """帮用户打开对应浏览器的扩展管理页面。"""
+    """帮用户打开对应浏览器（不指定 URL，避免特权页面被拦截）。"""
     browser = (browser or "chrome").lower()
-    if browser == "edge":
-        exe = get_edge_path()
-        url = "edge://extensions/"
-    else:
-        exe = get_chrome_path()
-        url = "chrome://extensions/"
+    exe = get_edge_path() if browser == "edge" else get_chrome_path()
 
     if not exe:
         return {"success": False, "error": f"未找到 {browser} 浏览器"}
 
     try:
-        subprocess.Popen([exe, "--new-tab", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return {"success": True, "browser": browser, "url": url}
+        # 只启动/激活浏览器本身；不再尝试打开 chrome://extensions/ 或 edge://extensions/，
+        # 因为部分环境（权限、沙箱、已有实例）会拦截这些内部 URL。
+        subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {"success": True, "browser": browser}
     except Exception as e:
         return {"success": False, "error": f"打开失败: {e}"}
 
