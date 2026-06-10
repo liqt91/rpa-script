@@ -10,6 +10,7 @@ import uuid
 from datetime import timedelta
 from typing import Optional
 
+import asyncio
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Form
 from fastapi.responses import StreamingResponse
@@ -21,6 +22,7 @@ from src.config import runtime_config as config
 from ..utils import utcnow
 from ..job_registry import get_registry
 from ..dify_client import get_dify_client
+from src.service.extension_installer import install_chrome_extension
 
 
 # 脚本测试结果缓存（内存）
@@ -196,6 +198,13 @@ def check_update():
         "release_url": release_url,
         "published_at": published_at,
     }
+
+
+@system_router.post("/install-extension")
+async def install_extension():
+    """一键启动 Chrome 并加载 bundled 扩展（仅支持 Chrome）。"""
+    result = await asyncio.to_thread(install_chrome_extension)
+    return result
 
 
 # ====== Scripts ======

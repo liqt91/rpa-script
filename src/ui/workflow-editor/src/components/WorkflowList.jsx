@@ -17,6 +17,7 @@ export default function WorkflowList() {
   const runningRef = useRef(false); // 同步锁，防止 React state 异步更新导致双击穿透
   const [runResult, setRunResult] = useState(null);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [installingExt, setInstallingExt] = useState(false);
   const sseRef = useRef(null);
 
   useEffect(() => {
@@ -59,6 +60,25 @@ export default function WorkflowList() {
     } catch (e) {
       console.warn('检测扩展状态失败:', e.message);
       setExtStatus({ online: false, count: 0, installed: [] });
+    }
+  }
+
+  async function handleAutoInstall() {
+    setInstallingExt(true);
+    try {
+      const data = await api.installExtension();
+      if (data.need_close_browser) {
+        alert('Chrome 正在运行，请先关闭所有 Chrome 窗口，然后再点击自动安装。');
+      } else if (data.success) {
+        alert('扩展已自动安装，请刷新本页面查看状态。');
+        await loadExtensionStatus();
+      } else {
+        alert('自动安装未立即生效：' + (data.error || '未知错误') + '，请稍后刷新页面。');
+      }
+    } catch (e) {
+      alert('自动安装失败: ' + e.message);
+    } finally {
+      setInstallingExt(false);
     }
   }
 
@@ -291,6 +311,16 @@ export default function WorkflowList() {
                       <span className="text-yellow-400">扩展已安装 · 未连接</span>
                     ) : (
                       <span className="text-red-400">扩展未安装</span>
+                    )}
+                    {!chromeInstalled && (
+                      <button
+                        onClick={handleAutoInstall}
+                        disabled={installingExt}
+                        className="ml-2 px-2 py-0.5 bg-blue-700/60 hover:bg-blue-700 disabled:bg-gray-800 text-blue-100 rounded text-[10px] transition-colors"
+                        title="自动关闭并重启 Chrome 以加载扩展"
+                      >
+                        {installingExt ? '安装中...' : '自动安装'}
+                      </button>
                     )}
                   </span>
                   <span className="flex items-center gap-1.5">
