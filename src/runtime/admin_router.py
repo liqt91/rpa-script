@@ -7,6 +7,8 @@
 
 import json
 import os
+import subprocess
+import sys
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -17,6 +19,7 @@ from . import auth
 from src.repo import runtime_models as models
 from .auth import get_current_user_from_cookie
 from src.config.utils import utcnow
+from src.config import settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 _templates_dir = os.path.join(os.path.dirname(__file__), "admin_templates")
@@ -280,6 +283,33 @@ def admin_password_post(
 
     resp = RedirectResponse(url="/admin/password?success=1", status_code=302)
     return resp
+
+
+# ---------- System utilities ----------
+
+def _get_db_folder() -> str:
+    """Return the folder containing the SQLite database file."""
+    url = settings.DATABASE_URL
+    if url.startswith("sqlite:///"):
+        db_path = url[len("sqlite:///"):]
+        return os.path.dirname(os.path.abspath(db_path))
+    return os.path.abspath(".")
+
+
+@router.get("/open-db-folder")
+def open_db_folder(user=Depends(get_current_user_from_cookie)):
+    """Open the local database folder in the system's file manager."""
+    folder = _get_db_folder()
+    try:
+        if sys.platform == "win32":
+            os.startfile(folder)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", folder])
+        else:
+            subprocess.Popen(["xdg-open", folder])
+    except Exception as e:
+        return {"error": f"无法打开文件夹: {e}", "path": folder}
+    return {"opened": True, "path": folder}
 
 
 # ---------- Commands ----------

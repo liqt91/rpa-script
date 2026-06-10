@@ -92,6 +92,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 AI_DEFAULT_MODEL = os.getenv("AI_DEFAULT_MODEL", "gpt-4o-mini")
 
+# 更新检查：Gitea 仓库（公开 releases 即可，无需 token）
+GITEA_BASE_URL = os.getenv("GITEA_BASE_URL", "")
+GITEA_REPO_OWNER = os.getenv("GITEA_REPO_OWNER", "")
+GITEA_REPO_NAME = os.getenv("GITEA_REPO_NAME", "")
+
 # 服务端
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))

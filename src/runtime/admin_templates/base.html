@@ -44,6 +44,14 @@
         {% endfor %}
       </nav>
       <div class="px-4 py-3 border-t border-gray-700">
+        <button onclick="fetch('/admin/open-db-folder').then(r=>r.json()).then(d=>{ if(d.opened){ console.log('opened', d.path); }else{ alert('打开失败: '+(d.error||'未知错误')); } }).catch(e=>alert('打开失败: '+e.message))" class="w-full flex items-center px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors text-sm mb-2">
+          <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/>
+          </svg>
+          打开数据库文件夹
+        </button>
+      </div>
+      <div class="px-4 py-3 border-t border-gray-700">
         <div class="flex items-center justify-between">
           <span class="text-sm text-gray-400">{{ user.username }}</span>
           <div class="flex items-center gap-3">
@@ -56,8 +64,29 @@
 
     <!-- 内容区 -->
     <main class="flex-1 overflow-auto bg-gray-900">
+      <div id="update-banner" class="hidden bg-blue-900/40 border-b border-blue-700 px-6 py-2 text-sm text-blue-200 flex items-center justify-between">
+        <span id="update-msg"></span>
+        <a id="update-link" href="#" target="_blank" class="text-blue-300 hover:text-white underline">前往下载</a>
+      </div>
       {% block content %}{% endblock %}
     </main>
   </div>
+  <script>
+    (function(){
+      var banner = document.getElementById('update-banner');
+      var msg = document.getElementById('update-msg');
+      var link = document.getElementById('update-link');
+      fetch('/api/system/update')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d && d.has_update) {
+            msg.textContent = '有新版本可用：' + d.current + ' → ' + d.latest;
+            link.href = d.download_url || d.release_url || '#';
+            banner.classList.remove('hidden');
+          }
+        })
+        .catch(function(e){ console.log('update check failed', e); });
+    })();
+  </script>
 </body>
 </html>

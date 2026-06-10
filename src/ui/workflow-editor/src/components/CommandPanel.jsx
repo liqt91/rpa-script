@@ -186,7 +186,15 @@ export default function CommandPanel() {
                     }}
                   >
                     <i className="fas fa-grip-vertical text-gray-300 text-[10px] mr-1"></i>
-                    <span className="truncate">{cmd.label}</span>
+                    <span className="truncate flex-1">{cmd.label}</span>
+                    {cmd.hasRuntime && (
+                      <span
+                        className={`shrink-0 text-[10px] px-1 py-0 rounded ${cmd.local ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600'}`}
+                        title={cmd.local ? '本地执行（后端）' : '扩展执行（浏览器）'}
+                      >
+                        {cmd.local ? '本地' : '扩展'}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>

@@ -122,6 +122,82 @@ def upload_result(req: schemas.ResultUpload, db: Session = Depends(auth.get_db),
     return {"ok": True, "result_id": result.id}
 
 
+# ====== System / Update ======
+system_router = APIRouter(prefix="/api/system", tags=["system"])
+
+
+def _parse_semver(tag: str):
+    """Strip leading 'v' and return (major, minor, patch) integers."""
+    ver = tag.strip().lstrip("vV")
+    parts = ver.split(".")
+    try:
+        return tuple(int(p) for p in parts[:3])
+    except ValueError:
+        return (0, 0, 0)
+
+
+@system_router.get("/update")
+def check_update():
+    """Query the configured Gitea repo for the latest release and compare versions."""
+    base = config.GITEA_BASE_URL.strip().rstrip("/")
+    owner = config.GITEA_REPO_OWNER.strip()
+    repo = config.GITEA_REPO_NAME.strip()
+
+    try:
+        with open(config.VERSION_FILE, encoding="utf-8") as f:
+            current = f.read().strip()
+    except Exception:
+        current = "0.0.0"
+
+    if not base or not owner or not repo:
+        return {
+            "current": current,
+            "latest": current,
+            "has_update": False,
+            "download_url": "",
+            "release_url": "",
+            "published_at": "",
+            "error": "Gitea 更新源未配置",
+        }
+
+    url = f"{base}/api/v1/repos/{owner}/{repo}/releases/latest"
+    try:
+        resp = httpx.get(url, timeout=10.0, follow_redirects=True)
+        resp.raise_for_status()
+        data = resp.json()
+    except httpx.TimeoutException:
+        return {"current": current, "latest": current, "has_update": False, "download_url": "", "release_url": "", "published_at": "", "error": "请求 Gitea 超时"}
+    except httpx.HTTPError as e:
+        return {"current": current, "latest": current, "has_update": False, "download_url": "", "release_url": "", "published_at": "", "error": f"Gitea 请求失败: {e}"}
+    except Exception as e:
+        return {"current": current, "latest": current, "has_update": False, "download_url": "", "release_url": "", "published_at": "", "error": f"解析失败: {e}"}
+
+    latest_tag = (data.get("tag_name") or "").strip()
+    latest = latest_tag.lstrip("vV")
+    release_url = data.get("html_url") or ""
+    published_at = data.get("published_at") or ""
+    assets = data.get("assets") or []
+    download_url = ""
+    if assets:
+        download_url = assets[0].get("browser_download_url") or ""
+    if not download_url:
+        # Fall back to zipball / tarball URL patterns if no asset is attached
+        download_url = data.get("zipball_url") or data.get("tarball_url") or release_url
+
+    current_ver = _parse_semver(current)
+    latest_ver = _parse_semver(latest_tag)
+    has_update = latest_ver > current_ver
+
+    return {
+        "current": current,
+        "latest": latest,
+        "has_update": has_update,
+        "download_url": download_url,
+        "release_url": release_url,
+        "published_at": published_at,
+    }
+
+
 # ====== Scripts ======
 script_router = APIRouter(prefix="/api", tags=["scripts"])
 

@@ -104,7 +104,7 @@ def _wait_for_server(timeout: float = 30.0) -> bool:
 # ---------------------------------------------------------------------------
 
 class Api:
-    def saveFileDialog(self, content, defaultFilename):
+    def saveFileDialog(self, content, defaultFilename, fileTypes=None):
         """弹出系统保存文件对话框，将 content 写入用户选择的文件"""
         try:
             import tkinter as tk
@@ -112,10 +112,20 @@ class Api:
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
+            ext = os.path.splitext(defaultFilename)[1].lower()
+            if fileTypes:
+                dialog_types = [(t["name"], t["pattern"]) for t in fileTypes]
+            elif ext == ".csv":
+                dialog_types = [("CSV", "*.csv"), ("All files", "*.*")]
+            elif ext == ".json":
+                dialog_types = [("JSON", "*.json"), ("All files", "*.*")]
+            else:
+                dialog_types = [("All files", "*.*")]
+            default_ext = ext or ".txt"
             file_path = filedialog.asksaveasfilename(
-                defaultextension=".json",
+                defaultextension=default_ext,
                 initialfile=defaultFilename,
-                filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+                filetypes=dialog_types,
             )
             root.destroy()
             if not file_path:

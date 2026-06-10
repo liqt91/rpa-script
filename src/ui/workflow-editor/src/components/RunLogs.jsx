@@ -80,7 +80,7 @@ export default function RunLogs() {
     return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
   }
 
-  function exportRunsToCSV() {
+  async function exportRunsToCSV() {
     if (runs.length === 0) return;
     const headers = ['流程名称', '开始时间', '触发方式', '耗时', '运行结果', '错误信息'];
     const rows = runs.map(r => [
@@ -92,10 +92,10 @@ export default function RunLogs() {
       r.error || ''
     ]);
     const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    downloadFile(csv, `运行日志_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
+    await downloadFile(csv, `运行日志_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
   }
 
-  function exportTableToCSV() {
+  async function exportTableToCSV() {
     const rows = detailData?.rows || [];
     const cols = detailData?.columns || [];
     const inferredCols = cols.length > 0 ? cols
@@ -105,10 +105,23 @@ export default function RunLogs() {
     const headers = inferredCols.map(c => c.name);
     const csvRows = rows.map(r => inferredCols.map(c => r[c.name] ?? ''));
     const csv = [headers, ...csvRows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    downloadFile(csv, `数据表格_${detailRun.runId}_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
+    await downloadFile(csv, `数据表格_${detailRun.runId}_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
   }
 
-  function downloadFile(content, filename, type) {
+  async function downloadFile(content, filename, type) {
+    if (window.pywebview?.api?.saveFileDialog) {
+      try {
+        const result = await window.pywebview.api.saveFileDialog(content, filename);
+        if (!result.success) {
+          if (!result.cancelled) {
+            alert('保存失败: ' + (result.error || '未知错误'));
+          }
+        }
+        return;
+      } catch (e) {
+        console.error('[RunLogs] saveFileDialog failed:', e);
+      }
+    }
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
