@@ -69,11 +69,13 @@ export default function WorkflowList() {
       const data = await api.installExtension();
       if (data.need_close_browser) {
         alert('Chrome 正在运行，请先关闭所有 Chrome 窗口，然后再点击自动安装。');
-      } else if (data.success) {
-        alert('扩展已自动安装，请刷新本页面查看状态。');
+      } else if (data.installed) {
+        alert('扩展已自动安装并连上后端，请刷新本页面查看状态。');
         await loadExtensionStatus();
+      } else if (data.success) {
+        alert('Chrome 已启动，但扩展尚未连上：' + (data.error || '请稍后刷新页面'));
       } else {
-        alert('自动安装未立即生效：' + (data.error || '未知错误') + '，请稍后刷新页面。');
+        alert('自动安装失败：' + (data.error || '未知错误'));
       }
     } catch (e) {
       alert('自动安装失败: ' + e.message);

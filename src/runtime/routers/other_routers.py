@@ -22,6 +22,7 @@ from src.config import runtime_config as config
 from ..utils import utcnow
 from ..job_registry import get_registry
 from ..dify_client import get_dify_client
+from ..websocket_manager import ext_manager
 from src.service.extension_installer import install_chrome_extension
 
 
@@ -204,7 +205,21 @@ def check_update():
 async def install_extension():
     """一键启动 Chrome 并加载 bundled 扩展（仅支持 Chrome）。"""
     result = await asyncio.to_thread(install_chrome_extension)
-    return result
+    if not result.get("success"):
+        return result
+
+    # Chrome 启动后，通过 WebSocket 在线状态判断扩展是否真正连上，
+    # 比扫描本地 Extensions 目录更可靠（命令行加载的 unpacked 扩展不一定立即写入配置）。
+    for _ in range(15):
+        if ext_manager.is_any_online:
+            return {**result, "installed": True, "error": ""}
+        await asyncio.sleep(1)
+
+    return {
+        **result,
+        "installed": False,
+        "error": "Chrome 已启动，但扩展尚未连上，请稍等后刷新页面",
+    }
 
 
 # ====== Scripts ======

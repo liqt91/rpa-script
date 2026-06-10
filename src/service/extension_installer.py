@@ -2,11 +2,9 @@
 
 import os
 import subprocess
-import time
 
 from src.config import settings
 from src.repo.chrome_utils import get_chrome_path, _chrome_already_running
-from src.service.extension_scanner import scan_installed_extensions
 
 
 def _bundled_extension_dir() -> str:
@@ -22,7 +20,11 @@ def _bundled_extension_dir() -> str:
 
 
 def install_chrome_extension():
-    """关闭 Chrome 后用 --load-extension 重新启动并加载 bundled 扩展。"""
+    """关闭 Chrome 后用 --load-extension 重新启动并加载 bundled 扩展。
+
+    返回值只表示是否成功启动 Chrome；真正的安装结果应由调用方通过
+    WebSocket 在线状态或扩展扫描二次确认。
+    """
     ext_dir = _bundled_extension_dir()
     if not ext_dir:
         return {"success": False, "error": "未找到 bundled extension 目录"}
@@ -52,16 +54,11 @@ def install_chrome_extension():
         stderr=subprocess.DEVNULL,
     )
 
-    # 给 Chrome 和扩展 service worker 留足初始化时间
-    time.sleep(5)
-
-    installed = scan_installed_extensions()
-    chrome_installed = any(i.get("browser") == "chrome" for i in installed)
     return {
-        "success": chrome_installed,
-        "installed": chrome_installed,
+        "success": True,
+        "launched": True,
         "need_close_browser": False,
         "chrome_path": chrome_path,
         "extension_dir": ext_dir,
-        "error": "" if chrome_installed else "Chrome 已启动，但扩展尚未生效，请稍等后刷新页面",
+        "error": "",
     }
