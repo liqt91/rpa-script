@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useWorkflow, deriveParentId } from '../store/WorkflowContext';
 
 const CATEGORY_ICONS = {
@@ -41,6 +41,17 @@ const CATEGORY_COLORS = {
 
 export default function CommandPanel() {
   const { commands, commandsLoading, NODE_TYPES, CATEGORIES, saveNode, wfId, nodes, NODE_TYPE_MAP } = useWorkflow();
+
+  // 阻止浏览器默认 drop 行为，避免拖拽到非画布区域时打开页面
+  useEffect(() => {
+    const preventDefault = (e) => e.preventDefault();
+    window.addEventListener('dragover', preventDefault);
+    window.addEventListener('drop', preventDefault);
+    return () => {
+      window.removeEventListener('dragover', preventDefault);
+      window.removeEventListener('drop', preventDefault);
+    };
+  }, []);
 
   const createDragImage = (cmd) => {
     const typeInfo = NODE_TYPE_MAP[cmd.type] || {};
@@ -159,21 +170,20 @@ export default function CommandPanel() {
                 {catTypes.map(cmd => (
                   <div
                     key={cmd.type}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-pointer text-xs text-gray-600 draggable-item"
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-grab text-xs text-gray-600 draggable-item"
                     draggable
-                    onMouseDown={() => document.body.classList.add('dragging-node')}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', JSON.stringify({ type: cmd.type, category: cmd.category }));
                       e.target.classList.add('dragging');
                       const img = createDragImage(cmd);
                       e.dataTransfer.setDragImage(img, 10, 18);
                       requestAnimationFrame(() => document.body.removeChild(img));
+                      document.body.classList.add('dragging-node');
                     }}
                     onDragEnd={(e) => {
                       e.target.classList.remove('dragging');
                       document.body.classList.remove('dragging-node');
                     }}
-                    onClick={() => handleAdd(cmd)}
                   >
                     <i className="fas fa-grip-vertical text-gray-300 text-[10px] mr-1"></i>
                     <span className="truncate">{cmd.label}</span>

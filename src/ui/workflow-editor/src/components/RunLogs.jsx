@@ -34,6 +34,7 @@ export default function RunLogs() {
     setDetailLoading(true);
     try {
       const data = await api.getRunLog(run.workflowId, run.runId);
+      console.log('[RunLogs] getRunLog response:', data);
       setDetailData(data);
     } catch (e) {
       setDetailData({ error: e.message });
@@ -272,7 +273,9 @@ export default function RunLogs() {
                       <span className="text-gray-500 mr-2">[{evt.type}]</span>
                       {evt.stepId && <span className="text-blue-400 mr-2">{evt.stepId}</span>}
                       {evt.error && <span className="text-red-400">{evt.error}</span>}
-                      {evt.result && typeof evt.result === 'object' ? (
+                      {evt.result?.log !== undefined ? (
+                        <span className="text-gray-300">{evt.result.log}</span>
+                      ) : evt.result && typeof evt.result === 'object' ? (
                         <span className="text-gray-400">{JSON.stringify(evt.result).slice(0, 200)}</span>
                       ) : evt.result ? (
                         <span className="text-gray-400">{String(evt.result).slice(0, 200)}</span>

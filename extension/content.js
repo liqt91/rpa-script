@@ -1305,6 +1305,16 @@
       removeInterceptScript();
       return { stopped: true, remaining: _interceptQueue.length };
     },
+
+    openBrowser() {
+      // handled by background.js (_ensureWorkTab)
+      return {};
+    },
+
+    closeBrowser() {
+      // handled by background.js (chrome.windows.remove)
+      return {};
+    },
   };
 
   // ─── Message listener ────────────────────────────────────────────

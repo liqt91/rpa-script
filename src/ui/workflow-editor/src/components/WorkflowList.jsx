@@ -16,33 +16,31 @@ export default function WorkflowList() {
   const [runningId, setRunningId] = useState(null);
   const runningRef = useRef(false); // 同步锁，防止 React state 异步更新导致双击穿透
   const [runResult, setRunResult] = useState(null);
-  const [editingBrowser, setEditingBrowser] = useState({});  // wfId -> target_browser
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const sseRef = useRef(null);
 
   useEffect(() => {
     loadWorkflows();
     loadBrowserPaths();
     loadExtensionStatus();
+
+    // 同步恢复运行状态（避免切换页面后闪烁）
     const savedId = sessionStorage.getItem('wf_running_id');
     const savedRunId = sessionStorage.getItem('wf_run_id');
+    const savedResult = sessionStorage.getItem('wf_run_result');
     if (savedId) {
-      // 验证后端是否仍在运行该任务
-      api.getActiveRuns()
-        .then(runs => {
-          const stillRunning = runs.some(r => r.runId === savedRunId);
-          if (stillRunning) {
-            setRunningId(Number(savedId));
-          } else {
-            sessionStorage.removeItem('wf_running_id');
-            sessionStorage.removeItem('wf_run_id');
-          }
-        })
-        .catch(() => {
-          // 后端不可达时保守处理：清除状态，避免永久转圈
-          sessionStorage.removeItem('wf_running_id');
-          sessionStorage.removeItem('wf_run_id');
-        });
+      setRunningId(Number(savedId));
     }
+    if (savedResult) {
+      try { setRunResult(JSON.parse(savedResult)); } catch {}
+    }
+    if (savedId && savedRunId) {
+      connectRunSSE(Number(savedId), savedRunId);
+    }
+
+    return () => {
+      if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
+    };
   }, []);
 
   async function loadBrowserPaths() {
@@ -64,14 +62,59 @@ export default function WorkflowList() {
     }
   }
 
-  async function handleUpdateBrowser(wfId, targetBrowser) {
-    try {
-      await api.updateWorkflow(wfId, { target_browser: targetBrowser });
-      setWorkflows(prev => prev.map(wf => wf.id === wfId ? { ...wf, target_browser: targetBrowser } : wf));
-      setEditingBrowser(prev => { const next = { ...prev }; delete next[wfId]; return next; });
-    } catch (e) {
-      setError(e.message);
-    }
+  function connectRunSSE(wfId, runId) {
+    if (sseRef.current) { sseRef.current.close(); }
+    const source = new EventSource(`/api/workflows/${wfId}/run/stream?run_id=${encodeURIComponent(runId)}`);
+    sseRef.current = source;
+
+    source.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'done' || data.type === 'stepError') {
+          const success = data.type === 'done' && data.success !== false && !data.stopped;
+          const result = {
+            wfId,
+            success,
+            completedSteps: data.completedSteps,
+            totalSteps: data.totalSteps,
+            error: data.error,
+            stopped: data.stopped,
+          };
+          setRunResult(result);
+          sessionStorage.setItem('wf_run_result', JSON.stringify(result));
+          setRunningId(null);
+          runningRef.current = false;
+          sessionStorage.removeItem('wf_running_id');
+          sessionStorage.removeItem('wf_run_id');
+          source.close();
+          sseRef.current = null;
+        }
+      } catch (err) {
+        console.error('[WorkflowList] SSE parse error:', err);
+      }
+    };
+
+    source.onerror = () => {
+      source.close();
+      sseRef.current = null;
+      // SSE 断开，延迟查询运行记录确认最终状态
+      setTimeout(() => {
+        api.getWorkflowRuns(wfId)
+          .then(runs => {
+            const run = runs.find(r => r.runId === runId);
+            if (run) {
+              const result = { wfId, success: run.success, error: run.error };
+              setRunResult(result);
+              sessionStorage.setItem('wf_run_result', JSON.stringify(result));
+            }
+            setRunningId(null);
+            runningRef.current = false;
+            sessionStorage.removeItem('wf_running_id');
+            sessionStorage.removeItem('wf_run_id');
+          })
+          .catch(() => {});
+      }, 1000);
+    };
   }
 
   async function handleRun(wf) {
@@ -82,23 +125,29 @@ export default function WorkflowList() {
     sessionStorage.setItem('wf_running_id', String(wf.id));
     sessionStorage.setItem('wf_run_id', runId);
     setRunResult(null);
-    try {
-      const getDesignTableData = () => {
-        try {
-          const raw = localStorage.getItem(`workflow_table_${wf.id}`);
-          return raw ? JSON.parse(raw) : null;
-        } catch { return null; }
-      };
-      const result = await api.runWorkflowExtension(wf.id, runId, getDesignTableData());
-      setRunResult({ wfId: wf.id, ...result });
-    } catch (e) {
+    sessionStorage.removeItem('wf_run_result');
+
+    // 流程列表执行：清空数据表格，每次执行都是独立任务
+    localStorage.removeItem(`workflow_table_${wf.id}`);
+
+    // 启动 SSE 监听进度，fire-and-forget 发请求
+    connectRunSSE(wf.id, runId);
+    api.runWorkflowExtension(wf.id, runId, null).catch(e => {
+      // 切页/刷新导致 fetch 被浏览器取消，不意味着运行失败，让 SSE 判断最终状态
+      const msg = e.message || '';
+      if (e.name === 'AbortError' || msg.includes('Failed to fetch') || msg.includes('cancel') || msg.includes('aborted')) {
+        console.warn('[WorkflowList] run request interrupted, waiting for SSE...');
+        return;
+      }
+      console.error('[WorkflowList] run request failed:', e);
       setRunResult({ wfId: wf.id, success: false, error: e.message });
-    } finally {
-      runningRef.current = false;
+      sessionStorage.setItem('wf_run_result', JSON.stringify({ wfId: wf.id, success: false, error: e.message }));
       setRunningId(null);
+      runningRef.current = false;
       sessionStorage.removeItem('wf_running_id');
       sessionStorage.removeItem('wf_run_id');
-    }
+      if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
+    });
   }
 
   async function handleStop(wf) {
@@ -113,6 +162,7 @@ export default function WorkflowList() {
       setRunningId(null);
       sessionStorage.removeItem('wf_running_id');
       sessionStorage.removeItem('wf_run_id');
+      if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     }
   }
 
@@ -152,6 +202,9 @@ export default function WorkflowList() {
   async function handleDelete(id) {
     try {
       await api.deleteWorkflow(id);
+      // 清理 localStorage 中该流程的缓存节点，避免 ID 重用后显示旧数据
+      localStorage.removeItem(`workflow_editor_nodes_${id}`);
+      localStorage.removeItem(`workflow_table_${id}`);
       setDeleteId(null);
       loadWorkflows();
     } catch (e) {
@@ -232,20 +285,20 @@ export default function WorkflowList() {
                 <>
                   <span className="flex items-center gap-1.5">
                     <i className="fab fa-chrome text-gray-400"></i>
-                    {chromeInstalled ? (
-                      <span className={chromeOnline ? 'text-green-400' : 'text-yellow-400'}>
-                        {chromeOnline ? '扩展已安装 · 在线' : '扩展已安装 · 未连接'}
-                      </span>
+                    {chromeOnline ? (
+                      <span className="text-green-400">扩展已安装 · 在线</span>
+                    ) : chromeInstalled ? (
+                      <span className="text-yellow-400">扩展已安装 · 未连接</span>
                     ) : (
                       <span className="text-red-400">扩展未安装</span>
                     )}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <i className="fab fa-edge text-gray-400"></i>
-                    {edgeInstalled ? (
-                      <span className={edgeOnline ? 'text-green-400' : 'text-yellow-400'}>
-                        {edgeOnline ? '扩展已安装 · 在线' : '扩展已安装 · 未连接'}
-                      </span>
+                    {edgeOnline ? (
+                      <span className="text-green-400">扩展已安装 · 在线</span>
+                    ) : edgeInstalled ? (
+                      <span className="text-yellow-400">扩展已安装 · 未连接</span>
                     ) : (
                       <span className="text-red-400">扩展未安装</span>
                     )}
@@ -278,11 +331,17 @@ export default function WorkflowList() {
 
         {/* 执行结果 Toast */}
         {runResult && (
-          <div className={`mb-4 p-3 rounded-lg text-sm ${runResult.success ? 'bg-green-900/30 border border-green-700 text-green-300' : 'bg-red-900/30 border border-red-700 text-red-300'}`}>
+          <div className={`mb-4 p-3 rounded-lg text-sm ${
+            runResult.success
+              ? 'bg-green-900/30 border border-green-700 text-green-300'
+              : runResult.stopped
+                ? 'bg-yellow-900/30 border border-yellow-700 text-yellow-300'
+                : 'bg-red-900/30 border border-red-700 text-red-300'
+          }`}>
             <div className="flex items-center justify-between">
               <span>
-                <i className={`fas ${runResult.success ? 'fa-check-circle' : 'fa-times-circle'} mr-2`}></i>
-                {runResult.success ? '执行成功' : `执行失败: ${runResult.error || '未知错误'}`}
+                <i className={`fas ${runResult.success ? 'fa-check-circle' : runResult.stopped ? 'fa-pause-circle' : 'fa-times-circle'} mr-2`}></i>
+                {runResult.success ? '执行成功' : runResult.stopped ? '已停止' : `执行失败: ${runResult.error || '未知错误'}`}
               </span>
               <button onClick={() => setRunResult(null)} className="text-gray-400 hover:text-white">×</button>
             </div>
@@ -307,7 +366,6 @@ export default function WorkflowList() {
                 <tr className="border-b border-gray-700 bg-[#252f47]">
                   <th className="text-left px-4 py-3 font-medium text-gray-400">名称</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-400">目标页面</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-400">浏览器</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-400">创建时间</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-400">更新时间</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-400">操作</th>
@@ -327,50 +385,6 @@ export default function WorkflowList() {
                     </td>
                     <td className="px-4 py-3 text-gray-400 max-w-xs truncate">
                       {wf.url || '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {editingBrowser[wf.id] !== undefined ? (
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={editingBrowser[wf.id]}
-                            onChange={(e) => setEditingBrowser(prev => ({ ...prev, [wf.id]: e.target.value }))}
-                            className="px-2 py-1 bg-[#0f172a] border border-gray-600 rounded text-xs text-white outline-none"
-                          >
-                            <option value="">任意</option>
-                            <option value="chrome">Chrome</option>
-                            <option value="edge">Edge</option>
-                          </select>
-                          <button
-                            onClick={() => handleUpdateBrowser(wf.id, editingBrowser[wf.id])}
-                            className="text-green-400 hover:text-green-300 px-1"
-                            title="保存"
-                          >
-                            <i className="fas fa-check text-[10px]"></i>
-                          </button>
-                          <button
-                            onClick={() => setEditingBrowser(prev => { const n = { ...prev }; delete n[wf.id]; return n; })}
-                            className="text-gray-400 hover:text-gray-300 px-1"
-                            title="取消"
-                          >
-                            <i className="fas fa-times text-[10px]"></i>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span className="px-2 py-0.5 bg-gray-800 text-gray-300 rounded text-xs">
-                            {wf.target_browser === 'chrome' && <i className="fab fa-chrome mr-1"></i>}
-                            {wf.target_browser === 'edge' && <i className="fab fa-edge mr-1"></i>}
-                            {wf.target_browser || '任意'}
-                          </span>
-                          <button
-                            onClick={() => setEditingBrowser(prev => ({ ...prev, [wf.id]: wf.target_browser || '' }))}
-                            className="text-gray-500 hover:text-gray-300 px-1"
-                            title="修改浏览器"
-                          >
-                            <i className="fas fa-pen text-[10px]"></i>
-                          </button>
-                        </div>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-400">{formatDate(wf.created_at)}</td>
                     <td className="px-4 py-3 text-gray-400">{formatDate(wf.updated_at)}</td>

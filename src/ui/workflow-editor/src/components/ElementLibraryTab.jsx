@@ -67,6 +67,10 @@ export default function ElementLibraryTab() {
   }, [activeTab]);
 
   useEffect(() => {
+    console.log('[ElementLibraryTab] runLogs updated, count=', runLogs.length, 'last=', runLogs[runLogs.length - 1]);
+  }, [runLogs]);
+
+  useEffect(() => {
     if (!logsRef.current || runLogs.length === 0) return;
     const el = logsRef.current;
     const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;

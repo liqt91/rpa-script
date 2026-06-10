@@ -26,7 +26,7 @@
       <option value="">全部分类</option>
     </select>
     <label class="flex items-center gap-2 text-sm text-gray-300">
-      <input type="checkbox" id="enabledOnly" checked onchange="loadCommands()" class="rounded bg-gray-700 border-gray-600">
+      <input type="checkbox" id="enabledOnly" onchange="loadCommands()" class="rounded bg-gray-700 border-gray-600">
       仅显示启用
     </label>
     <label class="flex items-center gap-2 text-sm text-gray-300 ml-auto">
@@ -68,7 +68,7 @@
         <label class="block text-sm text-gray-300 mb-1">分类 <span class="text-red-400">*</span></label>
         <input type="text" id="cmdCategory" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="如: 数据提取">
       </div>
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-5 gap-3">
         <div>
           <label class="block text-sm text-gray-300 mb-1">图标</label>
           <input type="text" id="cmdIcon" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="fa-circle">
@@ -80,6 +80,14 @@
         <div>
           <label class="block text-sm text-gray-300 mb-1">背景颜色</label>
           <input type="text" id="cmdBgColor" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">大类排序</label>
+          <input type="number" id="cmdCategoryOrder" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="0">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">类内排序</label>
+          <input type="number" id="cmdCommandOrder" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="0">
         </div>
       </div>
       <div>
@@ -308,6 +316,35 @@ async function toggleEnabled(id, checked) {
   }
 }
 
+async function updateOrder(id, field, value) {
+  const num = parseInt(value, 10) || 0;
+  const res = await fetch(`${API}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ [field]: num }),
+  });
+  if (res.ok) {
+    loadCommands();
+  } else {
+    alert('更新排序失败');
+    loadCommands();
+  }
+}
+
+async function updateCategoryOrder(cat, value) {
+  const num = parseInt(value, 10) || 0;
+  const ids = currentData.filter(c => c.category === cat).map(c => c.id);
+  if (!ids.length) return;
+  await Promise.all(ids.map(id =>
+    fetch(`${API}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryOrder: num }),
+    })
+  ));
+  loadCommands();
+}
+
 function toggleAuditMode() {
   auditMode = document.getElementById('auditMode').checked;
   document.getElementById('auditProgress').classList.toggle('hidden', !auditMode);
@@ -347,18 +384,34 @@ function renderBlocks(data) {
     return;
   }
 
-  // Group by category
+  // Sort: enabled first, then by categoryOrder, then commandOrder
+  const sorted = [...data].sort((a, b) => {
+    if (a.enabled !== b.enabled) return b.enabled - a.enabled;
+    const ao = a.categoryOrder ?? 0;
+    const bo = b.categoryOrder ?? 0;
+    if (ao !== bo) return ao - bo;
+    return (a.commandOrder ?? 0) - (b.commandOrder ?? 0);
+  });
+
   const byCat = {};
-  for (const c of data) {
+  for (const c of sorted) {
     if (!byCat[c.category]) byCat[c.category] = [];
     byCat[c.category].push(c);
   }
 
   container.innerHTML = Object.entries(byCat).map(([cat, cmds]) => {
+    const catOrder = cmds[0]?.categoryOrder ?? 0;
     return `
       <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
         <div class="px-4 py-2.5 bg-gray-700/60 border-b border-gray-700 flex items-center justify-between">
-          <span class="text-sm font-medium text-gray-200">${esc(cat)}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-200">${esc(cat)}</span>
+            <div class="flex items-center gap-1 ml-2">
+              <span class="text-[10px] text-gray-500">排序</span>
+              <input type="number" value="${catOrder}" onchange="updateCategoryOrder('${esc(cat)}', this.value)"
+                class="w-14 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-white text-xs text-center">
+            </div>
+          </div>
           <span class="text-xs text-gray-500">${cmds.length} 个指令</span>
         </div>
         <div class="divide-y divide-gray-700/60">
@@ -408,7 +461,14 @@ function renderCommandCard(c) {
         <div class="text-xs text-gray-500 font-mono">${esc(c.type)} · ${c.fields?.length || 0} 个参数</div>
         ${auditHtml}
       </div>
-      <div class="flex items-center gap-1 shrink-0">
+      <div class="flex items-center gap-2 shrink-0">
+        <div class="flex flex-col items-end gap-0.5">
+          <div class="flex items-center gap-1">
+            <span class="text-[10px] text-gray-500">类内</span>
+            <input type="number" value="${c.commandOrder ?? 0}" onchange="updateOrder(${c.id}, 'commandOrder', this.value)"
+              class="w-14 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs text-center">
+          </div>
+        </div>
         <button onclick="editCommand(${c.id})" class="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs transition-colors">编辑</button>
         ${!c.isBuiltin ? `<button onclick="deleteCommand(${c.id})" class="px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs transition-colors">删除</button>` : ''}
       </div>
@@ -470,6 +530,8 @@ async function editCommand(id) {
   document.getElementById('cmdIcon').value = c.icon;
   document.getElementById('cmdIconColor').value = c.iconColor;
   document.getElementById('cmdBgColor').value = c.bgColor;
+  document.getElementById('cmdCategoryOrder').value = c.categoryOrder ?? 0;
+  document.getElementById('cmdCommandOrder').value = c.commandOrder ?? 0;
   document.getElementById('cmdIsContainer').checked = c.isContainer;
   document.getElementById('cmdIsBranch').checked = c.isBranch;
   document.getElementById('cmdIsStructural').checked = c.isStructural;
@@ -500,7 +562,7 @@ function addFieldRow(data = {}) {
     <td class="px-2 py-1 text-center"><input type="checkbox" class="field-required" ${data.required ? 'checked' : ''}></td>
     <td class="px-2 py-1"><input type="text" class="field-default w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.default !== undefined ? String(data.default) : '')}" placeholder="默认值"></td>
     <td class="px-2 py-1"><input type="text" class="field-placeholder w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.placeholder || '')}" placeholder="提示文本"></td>
-    <td class="px-2 py-1"><input type="text" class="field-options w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc((data.options || []).join(','))}" placeholder="a,b,c"></td>
+    <td class="px-2 py-1"><input type="text" class="field-options w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(Array.isArray(data.options) && data.options.length > 0 ? (typeof data.options[0] === 'object' ? data.options.map(o => `${o.label || ''}:${o.value || ''}`).join(',') : data.options.join(',')) : '')}" placeholder="a,b,c 或 标签:值,标签:值"></td>
     <td class="px-2 py-1 text-center"><button type="button" onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-300 text-xs"><i class="fas fa-trash"></i></button></td>
   `;
   tbody.appendChild(tr);
@@ -534,7 +596,17 @@ function getFieldsFromTable() {
     const placeholder = tr.querySelector('.field-placeholder')?.value.trim();
     if (placeholder) f.placeholder = placeholder;
     const options = tr.querySelector('.field-options')?.value.trim();
-    if (options) f.options = options.split(',').map(s => s.trim()).filter(Boolean);
+    if (options) {
+      const parts = options.split(',').map(s => s.trim()).filter(Boolean);
+      if (parts.length > 0 && parts[0].includes(':')) {
+        f.options = parts.map(p => {
+          const idx = p.indexOf(':');
+          return {label: p.slice(0, idx).trim(), value: p.slice(idx + 1).trim()};
+        });
+      } else {
+        f.options = parts;
+      }
+    }
     fields.push(f);
   });
   return fields;
@@ -618,6 +690,8 @@ document.getElementById('commandForm').addEventListener('submit', async (e) => {
     icon: document.getElementById('cmdIcon').value.trim(),
     iconColor: document.getElementById('cmdIconColor').value.trim(),
     bgColor: document.getElementById('cmdBgColor').value.trim(),
+    categoryOrder: parseInt(document.getElementById('cmdCategoryOrder').value, 10) || 0,
+    commandOrder: parseInt(document.getElementById('cmdCommandOrder').value, 10) || 0,
     isContainer: document.getElementById('cmdIsContainer').checked,
     isBranch: document.getElementById('cmdIsBranch').checked,
     isStructural: document.getElementById('cmdIsStructural').checked,

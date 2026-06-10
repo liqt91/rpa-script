@@ -1068,6 +1068,48 @@
       .trim();
   }
 
+  function stripXPathLeadingAxes(xp) {
+    return xp.replace(/^\/+/, '');
+  }
+
+  function buildXPathForElement(el) {
+    if (!el) return '';
+    const tag = el.tagName.toLowerCase();
+
+    // id
+    if (el.id && isStableId(el.id)) {
+      return `//*[@id=${xpathLiteral(el.id)}]`;
+    }
+
+    // data-*
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
+    for (const attr of dataAttrs) {
+      const v = el.getAttribute(attr);
+      if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
+        if (!/[0-9]{4,}/.test(v) && !/^[a-f0-9]{6,}$/i.test(v)) {
+          return `//${tag}[@${attr}=${xpathLiteral(v)}]`;
+        }
+      }
+    }
+
+    // stable class
+    const stableClasses = el.classList ? Array.from(el.classList).filter(isStableClass) : [];
+    if (stableClasses.length > 0) {
+      const parts = [`//${tag}`];
+      for (const cls of stableClasses) {
+        parts.push(`[contains(@class,${xpathLiteral(cls)})]`);
+      }
+      return parts.join('');
+    }
+
+    // role
+    const role = el.getAttribute('role');
+    if (role) return `//${tag}[@role=${xpathLiteral(role)}]`;
+
+    // fallback
+    return `//${tag}`;
+  }
+
   function generateListCandidates(element) {
     const candidates = [];
     if (!element || element === document.body) return candidates;
@@ -1134,6 +1176,233 @@
             listContainer: containerSel,
           });
         }
+      }
+
+      // XPath list candidates (parallel to CSS A/B/C/D)
+      const containerXp = buildXPathForElement(family.container);
+      const itemXp = buildXPathForElement(listItem);
+
+      // A-xp) container/item (direct child)
+      if (containerXp && itemXp) {
+        const directXp = `${containerXp}/${stripXPathLeadingAxes(itemXp)}`;
+        const directCount = verifyLocator(directXp, 'xpath');
+        if (directCount >= 2 && directCount <= 200) {
+          candidates.push({
+            syntax: 'xpath:' + directXp,
+            label: `${directXp} (列表, ${directCount}个)`,
+            family: 'xpath', score: 86, matchCount: directCount, isList: true,
+            listContainer: containerXp, listItem: itemXp,
+          });
+        }
+      }
+
+      // B-xp) container//item (any depth)
+      if (containerXp && itemXp) {
+        const anyDepthXp = `${containerXp}//${stripXPathLeadingAxes(itemXp)}`;
+        const anyDepthCount = verifyLocator(anyDepthXp, 'xpath');
+        if (anyDepthCount >= 2 && anyDepthCount <= 200) {
+          candidates.push({
+            syntax: 'xpath:' + anyDepthXp,
+            label: `${anyDepthXp} (列表, ${anyDepthCount}个)`,
+            family: 'xpath', score: 80, matchCount: anyDepthCount, isList: true,
+            listContainer: containerXp, listItem: itemXp,
+          });
+        }
+      }
+
+      // C-xp) just the item XPath
+      if (itemXp) {
+        const itemCount = verifyLocator(itemXp, 'xpath');
+        if (itemCount >= 2 && itemCount <= 200) {
+          candidates.push({
+            syntax: 'xpath:' + itemXp,
+            label: `${itemXp} (列表, ${itemCount}个)`,
+            family: 'xpath', score: itemCount === family.items.length ? 78 : 53,
+            matchCount: itemCount, isList: true,
+            listItem: itemXp,
+          });
+        }
+      }
+
+      // D-xp) container XPath alone
+      if (containerXp) {
+        const containerCount = verifyLocator(containerXp, 'xpath');
+        if (containerCount >= 1) {
+          candidates.push({
+            syntax: 'xpath:' + containerXp,
+            label: `${containerXp} (列表容器)`,
+            family: 'xpath', score: 43, matchCount: containerCount, isList: true,
+            listContainer: containerXp,
+          });
+        }
+      }
+    }
+
+    // ── Phase 1.5: ancestor list fallback ──
+    // If the target itself has no list family, walk up ancestors and
+    // recommend list candidates for every ancestor that qualifies.
+    if (!(family.container && family.items.length >= 2)) {
+      let ancestor = element.parentElement;
+      let ancDepth = 0;
+      const maxAncDepth = 10;
+      while (ancestor && ancestor !== document.body && ancDepth < maxAncDepth) {
+        const penalty = Math.min(ancDepth * 3, 25);
+        const parent = ancestor.parentElement;
+        let foundContainer = null;
+        let foundItems = [];
+        if (parent) {
+          const siblings = Array.from(parent.children).filter(c => c.tagName === ancestor.tagName);
+          if (siblings.length >= 2) {
+            const targetFp = makeStructuralFingerprint(ancestor);
+            if (targetFp) {
+              const similar = siblings.filter(sib => {
+                const sibFp = makeStructuralFingerprint(sib);
+                if (!sibFp) return false;
+                return fingerprintSimilarity(targetFp, sibFp) >= 0.55;
+              });
+              if (similar.length >= 2) {
+                foundContainer = parent;
+                foundItems = similar;
+              }
+            }
+          }
+        }
+        if (foundContainer && foundItems.length >= 2) {
+          const listItem = ancestor;
+          const ancTag = listItem.tagName.toLowerCase();
+          const containerSel = buildListContainerSelector(foundContainer);
+          const itemSel = buildListItemSelector(listItem);
+
+          // CSS A/B/C/D
+          if (containerSel && itemSel) {
+            const directSel = `${containerSel} > ${itemSel}`;
+            const directCount = verifyLocator(directSel, 'css');
+            if (directCount >= 2 && directCount <= 200) {
+              candidates.push({
+                syntax: 'css:' + directSel,
+                label: `${directSel} (列表, ${directCount}个) ↑${ancTag}`,
+                family: 'css', score: 90 - penalty, matchCount: directCount, isList: true,
+                listContainer: containerSel, listItem: itemSel,
+              });
+            }
+          }
+          if (containerSel && itemSel) {
+            const anyDepthSel = `${containerSel} ${itemSel}`;
+            const anyDepthCount = verifyLocator(anyDepthSel, 'css');
+            if (anyDepthCount >= 2 && anyDepthCount <= 200) {
+              candidates.push({
+                syntax: 'css:' + anyDepthSel,
+                label: `${anyDepthSel} (列表, ${anyDepthCount}个) ↑${ancTag}`,
+                family: 'css', score: 84 - penalty, matchCount: anyDepthCount, isList: true,
+                listContainer: containerSel, listItem: itemSel,
+              });
+            }
+          }
+          if (itemSel) {
+            const itemCount = verifyLocator(itemSel, 'css');
+            if (itemCount >= 2 && itemCount <= 200) {
+              candidates.push({
+                syntax: 'css:' + itemSel,
+                label: `${itemSel} (列表, ${itemCount}个) ↑${ancTag}`,
+                family: 'css', score: itemCount === foundItems.length ? 82 - penalty : 57 - penalty,
+                matchCount: itemCount, isList: true,
+                listItem: itemSel,
+              });
+            }
+          }
+          if (containerSel) {
+            const containerCount = verifyLocator(containerSel, 'css');
+            if (containerCount >= 1) {
+              candidates.push({
+                syntax: 'css:' + containerSel,
+                label: `${containerSel} (列表容器) ↑${ancTag}`,
+                family: 'css', score: 47 - penalty, matchCount: containerCount, isList: true,
+                listContainer: containerSel,
+              });
+            }
+          }
+
+          // XPath A/B/C/D
+          const containerXp = buildXPathForElement(foundContainer);
+          const itemXp = buildXPathForElement(listItem);
+          if (containerXp && itemXp) {
+            const directXp = `${containerXp}/${stripXPathLeadingAxes(itemXp)}`;
+            const directCount = verifyLocator(directXp, 'xpath');
+            if (directCount >= 2 && directCount <= 200) {
+              candidates.push({
+                syntax: 'xpath:' + directXp,
+                label: `${directXp} (列表, ${directCount}个) ↑${ancTag}`,
+                family: 'xpath', score: 88 - penalty, matchCount: directCount, isList: true,
+                listContainer: containerXp, listItem: itemXp,
+              });
+            }
+          }
+          if (containerXp && itemXp) {
+            const anyDepthXp = `${containerXp}//${stripXPathLeadingAxes(itemXp)}`;
+            const anyDepthCount = verifyLocator(anyDepthXp, 'xpath');
+            if (anyDepthCount >= 2 && anyDepthCount <= 200) {
+              candidates.push({
+                syntax: 'xpath:' + anyDepthXp,
+                label: `${anyDepthXp} (列表, ${anyDepthCount}个) ↑${ancTag}`,
+                family: 'xpath', score: 82 - penalty, matchCount: anyDepthCount, isList: true,
+                listContainer: containerXp, listItem: itemXp,
+              });
+            }
+          }
+          if (itemXp) {
+            const itemCount = verifyLocator(itemXp, 'xpath');
+            if (itemCount >= 2 && itemCount <= 200) {
+              candidates.push({
+                syntax: 'xpath:' + itemXp,
+                label: `${itemXp} (列表, ${itemCount}个) ↑${ancTag}`,
+                family: 'xpath', score: itemCount === foundItems.length ? 80 - penalty : 55 - penalty,
+                matchCount: itemCount, isList: true,
+                listItem: itemXp,
+              });
+            }
+          }
+          if (containerXp) {
+            const containerCount = verifyLocator(containerXp, 'xpath');
+            if (containerCount >= 1) {
+              candidates.push({
+                syntax: 'xpath:' + containerXp,
+                label: `${containerXp} (列表容器) ↑${ancTag}`,
+                family: 'xpath', score: 45 - penalty, matchCount: containerCount, isList: true,
+                listContainer: containerXp,
+              });
+            }
+          }
+        }
+
+        // 跨容器列表检测：祖先本身有稳定特征且在整页重复出现
+        const itemSel = buildListItemSelector(ancestor);
+        if (itemSel && itemSel !== ancestor.tagName.toLowerCase()) {
+          const count = verifyLocator(itemSel, 'css');
+          if (count >= 2 && count <= 200) {
+            const ancTag = ancestor.tagName.toLowerCase();
+            candidates.push({
+              syntax: 'css:' + itemSel,
+              label: `${itemSel} (列表, ${count}个) ↑${ancTag}`,
+              family: 'css', score: 58 - penalty, matchCount: count, isList: true,
+              listItem: itemSel,
+            });
+            const itemXp = buildXPathForElement(ancestor);
+            if (itemXp) {
+              const xpCount = verifyLocator(itemXp, 'xpath');
+              if (xpCount >= 2 && xpCount <= 200) {
+                candidates.push({
+                  syntax: 'xpath:' + itemXp,
+                  label: `${itemXp} (列表, ${xpCount}个) ↑${ancTag}`,
+                  family: 'xpath', score: 56 - penalty, matchCount: xpCount, isList: true,
+                  listItem: itemXp,
+                });
+              }
+            }
+          }
+        }
+
+        ancestor = ancestor.parentElement;
+        ancDepth++;
       }
     }
 
@@ -1556,7 +1825,8 @@
     highlightCtx = highlightCanvas.getContext('2d');
     resizeHighlightCanvas();
     window.addEventListener('resize', resizeHighlightCanvas);
-    window.addEventListener('scroll', () => { if (captureMode) { resizeHighlightCanvas(); redrawHighlight(); } }, true);
+    window.addEventListener('scroll', () => { if (captureMode) { resizeHighlightCanvas(); redrawHighlight(); } updateEditorHighlights(); }, true);
+    window.addEventListener('resize', updateEditorHighlights);
   }
 
   function resizeHighlightCanvas() {
@@ -1753,9 +2023,32 @@
   // ─── Element highlighting (used by Side Panel verify) ────────────
 
   let editorHighlightTimer = null;
+  let editorHighlights = [];
 
   function removeEditorHighlights() {
     document.querySelectorAll('.rpa-editor-highlight').forEach((el) => el.remove());
+    editorHighlights = [];
+    if (editorHighlightTimer) {
+      clearTimeout(editorHighlightTimer);
+      editorHighlightTimer = null;
+    }
+  }
+
+  function updateEditorHighlights() {
+    const active = [];
+    for (const h of editorHighlights) {
+      if (!h.node.isConnected || !h.el.isConnected) {
+        if (h.el.isConnected) h.el.remove();
+        continue;
+      }
+      const rect = h.node.getBoundingClientRect();
+      h.el.style.left = rect.left + 'px';
+      h.el.style.top = rect.top + 'px';
+      h.el.style.width = rect.width + 'px';
+      h.el.style.height = rect.height + 'px';
+      active.push(h);
+    }
+    editorHighlights = active;
   }
 
   function resolveAllForVerify(selector, type) {
@@ -1870,6 +2163,7 @@
         box-sizing: border-box;
       `;
       document.body.appendChild(hl);
+      editorHighlights.push({ node, el: hl });
     });
 
     if (editorHighlightTimer) clearTimeout(editorHighlightTimer);

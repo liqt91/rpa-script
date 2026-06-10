@@ -65,17 +65,24 @@ def _load_ai_apps_from_db(db):
 
 def _sync_commands_to_db(db):
     """启动时：将 commands.py 中的内置指令同步到数据库。
-    新指令默认停用（enabled=0），已存在的指令不覆盖启停状态。"""
+    新指令默认停用（enabled=0），已存在的指令不覆盖启停状态。
+    自动根据 registry 的插入顺序计算 category_order / command_order。"""
     from .workflow import commands
     import json
 
     existing = {row.type: row for row in db.query(models.WorkflowCommand).all()}
+    cat_order_map = {}
+    cat_counter = {}
     for type_name, cmd in commands.COMMAND_REGISTRY.items():
+        cat = cmd.get("category", "其他")
+        if cat not in cat_order_map:
+            cat_order_map[cat] = len(cat_order_map) + 1
+        cat_counter[cat] = cat_counter.get(cat, 0) + 1
         ext = cmd.get("runtimes", {}).get("extension")
         if type_name in existing:
             row = existing[type_name]
             row.label = cmd.get("label", type_name)
-            row.category = cmd.get("category", "其他")
+            row.category = cat
             row.icon = cmd.get("icon", "fa-circle")
             row.icon_color = cmd.get("iconColor", "text-gray-500")
             row.bg_color = cmd.get("bgColor", "bg-gray-50")
@@ -85,6 +92,8 @@ def _sync_commands_to_db(db):
             row.fields = json.dumps(cmd.get("fields", []))
             row.description = cmd.get("description", "")
             row.is_builtin = 1
+            row.category_order = cmd.get("categoryOrder", cat_order_map[cat])
+            row.command_order = cmd.get("commandOrder", cat_counter[cat])
             # Sync runtime metadata from registry (allow DB to override later)
             if ext:
                 row.handler = ext.get("handler")
@@ -94,7 +103,7 @@ def _sync_commands_to_db(db):
             db.add(models.WorkflowCommand(
                 type=type_name,
                 label=cmd.get("label", type_name),
-                category=cmd.get("category", "其他"),
+                category=cat,
                 icon=cmd.get("icon", "fa-circle"),
                 icon_color=cmd.get("iconColor", "text-gray-500"),
                 bg_color=cmd.get("bgColor", "bg-gray-50"),
@@ -104,9 +113,11 @@ def _sync_commands_to_db(db):
                 fields=json.dumps(cmd.get("fields", [])),
                 description=cmd.get("description", ""),
                 is_builtin=1,
-                enabled=0,  # new commands default disabled
+                enabled=1 if cmd.get("enabled", False) else 0,
                 handler=ext.get("handler") if ext else None,
                 local=1 if ext and ext.get("local") else 0,
+                category_order=cmd.get("categoryOrder", cat_order_map[cat]),
+                command_order=cmd.get("commandOrder", cat_counter[cat]),
             ))
     db.commit()
 

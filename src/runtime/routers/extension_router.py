@@ -91,9 +91,25 @@ async def get_status():
             "browser": conn.browser,
             "connected_at": conn.connected_at,
             "tab_info": conn.tab_info,
+            "extension_id": conn.extension_id,
+            "install_type": conn.install_type,
         })
 
     installed = await asyncio.to_thread(scan_installed_extensions)
+
+    # 补充：已连接但文件扫描未发现的扩展（如未打包扩展、自定义用户数据目录）
+    scanned_ids = {i.get("extension_id", "") for i in installed}
+    for cid, conn in ext_manager._connections.items():
+        if conn.extension_id and conn.extension_id not in scanned_ids:
+            installed.append({
+                "browser": conn.browser,
+                "profile": "",
+                "extension_id": conn.extension_id,
+                "version": "",
+                "manifest_version": None,
+                "source": f"websocket_{conn.install_type or 'unknown'}",
+                "path": "",
+            })
 
     return {
         "online": ext_manager.is_any_online,

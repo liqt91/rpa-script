@@ -40,9 +40,8 @@ def list_commands(
     if category:
         q = q.filter(models.WorkflowCommand.category == category)
     rows = q.order_by(
-        models.WorkflowCommand.enabled.desc(),
-        models.WorkflowCommand.category,
-        models.WorkflowCommand.id,
+        models.WorkflowCommand.category_order,
+        models.WorkflowCommand.command_order,
     ).all()
     result = []
     for r in rows:
@@ -63,6 +62,8 @@ def list_commands(
             "description": r.description or "",
             "isBuiltin": bool(r.is_builtin),
             "enabled": bool(r.enabled),
+            "categoryOrder": r.category_order,
+            "commandOrder": r.command_order,
             "reviewedAt": r.reviewed_at.isoformat() if r.reviewed_at else None,
             "createdAt": r.created_at.isoformat() if r.created_at else None,
             "updatedAt": r.updated_at.isoformat() if r.updated_at else None,
@@ -117,6 +118,8 @@ def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=
         local=1 if payload.get("local") else 0,
         is_builtin=0,
         enabled=1 if payload.get("enabled", True) else 0,
+        category_order=int(payload.get("categoryOrder", 0)),
+        command_order=int(payload.get("commandOrder", 0)),
     )
     db.add(cmd)
     db.commit()
@@ -140,6 +143,7 @@ def update_command(
         allowed = {
             "label", "category", "icon", "iconColor", "bgColor",
             "fields", "enabled", "reviewedAt", "handler", "local", "description",
+            "categoryOrder", "commandOrder",
         }
         payload = {k: v for k, v in payload.items() if k in allowed}
 
@@ -170,6 +174,10 @@ def update_command(
         cmd.enabled = 1 if payload["enabled"] else 0
     if "reviewedAt" in payload:
         cmd.reviewed_at = parse_iso_datetime(payload["reviewedAt"])
+    if "categoryOrder" in payload:
+        cmd.category_order = int(payload["categoryOrder"])
+    if "commandOrder" in payload:
+        cmd.command_order = int(payload["commandOrder"])
 
     db.commit()
     db.refresh(cmd)
@@ -312,8 +320,8 @@ def list_handlers(user=Depends(auth.get_current_user)):
 @router.get("/export/csv")
 def export_csv(db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
     rows = db.query(models.WorkflowCommand).order_by(
-        models.WorkflowCommand.category,
-        models.WorkflowCommand.id,
+        models.WorkflowCommand.category_order,
+        models.WorkflowCommand.command_order,
     ).all()
 
     buf = io.StringIO()
@@ -321,6 +329,7 @@ def export_csv(db: Session = Depends(get_db), user=Depends(auth.get_current_user
     writer.writerow([
         "分类", "指令类型", "显示名称", "是否容器", "是否分支", "是否结构标记",
         "参数定义(JSON)", "是否内置", "状态", "图标", "图标颜色", "背景颜色",
+        "分类排序", "指令排序",
     ])
     for r in rows:
         writer.writerow([
@@ -336,6 +345,8 @@ def export_csv(db: Session = Depends(get_db), user=Depends(auth.get_current_user
             r.icon,
             r.icon_color,
             r.bg_color,
+            r.category_order,
+            r.command_order,
         ])
 
     buf.seek(0)

@@ -174,7 +174,6 @@ class WorkflowCreate(BaseModel):
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
-    target_browser: str = ""
 
 
 class WorkflowUpdate(BaseModel):
@@ -182,7 +181,6 @@ class WorkflowUpdate(BaseModel):
     description: Optional[str] = None
     url: Optional[str] = None
     framework: Optional[str] = None
-    target_browser: Optional[str] = None
 
 
 class WorkflowOut(BaseModel):
@@ -194,7 +192,6 @@ class WorkflowOut(BaseModel):
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
-    target_browser: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     nodes: list[WorkflowNodeOut] = Field(default_factory=list)
@@ -209,7 +206,6 @@ class WorkflowListOut(BaseModel):
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
-    target_browser: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

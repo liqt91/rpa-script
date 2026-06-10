@@ -27,7 +27,6 @@ from .commands import COMMAND_REGISTRY
 from src.providers import run_progress
 from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
-from src.repo.browser_utils import launch_browser
 
 logger = logging.getLogger(__name__)
 
@@ -51,27 +50,14 @@ def _get_output_var(extra: dict) -> str:
     return _clean_var_ref(raw)
 
 
-# Per-browser-type lock to prevent concurrent launches of the same browser
-_launch_locks: dict[str, asyncio.Lock] = {}
-
-
-def _get_launch_lock(browser_type: str) -> asyncio.Lock:
-    if browser_type not in _launch_locks:
-        _launch_locks[browser_type] = asyncio.Lock()
-    return _launch_locks[browser_type]
-
-
 async def wait_for_extension(
     browser_type: str,
     ext_manager,
-    timeout: float = 60.0,
+    timeout: float = 10.0,
 ) -> str:
     """等待指定浏览器的扩展 WebSocket 连接上线。
 
-    采用指数退避轮询:
-      - 已在线: 立即返回 client_id
-      - 不在线: 先尝试启动浏览器，然后轮询等待扩展连接
-
+    只轮询等待，不自动启动浏览器。
     返回 client_id，超时抛出 TimeoutError。
     """
     if ext_manager is None:
@@ -84,48 +70,30 @@ async def wait_for_extension(
         logger.info(f"[{browser_type}] 扩展已在线: {conns[0].client_id}")
         return conns[0].client_id
 
-    # 1.5 扩展可能刚连接但还没 register，先等 2 秒避免误启动
+    # 2. 扩展可能刚连接但还没 register，先短暂等待
     if ext_manager.is_any_online:
-        logger.info(f"[{browser_type}] 有扩展在线但尚未注册浏览器类型，等待 2 秒...")
         await asyncio.sleep(2)
         conns = ext_manager.connections_by_browser(browser_type)
         if conns:
             logger.info(f"[{browser_type}] 扩展注册后已在线: {conns[0].client_id}")
             return conns[0].client_id
 
-    # 2. 尝试启动浏览器（加锁防止并发重复启动）
-    lock = _get_launch_lock(browser_type)
-    async with lock:
-        # 抢锁后再次检查，可能别的请求已经启动并连上了
+    # 3. 指数退避轮询等待扩展连接（不启动浏览器）
+    start = time.time()
+    delay = 0.5
+    logger.info(f"[{browser_type}] 扩展未连接，等待中（不会自动启动浏览器）...")
+
+    while time.time() - start < timeout:
         conns = ext_manager.connections_by_browser(browser_type)
         if conns:
-            logger.info(f"[{browser_type}] 扩展已在线(抢锁后): {conns[0].client_id}")
             return conns[0].client_id
 
-        logger.info(f"[{browser_type}] 扩展未连接，尝试启动浏览器...")
-        launched = launch_browser(browser_type)
-        if not launched:
-            raise RuntimeError(f"无法启动 {browser_type}，请确认已安装")
+        await asyncio.sleep(delay)
+        delay = min(delay * 1.5, 5.0)
 
-        # 3. 指数退避轮询等待扩展连接
-        start = time.time()
-        delay = 0.5
-        waited_launch = False
-
-        while time.time() - start < timeout:
-            conns = ext_manager.connections_by_browser(browser_type)
-            if conns:
-                return conns[0].client_id
-
-            await asyncio.sleep(delay)
-            delay = min(delay * 1.5, 5.0)
-
-            # 启动后前 3 秒多打日志，方便诊断
-            if not waited_launch and time.time() - start > 3:
-                waited_launch = True
-                logger.info(f"等待 {browser_type} 扩展连接中...")
-
-    raise TimeoutError(f"{browser_type} 扩展未在 {timeout}s 内连接，请确认扩展已安装并启用")
+    raise TimeoutError(
+        f"{browser_type} 扩展未在 {timeout}s 内连接，请手动启动浏览器并确认扩展已安装启用"
+    )
 
 
 class LoopBreak(Exception):
@@ -155,8 +123,13 @@ class _TableAccessor:
 
     def _col_name(self, col):
         columns = self._data.get("columns", [])
-        if isinstance(col, int) and 0 <= col < len(columns):
-            return columns[col]["name"]
+        if isinstance(col, int):
+            if 0 <= col < len(columns):
+                return columns[col]["name"]
+            # Fallback to A, B, C... when columns not yet defined
+            if col < 26:
+                return chr(65 + col)
+            return str(col)
         return col
 
     def get(self, row: int, col):
@@ -204,14 +177,14 @@ _last_run_tables: dict[int, dict] = {}
 
 
 class ExtensionRunner:
-    def __init__(self, client_id: str, run_id: str | None = None, log_dir: str | None = None):
+    def __init__(self, client_id: str, run_id: str | None = None, log_dir: str | None = None, queue: asyncio.Queue | None = None):
         self.client_id = client_id
         self.run_id = run_id or f"run_{id(self)}"
         self.vars: dict[str, Any] = {}
         self.results: list[dict] = []
         self.completed = 0
         self.failed_steps: list[dict] = []
-        self.queue = asyncio.Queue()
+        self.queue = queue or asyncio.Queue()
         self._step_seq = 0
         self._paused = asyncio.Event()
         self._paused.set()  # default: not paused
@@ -222,6 +195,7 @@ class ExtensionRunner:
         self._table_dirty: bool = False
         self.log_dir = log_dir or ""
         self._log_file = None
+        self._run_started_sent = False
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
             self._log_file = open(os.path.join(self.log_dir, "run.log"), "w", encoding="utf-8")
@@ -262,6 +236,24 @@ class ExtensionRunner:
         if future.cancelled():
             raise asyncio.CancelledError("Step future was cancelled")
         return future.result()
+
+    async def _ensure_connected(self) -> None:
+        """Delay WebSocket binding until the first extension instruction.
+        Infers browser type from the current step (openBrowser extra.browserType),
+        defaulting to chrome. Sends runStarted on first connection.
+        """
+        if self.client_id:
+            return
+        browser_type = "chrome"
+        if self._current_step:
+            extra = self._current_step.get("extra") or {}
+            bt = extra.get("browserType")
+            if bt:
+                browser_type = bt
+        self.client_id = await wait_for_extension(browser_type, ext_manager, timeout=10.0)
+        if not self._run_started_sent:
+            self._run_started_sent = True
+            await ext_manager.send_to(self.client_id, "runStarted", {"runId": self.run_id})
 
     async def _emit(self, event: dict) -> None:
         try:
@@ -315,8 +307,6 @@ class ExtensionRunner:
         )
 
         _active_runners[self.run_id] = self
-        # Notify extension that a new run has started — reset workTab so navigate opens a fresh tab
-        await ext_manager.send_to(self.client_id, "runStarted", {"runId": self.run_id})
         try:
             for instr in instructions:
                 self._current_step = instr
@@ -390,6 +380,7 @@ class ExtensionRunner:
 
     async def _call_extension_handler(self, handler: str, payload: dict, timeout: float = DEFAULT_STEP_TIMEOUT) -> Any:
         """Call a specific extension handler and return the result."""
+        await self._ensure_connected()
         conn = ext_manager.get_connection(self.client_id)
         if not conn:
             raise RuntimeError(f"Extension {self.client_id} is not connected")
@@ -1452,6 +1443,11 @@ class ExtensionRunner:
                 }
             elif not isinstance(row_data, dict):
                 row_data = {}
+            # Auto-create column definitions when writing a row to an empty table
+            columns = self._table_data.setdefault("columns", [])
+            if not columns and isinstance(row_data, dict):
+                for key in row_data.keys():
+                    columns.append({"name": key, "type": "text"})
             rows = self._table_data.setdefault("rows", [])
             if write_mode == "append":
                 rows.append(row_data)
@@ -1684,6 +1680,25 @@ class ExtensionRunner:
                     self.vars[save_to_var] = value
                     logger.info(f"[ExtensionRunner] saved result to var {save_to_var}: {value!r}")
 
+                # Update window variable tabId when navigation creates/switches tabs
+                window_var = (resolved_instr.get("extra") or {}).get("windowVar")
+                if window_var and isinstance(result, dict) and result.get("tabId") is not None:
+                    window_val = self.vars.get(window_var)
+                    tab_id = result["tabId"]
+                    window_id = result.get("windowId")
+                    if isinstance(window_val, dict):
+                        window_val["tabId"] = tab_id
+                        if window_id is not None:
+                            window_val["windowId"] = window_id
+                        logger.info(f"[ExtensionRunner] updated {window_var} tabId={tab_id}")
+                    elif window_val is not None:
+                        try:
+                            wid = int(window_val)
+                        except (ValueError, TypeError):
+                            wid = window_val
+                        self.vars[window_var] = {"windowId": window_id if window_id is not None else wid, "tabId": tab_id}
+                        logger.info(f"[ExtensionRunner] upgraded {window_var} to dict with tabId={tab_id}")
+
                 return True
             except Exception as e:
                 last_error = str(e)
@@ -1713,14 +1728,33 @@ class ExtensionRunner:
 
     async def _send_and_wait(self, step_id: str, instr: dict, timeout: float) -> Any:
         """Send executeStep to extension and wait for result."""
+        await self._ensure_connected()
         conn = ext_manager.get_connection(self.client_id)
         if not conn:
             raise RuntimeError(f"Extension {self.client_id} is not connected")
 
+        # Resolve explicit window variable -> windowId/tabId for extension routing
+        extra = dict(instr.get("extra") or {})
+        window_var = extra.get("windowVar")
+        if window_var:
+            window_val = self.vars.get(window_var)
+            if window_val is None:
+                raise RuntimeError(f"窗口变量 '{window_var}' 未定义，请先执行打开浏览器指令")
+            if isinstance(window_val, dict):
+                if window_val.get("windowId") is not None:
+                    extra["windowId"] = window_val.get("windowId")
+                if window_val.get("tabId") is not None:
+                    extra["tabId"] = window_val.get("tabId")
+            else:
+                try:
+                    extra["windowId"] = int(window_val)
+                except (ValueError, TypeError):
+                    extra["windowId"] = window_val
+            instr = {**instr, "extra": extra}
+
         # Inject loop context into extra so content.js resolves locators relative to current element
         ctx = self.vars.get("__loop_ctx")
         if ctx:
-            extra = dict(instr.get("extra") or {})
             if extra.get("scope", "local") != "global":
                 extra["contextLocator"] = ctx["locator"]
                 extra["contextLocatorType"] = ctx["selectorFamily"]
@@ -1755,12 +1789,11 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
                                   client_id: str | None = None,
                                   run_id: str | None = None,
                                   initial_table_data: dict | None = None,
-                                  target_browser: str | None = None,
                                   trigger_type: str = "manual") -> dict:
     """
     Convenience entry point.
-    If client_id is None, picks the first online extension.
-    If target_browser is set, ensures that browser is connected (launch if needed).
+    If client_id is None, connection is deferred until the first extension
+    instruction is encountered (on-demand connection).
     initial_table_data: {"columns": [...], "rows": [...]} passed from frontend.
     trigger_type: manual / scheduled
     """
@@ -1774,24 +1807,11 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     log_dir = os.path.join(log_root, "data", "run_logs", str(wf.id), _run_id)
     os.makedirs(log_dir, exist_ok=True)
 
-    target = client_id
+    # 提前注册进度队列，让 SSE 在 runner 启动前就能连上（wait_for_extension 可能耗时数秒）
+    pre_queue = asyncio.Queue()
+    run_progress.register(_run_id, pre_queue)
 
-    if target_browser:
-        # 按指定浏览器类型查找/启动
-        try:
-            target = await wait_for_extension(target_browser, ext_manager, timeout=60.0)
-        except Exception as e:
-            return {"success": False, "error": str(e), "runId": _run_id, "logDir": log_dir}
-    else:
-        if not ext_manager.is_any_online:
-            return {"success": False, "error": "没有在线的浏览器扩展，请先安装并启用扩展", "runId": _run_id, "logDir": log_dir}
-        if not target:
-            conns = list(ext_manager.list_client_ids())
-            if not conns:
-                return {"success": False, "error": "没有可用的浏览器扩展连接", "runId": _run_id, "logDir": log_dir}
-            target = conns[0]
-
-    runner = ExtensionRunner(target, run_id=_run_id, log_dir=log_dir)
+    runner = ExtensionRunner(client_id or "", run_id=_run_id, log_dir=log_dir, queue=pre_queue)
 
     # Initialize table data from frontend payload (runtime variable, no DB)
     if initial_table_data:
@@ -1805,16 +1825,30 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
         )
 
     result: dict = {}
+    stopped = False
     try:
         result = await runner.run(wf, nodes)
+    except asyncio.CancelledError:
+        stopped = True
+        result = {
+            "runId": runner.run_id,
+            "success": False,
+            "stopped": True,
+            "completedSteps": runner.completed,
+            "totalSteps": 0,
+            "failedSteps": runner.failed_steps,
+            "results": runner.results,
+            "error": "Run stopped by user",
+        }
     finally:
         # Cache for "last run result" panel (runtime-only, no DB flush)
         _last_run_tables[wf.id] = {
             "columns": runner._table_data.get("columns", []),
             "rows": runner._table_data.get("rows", []),
             "runId": runner.run_id,
-            "success": result.get("success", False) if result else False,
+            "success": False if stopped else (result.get("success", False) if result else False),
         }
+        run_progress.unregister(_run_id)
 
     result["tableRows"] = runner._table_data.get("rows", [])
     result["tableColumns"] = runner._table_data.get("columns", [])

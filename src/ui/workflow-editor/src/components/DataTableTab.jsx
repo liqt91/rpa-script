@@ -6,8 +6,9 @@ const EditableCell = memo(function EditableCell({ value, onChange }) {
   const isEditingRef = useRef(false);
 
   useEffect(() => {
-    if (!isEditingRef.current && ref.current && ref.current.innerText !== String(value || '')) {
-      ref.current.innerText = value || '';
+    const text = value ?? '';
+    if (!isEditingRef.current && ref.current && ref.current.innerText !== String(text)) {
+      ref.current.innerText = text;
     }
   }, [value]);
 
@@ -21,7 +22,7 @@ const EditableCell = memo(function EditableCell({ value, onChange }) {
       onBlur={(e) => {
         isEditingRef.current = false;
         const val = e.target.innerText;
-        if (val !== String(value || '')) {
+        if (val !== String(value ?? '')) {
           onChange(val);
         }
       }}
@@ -32,7 +33,7 @@ const EditableCell = memo(function EditableCell({ value, onChange }) {
         }
       }}
     >
-      {value || ''}
+      {value ?? ''}
     </div>
   );
 });
@@ -72,7 +73,7 @@ function parseCSV(text) {
     const values = lines[i].split(',').map(v => v.trim());
     const row = {};
     headers.forEach((h, idx) => {
-      row[h] = values[idx] || '';
+      row[h] = values[idx] ?? '';
     });
     rows.push(row);
   }
@@ -83,7 +84,7 @@ function toCSV(table) {
   const headers = (table.columns || []).map(c => c.name);
   const lines = [headers.join(',')];
   for (const row of (table.rows || [])) {
-    lines.push(headers.map(h => row[h] || '').join(','));
+    lines.push(headers.map(h => row[h] ?? '').join(','));
   }
   return lines.join('\n');
 }
@@ -340,11 +341,11 @@ export default function DataTableTab({ wfId }) {
                 <td key={ci} className="border min-w-[80px]">
                   {editable ? (
                     <EditableCell
-                      value={row[col.name] || ''}
+                      value={row[col.name] ?? ''}
                       onChange={(val) => updateCell(ri, col.name, val)}
                     />
                   ) : (
-                    <div className="px-2 py-1 min-h-[28px]">{row[col.name] || ''}</div>
+                    <div className="px-2 py-1 min-h-[28px]">{row[col.name] ?? ''}</div>
                   )}
                 </td>
               ))}

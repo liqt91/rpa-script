@@ -343,12 +343,9 @@ export default function NodeList() {
                   {/* 容器节点下方的子节点插槽 */}
                   {typeInfo.isContainer && !hasChildren && (
                     <div
-                      className={`border border-dashed rounded py-2.5 px-3 text-xs flex items-center gap-2 transition-colors ${dragOver ? 'border-[#1677ff] bg-blue-50/60 text-[#1677ff]' : 'border-gray-300 bg-gray-50/50 text-gray-400'}`}
+                      className="h-0.5 bg-red-500 rounded-sm my-1"
                       style={{ marginLeft: `${(node.depth || 0) * 20 + 24}px` }}
-                    >
-                      <i className="fas fa-plus text-[10px]"></i>
-                      拖入指令到此处
-                    </div>
+                    />
                   )}
                   {dragOver && insertIndex === idx + 1 && <InsertPlaceholder />}
                 </div>

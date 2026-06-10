@@ -80,6 +80,7 @@ class AIAppConfig(Base):
 
 class Workflow(Base):
     __tablename__ = "workflows"
+    __table_args__ = {"sqlite_autoincrement": True}
     id = Column(Integer, primary_key=True, autoincrement=True)
     uuid = Column(String(32), unique=True, nullable=False, default=lambda: _uuid.uuid4().hex)
     name = Column(String(128), nullable=False)
@@ -170,6 +171,8 @@ class WorkflowCommand(Base):
     local = Column(Integer, default=0)             # 1 = local execution (backend), 0 = send to extension
     is_builtin = Column(Integer, default=0)
     enabled = Column(Integer, default=1)
+    category_order = Column(Integer, default=0)
+    command_order = Column(Integer, default=0)
     reviewed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)

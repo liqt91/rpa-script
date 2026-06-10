@@ -224,12 +224,13 @@ const WorkflowContext = createContext(null);
 function getNodeTypes(commands) {
   if (!commands || !commands.commands) return [];
   const result = [];
-  for (const cat of Object.values(commands.commands)) {
+  for (const categoryName of commands.categories || []) {
+    const cat = commands.commands[categoryName] || [];
     for (const cmd of cat) {
-      result.push(cmd);
+      result.push({ ...cmd, category: categoryName });
     }
   }
-  return result.sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'));
+  return result;
 }
 
 function getCategories(commands) {

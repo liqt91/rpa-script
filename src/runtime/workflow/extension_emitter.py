@@ -39,10 +39,26 @@ def _build_by_parent(nodes: list[models.WorkflowNode]) -> dict:
 def _parse_extra(node: models.WorkflowNode) -> dict:
     if node.extra and isinstance(node.extra, str):
         try:
-            return json.loads(node.extra)
+            extra = json.loads(node.extra)
         except Exception:
-            return {}
-    return node.extra or {}
+            extra = {}
+    else:
+        extra = node.extra or {}
+    return _apply_defaults(node.type, extra)
+
+
+def _apply_defaults(cmd_type: str, extra: dict) -> dict:
+    """Fill missing extra fields with schema defaults so old workflows pick up new fields."""
+    cmd = COMMAND_REGISTRY.get(cmd_type)
+    if not cmd:
+        return extra
+    defaults = {}
+    for field in cmd.get("fields", []):
+        name = field.get("name")
+        default = field.get("default")
+        if name is not None and default is not None and name not in extra:
+            defaults[name] = default
+    return {**defaults, **extra} if defaults else extra
 
 
 def _node_meta(node: models.WorkflowNode) -> tuple[bool, bool, bool]:

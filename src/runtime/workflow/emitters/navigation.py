@@ -1,6 +1,14 @@
 from ._registry import _handler, _loc_str, _var_ref, _py_str
 
 
+@_handler("openBrowser")
+def _emit_openBrowser(node, extra, depth, prefix, by_parent, lines, element_map=None):
+    browser = extra.get("browserType", "chrome")
+    url = extra.get("url")
+    state = extra.get("windowState", "normal")
+    lines.append(f"{prefix}tab = page.new_tab({{'browser': {browser!r}, 'url': {_py_str(url or 'about:blank')}, 'state': {state!r}}})  # openBrowser")
+
+
 @_handler("navigate")
 def _emit_navigate(node, extra, depth, prefix, by_parent, lines, element_map=None):
     url = extra.get("url")
@@ -42,6 +50,15 @@ def _emit_newTab(node, extra, depth, prefix, by_parent, lines, element_map=None)
 @_handler("closeTab")
 def _emit_closeTab(node, extra, depth, prefix, by_parent, lines, element_map=None):
     lines.append(f"{prefix}tab.close_tabs(tab)")
+
+
+@_handler("closeBrowser")
+def _emit_closeBrowser(node, extra, depth, prefix, by_parent, lines, element_map=None):
+    window_id = extra.get("windowId")
+    if window_id:
+        lines.append(f"{prefix}tab.browser.close_window({window_id})")
+    else:
+        lines.append(f"{prefix}tab.browser.close_window()")
 
 
 @_handler("switchTab")

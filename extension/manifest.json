@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "RPA Script Browser Agent",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3i/u0rSs7//ArV8TXYIRaGgi4Ig6ousUxkied8DURHgKXXzfZcbyhHe0kDqHs9DCuyC4cJxe+6Wi2Z4lwqoUcQBPni8zHwtWTu6ou2Rcmlz2jn06IqYf6kM7bl91r2rW3Dcbtb5p8/PP01I7Z59XzSWkioYRQ7BLVslTRons9J3MEcUAy+ctFoRKEWnLy1DYJtHZa+fz37PWWztgp9qNAaGcd3Cjl5ZY34qMJ7mx9ZKE4k9oxya1Z8LcdWk7rowdyv7g8mGG9MXknS4oRJY5jOXU3//wB/JB31hTuQdL5BWd8VdaUrM22hi1/GwwwK3FNBzy69G9uvGzitRuQuyaEwIDAQAB",
   "description": "Browser automation agent for RPA Script — connects to local backend via WebSocket",
   "permissions": [
     "tabs",

@@ -106,7 +106,12 @@ def create_workflow(payload: schemas.WorkflowCreate, db: Session = Depends(get_d
 @router.get("/commands")
 def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
     """Return enabled commands for the workflow editor."""
-    rows = db.query(models.WorkflowCommand).filter(models.WorkflowCommand.enabled == 1).all()
+    rows = db.query(models.WorkflowCommand).filter(
+        models.WorkflowCommand.enabled == 1
+    ).order_by(
+        models.WorkflowCommand.category_order,
+        models.WorkflowCommand.command_order,
+    ).all()
 
     categories = []
     commands_by_cat = {}
@@ -809,7 +814,6 @@ async def run_workflow_extension_endpoint(
     user=Depends(auth.get_current_user)
 ):
     """Run workflow via browser extension (WebSocket).
-    Requires an active extension connection.
     Supply run_id (e.g. a UUID) so the matching SSE stream can receive progress.
     Optional body: {"initialTableData": {"columns": [...], "rows": [...]}}
     """
@@ -827,12 +831,10 @@ async def run_workflow_extension_endpoint(
     initial_table_data = payload.get("initialTableData")
     import datetime as _dt
     started_at = _dt.datetime.now()
-    # 默认使用 chrome 并自动启动（若未运行）
     result = await run_workflow_extension(
         wf, nodes,
         run_id=run_id or None,
         initial_table_data=initial_table_data,
-        target_browser=wf.target_browser or "chrome",
     )
     completed_at = _dt.datetime.now()
 

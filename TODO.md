@@ -34,6 +34,12 @@
 
 ## 中优先级
 
+- [ ] **撤销 / 重做快捷键（Ctrl+Z / Ctrl+Y）**
+  - 在 `WorkflowContext` reducer 中维护 `history` / `future` 状态栈（快照方案，上限 50 步）
+  - 监听 `keydown`：Ctrl+Z 撤销、Ctrl+Y / Ctrl+Shift+Z 重做
+  - 入栈时机：ADD_NODE_LOCAL、UPDATE_NODE_LOCAL、REMOVE_NODE(S)、REPLACE_NODES
+  - 加载服务器数据（SET_NODES from API）不入栈
+
 - [ ] **支持元素内部滚动**
   - 当前所有滚动（scrollToBottom/Top/By/OneScreen）均为整页滚动（`window.scrollBy`）
   - 目标：增加可选的 `scrollContainer`（滚动容器 locator），在元素内部执行滚动

@@ -4,7 +4,7 @@ import { useWorkflow } from '../store/WorkflowContext';
 
 // ─── Variable extraction helpers ─────────────────────────────────
 
-const VAR_FIELD_NAMES = ['varName', 'itemVar', 'indexVar', 'listVar', 'dataVar', 'errorVar', 'name', 'targetVar'];
+const VAR_FIELD_NAMES = ['varName', 'itemVar', 'indexVar', 'listVar', 'dataVar', 'errorVar', 'name', 'targetVar', 'saveToVar', 'resultVar'];
 
 function extractVarsFromNode(node) {
   const extra = node?.extra || {};

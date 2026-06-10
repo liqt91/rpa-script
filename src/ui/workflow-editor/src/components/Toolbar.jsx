@@ -23,6 +23,7 @@ function formatResult(result) {
   if (result.setVar) parts.push(`设置变量 ${result.setVar} = ${JSON.stringify(result.value).slice(0, 40)}`);
   if (result.ifElementVisible !== undefined) parts.push(`元素可见: ${result.ifElementVisible}`);
   if (result.ifElementExists !== undefined) parts.push(`元素存在: ${result.ifElementExists}`);
+  if (result.log !== undefined) parts.push(`日志: ${result.log}`);
   if (parts.length === 0) return JSON.stringify(result).slice(0, 200);
   return parts.join(' ');
 }
@@ -246,8 +247,7 @@ export default function Toolbar() {
     dispatch({ type: 'CLEAR_RUN_LOGS' });
 
     if (runMode === 'extension') {
-      const browserLabel = workflow?.target_browser === 'edge' ? 'Edge' : workflow?.target_browser === 'chrome' ? 'Chrome' : '默认 Chrome';
-      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: `开始执行（扩展模式 · ${browserLabel}）` } });
+      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（扩展模式）' } });
     } else {
       dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（Python 模式）' } });
     }
@@ -262,6 +262,7 @@ export default function Toolbar() {
       es.onmessage = (e) => {
         try {
           const evt = JSON.parse(e.data);
+          console.log('[Toolbar] SSE event:', evt.type, evt);
           const t = new Date().toLocaleTimeString('zh-CN');
           if (evt.type === 'stepStart') {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: evt.nodeId } });
@@ -271,6 +272,9 @@ export default function Toolbar() {
             const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
             const resultStr = evt.result ? formatResult(evt.result) : '完成';
             dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'success', msg: `${label}: ${resultStr}` } });
+            if (evt.result?.log !== undefined) {
+              dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `  📝 ${evt.result.log}` } });
+            }
             if (evt.result?.prints?.length) {
               for (const line of evt.result.prints) {
                 dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `  🖨 ${line}` } });
@@ -435,23 +439,6 @@ export default function Toolbar() {
           </div>
           {saving && <span className="text-xs text-gray-400">保存中...</span>}
           {isDirty && !saving && <span className="text-xs text-orange-500">● 未保存</span>}
-          <select
-            className="h-6 px-1.5 text-xs border border-gray-200 rounded bg-white text-gray-600 outline-none focus:border-[#1677ff] cursor-pointer"
-            value={workflow?.target_browser || 'chrome'}
-            onChange={async (e) => {
-              const val = e.target.value;
-              try {
-                await api.updateWorkflow(wfId, { target_browser: val });
-                dispatch({ type: 'SET_WORKFLOW', payload: { ...workflow, target_browser: val } });
-              } catch (err) {
-                alert('浏览器设置保存失败: ' + err.message);
-              }
-            }}
-            title="选择目标浏览器"
-          >
-            <option value="chrome">Chrome</option>
-            <option value="edge">Edge</option>
-          </select>
         </div>
 
         {/* 中间：工具按钮 */}
@@ -512,14 +499,12 @@ export default function Toolbar() {
             <button
               className={`h-6 px-2 rounded text-xs transition-colors flex items-center gap-1 ${runMode === 'extension' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
               onClick={() => setRunMode('extension')}
-              title={`通过浏览器扩展在 ${workflow?.target_browser === 'edge' ? 'Edge' : workflow?.target_browser === 'chrome' ? 'Chrome' : '默认 Chrome'} 中执行`}
+              title="通过浏览器扩展执行"
             >
               {runMode === 'extension' && (
                 <span className={`w-1.5 h-1.5 rounded-full ${extDotColor}`}></span>
               )}
               扩展
-              {workflow?.target_browser === 'edge' && <i className="fab fa-edge text-[9px] ml-0.5" title="Edge"></i>}
-              {workflow?.target_browser === 'chrome' && <i className="fab fa-chrome text-[9px] ml-0.5" title="Chrome"></i>}
             </button>
           </div>
 
@@ -665,7 +650,7 @@ function RunResultModal({ result, onClose, mode, nodes, typeMap }) {
                     </span>
                     <span className="text-gray-600">{getLabel(r)}:</span>
                     <span className="text-gray-800 truncate">
-                      {r.status === 'success' ? JSON.stringify(r.result) : r.error}
+                      {r.status === 'success' ? (r.result?.log !== undefined ? r.result.log : JSON.stringify(r.result)) : r.error}
                     </span>
                   </div>
                 ))}

@@ -21,6 +21,9 @@ def _timeout_field(default: int = 10) -> dict:
 def _var_field(name: str = "varName", label: str = "保存到变量") -> dict:
     return {"name": name, "label": label, "type": "varName", "required": False, "group": "output"}
 
+def _window_var_field() -> dict:
+    return {"name": "windowVar", "label": "窗口变量", "type": "varName", "required": False, "default": "browser1", "placeholder": "如 browser1", "group": "input"}
+
 def _scope_field() -> dict:
     return {
         "name": "scope",
@@ -120,8 +123,29 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     # 1. 页面导航 (Navigation)
     # ═══════════════════════════════════════════════════════════════
+    "openBrowser": {
+        "label": "打开浏览器",
+        "categoryOrder": 10,
+        "commandOrder": 10,
+        "enabled": True,
+        "category": "页面导航",
+        "icon": "fa-chrome",
+        "iconColor": "text-blue-500",
+        "bgColor": "bg-blue-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "openBrowser", "local": False}},
+        "fields": [
+            {"name": "browserType", "label": "浏览器", "type": "select", "options": [{"label": "Chrome", "value": "chrome"}, {"label": "Edge", "value": "edge"}], "default": "chrome"},
+            {"name": "url", "label": "启动后打开网址", "type": "text", "required": False, "placeholder": "留空则打开 about:blank"},
+            {"name": "windowState", "label": "窗口状态", "type": "select", "options": [{"label": "正常", "value": "normal"}, {"label": "最大化", "value": "maximized"}], "default": "normal"},
+            {"name": "saveToVar", "label": "保存窗口对象到", "type": "varName", "required": False, "default": "browser1", "group": "output"},
+        ],
+    },
     "navigate": {
         "label": "打开网页",
+        "categoryOrder": 10,
+        "commandOrder": 50,
+        "enabled": True,
         "category": "页面导航",
         "icon": "fa-globe",
         "iconColor": "text-blue-500",
@@ -130,6 +154,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "navigate", "local": False}},
         "fields": [
             {"name": "url", "label": "网址", "type": "text", "required": True, "placeholder": "https://..."},
+            _window_var_field(),
             {"name": "waitLoad", "label": "等待加载完成", "type": "bool", "default": True},
             _timeout_field(30),
             _var_field("saveToVar", "保存网页对象到"),
@@ -137,26 +162,39 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "goBack": {
         "label": "返回上一页",
+        "categoryOrder": 10,
+        "commandOrder": 3,
+        "enabled": False,
         "category": "页面导航",
         "icon": "fa-arrow-left",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "runtimes": {"extension": {"handler": "goBack", "local": False}},
-        "fields": [],
+        "fields": [
+            _window_var_field(),
+        ],
     },
     "goForward": {
         "label": "前进",
+        "categoryOrder": 10,
+        "commandOrder": 4,
+        "enabled": False,
         "category": "页面导航",
         "icon": "fa-arrow-right",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "runtimes": {"extension": {"handler": "goForward", "local": False}},
-        "fields": [],
+        "fields": [
+            _window_var_field(),
+        ],
     },
     "refresh": {
         "label": "刷新页面",
+        "categoryOrder": 10,
+        "commandOrder": 5,
+        "enabled": False,
         "category": "页面导航",
         "icon": "fa-rotate-right",
         "iconColor": "text-blue-500",
@@ -164,11 +202,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "refresh", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "hardReload", "label": "强制刷新(忽略缓存)", "type": "bool", "default": False},
         ],
     },
     "newTab": {
         "label": "新建标签页",
+        "categoryOrder": 10,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "页面导航",
         "icon": "fa-plus",
         "iconColor": "text-blue-500",
@@ -176,32 +218,60 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "newTab", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "url", "label": "网址(可选)", "type": "text", "required": False, "placeholder": "https://..."},
         ],
     },
     "closeTab": {
         "label": "关闭当前标签页",
+        "categoryOrder": 10,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "页面导航",
         "icon": "fa-xmark",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
-        "fields": [],
+        "fields": [
+            _window_var_field(),
+        ],
+    },
+    "closeBrowser": {
+        "label": "关闭浏览器窗口",
+        "categoryOrder": 10,
+        "commandOrder": 20,
+        "enabled": True,
+        "category": "页面导航",
+        "icon": "fa-window-close",
+        "iconColor": "text-blue-500",
+        "bgColor": "bg-blue-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "closeBrowser", "local": False}},
+        "fields": [
+            _window_var_field(),
+        ],
     },
     "switchTab": {
         "label": "切换标签页",
+        "categoryOrder": 10,
+        "commandOrder": 9,
+        "enabled": False,
         "category": "页面导航",
         "icon": "fa-window-restore",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             {"name": "by", "label": "切换方式", "type": "select", "options": [{"label": "索引", "value": "index"}, {"label": "URL", "value": "url"}, {"label": "标题", "value": "title"}], "default": "index"},
             {"name": "value", "label": "值", "type": "text", "required": True, "placeholder": "0 或 https://... 或 标题"},
         ],
     },
     "switchToFrame": {
         "label": "进入 iframe",
+        "categoryOrder": 10,
+        "commandOrder": 10,
+        "enabled": False,
         "category": "页面导航",
         "icon": "fa-object-group",
         "iconColor": "text-blue-500",
@@ -213,6 +283,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "switchToMain": {
         "label": "退出 iframe",
+        "categoryOrder": 10,
+        "commandOrder": 11,
+        "enabled": False,
         "category": "页面导航",
         "icon": "fa-object-ungroup",
         "iconColor": "text-blue-500",
@@ -222,22 +295,32 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "getCurrentUrl": {
         "label": "获取当前URL",
+        "categoryOrder": 10,
+        "commandOrder": 60,
+        "enabled": True,
         "category": "页面导航",
         "icon": "fa-link",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "runtimes": {"extension": {"handler": "getCurrentUrl", "local": False}},
-        "fields": [_var_field()],
+        "fields": [
+            _window_var_field(),
+            _var_field()],
     },
     "getPageTitle": {
         "label": "获取页面标题",
+        "categoryOrder": 10,
+        "commandOrder": 70,
+        "enabled": True,
         "category": "页面导航",
         "icon": "fa-heading",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
-        "fields": [_var_field()],
+        "fields": [
+            _window_var_field(),
+            _var_field()],
     },
 
     # ═══════════════════════════════════════════════════════════════
@@ -245,6 +328,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "click": {
         "label": "点击元素",
+        "categoryOrder": 20,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "元素点击",
         "icon": "fa-mouse-pointer",
         "iconColor": "text-blue-500",
@@ -252,6 +338,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "click", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             {"name": "forceJs", "label": "强制JS点击", "type": "bool", "default": False},
@@ -259,48 +346,64 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "doubleClick": {
         "label": "双击元素",
+        "categoryOrder": 20,
+        "commandOrder": 2,
+        "enabled": False,
         "category": "元素点击",
         "icon": "fa-mouse-pointer",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
         ],
     },
     "rightClick": {
         "label": "右键点击",
+        "categoryOrder": 20,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "元素点击",
         "icon": "fa-mouse-pointer",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
         ],
     },
     "clickByIndex": {
         "label": "点击第N个相似元素",
+        "categoryOrder": 20,
+        "commandOrder": 4,
+        "enabled": False,
         "category": "元素点击",
         "icon": "fa-hand-pointer",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             {"name": "index", "label": "序号(从0开始)", "type": "number", "default": 0},
         ],
     },
     "clickIfExists": {
         "label": "如果存在则点击",
+        "categoryOrder": 20,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "元素点击",
         "icon": "fa-hand-point-up",
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             _element_name_field(),
         ],
     },
@@ -310,6 +413,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "input": {
         "label": "输入文本",
+        "categoryOrder": 50,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "文本输入",
         "icon": "fa-keyboard",
         "iconColor": "text-blue-500",
@@ -317,6 +423,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "input", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             {"name": "text", "label": "输入内容", "type": "text", "required": True},
@@ -325,6 +432,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "inputAndPressEnter": {
         "label": "输入并回车",
+        "categoryOrder": 50,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "文本输入",
         "icon": "fa-keyboard",
         "iconColor": "text-blue-500",
@@ -332,6 +442,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "input", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             {"name": "text", "label": "输入内容", "type": "text", "required": True},
@@ -340,6 +451,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "clearInput": {
         "label": "清空输入框",
+        "categoryOrder": 50,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "文本输入",
         "icon": "fa-eraser",
         "iconColor": "text-blue-500",
@@ -347,11 +461,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "clearInput", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
         ],
     },
     "pressKey": {
         "label": "按键",
+        "categoryOrder": 50,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "文本输入",
         "icon": "fa-arrow-turn-up",
         "iconColor": "text-blue-500",
@@ -359,11 +477,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "pressKey", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "key", "label": "按键", "type": "select", "options": [{"label": "回车", "value": "Enter"}, {"label": "Tab", "value": "Tab"}, {"label": "Esc", "value": "Esc"}, {"label": "向下箭头", "value": "ArrowDown"}, {"label": "向上箭头", "value": "ArrowUp"}, {"label": "PageDown", "value": "PageDown"}, {"label": "PageUp", "value": "PageUp"}, {"label": "空格", "value": "Space"}, {"label": "退格", "value": "Backspace"}], "default": "Enter"},
         ],
     },
     "selectOption": {
         "label": "下拉框选择",
+        "categoryOrder": 50,
+        "commandOrder": 50,
+        "enabled": True,
         "category": "文本输入",
         "icon": "fa-list",
         "iconColor": "text-blue-500",
@@ -371,6 +493,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "selectOption", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             {"name": "by", "label": "选择方式", "type": "select", "options": [{"label": "值", "value": "value"}, {"label": "文本", "value": "label"}, {"label": "索引", "value": "index"}], "default": "label"},
             {"name": "value", "label": "值", "type": "text", "required": True},
@@ -382,6 +505,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "getText": {
         "label": "获取元素文本",
+        "categoryOrder": 60,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "数据提取",
         "icon": "fa-font",
         "iconColor": "text-green-500",
@@ -389,6 +515,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             _var_field(),
@@ -396,6 +523,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "getAttr": {
         "label": "获取元素属性",
+        "categoryOrder": 60,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "数据提取",
         "icon": "fa-tag",
         "iconColor": "text-green-500",
@@ -403,6 +533,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             {"name": "attrName", "label": "属性名", "type": "text", "required": True, "placeholder": "href / src / data-id"},
@@ -411,6 +542,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "getHtml": {
         "label": "获取元素HTML",
+        "categoryOrder": 60,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "数据提取",
         "icon": "fa-code",
         "iconColor": "text-green-500",
@@ -418,6 +552,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             {"name": "mode", "label": "模式", "type": "select", "options": [{"label": "内部HTML", "value": "inner"}, {"label": "包含标签", "value": "outer"}], "default": "inner"},
             _var_field(),
@@ -425,6 +560,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "getValue": {
         "label": "获取输入框值",
+        "categoryOrder": 60,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "数据提取",
         "icon": "fa-i-cursor",
         "iconColor": "text-green-500",
@@ -432,18 +570,23 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "extract", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _var_field(),
         ],
     },
     "getElementCount": {
         "label": "获取元素数量",
+        "categoryOrder": 60,
+        "commandOrder": 50,
+        "enabled": True,
         "category": "数据提取",
         "icon": "fa-hashtag",
         "iconColor": "text-green-500",
         "bgColor": "bg-green-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             _var_field(),
@@ -451,12 +594,16 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "getElementList": {
         "label": "获取相似元素列表",
+        "categoryOrder": 60,
+        "commandOrder": 6,
+        "enabled": False,
         "category": "数据提取",
         "icon": "fa-list-ul",
         "iconColor": "text-green-500",
         "bgColor": "bg-green-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             _var_field(),
@@ -468,6 +615,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "scrollToBottom": {
         "label": "滚动到底部",
+        "categoryOrder": 40,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "滚动",
         "icon": "fa-arrow-down",
         "iconColor": "text-cyan-500",
@@ -475,11 +625,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
     "scrollToTop": {
         "label": "滚动到顶部",
+        "categoryOrder": 40,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "滚动",
         "icon": "fa-arrow-up",
         "iconColor": "text-cyan-500",
@@ -487,11 +641,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
     "scrollOneScreen": {
         "label": "滚动一屏",
+        "categoryOrder": 40,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "滚动",
         "icon": "fa-desktop",
         "iconColor": "text-cyan-500",
@@ -499,11 +657,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
     "scrollIntoView": {
         "label": "滚动到元素",
+        "categoryOrder": 40,
+        "commandOrder": 4,
+        "enabled": False,
         "category": "滚动",
         "icon": "fa-crosshairs",
         "iconColor": "text-cyan-500",
@@ -511,6 +673,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             {"name": "block", "label": "对齐方式", "type": "select", "options": [{"label": "顶部", "value": "start"}, {"label": "居中", "value": "center"}, {"label": "底部", "value": "end"}, {"label": "最近边", "value": "nearest"}], "default": "center"},
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
@@ -518,6 +681,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "scrollBy": {
         "label": "滚动指定距离",
+        "categoryOrder": 40,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "滚动",
         "icon": "fa-arrows-up-down",
         "iconColor": "text-cyan-500",
@@ -525,6 +691,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "scroll", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "x", "label": "水平距离(px)", "type": "number", "default": 0},
             {"name": "y", "label": "垂直距离(px)", "type": "number", "default": 500},
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
@@ -532,12 +699,16 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "infiniteScroll": {
         "label": "无限滚动",
+        "categoryOrder": 40,
+        "commandOrder": 6,
+        "enabled": False,
         "category": "滚动",
         "icon": "fa-infinity",
         "iconColor": "text-cyan-500",
         "bgColor": "bg-cyan-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             {"name": "endMarker", "label": "结束标记文本", "type": "text", "required": False, "placeholder": "如: - THE END -"},
             {"name": "maxScrolls", "label": "最大滚动次数", "type": "number", "default": 50},
             {"name": "interval", "label": "滚动间隔(秒)", "type": "number", "default": 2.0},
@@ -550,6 +721,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "sleep": {
         "label": "等待固定时间",
+        "categoryOrder": 30,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "等待",
         "icon": "fa-clock",
         "iconColor": "text-gray-500",
@@ -557,11 +731,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "wait", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "seconds", "label": "等待秒数", "type": "number", "default": 1.0},
         ],
     },
     "waitForElement": {
         "label": "等待元素出现",
+        "categoryOrder": 30,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "等待",
         "icon": "fa-eye",
         "iconColor": "text-gray-500",
@@ -569,6 +747,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "wait", "local": False}},
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             _timeout_field(10),
@@ -576,12 +755,16 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "waitForElementHide": {
         "label": "等待元素消失",
+        "categoryOrder": 30,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "等待",
         "icon": "fa-eye-slash",
         "iconColor": "text-gray-500",
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             _scope_field(),
             _timeout_field(10),
@@ -589,12 +772,16 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "waitForText": {
         "label": "等待文本出现",
+        "categoryOrder": 30,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "等待",
         "icon": "fa-comment-dots",
         "iconColor": "text-gray-500",
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             _element_name_field(),
             {"name": "text", "label": "期望文本", "type": "text", "required": True},
             _timeout_field(10),
@@ -602,24 +789,32 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "waitForUrl": {
         "label": "等待URL变化",
+        "categoryOrder": 30,
+        "commandOrder": 50,
+        "enabled": True,
         "category": "等待",
         "icon": "fa-link",
         "iconColor": "text-gray-500",
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             {"name": "urlPattern", "label": "URL包含", "type": "text", "required": True},
             _timeout_field(10),
         ],
     },
     "waitForLoad": {
         "label": "等待页面加载",
+        "categoryOrder": 30,
+        "commandOrder": 60,
+        "enabled": True,
         "category": "等待",
         "icon": "fa-spinner",
         "iconColor": "text-gray-500",
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             {"name": "state", "label": "加载状态", "type": "select", "options": [{"label": "DOM就绪", "value": "domcontentloaded"}, {"label": "网络空闲", "value": "networkidle"}], "default": "networkidle"},
             _timeout_field(30),
         ],
@@ -630,6 +825,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "ifElementExists": {
         "label": "如果元素存在/不存在",
+        "categoryOrder": 70,
+        "commandOrder": 1,
+        "enabled": False,
         "description": "多元素组合逻辑：存在=任一元素存在即成立（OR）；不存在=所有元素都不存在才成立（AND）。",
         "category": "条件判断",
         "icon": "fa-code-branch",
@@ -646,6 +844,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "ifElementVisible": {
         "label": "如果元素可见/不可见",
+        "categoryOrder": 70,
+        "commandOrder": 20,
+        "enabled": True,
         "description": "多元素组合逻辑：可见=任一元素可见即成立（OR）；不可见=所有元素都不可见才成立（AND）。",
         "category": "条件判断",
         "icon": "fa-code-branch",
@@ -662,6 +863,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "ifTextContains": {
         "label": "如果元素文本",
+        "categoryOrder": 70,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -677,6 +881,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "ifTextEquals": {
         "label": "如果元素文本等于",
+        "categoryOrder": 70,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -690,6 +897,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "ifUrlContains": {
         "label": "如果URL包含",
+        "categoryOrder": 70,
+        "commandOrder": 5,
+        "enabled": False,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -702,6 +912,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "ifVarEquals": {
         "label": "如果变量比较",
+        "categoryOrder": 70,
+        "commandOrder": 60,
+        "enabled": True,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -717,6 +930,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "ifVarContains": {
         "label": "如果变量匹配",
+        "categoryOrder": 70,
+        "commandOrder": 70,
+        "enabled": True,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -731,6 +947,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "ifListContains": {
         "label": "如果列表包含",
+        "categoryOrder": 70,
+        "commandOrder": 80,
+        "enabled": True,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -744,6 +963,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "ifDictContains": {
         "label": "如果字典包含键",
+        "categoryOrder": 70,
+        "commandOrder": 90,
+        "enabled": True,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -757,6 +979,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "else": {
         "label": "否则",
+        "categoryOrder": 70,
+        "commandOrder": 100,
+        "enabled": True,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -768,6 +993,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "endIf": {
         "label": "结束如果",
+        "categoryOrder": 70,
+        "commandOrder": 110,
+        "enabled": True,
         "category": "条件判断",
         "icon": "fa-code-branch",
         "iconColor": "text-orange-500",
@@ -782,6 +1010,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "forEachElement": {
         "label": "循环相似元素",
+        "categoryOrder": 80,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "循环",
         "icon": "fa-sync",
         "iconColor": "text-purple-500",
@@ -797,6 +1028,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "forRange": {
         "label": "循环次数",
+        "categoryOrder": 80,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "循环",
         "icon": "fa-repeat",
         "iconColor": "text-purple-500",
@@ -812,6 +1046,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "forList": {
         "label": "循环列表",
+        "categoryOrder": 80,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "循环",
         "icon": "fa-list-ol",
         "iconColor": "text-purple-500",
@@ -826,6 +1063,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "forEachTableRow": {
         "label": "循环表格",
+        "categoryOrder": 80,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "循环",
         "icon": "fa-table",
         "iconColor": "text-purple-500",
@@ -839,6 +1079,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "whileCondition": {
         "label": "循环直到条件成立",
+        "categoryOrder": 80,
+        "commandOrder": 50,
+        "enabled": True,
         "category": "循环",
         "icon": "fa-rotate",
         "iconColor": "text-purple-500",
@@ -857,6 +1100,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "break": {
         "label": "跳出循环",
+        "categoryOrder": 80,
+        "commandOrder": 60,
+        "enabled": True,
         "category": "循环",
         "icon": "fa-ban",
         "iconColor": "text-purple-500",
@@ -866,6 +1112,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "continue": {
         "label": "继续下一次循环",
+        "categoryOrder": 80,
+        "commandOrder": 70,
+        "enabled": True,
         "category": "循环",
         "icon": "fa-forward-step",
         "iconColor": "text-purple-500",
@@ -875,6 +1124,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "endFor": {
         "label": "结束循环",
+        "categoryOrder": 80,
+        "commandOrder": 80,
+        "enabled": True,
         "category": "循环",
         "icon": "fa-sync",
         "iconColor": "text-purple-500",
@@ -889,6 +1141,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "setVar": {
         "label": "设置变量",
+        "categoryOrder": 45,
+        "commandOrder": 1,
+        "enabled": True,
         "category": "变量与数据",
         "icon": "fa-superscript",
         "iconColor": "text-indigo-500",
@@ -903,6 +1158,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "appendToList": {
         "label": "追加到列表",
+        "categoryOrder": 45,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "变量与数据",
         "icon": "fa-plus",
         "iconColor": "text-indigo-500",
@@ -916,6 +1174,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "stringConcat": {
         "label": "字符串拼接",
+        "categoryOrder": 45,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "变量与数据",
         "icon": "fa-link",
         "iconColor": "text-indigo-500",
@@ -931,6 +1192,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "increment": {
         "label": "计数器累加",
+        "categoryOrder": 45,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "变量与数据",
         "icon": "fa-plus-minus",
         "iconColor": "text-indigo-500",
@@ -944,6 +1208,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "setDictValue": {
         "label": "设置字典值",
+        "categoryOrder": 45,
+        "commandOrder": 50,
+        "enabled": True,
         "category": "变量与数据",
         "icon": "fa-pen-to-square",
         "iconColor": "text-indigo-500",
@@ -958,6 +1225,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "getDictValue": {
         "label": "获取字典值",
+        "categoryOrder": 45,
+        "commandOrder": 60,
+        "enabled": True,
         "category": "变量与数据",
         "icon": "fa-book-open",
         "iconColor": "text-indigo-500",
@@ -972,6 +1242,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "removeDictKey": {
         "label": "删除字典键",
+        "categoryOrder": 45,
+        "commandOrder": 70,
+        "enabled": True,
         "category": "变量与数据",
         "icon": "fa-eraser",
         "iconColor": "text-indigo-500",
@@ -985,6 +1258,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "readTableCell": {
         "label": "读取表格单元格",
+        "categoryOrder": 65,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "数据表格",
         "icon": "fa-table-cells",
         "iconColor": "text-indigo-500",
@@ -999,6 +1275,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "writeTableCell": {
         "label": "写入表格单元格",
+        "categoryOrder": 65,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "数据表格",
         "icon": "fa-pen-to-square",
         "iconColor": "text-indigo-500",
@@ -1013,6 +1292,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "getTableRowCount": {
         "label": "获取表格行数",
+        "categoryOrder": 65,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "数据表格",
         "icon": "fa-list-ol",
         "iconColor": "text-indigo-500",
@@ -1025,6 +1307,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "writeTableRow": {
         "label": "写入表格行",
+        "categoryOrder": 65,
+        "commandOrder": 40,
+        "enabled": True,
         "category": "数据表格",
         "icon": "fa-table-cells-row",
         "iconColor": "text-indigo-500",
@@ -1043,6 +1328,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "log": {
         "label": "记录日志",
+        "categoryOrder": 110,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "输出与日志",
         "icon": "fa-terminal",
         "iconColor": "text-gray-600",
@@ -1056,6 +1344,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "pushItem": {
         "label": "推送结果项",
+        "categoryOrder": 110,
+        "commandOrder": 2,
+        "enabled": False,
         "category": "输出与日志",
         "icon": "fa-upload",
         "iconColor": "text-gray-600",
@@ -1068,12 +1359,16 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "takeScreenshot": {
         "label": "页面截图",
+        "categoryOrder": 110,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "输出与日志",
         "icon": "fa-camera",
         "iconColor": "text-gray-600",
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
+            _window_var_field(),
             {"name": "savePath", "label": "保存路径", "type": "text", "required": True, "placeholder": "screenshots/001.png"},
             {"name": "fullPage", "label": "整页截图", "type": "bool", "default": False},
             _element_name_field(required=False),
@@ -1081,6 +1376,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "saveToFile": {
         "label": "保存数据到文件",
+        "categoryOrder": 110,
+        "commandOrder": 4,
+        "enabled": False,
         "category": "输出与日志",
         "icon": "fa-file-export",
         "iconColor": "text-gray-600",
@@ -1099,6 +1397,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "keyCombo": {
         "label": "组合键",
+        "categoryOrder": 120,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "鼠标键盘",
         "icon": "fa-keyboard",
         "iconColor": "text-gray-600",
@@ -1114,6 +1415,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "httpRequest": {
         "label": "HTTP请求",
+        "categoryOrder": 130,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "网络请求",
         "icon": "fa-globe",
         "iconColor": "text-blue-700",
@@ -1135,6 +1439,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "callAiApp": {
         "label": "调用AI应用",
+        "categoryOrder": 140,
+        "commandOrder": 10,
+        "enabled": False,
         "category": "AI集成",
         "icon": "fa-brain",
         "iconColor": "text-indigo-500",
@@ -1153,6 +1460,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "callWorkflow": {
         "label": "调用其他流程",
+        "categoryOrder": 15,
+        "commandOrder": 10,
+        "enabled": False,
         "category": "子流程",
         "icon": "fa-sitemap",
         "iconColor": "text-pink-500",
@@ -1166,6 +1476,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "return": {
         "label": "结束并返回",
+        "categoryOrder": 15,
+        "commandOrder": 20,
+        "enabled": False,
         "category": "子流程",
         "icon": "fa-flag-checkered",
         "iconColor": "text-pink-500",
@@ -1182,6 +1495,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "try": {
         "label": "捕获异常",
+        "categoryOrder": 160,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "异常处理",
         "icon": "fa-shield-halved",
         "iconColor": "text-red-500",
@@ -1192,6 +1508,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "catch": {
         "label": "异常处理",
+        "categoryOrder": 160,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "异常处理",
         "icon": "fa-bug",
         "iconColor": "text-red-500",
@@ -1205,6 +1524,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "endTry": {
         "label": "结束捕获",
+        "categoryOrder": 160,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "异常处理",
         "icon": "fa-shield-halved",
         "iconColor": "text-red-500",
@@ -1219,6 +1541,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "custom": {
         "label": "自定义代码",
+        "categoryOrder": 170,
+        "commandOrder": 10,
+        "enabled": True,
         "category": "自定义",
         "icon": "fa-code",
         "iconColor": "text-gray-500",
@@ -1233,6 +1558,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "executeJs": {
         "label": "执行JS",
+        "categoryOrder": 170,
+        "commandOrder": 20,
+        "enabled": True,
         "category": "自定义",
         "icon": "fa-js",
         "iconColor": "text-gray-500",
@@ -1250,6 +1578,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "hover": {
         "label": "悬停",
+        "categoryOrder": 20,
+        "commandOrder": 30,
+        "enabled": True,
         "category": "元素点击",
         "icon": "fa-hand-pointer",
         "iconColor": "text-blue-500",
@@ -1267,6 +1598,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
     "traceNetwork": {
         "label": "追踪网络请求",
+        "categoryOrder": 18,
+        "commandOrder": 1,
+        "enabled": False,
         "category": "网络拦截",
         "description": "监听页面所有网络请求，只记录URL和方法（不读取响应体），用于发现目标API地址。执行后会阻塞指定时长，结束后返回期间捕获的所有请求列表。",
         "icon": "fa-network-wired",
@@ -1275,6 +1609,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "traceNetwork", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "duration", "label": "追踪时长(秒)", "type": "number", "default": 5, "placeholder": "5"},
             {"name": "urlPattern", "label": "URL过滤(*匹配所有)", "type": "text", "required": False, "placeholder": "*edith.xiaohongshu.com/api*"},
             _var_field("varName", "保存到变量"),
@@ -1282,6 +1617,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "interceptNetwork": {
         "label": "启动网络拦截",
+        "categoryOrder": 18,
+        "commandOrder": 2,
+        "enabled": False,
         "category": "网络拦截",
         "description": "在页面注入拦截脚本，覆盖fetch/XHR，匹配指定URL模式的请求会被捕获响应体并存入缓存队列。执行后立即返回不阻塞，后续用waitForNetwork/getInterceptedData读取数据。",
         "icon": "fa-shield-halved",
@@ -1290,6 +1628,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "interceptNetwork", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "urlPattern", "label": "URL匹配模式", "type": "text", "required": False, "placeholder": "*api/sns/v6/feed*"},
             {"name": "method", "label": "请求方法", "type": "select", "options": [{"label": "全部", "value": "ALL"}, {"label": "GET", "value": "GET"}, {"label": "POST", "value": "POST"}, {"label": "PUT", "value": "PUT"}, {"label": "DELETE", "value": "DELETE"}], "default": "ALL"},
             {"name": "captureResponse", "label": "捕获响应体", "type": "bool", "default": True},
@@ -1298,6 +1637,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "waitForNetwork": {
         "label": "等待网络请求",
+        "categoryOrder": 18,
+        "commandOrder": 3,
+        "enabled": False,
         "category": "网络拦截",
         "description": "阻塞轮询缓存队列，直到出现匹配URL模式的请求或超时。若拦截未启动会自动启用。匹配成功后将该条请求的响应数据保存到变量。",
         "icon": "fa-hourglass-half",
@@ -1306,6 +1648,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "waitForNetwork", "local": False}},
         "fields": [
+            _window_var_field(),
             {"name": "urlPattern", "label": "等待的URL模式", "type": "text", "required": False, "placeholder": "*feed*"},
             _timeout_field(10),
             _var_field("varName", "保存到变量"),
@@ -1313,6 +1656,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "getInterceptedData": {
         "label": "获取拦截数据",
+        "categoryOrder": 18,
+        "commandOrder": 4,
+        "enabled": False,
         "category": "网络拦截",
         "description": "将缓存队列中所有已拦截的数据一次性导出到变量。返回数组，每条包含url、method、status和解析后的响应体data。适合批量采集后统一处理。",
         "icon": "fa-database",
@@ -1321,12 +1667,16 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "getInterceptedData", "local": False}},
         "fields": [
+            _window_var_field(),
             _var_field("varName", "保存到变量"),
             {"name": "limit", "label": "最大条数", "type": "number", "default": 100},
         ],
     },
     "previewInterceptData": {
         "label": "预览拦截数据",
+        "categoryOrder": 18,
+        "commandOrder": 5,
+        "enabled": False,
         "category": "网络拦截",
         "description": "只读取缓存队列第一条拦截数据的完整响应体，用于了解JSON结构、确认字段路径。不批量导出，适合调试阶段快速查看数据格式。",
         "icon": "fa-eye",
@@ -1335,11 +1685,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "previewInterceptData", "local": False}},
         "fields": [
+            _window_var_field(),
             _var_field("varName", "保存到变量"),
         ],
     },
     "logInterceptedData": {
         "label": "打印拦截摘要",
+        "categoryOrder": 18,
+        "commandOrder": 6,
+        "enabled": False,
         "category": "网络拦截",
         "description": "将已拦截的数据摘要输出到浏览器控制台和后端日志。显示前5条的URL、方法和响应体前180字符预览，不保存到变量，纯调试用。",
         "icon": "fa-terminal",
@@ -1347,10 +1701,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-purple-50",
         "isContainer": False,
         "runtimes": {"extension": {"handler": "logInterceptedData", "local": False}},
-        "fields": [],
+        "fields": [
+            _window_var_field(),
+        ],
     },
     "clearInterceptedData": {
         "label": "清空拦截缓存",
+        "categoryOrder": 18,
+        "commandOrder": 7,
+        "enabled": False,
         "category": "网络拦截",
         "description": "清空当前缓存队列中所有已拦截的数据。适合在下一轮采集前清理旧数据，避免混淆。",
         "icon": "fa-trash",
@@ -1358,10 +1717,15 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-purple-50",
         "isContainer": False,
         "runtimes": {"extension": {"handler": "clearInterceptedData", "local": False}},
-        "fields": [],
+        "fields": [
+            _window_var_field(),
+        ],
     },
     "stopIntercept": {
         "label": "停止网络拦截",
+        "categoryOrder": 18,
+        "commandOrder": 8,
+        "enabled": False,
         "category": "网络拦截",
         "description": "移除页面中注入的拦截脚本，停止继续捕获请求，释放资源。已缓存的数据保留，可继续用getInterceptedData读取。",
         "icon": "fa-stop",
@@ -1369,7 +1733,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-purple-50",
         "isContainer": False,
         "runtimes": {"extension": {"handler": "stopIntercept", "local": False}},
-        "fields": [],
+        "fields": [
+            _window_var_field(),
+        ],
     },
 }
 

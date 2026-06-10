@@ -22,6 +22,8 @@ class ExtensionConnection:
         self.connected_at = __import__("time").time()
         self.tab_info: Optional[dict] = None   # 当前激活标签页信息
         self.browser: str = ""                  # 浏览器类型: chrome / edge / etc
+        self.extension_id: str = ""             # 扩展 ID
+        self.install_type: str = ""             # 安装方式: development / normal / etc
 
     async def send(self, message: dict):
         try:
@@ -207,8 +209,10 @@ class ExtensionManager:
                 elif action == "tabInfo":
                     conn.tab_info = payload
                 elif action == "register":
-                    # 扩展上报自身信息（浏览器类型、版本等）
+                    # 扩展上报自身信息（浏览器类型、版本、扩展ID等）
                     browser = payload.get("browser", "")
+                    ext_id = payload.get("extensionId", "")
+                    install_type = payload.get("installType", "")
                     # 同一浏览器只允许一个连接：关闭该浏览器的旧连接
                     if browser:
                         dead = []
@@ -224,7 +228,9 @@ class ExtensionManager:
                                     pass
                                 logger.info(f"扩展重复连接，断开旧连接: {cid}")
                     conn.browser = browser
-                    logger.info(f"扩展注册: {conn.client_id} browser={conn.browser}")
+                    conn.extension_id = ext_id
+                    conn.install_type = install_type
+                    logger.info(f"扩展注册: {conn.client_id} browser={conn.browser} extId={ext_id} installType={install_type}")
                 else:
                     await self.dispatch(action, payload, conn.client_id)
         except WebSocketDisconnect:

@@ -3,10 +3,18 @@ RPA Script 桌面应用入口
 启动 FastAPI 后端 + pywebview 窗口
 """
 
+import argparse
 import os
 import sys
 import time
 import threading
+
+# 开发模式下从 src/desktop.py 运行时，需要把仓库根目录加入 sys.path
+# 否则 import src.runtime.main 会解析失败
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 import webview
 import uvicorn
 
@@ -23,8 +31,8 @@ if getattr(sys, "frozen", False):
     if sys.stderr is None:
         sys.stderr = open(os.devnull, "w")
 else:
-    # 开发环境
-    BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # 开发环境 — 仓库根目录，使静态文件路径正确解析
+    BUNDLE_DIR = _REPO_ROOT
 
 # ---------------------------------------------------------------------------
 # 数据目录：数据库、日志等持久化文件放到用户目录，避免打包目录只读
@@ -126,6 +134,10 @@ class Api:
 # ---------------------------------------------------------------------------
 
 def main():
+    parser = argparse.ArgumentParser(description="RPA Script Desktop")
+    parser.add_argument("--debug", action="store_true", help="开启 pywebview 调试模式（右键审查元素）")
+    args = parser.parse_args()
+
     host = os.environ["HOST"]
     port = os.environ["PORT"]
     url = f"http://{host}:{port}/admin/commands"
@@ -154,7 +166,7 @@ def main():
     )
 
     webview.start(
-        debug=False,
+        debug=args.debug,
         private_mode=False,
         storage_path=os.path.join(USER_DATA_DIR, "webview"),
     )

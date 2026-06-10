@@ -18,7 +18,7 @@ function EditorPage() {
     );
   }
   return (
-    <WorkflowProvider wfId={wfId}>
+    <WorkflowProvider key={wfId} wfId={wfId}>
       <Layout />
     </WorkflowProvider>
   );
