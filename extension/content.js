@@ -907,12 +907,43 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      let el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
 
       await visualConfirmDelay();
 
       // Re-resolve to avoid stale reference if React/Vue re-rendered during delay
-      const fresh = resolveLocator(locator, selectorFamily, visibleOnly);
+      let fresh;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (parent) {
+          fresh = resolveLocatorInContext(locator, selectorFamily, parent);
+          if (visibleOnly && fresh && !isVisible(fresh)) {
+            const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+            fresh = all.find(isVisible);
+          }
+        }
+      }
+      if (!fresh) {
+        fresh = resolveLocator(locator, selectorFamily, visibleOnly);
+      }
       if (fresh && fresh !== document) el = fresh;
 
       await humanClick(el, humanLike);
@@ -923,7 +954,24 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
 
       const text = extra?.text ?? '';
       const clearFirst = extra?.clearFirst !== false;
@@ -1068,7 +1116,25 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
+
       const point = getClickPoint(el, humanLike);
       const rect = el.getBoundingClientRect();
       const startX = rect.left + rect.width / 2;
@@ -1086,7 +1152,25 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
+
       if (humanLike) await visualConfirmDelay();
       setInputValue(el, '');
       return { cleared: true };
@@ -1096,7 +1180,25 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
+
       const value = extra?.value;
       if (!value) throw new Error('selectOption: value required');
       if (humanLike) await visualConfirmDelay();

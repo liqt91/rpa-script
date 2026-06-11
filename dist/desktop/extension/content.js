@@ -18,16 +18,23 @@
 
   function isVisible(el) {
     if (!el) return false;
-    const style = getComputedStyle(el);
-    const reason = [];
-    if (style.visibility === 'hidden') reason.push('visibility:hidden');
-    if (style.display === 'none') reason.push('display:none');
-    if (style.position !== 'fixed' && style.position !== 'sticky' && el.offsetParent === null) reason.push('offsetParent:null');
-    const visible = reason.length === 0;
-    if (!visible) {
-      console.log(`[RPA isVisible] tag=${el.tagName}, offsetParent=${el.offsetParent?.tagName || 'null'}, position=${style.position}, reasons=[${reason.join(', ')}]`);
+    let node = el;
+    let accumulatedOpacity = 1;
+    while (node && node !== document.body && node !== document.documentElement) {
+      if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') return false;
+      const style = getComputedStyle(node);
+      if (style.visibility === 'hidden' || style.display === 'none') return false;
+      if (style.pointerEvents === 'none') return false;
+      const opacity = parseFloat(style.opacity);
+      if (Number.isFinite(opacity)) accumulatedOpacity *= opacity;
+      if (accumulatedOpacity <= 0.01) return false;
+      node = node.parentElement;
     }
-    return visible;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return false;
+    if (el.disabled === true || el.readOnly === true || el.getAttribute('tabindex') === '-1' || el.hasAttribute('inert')) return false;
+    return true;
   }
 
   // ─── web-verse text fingerprint ──────────────────────────────────
@@ -208,6 +215,11 @@
         } else if (locator.startsWith('text=')) {
           const text = locator.slice(5);
           el = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        } else if (/^tag:(\w+)@text\(\)=(.+)$/.test(locator)) {
+          const m = locator.match(/^tag:(\w+)@text\(\)=(.+)$/);
+          if (m) {
+            el = document.evaluate(`//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+          }
         } else {
           const css = drissionToCss(locator);
           if (css) el = document.querySelector(css);
@@ -550,6 +562,17 @@
       const startX = rect.left + rect.width / 2;
       const startY = rect.top + rect.height / 2;
       console.log(`[humanClick] el=${el.tagName} point=(${point.x.toFixed(1)},${point.y.toFixed(1)}) humanLike=${humanLike}`);
+      try {
+        console.log(`[humanClick] detail class="${el.className || ''}" id="${el.id || ''}" disabled=${el.disabled} readOnly=${el.readOnly} tabindex="${el.getAttribute?.('tabindex') || ''}"`);
+        const style = window.getComputedStyle(el);
+        console.log(`[humanClick] style display=${style.display} visibility=${style.visibility} opacity=${style.opacity} pointerEvents=${style.pointerEvents} cursor=${style.cursor}`);
+        console.log(`[humanClick] children=${Array.from(el.children).map(c => c.tagName + (c.className ? '.' + c.className : '')).join(', ')}`);
+        console.log(`[humanClick] innerHTML=${(el.innerHTML || '').slice(0, 300).replace(/\s+/g, ' ')}`);
+        const stack = document.elementsFromPoint(point.x, point.y);
+        console.log(`[humanClick] elementsFromPoint=${stack.slice(0, 6).map(e => { const cls = e.getAttribute ? (e.getAttribute('class') || '') : ''; return e.tagName + (cls ? '.' + cls.slice(0, 40) : ''); }).join(' | ')}`);
+      } catch (err) {
+        console.warn('[humanClick] log detail failed', err);
+      }
 
       if (humanLike) {
         try {
@@ -566,6 +589,7 @@
         clientX: point.x, clientY: point.y, button: 0
       });
       el.dispatchEvent(mousedown);
+      console.log('[humanClick] dispatched mousedown to', el.tagName);
 
       if (humanLike) {
         await sleep(rand(80, 200));
@@ -576,16 +600,21 @@
         clientX: point.x, clientY: point.y, button: 0
       });
       el.dispatchEvent(mouseup);
+      console.log('[humanClick] dispatched mouseup to', el.tagName);
 
       const clickEvt = new MouseEvent('click', {
         bubbles: true, cancelable: true, view: window,
         clientX: point.x, clientY: point.y, button: 0
       });
       el.dispatchEvent(clickEvt);
+      console.log('[humanClick] dispatched click to', el.tagName, 'bubbles=true');
 
       // Fallback：某些框架只响应原生 click()
       if (el.click && !humanLike) {
+        console.log('[humanClick] fallback el.click()');
         el.click();
+      } else if (humanLike) {
+        console.log('[humanClick] fallback el.click() skipped because humanLike=true');
       }
     } catch (e) {
       console.error('[humanClick] error:', e);
@@ -878,12 +907,43 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      let el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
 
       await visualConfirmDelay();
 
       // Re-resolve to avoid stale reference if React/Vue re-rendered during delay
-      const fresh = resolveLocator(locator, selectorFamily, visibleOnly);
+      let fresh;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (parent) {
+          fresh = resolveLocatorInContext(locator, selectorFamily, parent);
+          if (visibleOnly && fresh && !isVisible(fresh)) {
+            const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+            fresh = all.find(isVisible);
+          }
+        }
+      }
+      if (!fresh) {
+        fresh = resolveLocator(locator, selectorFamily, visibleOnly);
+      }
       if (fresh && fresh !== document) el = fresh;
 
       await humanClick(el, humanLike);
@@ -894,7 +954,24 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
 
       const text = extra?.text ?? '';
       const clearFirst = extra?.clearFirst !== false;
@@ -1039,7 +1116,25 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
+
       const point = getClickPoint(el, humanLike);
       const rect = el.getBoundingClientRect();
       const startX = rect.left + rect.width / 2;
@@ -1057,7 +1152,25 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
+
       if (humanLike) await visualConfirmDelay();
       setInputValue(el, '');
       return { cleared: true };
@@ -1067,7 +1180,25 @@
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      const ctxLocator = extra?.contextLocator;
+      const ctxLocatorType = extra?.contextLocatorType;
+      const ctxIndex = extra?.contextIndex ?? 0;
+
+      let el;
+      if (ctxLocator) {
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) throw new Error('上下文元素未找到');
+        el = await waitForElementInContext(locator, selectorFamily, parent, timeoutMs);
+        if (visibleOnly && !isVisible(el)) {
+          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          const v = all.find(isVisible);
+          if (v) el = v;
+        }
+      } else {
+        el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      }
+
       const value = extra?.value;
       if (!value) throw new Error('selectOption: value required');
       if (humanLike) await visualConfirmDelay();
@@ -1304,6 +1435,16 @@
     stopIntercept() {
       removeInterceptScript();
       return { stopped: true, remaining: _interceptQueue.length };
+    },
+
+    openBrowser() {
+      // handled by background.js (_ensureWorkTab)
+      return {};
+    },
+
+    closeBrowser() {
+      // handled by background.js (chrome.windows.remove)
+      return {};
     },
   };
 
