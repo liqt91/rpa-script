@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useWorkflow, deriveParentId, computeParents, matchBrackets } from '../store/WorkflowContext';
+import { useWorkflow, deriveParentId, computeParents, matchBrackets, getUnclosedContainers } from '../store/WorkflowContext';
 
 export default function NodeList() {
   const {
@@ -92,6 +92,24 @@ export default function NodeList() {
   }, [selectedNodeIds, treeNodes, NODE_TYPE_MAP]);
 
   const canBatchMove = hasMultiSelection && selectionValidation.valid;
+
+  // ─── 未闭合容器缩进带警告 ────────────────────────────────────
+  const warningBand = useMemo(() => {
+    if (!treeNodes.length) return new Map();
+    const unclosed = getUnclosedContainers(treeNodes, NODE_TYPE_MAP);
+    const band = new Map(); // index -> Set<bandDepth>
+    for (const c of unclosed) {
+      const containerDepth = c.depth;
+      for (let i = c.index + 1; i < treeNodes.length; i++) {
+        const nodeDepth = treeNodes[i].depth || 0;
+        if (nodeDepth > containerDepth) {
+          if (!band.has(i)) band.set(i, new Set());
+          band.get(i).add(containerDepth);
+        }
+      }
+    }
+    return band;
+  }, [treeNodes, NODE_TYPE_MAP]);
 
   // ─── 选择交互 ────────────────────────────────────────────────
 
@@ -339,6 +357,7 @@ export default function NodeList() {
                     isRunning={node.id === runningStepId}
                     runError={stepErrors[node.id] || null}
                     elements={elements}
+                    warningBand={warningBand}
                   />
                   {/* 容器节点下方的子节点插槽 */}
                   {typeInfo.isContainer && !hasChildren && (
@@ -412,7 +431,7 @@ export default function NodeList() {
 
 // ─── 子组件 ───────────────────────────────────────────────────
 
-function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect, onDelete, onToggleEnabled, onDragStart, isRunning, runError, elements }) {
+function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect, onDelete, onToggleEnabled, onDragStart, isRunning, runError, elements, warningBand }) {
   const typeInfo = NODE_TYPE_MAP[node.type] || {};
   const depth = node.depth || 0;
   const indent = depth * 20;
@@ -422,6 +441,7 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
   const errorCls = runError ? 'step-error' : '';
   const disabledCls = isDisabled ? 'opacity-40 grayscale' : '';
   const draggingCls = isDragging ? 'opacity-30' : '';
+  const colors = ['bg-red-50', 'bg-cyan-50', 'bg-orange-50', 'bg-blue-50', 'bg-green-50', 'bg-purple-50', 'bg-yellow-50'];
 
   return (
     <div
@@ -439,28 +459,24 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
       onDragEnter={(e) => { e.preventDefault(); }}
       title={runError || ''}
     >
-      {/* 缩进竖线 — 每层 depth 一条 */}
-      {Array.from({ length: depth }).map((_, i) => (
-        <div
-          key={i}
-          className="absolute border-l border-gray-200"
-          style={{ left: `${-(depth - i) * 20 - 2}px`, top: '-2px', bottom: '-2px' }}
-        />
-      ))}
+      {/* 缩进背景带 — 每层 depth 一条 */}
+      {Array.from({ length: depth }).map((_, i) => {
+        const bandDepth = i;
+        const isWarning = warningBand?.get(index)?.has(bandDepth);
+        return (
+          <div
+            key={i}
+            className={`absolute ${isWarning ? 'bg-red-100' : colors[bandDepth % colors.length]}`}
+            style={{ left: `${-(depth - i) * 20}px`, top: '-2px', bottom: '-2px', width: '20px' }}
+          />
+        );
+      })}
 
-      {/* 分支线 — else/catch 左侧水平线连回前序容器 */}
-      {typeInfo.isBranch && depth > 0 && (
+      {/* 容器/结束行左侧细竖线，颜色与内部最内层缩进带一致 */}
+      {(typeInfo.isContainer || typeInfo.isStructural) && (
         <div
-          className="absolute border-t border-gray-300"
-          style={{ left: `${-20}px`, top: '50%', width: '18px' }}
-        />
-      )}
-
-      {/* 闭合线 — endIf/endFor/endTry L 形返回线 */}
-      {typeInfo.isStructural && depth > 0 && (
-        <div
-          className="absolute border-l border-b border-gray-200 rounded-bl"
-          style={{ left: `${-18}px`, top: '-50%', height: 'calc(50% + 1px)', width: '16px' }}
+          className={`absolute ${warningBand?.get(index)?.has(depth) ? 'bg-red-400' : colors[depth % colors.length]}`}
+          style={{ left: '0px', top: '-2px', bottom: '-2px', width: '3px' }}
         />
       )}
 

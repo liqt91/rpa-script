@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from .. import schemas, auth
 from src.repo import runtime_models as models
 from src.config import runtime_config as config
-from src.repo.chrome_utils import get_chrome_path, get_edge_path
+from src.repo.browser_utils import get_chrome_path, get_edge_path, find_extension_dir, is_browser_running
 from ..utils import utcnow
 from ..job_registry import get_registry
 from ..dify_client import get_dify_client
@@ -202,18 +202,42 @@ def check_update():
 
 @system_router.post("/open-extensions-page")
 def open_extensions_page(browser: str = "chrome"):
-    """帮用户打开对应浏览器（不指定 URL，避免特权页面被拦截）。"""
+    """启动浏览器并自动加载 RPA Script 扩展（仅当浏览器尚未运行时有效）。"""
     browser = (browser or "chrome").lower()
     exe = get_edge_path() if browser == "edge" else get_chrome_path()
 
     if not exe:
         return {"success": False, "error": f"未找到 {browser} 浏览器"}
 
+    if is_browser_running(browser):
+        return {
+            "success": False,
+            "error": (
+                f"{browser.title()} 已经在运行。"
+                "请先关闭所有该浏览器窗口，再点击此按钮以加载扩展。"
+            ),
+        }
+
+    ext_dir = find_extension_dir()
+    if not ext_dir:
+        return {
+            "success": False,
+            "error": "未找到 RPA Script 扩展目录，请确认 extension/ 或 dist/desktop/extension/ 存在",
+        }
+
     try:
-        # 只启动/激活浏览器本身；不再尝试打开 chrome://extensions/ 或 edge://extensions/，
-        # 因为部分环境（权限、沙箱、已有实例）会拦截这些内部 URL。
-        subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return {"success": True, "browser": browser}
+        subprocess.Popen(
+            [
+                exe,
+                f"--load-extension={ext_dir}",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+        return {"success": True, "browser": browser, "extensionDir": ext_dir}
     except Exception as e:
         return {"success": False, "error": f"打开失败: {e}"}
 

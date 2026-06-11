@@ -24,6 +24,10 @@
   let altPressed = false;
   let altComboUsed = false;
   let captureEnabled = false;
+  let lastCapturePayload = null;
+  let activeCandidate = null;
+  let lastMouseX = -1;
+  let lastMouseY = -1;
 
   // ─── Helpers: stability scoring (inspired by @medv/finder) ───────
 
@@ -59,11 +63,14 @@
   }
 
   function isStableId(id) {
-    if (!id || id.length > 50) return false;
+    if (!id || id.length > 50 || id.length < 4) return false;
     if (/^:[Rr][a-z0-9]*:$/.test(id)) return false;
     if (/^css-[a-z0-9]{4,}$/i.test(id)) return false;
     if (/^(mui|chakra|ant|ember|ng|vue|svelte)[-_][a-z0-9]{4,}/i.test(id)) return false;
-    return wordLike(id);
+    if (/^[a-f0-9]{8,}$/i.test(id)) return false;
+    const digits = (id.match(/[0-9]/g) || []).length;
+    if (digits > 0 && digits / id.length > 0.5) return false;
+    return true;
   }
 
   function isStableClass(cls) {
@@ -98,6 +105,29 @@
       if (node.nodeType === Node.TEXT_NODE) t += node.textContent;
     }
     return t.trim().replace(/\s+/g, ' ');
+  }
+
+  function isRenderedVisible(el) {
+    if (!el) return false;
+    let node = el;
+    let accumulatedOpacity = 1;
+    while (node && node !== document.body && node !== document.documentElement) {
+      if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') return false;
+      const style = getComputedStyle(node);
+      if (style.visibility === 'hidden' || style.display === 'none') return false;
+      if (style.pointerEvents === 'none') return false;
+      const opacity = parseFloat(style.opacity);
+      if (Number.isFinite(opacity)) accumulatedOpacity *= opacity;
+      if (accumulatedOpacity <= 0.01) return false;
+      node = node.parentElement;
+    }
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    // ignore off-screen clones commonly used as decoys
+    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return false;
+    // form controls: ignore disabled/readonly/unfocusable duplicates
+    if (el.disabled === true || el.readOnly === true || el.getAttribute('tabindex') === '-1' || el.hasAttribute('inert')) return false;
+    return true;
   }
 
   // ─── web-verse text fingerprint ──────────────────────────────────
@@ -344,12 +374,17 @@
     } catch (e) { return null; }
   }
 
-  function verifyLocator(syntax, family) {
+  function verifyLocator(syntax, family, visibleOnly = true) {
     if (family === 'xpath') {
       const xp = syntax.replace(/^xpath:/, '');
       try {
         const r = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-        return r.snapshotLength;
+        if (!visibleOnly) return r.snapshotLength;
+        let count = 0;
+        for (let i = 0; i < r.snapshotLength; i++) {
+          if (isRenderedVisible(r.snapshotItem(i))) count++;
+        }
+        return count;
       } catch (e) { return -1; }
     }
     // verse / tag_text / text 依赖非 CSS 逻辑（XPath 或 fingerprint），
@@ -363,7 +398,10 @@
     }
     const css = convertToCssForTest(syntax, family);
     if (!css) return -1;
-    try { return document.querySelectorAll(css).length; } catch (e) { return -1; }
+    try {
+      if (!visibleOnly) return document.querySelectorAll(css).length;
+      return Array.from(document.querySelectorAll(css)).filter(isRenderedVisible).length;
+    } catch (e) { return -1; }
   }
 
   function getSimpleAncestorSelector(el) {
@@ -494,7 +532,7 @@
       }
       segs.unshift(seg);
       const trial = segs.join(' > ');
-      try { if (document.querySelectorAll(trial).length === 1) return trial; } catch (e) {}
+      try { if (verifyLocator(trial, 'css') === 1) return trial; } catch (e) {}
       if (seg.startsWith('#')) break;
       cur = parent;
     }
@@ -522,7 +560,7 @@
       segs.unshift(seg);
       pathMapping.unshift(i);
       const trial = segs.join(' > ');
-      try { if (document.querySelectorAll(trial).length === 1) return { selector: trial, pathMapping }; } catch (e) {}
+      try { if (verifyLocator(trial, 'css') === 1) return { selector: trial, pathMapping }; } catch (e) {}
       if (seg.startsWith('#')) break;
     }
     return { selector: segs.length ? segs.join(' > ') : null, pathMapping };
@@ -759,7 +797,7 @@
       seen.add(css);
       checked++;
       try {
-        if (document.querySelectorAll(css).length === 1) {
+        if (verifyLocator(css, 'css') === 1) {
           candidates.push({
             syntax: 'css:' + css,
             label: css + ' (组合搜索)',
@@ -802,7 +840,7 @@
       seen.add(css);
       checked++;
       try {
-        if (document.querySelectorAll(css).length === 1) {
+        if (verifyLocator(css, 'css') === 1) {
           const pathMapping = combo.slice().reverse().map(n => n.pathIndex);
           candidates.push({
             syntax: 'css:' + css,
@@ -850,7 +888,7 @@
       // anchor + tag
       const sel1 = `${ancSel}${dir}${tag}`;
       let count = -1;
-      try { count = document.querySelectorAll(sel1).length; } catch (e) {}
+      try { count = verifyLocator(sel1, 'css'); } catch (e) {}
       if (count === 1) {
         candidates.push({ syntax: 'css:' + sel1, label: `${sel1} (${desc})`, family: 'css', score: 80, matchCount: 1 });
         continue;
@@ -862,7 +900,7 @@
         let found = false;
         for (const c of stableClasses) {
           const sel3 = `${ancSel}${dir}${tag}.${cssEscape(c)}`;
-          try { count = document.querySelectorAll(sel3).length; } catch (e) {}
+          try { count = verifyLocator(sel3, 'css'); } catch (e) {}
           if (count === 1) {
             candidates.push({ syntax: 'css:' + sel3, label: `${sel3} (${desc})`, family: 'css', score: 83, matchCount: 1 });
             found = true;
@@ -874,7 +912,7 @@
 
       // anchor + *
       const sel2 = `${ancSel}${dir}*`;
-      try { count = document.querySelectorAll(sel2).length; } catch (e) {}
+      try { count = verifyLocator(sel2, 'css'); } catch (e) {}
       if (count === 1) {
         candidates.push({ syntax: 'css:' + sel2, label: `${sel2} (${desc})`, family: 'css', score: 78, matchCount: 1 });
       }
@@ -1496,10 +1534,17 @@
     const tag = targetNode.tag;
     const targetPathIndex = path.length - 1;
 
-    function tryXPath(xp, score, label) {
+    function tryXPath(xp, score, label, filterVisible = true) {
       try {
         const r = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-        if (r.snapshotLength === 1) {
+        let count = r.snapshotLength;
+        if (filterVisible) {
+          count = 0;
+          for (let i = 0; i < r.snapshotLength; i++) {
+            if (isRenderedVisible(r.snapshotItem(i))) count++;
+          }
+        }
+        if (count === 1) {
           candidates.push({
             syntax: 'xpath:' + xp,
             label: label + ' (唯一)',
@@ -1526,6 +1571,32 @@
       tryXPath(`//*[@${attr}=${xpathLiteral(v)}]`, 93, `${attr}=${v}`);
     }
 
+    // form attrs (name/placeholder) are extremely stable for inputs/textareas
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      const formAttrs = ['name', 'placeholder'];
+      for (const attr of formAttrs) {
+        const v = targetNode.attrs[attr];
+        if (!v || v.length > 80) continue;
+        tryXPath(`//${tag}[@${attr}=${xpathLiteral(v)}]`, 98, `${attr}=${v}`);
+        tryXPath(`//*[@${attr}=${xpathLiteral(v)}]`, 96, `${attr}=${v}`);
+      }
+    }
+
+    // ancestor anchor + name (distinguishes e.g. header search vs in-feeds search)
+    if ((tag === 'input' || tag === 'textarea' || tag === 'select') && targetNode.attrs.name) {
+      const nameVal = targetNode.attrs.name;
+      for (let i = path.length - 2; i >= Math.max(0, path.length - 11); i--) {
+        const anc = path[i];
+        if (anc.id && isStableId(anc.id)) {
+          tryXPath(`//${anc.tag}[@id=${xpathLiteral(anc.id)}]//${tag}[@name=${xpathLiteral(nameVal)}]`, 99, `anc#id//name`);
+        }
+        const ancStable = (anc.classes || []).filter(isStableClass);
+        for (const cls of ancStable.slice(0, 2)) {
+          tryXPath(`//${anc.tag}[contains(@class,${xpathLiteral(cls)})]//${tag}[@name=${xpathLiteral(nameVal)}]`, 95 - (path.length - 2 - i) * 2, `anc.${cls}//name`);
+        }
+      }
+    }
+
     // semantic attrs
     const semanticAttrs = [
       { name: 'aria-label', score: 90 },
@@ -1548,8 +1619,30 @@
         text = element.textContent.trim().replace(/\s+/g, ' ');
       }
       if (text && text.length > 0 && text.length < 50) {
-        tryXPath(`//${tag}[contains(text(),${xpathLiteral(text)})]`, 80, `text~"${text}"`);
-        tryXPath(`//*[contains(text(),${xpathLiteral(text)})]`, 78, `text~"${text}"`);
+        tryXPath(`//${tag}[text()=${xpathLiteral(text)}]`, 84, `text="${text}"`, true);
+        tryXPath(`//*[text()=${xpathLiteral(text)}]`, 82, `text="${text}"`, true);
+        tryXPath(`//${tag}[contains(text(),${xpathLiteral(text)})]`, 76, `text~"${text}"`, true);
+        tryXPath(`//*[contains(text(),${xpathLiteral(text)})]`, 74, `text~"${text}"`, true);
+
+        // ancestor class + text (e.g. //div[contains(@class,'tags')]/span[text()='一天内'])
+        for (let i = path.length - 2; i >= Math.max(0, path.length - 11); i--) {
+          const anc = path[i];
+          const ancStable = (anc.classes || []).filter(isStableClass);
+          for (const cls of ancStable.slice(0, 2)) {
+            tryXPath(`//${anc.tag}[contains(@class,${xpathLiteral(cls)})]//${tag}[text()=${xpathLiteral(text)}]`, 88 - (path.length - 2 - i) * 2, `anc.${cls}//text`, true);
+            tryXPath(`//${anc.tag}[contains(@class,${xpathLiteral(cls)})]/${tag}[text()=${xpathLiteral(text)}]`, 90 - (path.length - 2 - i) * 2, `anc.${cls}/text`, true);
+          }
+          const ancStableId = anc.id && isStableId(anc.id) ? anc.id : '';
+          if (ancStableId) {
+            tryXPath(`//${anc.tag}[@id=${xpathLiteral(ancStableId)}]//${tag}[text()=${xpathLiteral(text)}]`, 94, `anc#id//text`, true);
+          }
+          const ancDataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-id', 'data-name', 'data-key', 'data-e2e', 'data-hp-bound', 'data-hp-kind'];
+          for (const attr of ancDataAttrs) {
+            const v = (anc.attrs || {})[attr];
+            if (!v || v.length > 80) continue;
+            tryXPath(`//${anc.tag}[@${attr}=${xpathLiteral(v)}]//${tag}[text()=${xpathLiteral(text)}]`, 86 - (path.length - 2 - i) * 2, `anc.${attr}//text`, true);
+          }
+        }
       }
     }
 
@@ -1607,6 +1700,18 @@
         candidates.push({ syntax: `css:[${attr}="${attrValueEscape(v)}"]`, label: `${attr}=${v} (css)`, family: 'css', score: 92, pathMapping: [targetPathIndex] });
       } else {
         candidates.push({ syntax: `@${attr}=${escapeAttrVal(v)}`, label: `${attr}=${v}`, family: 'drission', score: 95, pathMapping: [targetPathIndex] });
+      }
+    }
+
+    // 2.5 form attrs: name / placeholder are extremely stable for inputs/textareas
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      const formAttrs = ['name', 'placeholder'];
+      for (const attr of formAttrs) {
+        const v = targetNode.attrs[attr];
+        if (!v || v.length > 80 || attrValNeedsCssFallback(v)) continue;
+        candidates.push({ syntax: `${tag}[${attr}="${attrValueEscape(v)}"]`, label: `${tag}[${attr}=${v}]`, family: 'css', score: 94, pathMapping: [targetPathIndex] });
+        candidates.push({ syntax: `[${attr}="${attrValueEscape(v)}"]`, label: `[${attr}=${v}]`, family: 'css', score: 90, pathMapping: [targetPathIndex] });
+        candidates.push({ syntax: `@${attr}=${escapeAttrVal(v)}`, label: `${attr}=${v}`, family: 'drission', score: 96, pathMapping: [targetPathIndex] });
       }
     }
 
@@ -1735,7 +1840,7 @@
           for (const base of bases) {
             const combined = `${ancSel} ${base}`;
             let count = -1;
-            try { count = document.querySelectorAll(combined).length; } catch (e) {}
+            try { count = verifyLocator(combined, 'css'); } catch (e) {}
             if (count >= 1) {
               candidates.push({ syntax: `css:${combined}`, label: `${combined} (祖先收窄)`, family: 'css', score: count === 1 ? 78 : 28 });
               if (count === 1) foundUnique = true;
@@ -1753,7 +1858,7 @@
       const structResult = buildStructuralCssFromPath(path);
       if (structResult.selector) {
         let count = -1;
-        try { count = document.querySelectorAll(structResult.selector).length; } catch (e) {}
+        try { count = verifyLocator(structResult.selector, 'css'); } catch (e) {}
         if (count >= 1) {
           candidates.push({ syntax: 'css:' + structResult.selector, label: structResult.selector + ' (结构路径)', family: 'css', score: count === 1 ? 76 : 22, pathMapping: structResult.pathMapping });
         }
@@ -1894,11 +1999,34 @@
     console.log('[RPA Capture] 退出捕获模式');
   }
 
+  function resolveCaptureTarget(el) {
+    if (!el) return el;
+    // Already an SVG — keep it
+    if (el.tagName === 'svg' || el.tagName === 'SVG') return el;
+    // If the wrapper contains only one SVG/USE/IMG child and has no text,
+    // prefer the inner visual element (common for icon-button wrappers).
+    const children = Array.from(el.children);
+    if (children.length === 1) {
+      const child = children[0];
+      const tag = child.tagName.toLowerCase();
+      if (tag === 'svg' || tag === 'use' || tag === 'img') {
+        const text = (el.textContent || '').trim();
+        if (!text) return tag === 'use' ? child.closest('svg') || child : child;
+      }
+    }
+    // If we hit a <use>, surface to the owning <svg>
+    if (el.tagName === 'use' || el.tagName === 'USE') {
+      return el.closest('svg') || el;
+    }
+    return el;
+  }
+
   function onCaptureMouseMove(e) {
     if (!captureMode) return;
     const stack = document.elementsFromPoint(e.clientX, e.clientY);
-    const target = stack.find(el => el !== document.body && el !== document.documentElement && !el.closest('#rpa-capture-highlight-host'));
+    let target = stack.find(el => el !== document.body && el !== document.documentElement && !el.closest('#rpa-capture-highlight-host'));
     if (!target) return;
+    target = resolveCaptureTarget(target);
     if (target === lastHoveredEl) {
       redrawHighlight();
       return;
@@ -1909,21 +2037,12 @@
     redrawHighlight();
   }
 
-  async function onCaptureClick(e) {
-    if (!captureMode || !e.altKey) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const el = lockedElement;
-    if (!el) {
-      showToast('没有可捕获的元素');
-      return;
-    }
+  function isExtensionContextInvalidated(err) {
+    const msg = err?.message || String(err);
+    return msg.includes('Extension context invalidated') || msg.includes('context invalidated');
+  }
 
-    // 先退出捕获模式移除高亮框，再截图避免外框和蒙层入镜
-    exitCaptureMode();
-    // 等浏览器完成重绘（两帧确保渲染管线清空）
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
+  async function performCapture(el) {
     const rect = el.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     let screenshot = null;
@@ -1935,6 +2054,10 @@
       });
       if (resp?.dataUrl) screenshot = resp.dataUrl;
     } catch (e) {
+      if (isExtensionContextInvalidated(e)) {
+        showToast('扩展已重新加载，请刷新当前页面后重试');
+        throw e;
+      }
       console.warn('[RPA Capture] screenshot failed:', e);
     }
 
@@ -2010,14 +2133,36 @@
         ...listMeta,
       };
 
+      lastCapturePayload = payload;
+      activeCandidate = null;
       chrome.runtime.sendMessage({ action: 'captureElement', payload })
-        .catch((err) => showToast('发送失败: ' + err.message));
+        .catch((err) => {
+          if (isExtensionContextInvalidated(err)) {
+            showToast('扩展已重新加载，请刷新当前页面后重试');
+            return;
+          }
+          showToast('发送失败: ' + err.message);
+        });
     };
     if (typeof requestIdleCallback === 'function') {
       requestIdleCallback(computePayload, { timeout: 200 });
     } else {
       setTimeout(computePayload, 0);
     }
+  }
+
+  async function onCaptureClick(e) {
+    if (!captureMode || !e.altKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = lockedElement;
+    if (!el) {
+      showToast('没有可捕获的元素');
+      return;
+    }
+    exitCaptureMode();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await performCapture(el);
   }
 
   // ─── Element highlighting (used by Side Panel verify) ────────────
@@ -2055,13 +2200,16 @@
     try {
       if (type === 'css' || !type) {
         const s = selector.startsWith('css:') ? selector.slice(4) : selector;
-        return Array.from(document.querySelectorAll(s));
+        return Array.from(document.querySelectorAll(s)).filter(isRenderedVisible);
       }
       if (type === 'xpath') {
         const s = selector.startsWith('xpath:') ? selector.slice(6) : selector;
         const r = document.evaluate(s, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
         const arr = [];
-        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        for (let i = 0; i < r.snapshotLength; i++) {
+          const node = r.snapshotItem(i);
+          if (isRenderedVisible(node)) arr.push(node);
+        }
         return arr;
       }
       if (type === 'id') {
@@ -2097,7 +2245,10 @@
         if (m) {
           const r = document.evaluate(`//${m[1]}[contains(text(), ${JSON.stringify(m[2])})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
           const arr = [];
-          for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+          for (let i = 0; i < r.snapshotLength; i++) {
+            const node = r.snapshotItem(i);
+            if (isRenderedVisible(node)) arr.push(node);
+          }
           return arr;
         }
         return [];
@@ -2106,7 +2257,10 @@
         const text = selector.startsWith('text=') ? selector.slice(5) : selector;
         const r = document.evaluate(`//*[contains(text(), ${JSON.stringify(text)})]`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
         const arr = [];
-        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        for (let i = 0; i < r.snapshotLength; i++) {
+          const node = r.snapshotItem(i);
+          if (isRenderedVisible(node)) arr.push(node);
+        }
         return arr;
       }
       if (type === 'multi_attr') {
@@ -2191,7 +2345,55 @@
 
   // ─── Keyboard shortcuts ──────────────────────────────────────────
 
+  document.addEventListener('mousemove', (e) => {
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+  });
+
+  async function triggerQuickCapture() {
+    if (!captureEnabled) return;
+    let el = lockedElement;
+    if (!el && lastMouseX >= 0 && lastMouseY >= 0) {
+      const stack = document.elementsFromPoint(lastMouseX, lastMouseY);
+      el = stack.find((elm) => elm !== document.body && elm !== document.documentElement && !elm.closest('#rpa-capture-highlight-host'));
+    }
+    if (!el) {
+      showToast('没有可捕获的元素');
+      return;
+    }
+    if (captureMode) exitCaptureMode();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await performCapture(el);
+  }
+
+  async function triggerQuickVerify() {
+    if (!captureEnabled) return;
+    const target = activeCandidate || lastCapturePayload?.candidates?.[0];
+    if (!target) {
+      showToast('没有可校验的选择器，请先捕获元素');
+      return;
+    }
+    const selector = activeCandidate ? target.selector : target.syntax;
+    const type = activeCandidate ? target.type : target.family;
+    const nodes = resolveAllForVerify(selector, type);
+    highlightSelectorMatches(selector, type);
+    showToast(`校验结果: 匹配 ${nodes.length} 个元素`);
+    try {
+      chrome.runtime.sendMessage({ action: 'verifyResult', payload: { count: nodes.length, matchedSelector: selector } }).catch(() => {});
+    } catch (_e) {}
+  }
+
   document.addEventListener('keydown', (e) => {
+    if (e.altKey && (e.key === '1')) {
+      e.preventDefault();
+      triggerQuickCapture();
+      return;
+    }
+    if (e.altKey && (e.key === '2')) {
+      e.preventDefault();
+      triggerQuickVerify();
+      return;
+    }
     if (e.key === 'Alt') {
       if (!captureEnabled) return;
       altPressed = true;
@@ -2225,6 +2427,21 @@
       if (!captureEnabled && captureMode) exitCaptureMode();
       sendResponse({ ok: true });
       return false;
+    }
+    if (message.action === 'selectCandidate') {
+      activeCandidate = message.payload || null;
+      sendResponse({ ok: true });
+      return false;
+    }
+    if (message.action === 'triggerCapture') {
+      if (!captureEnabled) { sendResponse({ ok: false, error: 'side panel not open' }); return false; }
+      triggerQuickCapture().then(() => sendResponse({ ok: true })).catch((err) => sendResponse({ error: err.message }));
+      return true;
+    }
+    if (message.action === 'triggerVerify') {
+      if (!captureEnabled) { sendResponse({ ok: false, error: 'side panel not open' }); return false; }
+      triggerQuickVerify().then(() => sendResponse({ ok: true })).catch((err) => sendResponse({ error: err.message }));
+      return true;
     }
     if (message.action === 'elementCaptured') {
       console.log('[RPA Capture] received broadcast, posting to page');

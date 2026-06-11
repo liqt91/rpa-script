@@ -27,6 +27,7 @@ from .commands import COMMAND_REGISTRY
 from src.providers import run_progress
 from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
+from src.repo.browser_utils import is_browser_running, launch_browser_with_extension
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ async def wait_for_extension(
 ) -> str:
     """等待指定浏览器的扩展 WebSocket 连接上线。
 
-    只轮询等待，不自动启动浏览器。
+    若浏览器未运行，会自动尝试以默认用户目录启动并加载 RPA Script 扩展。
     返回 client_id，超时抛出 TimeoutError。
     """
     if ext_manager is None:
@@ -78,10 +79,18 @@ async def wait_for_extension(
             logger.info(f"[{browser_type}] 扩展注册后已在线: {conns[0].client_id}")
             return conns[0].client_id
 
-    # 3. 指数退避轮询等待扩展连接（不启动浏览器）
+    # 3. 浏览器没运行的话自动启动并加载扩展（默认用户目录）
+    if not is_browser_running(browser_type):
+        logger.info(f"[{browser_type}] 浏览器未运行，尝试自动启动并加载扩展...")
+        launch_browser_with_extension(browser_type)
+        # 给浏览器进程预留启动时间
+        await asyncio.sleep(3.0)
+    else:
+        logger.info(f"[{browser_type}] 浏览器已在运行，等待扩展连接...")
+
+    # 4. 指数退避轮询等待扩展连接
     start = time.time()
     delay = 0.5
-    logger.info(f"[{browser_type}] 扩展未连接，等待中（不会自动启动浏览器）...")
 
     while time.time() - start < timeout:
         conns = ext_manager.connections_by_browser(browser_type)
@@ -92,7 +101,8 @@ async def wait_for_extension(
         delay = min(delay * 1.5, 5.0)
 
     raise TimeoutError(
-        f"{browser_type} 扩展未在 {timeout}s 内连接，请手动启动浏览器并确认扩展已安装启用"
+        f"{browser_type} 扩展未在 {timeout}s 内连接，"
+        "请关闭该浏览器所有窗口后重试，或在扩展管理页面手动加载 extension/ 目录"
     )
 
 

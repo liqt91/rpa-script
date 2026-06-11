@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from typing import Optional
 
+from src.config import runtime_config as config
+
 logger = __import__("logging").getLogger(__name__)
 
 
@@ -106,6 +108,75 @@ def launch_browser(browser_type: str) -> bool:
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
         )
         logger.info(f"已启动 {browser_type}: {path}")
+        return True
+    except Exception as e:
+        logger.error(f"启动 {browser_type} 失败: {e}")
+        return False
+
+
+def find_extension_dir() -> Optional[str]:
+    """定位扩展文件夹：开发模式用 extension/，打包后用 dist/desktop/extension/。"""
+    candidates = [
+        os.path.join(config.REPO_DIR, "extension"),
+        os.path.join(config.REPO_DIR, "dist", "desktop", "extension"),
+    ]
+    for path in candidates:
+        if os.path.isdir(path) and os.path.isfile(os.path.join(path, "manifest.json")):
+            return path
+    return None
+
+
+def is_browser_running(browser_type: str) -> bool:
+    """Windows 下通过 tasklist 检测浏览器主进程是否正在运行。"""
+    if os.name != "nt":
+        return False
+    image = "msedge.exe" if browser_type == "edge" else "chrome.exe"
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {image}", "/NH"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return image.lower() in result.stdout.lower()
+    except Exception:
+        return False
+
+
+def launch_browser_with_extension(browser_type: str) -> bool:
+    """以默认用户目录启动浏览器，并自动加载 RPA Script 扩展。
+
+    若浏览器已经在运行，则不会重复启动（也不会重新加载扩展）。
+    返回是否成功发起启动。
+    """
+    path = get_chrome_path() if browser_type == "chrome" else get_edge_path()
+    if not path:
+        logger.warning(f"未找到 {browser_type} 安装路径")
+        return False
+
+    ext_dir = find_extension_dir()
+    if not ext_dir:
+        logger.warning("未找到 RPA Script 扩展目录")
+        return False
+
+    if is_browser_running(browser_type):
+        logger.info(f"{browser_type} 已经在运行，跳过自动启动")
+        return False
+
+    try:
+        subprocess.Popen(
+            [
+                path,
+                f"--load-extension={ext_dir}",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ],
+            shell=False,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        logger.info(f"已启动 {browser_type} 并加载扩展: {ext_dir}")
         return True
     except Exception as e:
         logger.error(f"启动 {browser_type} 失败: {e}")

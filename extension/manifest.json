@@ -43,6 +43,16 @@
     }
   ],
   "options_page": "options.html",
+  "commands": {
+    "capture-element": {
+      "suggested_key": { "default": "Alt+1" },
+      "description": "捕获当前鼠标下元素"
+    },
+    "verify-element": {
+      "suggested_key": { "default": "Alt+2" },
+      "description": "校验最近一次捕获的选择器"
+    }
+  },
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",

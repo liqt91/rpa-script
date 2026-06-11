@@ -278,6 +278,34 @@ export function matchBrackets(sorted, typeMap) {
 }
 
 /**
+ * 找出所有未闭合的容器。
+ * 返回 { id, closesWith, index, depth }[]
+ */
+export function getUnclosedContainers(sorted, typeMap) {
+  const stack = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const node = sorted[i];
+    const info = typeMap[node.type];
+    if (info?.isContainer) {
+      stack.push({ id: node.id, closesWith: info.closesWith, index: i, depth: node.depth || 0 });
+    } else if (info?.isBranch) {
+      if (stack.length > 0) {
+        stack[stack.length - 1].id = node.id;
+        stack[stack.length - 1].closesWith = info.closesWith || stack[stack.length - 1].closesWith;
+      }
+    } else if (info?.isStructural) {
+      const closeType = node.type;
+      let idx = stack.length - 1;
+      while (idx >= 0 && stack[idx].closesWith !== closeType) idx--;
+      if (idx >= 0) {
+        stack.splice(idx, 1);
+      }
+    }
+  }
+  return stack;
+}
+
+/**
  * 基于括号匹配结果计算每个节点的 parent_id。
  * 规则：节点属于离它最近且尚未闭合的容器。
  * 结构标记和容器平级（parent = 容器的 parent）。

@@ -450,6 +450,18 @@ class AgentBackground {
 const agent = new AgentBackground();
 agent.start();
 
+// ── Extension command shortcuts (Alt+1 capture, Alt+2 verify) ──
+chrome.commands.onCommand.addListener(async (command) => {
+  if (!agent.sidePanelOpen) return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+  if (command === 'capture-element') {
+    chrome.tabs.sendMessage(tab.id, { action: 'triggerCapture' }).catch(() => {});
+  } else if (command === 'verify-element') {
+    chrome.tabs.sendMessage(tab.id, { action: 'triggerVerify' }).catch(() => {});
+  }
+});
+
 // ── Handle messages from content scripts and side panel ──
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -477,6 +489,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       payload: agent.lastCapturePayload,
       tabId: agent.lastCaptureTabId,
     });
+    return false;
+  }
+
+  // 1a) Side panel 选中候选方案 → 转发给捕获来源标签页
+  if (message.action === 'selectCandidate') {
+    const tabId = agent.lastCaptureTabId;
+    if (!tabId) {
+      sendResponse({ forwarded: false, error: 'no capture tab' });
+      return false;
+    }
+    chrome.tabs.sendMessage(tabId, { action: 'selectCandidate', payload: message.payload }).catch(() => {});
+    sendResponse({ forwarded: true });
     return false;
   }
 
