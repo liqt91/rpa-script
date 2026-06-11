@@ -286,9 +286,12 @@
 
     let el = null;
     switch (lt) {
-      case 'xpath':
-        el = document.evaluate(l, rootElement, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      case 'xpath': {
+        let xl = l;
+        if (xl.startsWith('//')) xl = '.' + xl;
+        el = document.evaluate(xl, rootElement, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
         break;
+      }
       case 'drission': {
         if (l.startsWith('verse:')) {
           const fp = l.replace(/^verse:/, '');
@@ -356,7 +359,9 @@
     if (inferred && inferred !== lt) lt = inferred;
 
     if (lt === 'xpath') {
-      const r = document.evaluate(l, rootElement, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      let xl = l;
+      if (xl.startsWith('//')) xl = '.' + xl;
+      const r = document.evaluate(xl, rootElement, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
       const arr = [];
       for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
       return arr;
