@@ -989,7 +989,7 @@
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      let el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
 
       await visualConfirmDelay();
 
