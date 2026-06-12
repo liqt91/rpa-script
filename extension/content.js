@@ -987,6 +987,7 @@
     async click({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
+      const forceJs = extra?.forceJs ?? false;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
       let el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
@@ -996,7 +997,13 @@
       const fresh = reResolveWithContext(locator, selectorFamily, extra, visibleOnly);
       if (fresh && fresh !== document) el = fresh;
 
-      await humanClick(el, humanLike);
+      if (forceJs) {
+        el.scrollIntoView({ block: 'center', behavior: 'instant' });
+        if (el.focus) el.focus();
+        el.click();
+      } else {
+        await humanClick(el, humanLike);
+      }
       return { clicked: true, tagName: el.tagName };
     },
 
