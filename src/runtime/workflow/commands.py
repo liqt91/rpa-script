@@ -830,6 +830,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [
             _element_name_field(),
             _scope_field(),
+            {"name": "visibleOnly", "label": "只匹配可见元素", "type": "bool", "default": True, "group": "advanced"},
             {"name": "itemVar", "label": "元素变量名", "type": "varName", "default": "item"},
             {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},
         ],

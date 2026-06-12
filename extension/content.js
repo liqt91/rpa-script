@@ -1283,6 +1283,7 @@ console.log({
     });
   registerHandler('findElements', async function findElements({ locator, selectorFamily, extra }) {
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
+      const visibleOnly = extra?.visibleOnly ?? true;
       const ctxLocator = extra?.contextLocator;
       const ctxLocatorType = extra?.contextLocatorType;
       const ctxIndex = extra?.contextIndex ?? 0;
@@ -1297,6 +1298,9 @@ console.log({
           }
         } else {
           elements = resolveAllLocators(locator, selectorFamily);
+        }
+        if (visibleOnly) {
+          elements = elements.filter(isVisible);
         }
         if (elements.length > 0) break;
         await sleep(200);
