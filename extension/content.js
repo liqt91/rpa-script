@@ -1288,12 +1288,13 @@ console.log({
       }
     });
   registerHandler('checkElementVisible', async function checkElementVisible({ locator, selectorFamily, extra }) {
+      const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const ctxLocator = extra?.contextLocator;
-      console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${selectorFamily} ctx=${ctxLocator ? 'yes' : 'no'} timeout=${timeoutMs}`);
+      console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${selectorFamily} ctx=${ctxLocator ? 'yes' : 'no'} mode=${mode} timeout=${timeoutMs}`);
       try {
-        const el = await waitForElementWithContext(locator, selectorFamily, extra, 'any', timeoutMs);
-        const vis = isVisible(el);
+        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+        const vis = checkVisibility(el, mode);
         console.log(`[RPA checkElementVisible] result tag=${el?.tagName} visible=${vis}`);
         return { visible: vis };
       } catch (e) {

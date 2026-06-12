@@ -486,6 +486,12 @@ class ExtensionRunner:
             payload_extra = {"timeout": timeout}
             if extra:
                 payload_extra["scope"] = extra.get("scope", "local")
+                if "visibilityMode" in extra:
+                    payload_extra["visibilityMode"] = extra["visibilityMode"]
+                else:
+                    payload_extra["visibleOnly"] = True
+            else:
+                payload_extra["visibleOnly"] = True
             result = await self._call_extension_handler(
                 "checkElementVisible",
                 {

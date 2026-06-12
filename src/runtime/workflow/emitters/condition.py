@@ -1,19 +1,32 @@
-from ._registry import _handler, _loc_calls, _var_ref, _py_str, _emit_children
+from ._registry import _handler, _loc_calls, _loc_str_by_name, _var_ref, _py_str, _emit_children
 
 
 @_handler("ifElementVisible")
 def _emit_ifElementVisible(node, extra, depth, prefix, by_parent, lines, element_map=None):
-    calls = _loc_calls(node, extra, element_map)
     op = extra.get("operator", "visible")
-    if op == "visible":
-        cond = " or ".join(f"{c}.states.is_displayed" for c in calls) if len(calls) > 1 else f"{calls[0]}.states.is_displayed"
-        lines.append(f"{prefix}if {cond}:")
-    else:
-        if len(calls) > 1:
-            cond = " and ".join(f"not {c}.states.is_displayed" for c in calls)
+    mode = extra.get("visibilityMode", "visible")
+    if mode == "any":
+        locs = [_loc_str_by_name(node.element_name, element_map)]
+        for name in extra.get("element_names") or []:
+            if name:
+                locs.append(_loc_str_by_name(name, element_map))
+        checks = [f"_ele_exists(tab, {_py_str(loc)})" for loc in locs if loc]
+        if not checks:
+            checks = ["False"]
+        if op == "visible":
+            cond = " or ".join(checks) if len(checks) > 1 else checks[0]
         else:
-            cond = f"not {calls[0]}.states.is_displayed"
-        lines.append(f"{prefix}if {cond}:")
+            cond = " and ".join(f"not {c}" for c in checks) if len(checks) > 1 else f"not {checks[0]}"
+    else:
+        calls = _loc_calls(node, extra, element_map)
+        if op == "visible":
+            cond = " or ".join(f"{c}.states.is_displayed" for c in calls) if len(calls) > 1 else f"{calls[0]}.states.is_displayed"
+        else:
+            if len(calls) > 1:
+                cond = " and ".join(f"not {c}.states.is_displayed" for c in calls)
+            else:
+                cond = f"not {calls[0]}.states.is_displayed"
+    lines.append(f"{prefix}if {cond}:")
     _emit_children(node, depth, by_parent, lines, element_map)
 
 

@@ -61,6 +61,15 @@ def _loc_str(node: models.WorkflowNode, element_map: dict | None = None) -> str:
     return loc or ""
 
 
+def _loc_str_by_name(element_name: str | None, element_map: dict | None = None) -> str:
+    """Return just the resolved locator string for a named element."""
+    if element_map and element_name:
+        el = element_map.get(element_name)
+        if el and el.drission_selector:
+            return el.drission_selector
+    return ""
+
+
 def _loc_call(node: models.WorkflowNode, extra: dict, element_map: dict | None = None) -> str:
     """Build tab.ele('...') style locator call."""
     return _loc_call_by_name(node.element_name, extra, element_map)

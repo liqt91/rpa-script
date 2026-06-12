@@ -57,6 +57,20 @@ def _retry_count_field(default: int = 3) -> dict:
         "group": "advanced",
     }
 
+def _visibility_mode_field() -> dict:
+    return {
+        "name": "visibilityMode",
+        "label": "元素可见性",
+        "type": "select",
+        "options": [
+            {"label": "匹配可见元素", "value": "visible"},
+            {"label": "匹配所有元素", "value": "any"},
+        ],
+        "default": "visible",
+        "group": "advanced",
+        "description": "匹配可见元素=过滤display:none/visibility:hidden/opacity:0/aria-hidden等渲染不可见元素；匹配所有元素=任意DOM元素都参与匹配。",
+    }
+
 def _attach_common_advanced(fields: list[dict]) -> list[dict]:
     """为指令字段列表附加通用高级参数（如果不存在）。"""
     result = copy.deepcopy(fields)
@@ -69,20 +83,7 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
     if "timeout" not in names:
         result.append(_timeout_field())
     if has_element and "visibilityMode" not in names:
-        result.append(
-            {
-                "name": "visibilityMode",
-                "label": "元素可见性",
-                "type": "select",
-                "options": [
-                    {"label": "匹配可见元素", "value": "visible"},
-                    {"label": "匹配所有元素", "value": "any"},
-                ],
-                "default": "visible",
-                "group": "advanced",
-                "description": "匹配可见元素=过滤display:none/visibility:hidden/opacity:0/aria-hidden等渲染不可见元素；匹配所有元素=任意DOM元素都参与匹配。",
-            }
-        )
+        result.append(_visibility_mode_field())
     if "humanLike" not in names:
         result.append(
             {
@@ -687,6 +688,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             {"name": "element_names", "label": "附加元素", "type": "elementNameList", "required": False},
             _scope_field(),
             {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "可见", "value": "visible"}, {"label": "不可见", "value": "notVisible"}], "default": "visible"},
+            _visibility_mode_field(),
         ],
     },
     "ifTextContains": {
