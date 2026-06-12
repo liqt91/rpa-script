@@ -600,7 +600,7 @@ class ExtensionRunner:
             op = extra.get("operator", "visible")
             logger.info(
                 f"[ExtensionRunner] evaluating ifElementVisible "
-                f"locators={locators} timeout={timeout} operator={op}"
+                f"locators={locators} timeout={timeout} operator={op} visibilityMode={extra.get('visibilityMode', 'visible')}"
             )
             elements = []
             results = []
@@ -615,17 +615,23 @@ class ExtensionRunner:
             text = await self._get_element_text(locator, selector_family, timeout=timeout, extra=extra)
             expected = extra.get("text", "")
             op = extra.get("operator", "contains")
+            met = False
             if op == "notContains":
-                return expected not in text
-            if op == "startsWith":
-                return text.startswith(expected)
-            if op == "endsWith":
-                return text.endswith(expected)
-            return expected in text
+                met = expected not in text
+            elif op == "startsWith":
+                met = text.startswith(expected)
+            elif op == "endsWith":
+                met = text.endswith(expected)
+            else:
+                met = expected in text
+            logger.info(f"[ExtensionRunner] ifTextContains text={text!r} expected={expected!r} op={op} met={met}")
+            return met
         if cmd_type == "ifTextEquals":
             text = await self._get_element_text(locator, selector_family, timeout=timeout, extra=extra)
             expected = extra.get("text", "")
-            return text == expected
+            met = text == expected
+            logger.info(f"[ExtensionRunner] ifTextEquals text={text!r} expected={expected!r} met={met}")
+            return met
         if cmd_type == "ifUrlContains":
             url = await self._get_current_url()
             pattern = extra.get("urlPattern", "")
@@ -784,6 +790,7 @@ class ExtensionRunner:
             timeout = extra.get("timeout", 10)
             body = instr.get("body", [])
 
+            logger.info(f"[ExtensionRunner] forEachElement visibilityMode={extra.get('visibilityMode', 'visible')} visibleOnly={extra.get('visibleOnly', '-')}")
             elements = await self._find_elements(locator, selector_family, timeout=timeout, extra=extra)
             logger.info(f"[ExtensionRunner] forEachElement found {len(elements)} elements")
             prev_ctx = self.vars.get("__loop_ctx")

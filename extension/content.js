@@ -1306,7 +1306,9 @@ console.log({
       const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-      return { text: el.textContent?.trim() ?? '' };
+      const text = el.textContent?.trim() ?? '';
+      console.log(`[RPA getElementText] mode=${mode} tag=${el?.tagName} textLen=${text.length} locator=${JSON.stringify(locator)}`);
+      return { text };
     });
   registerHandler('getCurrentUrl', function getCurrentUrl() {
       return window.location.href;
@@ -1329,9 +1331,11 @@ console.log({
         } else {
           elements = resolveAllLocators(locator, selectorFamily);
         }
+        const rawCount = elements.length;
         if (mode !== 'any') {
           elements = elements.filter(el => checkVisibility(el, mode));
         }
+        console.log(`[RPA findElements] raw=${rawCount} filtered=${elements.length} mode=${mode} locator=${JSON.stringify(locator)} ctx=${ctxLocator ? 'yes' : 'no'}`);
         if (elements.length > 0) break;
         await sleep(200);
       }
