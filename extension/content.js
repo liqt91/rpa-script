@@ -53,6 +53,7 @@
   function checkVisibility(el, mode) {
     if (!el || mode === 'any') return true;
     if (mode === 'rendered') return isRendered(el);
+    if (mode === 'viewport') return isInViewport(el);
     return isVisible(el);
   }
 
