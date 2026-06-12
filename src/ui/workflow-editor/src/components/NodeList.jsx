@@ -304,7 +304,7 @@ export default function NodeList() {
     const defaultExtra = {};
     if (typeInfo.fields) {
       for (const f of typeInfo.fields) {
-        if (f.default !== undefined && !['locator', 'selector_family', 'target_mode'].includes(f.name)) {
+        if (f.default !== undefined) {
           defaultExtra[f.name] = f.default;
         }
       }
@@ -313,9 +313,6 @@ export default function NodeList() {
     saveNode({
       type: nodeType,
       parent_id: parentId,
-      locator: '',
-      selector_family: 'css',
-      target_mode: 'single',
       extra: defaultExtra,
     }, idx);
   }, [draggingIds, insertIndex, treeNodes, nodes, NODE_TYPE_MAP, saveNode, handleInternalDrop]);

@@ -80,7 +80,7 @@ export default function CommandPanel() {
       const defaultExtra = {};
       if (cmd?.fields) {
         for (const f of cmd.fields) {
-          if (f.default !== undefined && !['locator', 'selector_family', 'target_mode'].includes(f.name)) {
+          if (f.default !== undefined) {
             defaultExtra[f.name] = f.default;
           }
         }
@@ -92,9 +92,6 @@ export default function CommandPanel() {
       await saveNode({
         type: nodeType.type,
         parent_id: parentId,
-        locator: '',
-        selector_family: 'css',
-        target_mode: 'single',
         extra: defaultExtra,
       });
     } catch (e) {

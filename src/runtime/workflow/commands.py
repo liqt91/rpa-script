@@ -13,7 +13,7 @@ from typing import Any
 # ─── Field type helpers ───────────────────────────────────────────
 
 def _element_name_field(required: bool = True) -> dict:
-    return {"name": "element_name", "label": "元素", "type": "elementName", "required": required}
+    return {"name": "element_name", "label": "元素", "type": "elementName", "required": required, "isPrimaryElement": True}
 
 def _timeout_field(default: int = 10) -> dict:
     return {"name": "timeout", "label": "超时(秒)", "type": "number", "default": default, "group": "advanced"}

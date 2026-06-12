@@ -37,8 +37,10 @@ function useAvailableVars(selectedNode, nodes) {
   }, [selectedNode, nodes]);
 }
 
-// Top-level DB columns that are rendered in the "元素" tab
-const TOP_LEVEL_FIELDS = new Set(['element_name']);
+// Primary element field is marked by the schema (replaces hard-coded element_name special case)
+function findPrimaryElementField(fields) {
+  return fields?.find(f => f.isPrimaryElement) || null;
+}
 
 export default function NodeForm() {
   const { selectedNode, updateNode, elements, NODE_TYPE_MAP, containerNodes, nodes } = useWorkflow();
@@ -49,25 +51,25 @@ export default function NodeForm() {
   const command = selectedNode ? NODE_TYPE_MAP[selectedNode.type] : null;
   const availableVars = useAvailableVars(selectedNode, nodes);
 
-  // Separate schema fields into top-level vs extra
-  const { topFields, extraFields } = useMemo(() => {
-    if (!command?.fields) return { topFields: [], extraFields: [] };
-    const top = [];
-    const ext = [];
-    for (const f of command.fields) {
-      if (TOP_LEVEL_FIELDS.has(f.name)) {
-        top.push(f);
-      } else {
-        ext.push(f);
-      }
-    }
-    return { topFields: top, extraFields: ext };
-  }, [command]);
-
-  const hasElementName = topFields.some(f => f.name === 'element_name');
-  const elementListExtraFields = extraFields.filter(f => f.type === 'elementNameList');
-  const elementExtraFields = extraFields.filter(f => f.type === 'elementName');
-  const nonElementExtraFields = extraFields.filter(f => f.type !== 'elementName' && f.type !== 'elementNameList');
+  // Schema-driven field buckets
+  const primaryElementField = useMemo(() => findPrimaryElementField(command?.fields), [command]);
+  const hasElementName = !!primaryElementField;
+  const elementExtraFields = useMemo(
+    () => (command?.fields || []).filter(f => (f.type === 'elementName' || f.type === 'elementNameList') && !f.isPrimaryElement),
+    [command]
+  );
+  const elementListExtraFields = useMemo(
+    () => elementExtraFields.filter(f => f.type === 'elementNameList'),
+    [elementExtraFields]
+  );
+  const singleElementExtraFields = useMemo(
+    () => elementExtraFields.filter(f => f.type === 'elementName'),
+    [elementExtraFields]
+  );
+  const nonElementExtraFields = useMemo(
+    () => (command?.fields || []).filter(f => f.type !== 'elementName' && f.type !== 'elementNameList'),
+    [command]
+  );
 
   // 构建保存用的 payload
   const buildPayload = (nextForm, nextExtra) => {
@@ -77,7 +79,7 @@ export default function NodeForm() {
       id: selectedNode.id,
       type: f.type,
       parent_id: (f.parent_id !== undefined && f.parent_id !== '') ? f.parent_id : null,
-      element_name: f.element_name || null,
+      element_name: primaryElementField ? (f[primaryElementField.name] || null) : null,
       action: f.type,
       extra: e,
     };
@@ -96,11 +98,14 @@ export default function NodeForm() {
   useEffect(() => {
     if (selectedNode) {
       queueMicrotask(() => {
-        setForm({
+        const initialForm = {
           type: selectedNode.type || '',
           parent_id: selectedNode.parent_id || '',
-          element_name: selectedNode.element_name || '',
-        });
+        };
+        if (primaryElementField) {
+          initialForm[primaryElementField.name] = selectedNode.element_name || '';
+        }
+        setForm(initialForm);
         setExtra(selectedNode.extra && typeof selectedNode.extra === 'object'
           ? selectedNode.extra
           : (selectedNode.extra ? JSON.parse(selectedNode.extra) : {}));
@@ -178,10 +183,10 @@ export default function NodeForm() {
               {hasElementName ? (
                 <>
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">选择元素</label>
+                    <label className="block text-[10px] text-gray-400 mb-1">{primaryElementField?.label || '选择元素'}</label>
                     <select
-                      value={form.element_name || ''}
-                      onChange={(e) => handleChange('element_name', e.target.value || null)}
+                      value={form[primaryElementField?.name] || ''}
+                      onChange={(e) => handleChange(primaryElementField?.name, e.target.value || null)}
                       className="w-full px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
                     >
                       <option value="">-- 选择元素 --</option>
@@ -191,19 +196,19 @@ export default function NodeForm() {
                         </option>
                       ))}
                     </select>
-                    {form.element_name && (
+                    {form[primaryElementField?.name] && (
                       <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 rounded px-2 py-1.5 space-y-0.5">
-                        <div>目标模式: {elements.find(e => e.name === form.element_name)?.target_mode || 'single'}</div>
+                        <div>目标模式: {elements.find(e => e.name === form[primaryElementField?.name])?.target_mode || 'single'}</div>
                         <div className="font-mono truncate">
-                          Web: {elements.find(e => e.name === form.element_name)?.web_selector || '-'}
+                          Web: {elements.find(e => e.name === form[primaryElementField?.name])?.web_selector || '-'}
                         </div>
                         <div className="font-mono truncate">
-                          Drission: {elements.find(e => e.name === form.element_name)?.drission_selector || '-'}
+                          Drission: {elements.find(e => e.name === form[primaryElementField?.name])?.drission_selector || '-'}
                         </div>
                       </div>
                     )}
                   </div>
-                  {elementExtraFields.map(field => (
+                  {singleElementExtraFields.map(field => (
                     <div key={field.name}>
                       <label className="block text-[10px] text-gray-400 mb-1">{field.label || field.name}</label>
                       <SchemaControl
@@ -692,7 +697,6 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
         </select>
       );
 
-    case 'locator':
     case 'varName':
     case 'text':
     default:
