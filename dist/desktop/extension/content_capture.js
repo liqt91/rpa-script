@@ -1673,6 +1673,44 @@
     if (typeAttr && (tag === 'input' || tag === 'button')) {
       tryXPath(`//${tag}[@type=${xpathLiteral(typeAttr)}]`, 65, `type=${typeAttr}`);
     }
+
+    // ancestor anchor + descendant tag path
+    // when the target itself has no stable attrs but a nearby ancestor does
+    for (let i = path.length - 2; i >= Math.max(0, path.length - 11); i--) {
+      const anc = path[i];
+      let anchorXp = null;
+      let anchorScore = 0;
+      if (anc.id && isStableId(anc.id)) {
+        anchorXp = `//${anc.tag}[@id=${xpathLiteral(anc.id)}]`;
+        anchorScore = 90;
+      }
+      const ancStable = (anc.classes || []).filter(isStableClass);
+      if (!anchorXp && ancStable.length > 0) {
+        anchorXp = `//${anc.tag}[contains(@class,${xpathLiteral(ancStable[0])})]`;
+        anchorScore = 75;
+      }
+      if (!anchorXp) {
+        for (const attr of dataAttrs) {
+          const v = (anc.attrs || {})[attr];
+          if (!v || v.length > 80) continue;
+          anchorXp = `//${anc.tag}[@${attr}=${xpathLiteral(v)}]`;
+          anchorScore = 80;
+          break;
+        }
+      }
+      if (!anchorXp) continue;
+
+      const relSegs = [];
+      for (let j = i + 1; j < path.length; j++) {
+        const node = path[j];
+        const idxPart = node.index > 0 ? `[${node.index + 1}]` : '';
+        relSegs.push(`${node.tag}${idxPart}`);
+      }
+      if (relSegs.length === 0) continue;
+      const relXp = relSegs.join('/');
+      const depthPenalty = (path.length - 2 - i) * 2;
+      tryXPath(`${anchorXp}/${relXp}`, anchorScore - depthPenalty, `anc+path`, true);
+    }
   }
 
   function generateLocators(element) {
