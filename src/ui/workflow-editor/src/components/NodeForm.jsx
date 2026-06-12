@@ -213,6 +213,11 @@ export default function NodeForm() {
                         availableVars={availableVars}
                         elements={elements}
                       />
+                      {field.description && (
+                        <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                          {field.description}
+                        </p>
+                      )}
                     </div>
                   ))}
                   {elementListExtraFields.map(field => (
@@ -265,6 +270,11 @@ export default function NodeForm() {
                                     availableVars={availableVars}
                                     elements={elements}
                                   />
+                                  {field.description && (
+                                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                                      {field.description}
+                                    </p>
+                                  )}
                                 </td>
                               </tr>
                             ))}
