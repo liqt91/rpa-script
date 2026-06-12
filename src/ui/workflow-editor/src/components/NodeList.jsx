@@ -564,18 +564,6 @@ function V({ children }) {
   return <span className="font-bold text-red-600">{children}</span>;
 }
 
-const OP_LABELS = {
-  exists: '存在', notExists: '不存在',
-  visible: '可见', notVisible: '不可见',
-  contains: '包含', notContains: '不包含',
-  startsWith: '开头为', endsWith: '结尾为',
-  equals: '等于', greaterThan: '大于', lessThan: '小于',
-};
-
-function V({ children }) {
-  return <span className="font-bold text-red-600">{children}</span>;
-}
-
 function getNodeDesc(node, NODE_TYPE_MAP, elements) {
   const typeInfo = NODE_TYPE_MAP[node.type];
   const extra = node.extra && typeof node.extra === 'object' ? node.extra : {};
