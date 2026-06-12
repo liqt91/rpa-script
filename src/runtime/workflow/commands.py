@@ -33,7 +33,7 @@ def _scope_field() -> dict:
             {"label": "按循环序号对齐", "value": "local"},
             {"label": "全页面匹配", "value": "global"},
         ],
-        "default": "local",
+        "default": "global",
         "group": "advanced",
         "description": "“按循环序号对齐”表示与当前 forEachElement 的第 N 个元素对齐：系统会先用当前选择器在整个页面搜索所有匹配元素，然后取第 N 个。要求页面匹配数量 ≥ 循环元素数量。",
     }
