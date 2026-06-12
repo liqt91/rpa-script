@@ -497,10 +497,12 @@
         }
 
         if (el) {
+          const debugInfo = getElementDebugInfo(locator, selectorFamily, extra, el);
+          window.__rpaLastContextDebugInfo = debugInfo;
           console.log(
-            `[waitForElementWithContext] mode=${mode} ` +
+            `[waitForElementWithContext] mode=${debugInfo.mode} ` +
             `index=${ctxIndex + 1}/${ctxTotal || '?'} ` +
-            `globalMatches=${globalMatches ? globalMatches.length : '-'} ` +
+            `outerTotal=${debugInfo.outerTotal} innerTotal=${debugInfo.innerTotal} innerIndex=${debugInfo.innerIndex} ` +
             `locator=${locator}`
           );
           return resolve(el);
@@ -541,7 +543,85 @@
     if (!el) {
       el = resolveLocator(locator, selectorFamily, visibleOnly);
     }
+    if (el && extra?.contextLocator) {
+      window.__rpaLastContextDebugInfo = getElementDebugInfo(locator, selectorFamily, extra, el);
+    }
     return el;
+  }
+
+  function buildDebugSnippet(ctxLocator, ctxLocatorType, ctxIndex, locator, selectorFamily, mode, innerIndex, outerTotal, innerTotal) {
+    const safe = (s) => JSON.stringify(s ?? '');
+    function snapExpr(scopeVar, sel, type) {
+      const family = type || inferSelectorFamily(sel);
+      if (family === 'xpath' || (sel && sel.startsWith('//'))) {
+        return `document.evaluate(${safe(sel)}, ${scopeVar}, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null)`;
+      }
+      return `${scopeVar}.querySelectorAll(${safe(sel)})`;
+    }
+    function lenExpr(expr) {
+      return `(${expr}.snapshotLength ?? ${expr}.length)`;
+    }
+    const ctxExpr = snapExpr('document', ctxLocator, ctxLocatorType);
+    const scope = mode === 'descendant' ? 'outer' : 'document';
+    let innerSel = locator;
+    if (mode === 'descendant' && (selectorFamily === 'xpath' || (innerSel && innerSel.startsWith('//')))) {
+      innerSel = '.' + innerSel;
+    }
+    const innerExpr = snapExpr(scope, innerSel, selectorFamily);
+    const idx = innerIndex >= 0 ? innerIndex : 0;
+    return `// RPA debug snippet (mode=${mode})
+function rpaItem(list, i) { return list.snapshotItem ? list.snapshotItem(i) : list[i]; }
+const outer = rpaItem(${ctxExpr}, ${ctxIndex});
+const innerAll = ${innerExpr};
+const inner = rpaItem(innerAll, ${idx});
+console.log({
+  outerTotal: ${lenExpr(ctxExpr)},
+  outerIndex: ${ctxIndex},
+  innerTotal: ${lenExpr(innerExpr)},
+  innerIndex: ${innerIndex}
+});
+// target element: inner`;
+  }
+
+  function getElementDebugInfo(locator, selectorFamily, extra, el) {
+    const ctxLocator = extra?.contextLocator;
+    const ctxLocatorType = extra?.contextLocatorType;
+    const ctxIndex = extra?.contextIndex ?? 0;
+    const visibleOnly = extra?.visibleOnly !== false;
+    const info = {
+      mode: 'none',
+      outerTotal: 0,
+      outerIndex: ctxIndex,
+      innerTotal: 0,
+      innerIndex: -1,
+      jsSnippet: '',
+    };
+    if (!ctxLocator) return info;
+
+    const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+    info.outerTotal = parents.length;
+    const parent = parents[ctxIndex];
+    if (!parent) {
+      info.mode = 'no-outer';
+      info.jsSnippet = buildDebugSnippet(ctxLocator, ctxLocatorType, ctxIndex, locator, selectorFamily, info.mode, -1, info.outerTotal, 0);
+      return info;
+    }
+
+    const inCtxAll = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+    const inCtx = visibleOnly ? inCtxAll.filter(isVisible) : inCtxAll;
+    const descendantEl = inCtx[0] || null;
+    let innerList = inCtx;
+    let mode = 'descendant';
+    if (el && descendantEl !== el) {
+      mode = 'index-alignment';
+      const globalAll = resolveAllLocators(locator, selectorFamily);
+      innerList = visibleOnly ? globalAll.filter(isVisible) : globalAll;
+    }
+    info.mode = mode;
+    info.innerTotal = innerList.length;
+    info.innerIndex = el ? innerList.indexOf(el) : -1;
+    info.jsSnippet = buildDebugSnippet(ctxLocator, ctxLocatorType, ctxIndex, locator, selectorFamily, mode, info.innerIndex, info.outerTotal, info.innerTotal);
+    return info;
   }
 
   // ─── Human-like interaction utilities ────────────────────────────
@@ -1316,31 +1396,26 @@
         _lastOpTime = performance.now();
         clearTimeout(timeoutId);
 
-        // Compute matched count for logging
+        // Compute matched count and context debug info
         let matchedCount = result?.matchedCount;
-        if (targetLocator && matchedCount === undefined) {
-          const ctxLocator = extra?.contextLocator;
-          const ctxLocatorType = extra?.contextLocatorType;
-          const ctxIndex = extra?.contextIndex ?? 0;
-          const visibleOnly = extra?.visibleOnly !== false;
-          if (ctxLocator) {
-            const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-            const parent = parents[ctxIndex];
-            if (parent) {
-              const all = resolveAllLocatorsInContext(targetLocator, targetLocatorType, parent);
-              matchedCount = visibleOnly ? all.filter(isVisible).length : all.length;
-            }
-          } else {
-            const all = resolveAllLocators(targetLocator, targetLocatorType);
-            matchedCount = visibleOnly ? all.filter(isVisible).length : all.length;
+        let contextDebug = null;
+        if (extra?.contextLocator) {
+          contextDebug = window.__rpaLastContextDebugInfo || null;
+          if (contextDebug) {
+            matchedCount = contextDebug.innerTotal;
+            console.log(`[RPA Agent] context mode=${contextDebug.mode} outer=${contextDebug.outerTotal} inner=${contextDebug.innerTotal} innerIndex=${contextDebug.innerIndex}`);
           }
+        } else if (targetLocator && matchedCount === undefined) {
+          const all = resolveAllLocators(targetLocator, targetLocatorType);
+          const visibleOnly = extra?.visibleOnly !== false;
+          matchedCount = visibleOnly ? all.filter(isVisible).length : all.length;
           console.log(`[RPA Agent] matched ${matchedCount} element(s) for locator=${targetLocator}`);
         }
 
         addRunLog(`${type} 完成`);
         const responseResult = (result && typeof result === 'object' && !Array.isArray(result))
-          ? { ...result, matchedIndex, matchedCount }
-          : { value: result, matchedIndex, matchedCount };
+          ? { ...result, matchedIndex, matchedCount, ...(contextDebug ? { contextDebug } : {}) }
+          : { value: result, matchedIndex, matchedCount, ...(contextDebug ? { contextDebug } : {}) };
         safeRespond({ status: 'success', result: responseResult });
       } catch (e) {
         console.error(`[RPA Agent] step ${type} failed:`, e);
