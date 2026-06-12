@@ -19,53 +19,7 @@ def registry_enabled():
 
 def extract_js_handlers():
     text = (ROOT / "extension" / "content.js").read_text(encoding="utf-8")
-    m = re.search(r"const handlers = \{", text)
-    if not m:
-        return set()
-    start = m.end() - 1
-    depth = 1
-    i = start + 1
-    while i < len(text) and depth > 0:
-        if text[i] == "{":
-            depth += 1
-        elif text[i] == "}":
-            depth -= 1
-        i += 1
-    body = text[start + 1 : i - 1]
-    keys = set()
-    depth = 0
-    for line in body.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("//") or stripped.startswith("/*"):
-            continue
-        if depth == 0:
-            mm = re.match(r"(?:async\s+)?(\w+)\s*\(", stripped)
-            if mm and mm.group(1) not in {"if", "while", "for", "switch", "catch", "with"}:
-                keys.add(mm.group(1))
-        # update depth for braces (ignore string braces)
-        in_str = False
-        esc = False
-        schar = None
-        for ch in line:
-            if esc:
-                esc = False
-                continue
-            if ch == "\\":
-                esc = True
-                continue
-            if in_str:
-                if ch == schar:
-                    in_str = False
-                continue
-            if ch in ('"', "'"):
-                in_str = True
-                schar = ch
-                continue
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-    return keys
+    return set(re.findall(r"registerHandler\s*\(\s*['\"]([^'\"]+)['\"]", text))
 
 
 def extract_runner_local_handlers():

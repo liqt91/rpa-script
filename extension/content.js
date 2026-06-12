@@ -994,15 +994,19 @@
 
   // ─── Step handlers ───────────────────────────────────────────────
 
-  const handlers = {
-    navigate({ extra }) {
+  const handlers = {};
+
+  function registerHandler(name, fn) {
+    handlers[name] = fn;
+  }
+
+  registerHandler('navigate', function navigate({ extra }) {
       const url = extra?.url;
       if (!url) throw new Error('navigate: url required');
       window.location.href = url;
       return { navigatedTo: url };
-    },
-
-    async click({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('click', async function click({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const forceJs = extra?.forceJs ?? false;
@@ -1023,9 +1027,8 @@
         await humanClick(el, humanLike);
       }
       return { clicked: true, tagName: el.tagName };
-    },
-
-    async input({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('input', async function input({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
@@ -1050,9 +1053,8 @@
       }
 
       return { input: true, length: text.length };
-    },
-
-    async extract({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('extract', async function extract({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
@@ -1070,16 +1072,14 @@
         value = el.textContent?.trim() ?? '';
       }
       return { extracted: value };
-    },
-
-    wait({ extra }) {
+    });
+  registerHandler('wait', function wait({ extra }) {
       const ms = (extra?.seconds || 1) * 1000;
       return new Promise((resolve) => {
         setTimeout(() => resolve({ waited: ms }), ms);
       });
-    },
-
-    async scroll({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('scroll', async function scroll({ locator, selectorFamily, extra }) {
       const scrollType = extra?.scrollType || 'toBottom';
       const humanLike = extra?.humanLike ?? true;
       const smooth = extra?.smooth ?? true;
@@ -1117,9 +1117,8 @@
       const amount = scrollType === 'by' ? Math.abs(extra?.y || 500) : 0;
       await humanScroll(direction, amount, humanLike);
       return { scrolled: direction, amount };
-    },
-
-    async pressKey({ extra }) {
+    });
+  registerHandler('pressKey', async function pressKey({ extra }) {
       const key = extra?.key || 'Enter';
       const humanLike = extra?.humanLike ?? true;
       const modifiers = ['Control', 'Alt', 'Shift', 'Meta'];
@@ -1137,9 +1136,8 @@
       if (humanLike && !isModifier) await sleep(rand(80, 200));
       document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
       return { pressed: key };
-    },
-
-    async hover({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('hover', async function hover({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
@@ -1158,9 +1156,8 @@
       el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
       _lastHoveredElement = el;
       return { hovered: true, tagName: el.tagName };
-    },
-
-    async unhover({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('unhover', async function unhover({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
@@ -1179,9 +1176,8 @@
       el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
       if (_lastHoveredElement === el) _lastHoveredElement = null;
       return { unhovered: true, tagName: el.tagName };
-    },
-
-    async clearInput({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('clearInput', async function clearInput({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
@@ -1191,9 +1187,8 @@
       if (humanLike) await visualConfirmDelay();
       setInputValue(el, '');
       return { cleared: true };
-    },
-
-    async selectOption({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('selectOption', async function selectOption({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
@@ -1221,26 +1216,22 @@
         return { selected: option.value, text: option.textContent };
       }
       throw new Error(`selectOption: option "${value}" not found`);
-    },
-
-    newTab({ extra }) {
+    });
+  registerHandler('newTab', function newTab({ extra }) {
       const url = extra?.url;
       if (!url) throw new Error('newTab: url required');
       window.open(url, '_blank');
       return { opened: url };
-    },
-
-    executeJs({ extra }) {
+    });
+  registerHandler('executeJs', function executeJs({ extra }) {
       const script = extra?.script;
       if (!script) throw new Error('executeJs: script required');
       // eslint-disable-next-line no-eval
       const result = eval(script);
       return { executed: true, result: String(result) };
-    },
-
-    // ─── Condition check handlers ───────────────────────────────────
-
-    async checkElementExists({ locator, selectorFamily, extra }) {
+    });
+// ─── Condition check handlers ───────────────────────────────────
+  registerHandler('checkElementExists', async function checkElementExists({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       try {
@@ -1249,9 +1240,8 @@
       } catch (e) {
         return { exists: false };
       }
-    },
-
-    async checkElementVisible({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('checkElementVisible', async function checkElementVisible({ locator, selectorFamily, extra }) {
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const ctxLocator = extra?.contextLocator;
       console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${selectorFamily} ctx=${ctxLocator ? 'yes' : 'no'} timeout=${timeoutMs}`);
@@ -1264,20 +1254,17 @@
         console.log(`[RPA checkElementVisible] ERROR: ${e.message}`);
         return { visible: false };
       }
-    },
-
-    async getElementText({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('getElementText', async function getElementText({ locator, selectorFamily, extra }) {
       const visibleOnly = extra?.visibleOnly ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
       return { text: el.textContent?.trim() ?? '' };
-    },
-
-    getCurrentUrl() {
+    });
+  registerHandler('getCurrentUrl', function getCurrentUrl() {
       return window.location.href;
-    },
-
-    async findElements({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('findElements', async function findElements({ locator, selectorFamily, extra }) {
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const ctxLocator = extra?.contextLocator;
       const ctxLocatorType = extra?.contextLocatorType;
@@ -1304,18 +1291,16 @@
         index: idx,
       }));
       return { count: items.length, items };
-    },
-
-    openBrowser() {
+    });
+  registerHandler('openBrowser', function openBrowser() {
       // handled by background.js (_ensureWorkTab)
       return {};
-    },
-
-    closeBrowser() {
+    });
+  registerHandler('closeBrowser', function closeBrowser() {
       // handled by background.js (chrome.windows.remove)
       return {};
-    },
-  };
+    });
+
 
   // ─── Message listener ────────────────────────────────────────────
 
