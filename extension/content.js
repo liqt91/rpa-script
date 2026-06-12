@@ -1104,20 +1104,27 @@ console.log({
       const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-
-      const attr = extra?.attribute;
-      let value;
-      if (attr === 'innerHTML') {
-        value = el.innerHTML;
-      } else if (attr === 'value') {
-        value = el.value;
-      } else if (attr) {
-        value = el.getAttribute(attr);
-      } else {
-        value = el.textContent?.trim() ?? '';
+      try {
+        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+        const attr = extra?.attribute;
+        let value;
+        if (attr === 'innerHTML') {
+          value = el.innerHTML;
+        } else if (attr === 'value') {
+          value = el.value;
+        } else if (attr) {
+          value = el.getAttribute(attr);
+        } else {
+          value = el.textContent?.trim() ?? '';
+        }
+        return { extracted: value };
+      } catch (e) {
+        if (e?.message?.includes('按循环序号对齐失败')) {
+          console.log(`[RPA extract] element not found in loop context, returning empty: ${e.message}`);
+          return { extracted: '' };
+        }
+        throw e;
       }
-      return { extracted: value };
     });
   registerHandler('wait', function wait({ extra }) {
       const ms = (extra?.seconds || 1) * 1000;
@@ -1305,10 +1312,18 @@ console.log({
   registerHandler('getElementText', async function getElementText({ locator, selectorFamily, extra }) {
       const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-      const text = el.textContent?.trim() ?? '';
-      console.log(`[RPA getElementText] mode=${mode} tag=${el?.tagName} textLen=${text.length} locator=${JSON.stringify(locator)}`);
-      return { text };
+      try {
+        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+        const text = el.textContent?.trim() ?? '';
+        console.log(`[RPA getElementText] mode=${mode} tag=${el?.tagName} textLen=${text.length} locator=${JSON.stringify(locator)}`);
+        return { text };
+      } catch (e) {
+        if (e?.message?.includes('按循环序号对齐失败')) {
+          console.log(`[RPA getElementText] element not found in loop context, returning empty: ${e.message}`);
+          return { text: '' };
+        }
+        throw e;
+      }
     });
   registerHandler('getCurrentUrl', function getCurrentUrl() {
       return window.location.href;

@@ -29,3 +29,4 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-12 16:49 | element-commands-visibilityMode | done
 2026-06-12 17:03 | visibilityMode-simplified | done
 2026-06-12 17:22 | ifElementVisible-visibilityMode | done
+2026-06-12 17:40 | loop-context-missing-inner | done
