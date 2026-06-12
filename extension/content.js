@@ -814,69 +814,6 @@
     });
   }
 
-  // ─── Network interception helpers ────────────────────────────────
-
-  const _interceptQueue = [];
-  const _traceResults = [];
-  let _interceptActive = false;
-
-  function matchPattern(url, pattern) {
-    if (!pattern || pattern === '*') return true;
-    const parts = pattern.split('*');
-    let idx = 0;
-    for (const part of parts) {
-      const i = url.indexOf(part, idx);
-      if (i === -1) return false;
-      idx = i + part.length;
-    }
-    return true;
-  }
-
-  function tryJsonParse(text) {
-    try { return JSON.parse(text); } catch { return text; }
-  }
-
-  function injectInterceptScript(config) {
-    removeInterceptScript();
-    const script = document.createElement('script');
-    script.id = '__rpa_intercept_script';
-    script.src = chrome.runtime.getURL('intercept.js');
-    script.dataset.config = JSON.stringify(config);
-    (document.head || document.documentElement).appendChild(script);
-    // Also broadcast config via postMessage in case script loaded before config was set
-    window.postMessage({ source: 'rpa-intercept-config', config }, '*');
-  }
-
-  function removeInterceptScript() {
-    const existing = document.getElementById('__rpa_intercept_script');
-    if (existing) existing.remove();
-    window.__rpaInterceptActive = false;
-    _interceptActive = false;
-  }
-
-  // Listen for data from the injected intercept.js
-  window.addEventListener('message', (e) => {
-    if (!e.data || e.data.source !== 'rpa-intercept') return;
-    if (e.data.type === 'trace') {
-      _traceResults.push({ url: e.data.url, method: e.data.method, time: e.data.time });
-    } else if (e.data.type === 'intercept') {
-      _interceptQueue.push({
-        url: e.data.url,
-        method: e.data.method,
-        status: e.data.status,
-        body: e.data.body,
-        time: e.data.time,
-      });
-      // Forward to background for optional WS relay
-      try {
-        chrome.runtime.sendMessage({
-          action: 'interceptedData',
-          payload: { url: e.data.url, method: e.data.method, status: e.data.status },
-        });
-      } catch (_e) {}
-    }
-  });
-
   // ─── Running UI ──────────────────────────────────────────────────
 
   let _bannerTimer = null;
