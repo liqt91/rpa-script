@@ -564,18 +564,34 @@ function V({ children }) {
   return <span className="font-bold text-red-600">{children}</span>;
 }
 
+const OP_LABELS = {
+  exists: '存在', notExists: '不存在',
+  visible: '可见', notVisible: '不可见',
+  contains: '包含', notContains: '不包含',
+  startsWith: '开头为', endsWith: '结尾为',
+  equals: '等于', greaterThan: '大于', lessThan: '小于',
+};
+
+function V({ children }) {
+  return <span className="font-bold text-red-600">{children}</span>;
+}
+
 function getNodeDesc(node, NODE_TYPE_MAP, elements) {
   const typeInfo = NODE_TYPE_MAP[node.type];
   const extra = node.extra && typeof node.extra === 'object' ? node.extra : {};
   const hasElement = typeInfo?.fields?.some(f => f.name === 'element_name');
   const isCondition = node.type.startsWith('if');
+  const hiddenDescFields = new Set(
+    (typeInfo?.fields || [])
+      .filter(f => f.group === 'advanced' || f.hidden)
+      .map(f => f.name)
+  );
 
   if (hasElement) {
     const parts = [];
     const op = extra.operator;
     const opLabel = op ? (OP_LABELS[op] || op) : null;
 
-    // 条件节点：前缀 + operator 优先显示
     if (isCondition) {
       parts.push(<span key="prefix">如果</span>);
     }
@@ -588,7 +604,7 @@ function getNodeDesc(node, NODE_TYPE_MAP, elements) {
       parts.push(<span key="el">📎 <V>{el?.name || node.element_name}</V></span>);
     }
 
-    const skipKeys = ['operator', 'scope'];
+    const skipKeys = ['operator', 'scope', ...hiddenDescFields];
     for (const [k, v] of Object.entries(extra)) {
       if (skipKeys.includes(k)) continue;
       if (v !== undefined && v !== '' && v !== false) {
@@ -601,68 +617,19 @@ function getNodeDesc(node, NODE_TYPE_MAP, elements) {
     return <span className="space-x-1.5">{parts}</span>;
   }
 
-  const summary = summarizeExtra(node, extra, typeInfo);
+  const summary = summarizeExtra(extra, typeInfo, hiddenDescFields);
   return summary || typeInfo?.label || node.type;
 }
 
-function summarizeExtra(node, extra, typeInfo) {
-  const val = (k) => extra[k];
-  const op = extra.operator;
-  const opLabel = op ? (OP_LABELS[op] || op) : null;
-  const elName = node?.element_name;
-
-  switch (node?.type) {
-    case 'navigate': return val('url') ? <>打开 <V>{val('url')}</V></> : '打开网页';
-    case 'newTab': return val('url') ? <>新标签页 <V>{val('url')}</V></> : '新建标签页';
-    case 'getCurrentUrl': return <>保存URL → <V>{val('varName') || 'currentUrl'}</V></>;
-    case 'input':
-    case 'inputAndPressEnter': return val('text') ? <>输入: <V>{val('text')}</V></> : '输入文本';
-    case 'clearInput': return '清空输入框';
-    case 'pressKey': return <>按键: <V>{val('key') || 'Enter'}</V></>;
-    case 'selectOption': return <>选择 (<V>{val('by') || 'label'}</V>): <V>{val('value') || ''}</V></>;
-    case 'getText': return <>提取文本 → <V>{val('varName') || 'text'}</V></>;
-    case 'getAttr': return <>提取 <V>{val('attrName') || '属性'}</V> → <V>{val('varName') || 'attrVal'}</V></>;
-    case 'getHtml': return <>提取HTML → <V>{val('varName') || 'html'}</V></>;
-    case 'getValue': return <>提取值 → <V>{val('varName') || 'value'}</V></>;
-    case 'scrollToBottom': return '滚动到底部';
-    case 'scrollToTop': return '滚动到顶部';
-    case 'scrollOneScreen': return '滚动一屏';
-    case 'scrollBy': return <>滚动 (<V>{val('x') || 0}, {val('y') || 500}</V>)</>;
-    case 'sleep': return <>等待 <V>{val('seconds') || 1}</V> 秒</>;
-    case 'waitForElement': return elName ? <>等待出现: <V>{elName}</V></> : '等待元素出现';
-    case 'ifElementVisible': return elName ? <>如果<V>{opLabel || '可见'}</V>: <V>{elName}</V></> : `如果元素${opLabel || '可见'}`;
-    case 'ifTextContains': return <>文本<V>{opLabel || '包含'}</V>: <V>{val('text') || ''}</V></>;
-    case 'ifTextEquals': return <>文本等于: <V>{val('text') || ''}</V></>;
-    case 'ifVarEquals': return <><V>{val('varName') || 'x'}</V> <V>{opLabel || '=='}</V> <V>{val('value') || ''}</V></>;
-    case 'else': return '否则';
-    case 'endIf': return '结束条件';
-    case 'forEachElement': return elName ? <>遍历: <V>{elName}</V></> : '循环相似元素';
-    case 'forRange': return <>循环 <V>{val('start') || 0}..{val('end') || 10}</V></>;
-    case 'forList': return <>遍历列表: <V>{val('listVar') || 'items'}</V></>;
-    case 'whileCondition': return <>循环直到: <V>{val('conditionType') || ''}</V></>;
-    case 'break': return '跳出循环';
-    case 'continue': return '继续下一次';
-    case 'endFor': return '结束循环';
-    case 'setVar': return <><V>{val('name') || 'x'}</V> = <V>{val('value') || ''}</V></>;
-    case 'appendToList': return <>追加: <V>{val('value') || ''}</V></>;
-    case 'stringConcat': return <>拼接 → <V>{val('targetVar') || 'result'}</V></>;
-    case 'increment': return <><V>{val('varName') || 'count'}</V> += <V>{val('step') || 1}</V></>;
-    case 'log': return <><V>[{val('level') || 'info'}]</V> <V>{val('message') || ''}</V></>;
-    case 'httpRequest': return <><V>{val('method') || 'GET'}</V> <V>{val('url') || ''}</V></>;
-    case 'try': return '捕获异常';
-    case 'catch': return '异常处理';
-    case 'endTry': return '结束捕获';
-    case 'custom': return val('description') || '自定义代码';
-    case 'executeJs': return '执行JS';
-    default:
-      if (typeInfo?.fields) {
-        for (const f of typeInfo.fields) {
-          const v = extra[f.name];
-          if (v !== undefined && v !== '' && v !== false) {
-            return <><V>{f.label}</V>: <V>{String(v)}</V></>;
-          }
-        }
-      }
-      return typeInfo?.label || node?.type;
+function summarizeExtra(extra, typeInfo, hiddenDescFields) {
+  const parts = [];
+  for (const f of typeInfo?.fields || []) {
+    if (hiddenDescFields.has(f.name)) continue;
+    const v = extra[f.name];
+    if (v !== undefined && v !== '' && v !== false) {
+      parts.push(<span key={f.name}><V>{f.label}</V>: <V>{String(v)}</V></span>);
+    }
   }
+  if (parts.length === 0) return typeInfo?.label || null;
+  return <span className="space-x-1.5">{parts}</span>;
 }
