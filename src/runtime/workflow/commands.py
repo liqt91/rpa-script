@@ -30,12 +30,12 @@ def _scope_field() -> dict:
         "label": "匹配范围",
         "type": "select",
         "options": [
-            {"label": "按循环序号对齐", "value": "local"},
+            {"label": "在当前外层元素内查找", "value": "local"},
             {"label": "全页面匹配", "value": "global"},
         ],
         "default": "global",
         "group": "advanced",
-        "description": "“按循环序号对齐”表示与当前 forEachElement 的第 N 个元素对齐：系统会先用当前选择器在整个页面搜索所有匹配元素，然后取第 N 个。要求页面匹配数量 ≥ 循环元素数量。",
+        "description": "在当前外层元素内查找=仅在当前 forEachElement 循环到的元素内部搜索该选择器；全页面匹配=在整个页面搜索，不依赖循环上下文。",
     }
 
 def _on_error_field(default: str = "stop") -> dict:

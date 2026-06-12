@@ -502,28 +502,11 @@
           return setTimeout(tick, pollMs);
         }
 
-        let el = resolveLocatorInContext(locator, selectorFamily, parent);
-        let resolutionMode = 'descendant';
-        let globalMatches = null;
-        if (mode !== 'any' && el && !checkVisibility(el, mode)) {
-          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          el = all.find(e => checkVisibility(e, mode)) || null;
-        }
-
-        // Fallback: index alignment when descendant search yields nothing
-        if (!el) {
-          globalMatches = resolveAllLocators(locator, selectorFamily);
-          resolutionMode = 'index-alignment';
-          if (globalMatches.length <= ctxIndex) {
-            return reject(new Error(
-              `按循环序号对齐失败：外层循环第 ${ctxIndex + 1} 个元素，但当前选择器只匹配到 ${globalMatches.length} 个元素`
-            ));
-          }
-          el = globalMatches[ctxIndex] || null;
-          if (mode !== 'any' && el && !checkVisibility(el, mode)) {
-            el = globalMatches.slice(ctxIndex).find(e => checkVisibility(e, mode)) || null;
-          }
-        }
+        // Local/descendant scope: only search within the current outer element.
+        const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+        const el = mode === 'any'
+          ? allDescendants[0] || null
+          : allDescendants.find(e => checkVisibility(e, mode)) || null;
 
         if (el) {
           const debugInfo = getElementDebugInfo(locator, selectorFamily, extra, el);
@@ -536,10 +519,11 @@
           );
           return resolve(el);
         }
-        if (Date.now() - start >= timeoutMs) {
-          return reject(new Error(`元素未在 ${timeoutMs}ms 内出现: ${locator}`));
-        }
-        setTimeout(tick, pollMs);
+
+        // Parent exists but no matching descendant inside it.
+        const err = new Error(`元素在当前外层元素中未找到: ${locator}`);
+        err.contextNotFound = true;
+        return reject(err);
       };
       tick();
     });
@@ -555,18 +539,10 @@
       const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
       const parent = parents[ctxIndex];
       if (parent) {
-        el = resolveLocatorInContext(locator, selectorFamily, parent);
-        if (mode !== 'any' && el && !checkVisibility(el, mode)) {
-          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          el = all.find(e => checkVisibility(e, mode)) || null;
-        }
-        if (!el) {
-          const all = resolveAllLocators(locator, selectorFamily);
-          el = all[ctxIndex] || null;
-          if (mode !== 'any' && el && !checkVisibility(el, mode)) {
-            el = all.slice(ctxIndex).find(e => checkVisibility(e, mode)) || null;
-          }
-        }
+        const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+        el = mode === 'any'
+          ? allDescendants[0] || null
+          : allDescendants.find(e => checkVisibility(e, mode)) || null;
       }
     }
     if (!el) {
@@ -1119,7 +1095,7 @@ console.log({
         }
         return { extracted: value };
       } catch (e) {
-        if (e?.message?.includes('按循环序号对齐失败')) {
+        if (e?.contextNotFound || e?.message?.includes('按循环序号对齐失败')) {
           console.log(`[RPA extract] element not found in loop context, returning empty: ${e.message}`);
           return { extracted: '' };
         }
@@ -1318,7 +1294,7 @@ console.log({
         console.log(`[RPA getElementText] mode=${mode} tag=${el?.tagName} textLen=${text.length} locator=${JSON.stringify(locator)}`);
         return { text };
       } catch (e) {
-        if (e?.message?.includes('按循环序号对齐失败')) {
+        if (e?.contextNotFound || e?.message?.includes('按循环序号对齐失败')) {
           console.log(`[RPA getElementText] element not found in loop context, returning empty: ${e.message}`);
           return { text: '' };
         }
