@@ -75,14 +75,12 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
                 "label": "元素可见性",
                 "type": "select",
                 "options": [
-                    {"label": "排除渲染不可见或视窗外的", "value": "visible"},
-                    {"label": "排除渲染不可见的", "value": "rendered"},
-                    {"label": "排除视窗外的", "value": "viewport"},
-                    {"label": "不过滤", "value": "any"},
+                    {"label": "匹配可见元素", "value": "visible"},
+                    {"label": "匹配所有元素", "value": "any"},
                 ],
                 "default": "visible",
                 "group": "advanced",
-                "description": "用排除法选择匹配哪些元素：排除渲染不可见=过滤display:none/visibility:hidden/opacity:0等；排除视窗外=过滤当前未出现在浏览器视窗内的元素；同时排除=以上两者都过滤；不过滤=任意DOM元素都参与匹配。",
+                "description": "匹配可见元素=过滤display:none/visibility:hidden/opacity:0/aria-hidden等渲染不可见元素；匹配所有元素=任意DOM元素都参与匹配。",
             }
         )
     if "humanLike" not in names:
@@ -842,14 +840,12 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
                 "label": "元素可见性",
                 "type": "select",
                 "options": [
-                    {"label": "排除渲染不可见或视窗外的", "value": "visible"},
-                    {"label": "排除渲染不可见的", "value": "rendered"},
-                    {"label": "排除视窗外的", "value": "viewport"},
-                    {"label": "不过滤", "value": "any"},
+                    {"label": "匹配可见元素", "value": "visible"},
+                    {"label": "匹配所有元素", "value": "any"},
                 ],
                 "default": "visible",
                 "group": "advanced",
-                "description": "用排除法选择匹配哪些元素：排除渲染不可见=过滤display:none/visibility:hidden/opacity:0等；排除视窗外=过滤当前未出现在浏览器视窗内的元素；同时排除=以上两者都过滤；不过滤=任意DOM元素都参与匹配。",
+                "description": "匹配可见元素=过滤display:none/visibility:hidden/opacity:0/aria-hidden等渲染不可见元素；匹配所有元素=任意DOM元素都参与匹配。",
             },
             {"name": "itemVar", "label": "元素变量名", "type": "varName", "default": "item"},
             {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},

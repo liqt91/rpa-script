@@ -52,13 +52,16 @@
 
   function checkVisibility(el, mode) {
     if (!el || mode === 'any') return true;
-    if (mode === 'rendered') return isRendered(el);
-    if (mode === 'viewport') return isInViewport(el);
-    return isVisible(el);
+    return isRendered(el);
   }
 
   function getVisibilityMode(extra) {
-    if (extra?.visibilityMode) return extra.visibilityMode;
+    if (extra?.visibilityMode) {
+      const m = extra.visibilityMode;
+      // backwards compatibility for old saved values
+      if (m === 'rendered' || m === 'viewport') return 'visible';
+      return m;
+    }
     if (extra?.visibleOnly === false) return 'any';
     return 'visible';
   }
