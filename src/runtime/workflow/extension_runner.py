@@ -395,7 +395,7 @@ class ExtensionRunner:
         if not conn:
             raise RuntimeError(f"Extension {self.client_id} is not connected")
 
-        # Inject loop context into extra so content.js resolves locators relative to current element
+        # Inject loop context into extra so content.js resolves locators by index alignment
         ctx = self.vars.get("__loop_ctx")
         if ctx:
             extra = dict(payload.get("extra") or {})
@@ -403,6 +403,11 @@ class ExtensionRunner:
                 extra["contextLocator"] = ctx["locator"]
                 extra["contextLocatorType"] = ctx["selectorFamily"]
                 extra["contextIndex"] = ctx["index"]
+                extra["contextTotal"] = ctx.get("total")
+                logger.info(
+                    f"[ExtensionRunner] loop context index={ctx['index'] + 1}/{ctx.get('total', '?')} "
+                    f"locator={ctx['locator'][:60]}..."
+                )
                 payload = {**payload, "extra": extra}
 
         step_id = self._next_step_id()
@@ -772,6 +777,7 @@ class ExtensionRunner:
                     "locator": locator,
                     "selectorFamily": selector_family,
                     "index": idx,
+                    "total": len(elements),
                 }
                 logger.info(f"[ExtensionRunner] forEachElement [{idx}] {item_var}={self.vars[item_var]!r}")
                 try:
@@ -1762,13 +1768,18 @@ class ExtensionRunner:
                     extra["windowId"] = window_val
             instr = {**instr, "extra": extra}
 
-        # Inject loop context into extra so content.js resolves locators relative to current element
+        # Inject loop context into extra so content.js resolves locators by index alignment
         ctx = self.vars.get("__loop_ctx")
         if ctx:
             if extra.get("scope", "local") != "global":
                 extra["contextLocator"] = ctx["locator"]
                 extra["contextLocatorType"] = ctx["selectorFamily"]
                 extra["contextIndex"] = ctx["index"]
+                extra["contextTotal"] = ctx.get("total")
+                logger.info(
+                    f"[ExtensionRunner] loop context index={ctx['index'] + 1}/{ctx.get('total', '?')} "
+                    f"locator={ctx['locator'][:60]}..."
+                )
             instr = {**instr, "extra": extra}
 
         # Register future BEFORE sending to avoid race with fast responses (e.g. navigate)

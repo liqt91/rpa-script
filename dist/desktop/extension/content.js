@@ -455,6 +455,7 @@
     const ctxLocator = extra?.contextLocator;
     const ctxLocatorType = extra?.contextLocatorType;
     const ctxIndex = extra?.contextIndex ?? 0;
+    const ctxTotal = extra?.contextTotal;
 
     if (!ctxLocator) {
       return waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
@@ -467,12 +468,14 @@
         const parent = parents[ctxIndex];
         if (!parent) {
           if (Date.now() - start >= timeoutMs) {
-            return reject(new Error('上下文元素未找到'));
+            return reject(new Error(`上下文元素未找到 (第 ${ctxIndex + 1}/${ctxTotal || '?'} 个)`));
           }
           return setTimeout(tick, pollMs);
         }
 
         let el = resolveLocatorInContext(locator, selectorFamily, parent);
+        let mode = 'descendant';
+        let globalMatches = null;
         if (visibleOnly && el && !isVisible(el)) {
           const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
           el = all.find(isVisible) || null;
@@ -480,14 +483,28 @@
 
         // Fallback: index alignment when descendant search yields nothing
         if (!el) {
-          const all = resolveAllLocators(locator, selectorFamily);
-          el = all[ctxIndex] || null;
+          globalMatches = resolveAllLocators(locator, selectorFamily);
+          mode = 'index-alignment';
+          if (globalMatches.length <= ctxIndex) {
+            return reject(new Error(
+              `按循环序号对齐失败：外层循环第 ${ctxIndex + 1} 个元素，但当前选择器只匹配到 ${globalMatches.length} 个元素`
+            ));
+          }
+          el = globalMatches[ctxIndex] || null;
           if (visibleOnly && el && !isVisible(el)) {
-            el = all.slice(ctxIndex).find(isVisible) || null;
+            el = globalMatches.slice(ctxIndex).find(isVisible) || null;
           }
         }
 
-        if (el) return resolve(el);
+        if (el) {
+          console.log(
+            `[waitForElementWithContext] mode=${mode} ` +
+            `index=${ctxIndex + 1}/${ctxTotal || '?'} ` +
+            `globalMatches=${globalMatches ? globalMatches.length : '-'} ` +
+            `locator=${locator}`
+          );
+          return resolve(el);
+        }
         if (Date.now() - start >= timeoutMs) {
           return reject(new Error(`元素未在 ${timeoutMs}ms 内出现: ${locator}`));
         }
