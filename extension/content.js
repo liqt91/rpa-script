@@ -547,6 +547,7 @@
   // ─── Human-like interaction utilities ────────────────────────────
 
   let _lastOpTime = 0;
+  let _lastHoveredElement = null;
 
   function rand(min, max) {
     return Math.random() * (max - min) + min;
@@ -1170,7 +1171,29 @@
       }
       el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
       el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
+      _lastHoveredElement = el;
       return { hovered: true, tagName: el.tagName };
+    },
+
+    async unhover({ locator, selectorFamily, extra }) {
+      const visibleOnly = extra?.visibleOnly ?? true;
+      const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+      let el;
+      if (locator) {
+        el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      } else {
+        el = _lastHoveredElement;
+      }
+      if (!el) throw new Error('unhover: 未指定元素且无最近悬停记录');
+
+      const rect = el.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
+      el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
+      if (_lastHoveredElement === el) _lastHoveredElement = null;
+      return { unhovered: true, tagName: el.tagName };
     },
 
     async clearInput({ locator, selectorFamily, extra }) {

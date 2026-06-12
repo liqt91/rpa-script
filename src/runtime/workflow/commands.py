@@ -1607,6 +1607,23 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _scope_field(),
         ],
     },
+    "unhover": {
+        "label": "取消悬停",
+        "categoryOrder": 20,
+        "commandOrder": 35,
+        "enabled": True,
+        "category": "元素点击",
+        "icon": "fa-hand-pointer",
+        "iconColor": "text-gray-500",
+        "bgColor": "bg-gray-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "unhover", "local": False}},
+        "fields": [
+            _window_var_field(),
+            _element_name_field(required=False),
+            _scope_field(),
+        ],
+    },
 
     # ═══════════════════════════════════════════════════════════════
     # 18. 网络拦截 (Network Interception)
