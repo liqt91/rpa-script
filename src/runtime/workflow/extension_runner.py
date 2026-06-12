@@ -1182,6 +1182,7 @@ class ExtensionRunner:
             })
             return True
 
+        if cmd_type == "httpRequest":
             method = extra.get("method", "GET")
             url = extra.get("url", "")
             headers_str = extra.get("headers", "")

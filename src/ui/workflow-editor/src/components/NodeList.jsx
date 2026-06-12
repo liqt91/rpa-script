@@ -616,16 +616,8 @@ function summarizeExtra(node, extra, typeInfo) {
 
   switch (node?.type) {
     case 'navigate': return val('url') ? <>打开 <V>{val('url')}</V></> : '打开网页';
-    case 'goBack': return '返回上一页';
-    case 'goForward': return '前进';
-    case 'refresh': return val('hardReload') ? '强制刷新' : '刷新页面';
     case 'newTab': return val('url') ? <>新标签页 <V>{val('url')}</V></> : '新建标签页';
-    case 'closeTab': return '关闭标签页';
-    case 'switchTab': return <>切换标签页 (<V>{val('by') || 'index'}={val('value') || ''}</V>)</>;
-    case 'switchToFrame': return elName ? <>进入 iframe: <V>{elName}</V></> : '进入 iframe';
-    case 'switchToMain': return '退出 iframe';
     case 'getCurrentUrl': return <>保存URL → <V>{val('varName') || 'currentUrl'}</V></>;
-    case 'getPageTitle': return <>保存标题 → <V>{val('varName') || 'pageTitle'}</V></>;
     case 'input':
     case 'inputAndPressEnter': return val('text') ? <>输入: <V>{val('text')}</V></> : '输入文本';
     case 'clearInput': return '清空输入框';
@@ -635,28 +627,16 @@ function summarizeExtra(node, extra, typeInfo) {
     case 'getAttr': return <>提取 <V>{val('attrName') || '属性'}</V> → <V>{val('varName') || 'attrVal'}</V></>;
     case 'getHtml': return <>提取HTML → <V>{val('varName') || 'html'}</V></>;
     case 'getValue': return <>提取值 → <V>{val('varName') || 'value'}</V></>;
-    case 'getElementCount': return <>计数 → <V>{val('varName') || 'count'}</V></>;
-    case 'getElementList': return <>获取列表 → <V>{val('varName') || 'elements'}</V></>;
     case 'scrollToBottom': return '滚动到底部';
     case 'scrollToTop': return '滚动到顶部';
     case 'scrollOneScreen': return '滚动一屏';
-    case 'scrollIntoView': return elName ? <>滚动到: <V>{elName}</V></> : '滚动到元素';
     case 'scrollBy': return <>滚动 (<V>{val('x') || 0}, {val('y') || 500}</V>)</>;
-    case 'infiniteScroll': return <>无限滚动 (最大<V>{val('maxScrolls') || 50}</V>次)</>;
     case 'sleep': return <>等待 <V>{val('seconds') || 1}</V> 秒</>;
     case 'waitForElement': return elName ? <>等待出现: <V>{elName}</V></> : '等待元素出现';
-    case 'waitForElementHide': return elName ? <>等待消失: <V>{elName}</V></> : '等待元素消失';
-    case 'waitForText': return <>等待文本: <V>{val('text') || ''}</V></>;
-    case 'waitForUrl': return <>等待URL: <V>{val('urlPattern') || ''}</V></>;
-    case 'waitForLoad': return <>等待页面加载 (<V>{val('state') || 'networkidle'}</V>)</>;
-    case 'ifElementExists': return elName ? <>如果<V>{opLabel || '存在'}</V>: <V>{elName}</V></> : `如果元素${opLabel || '存在'}`;
-    case 'ifElementNotExists': return elName ? <>如果不存在: <V>{elName}</V></> : '如果元素不存在';
     case 'ifElementVisible': return elName ? <>如果<V>{opLabel || '可见'}</V>: <V>{elName}</V></> : `如果元素${opLabel || '可见'}`;
     case 'ifTextContains': return <>文本<V>{opLabel || '包含'}</V>: <V>{val('text') || ''}</V></>;
     case 'ifTextEquals': return <>文本等于: <V>{val('text') || ''}</V></>;
-    case 'ifUrlContains': return <>URL<V>{opLabel || '包含'}</V>: <V>{val('urlPattern') || ''}</V></>;
     case 'ifVarEquals': return <><V>{val('varName') || 'x'}</V> <V>{opLabel || '=='}</V> <V>{val('value') || ''}</V></>;
-    case 'ifVarGreaterThan': return <><V>{val('varName') || 'x'}</V> &gt; <V>{val('value') || 0}</V></>;
     case 'else': return '否则';
     case 'endIf': return '结束条件';
     case 'forEachElement': return elName ? <>遍历: <V>{elName}</V></> : '循环相似元素';
@@ -671,14 +651,7 @@ function summarizeExtra(node, extra, typeInfo) {
     case 'stringConcat': return <>拼接 → <V>{val('targetVar') || 'result'}</V></>;
     case 'increment': return <><V>{val('varName') || 'count'}</V> += <V>{val('step') || 1}</V></>;
     case 'log': return <><V>[{val('level') || 'info'}]</V> <V>{val('message') || ''}</V></>;
-    case 'pushItem': return '推送结果项';
-    case 'takeScreenshot': return <>截图: <V>{val('savePath') || ''}</V></>;
-    case 'saveToFile': return <>保存到: <V>{val('filePath') || ''}</V></>;
-    case 'keyCombo': return <>按键: <V>{val('keys') || ''}</V></>;
     case 'httpRequest': return <><V>{val('method') || 'GET'}</V> <V>{val('url') || ''}</V></>;
-    case 'callAiApp': return <>AI: <V>{val('appType') || ''}</V></>;
-    case 'callWorkflow': return <>调用流程 #<V>{val('workflowId') || ''}</V></>;
-    case 'return': return '结束并返回';
     case 'try': return '捕获异常';
     case 'catch': return '异常处理';
     case 'endTry': return '结束捕获';
