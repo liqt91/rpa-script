@@ -452,9 +452,15 @@ class ExtensionRunner:
     ) -> bool:
         """Ask extension whether an element exists."""
         try:
-            payload_extra = {"visibleOnly": visible_only, "timeout": timeout}
+            payload_extra = {"timeout": timeout}
             if extra:
                 payload_extra["scope"] = extra.get("scope", "local")
+                if "visibilityMode" in extra:
+                    payload_extra["visibilityMode"] = extra["visibilityMode"]
+                else:
+                    payload_extra["visibleOnly"] = visible_only
+            else:
+                payload_extra["visibleOnly"] = visible_only
             result = await self._call_extension_handler(
                 "checkElementExists",
                 {
@@ -506,6 +512,10 @@ class ExtensionRunner:
             payload_extra = {"timeout": timeout}
             if extra:
                 payload_extra["scope"] = extra.get("scope", "local")
+                if "visibilityMode" in extra:
+                    payload_extra["visibilityMode"] = extra["visibilityMode"]
+                elif "visibleOnly" in extra:
+                    payload_extra["visibleOnly"] = extra["visibleOnly"]
             result = await self._call_extension_handler(
                 "getElementText",
                 {

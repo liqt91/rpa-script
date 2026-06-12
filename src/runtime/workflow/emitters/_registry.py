@@ -75,7 +75,8 @@ def _loc_call_by_name(element_name: str | None, extra: dict, element_map: dict |
             loc = el.drission_selector
             target_mode = el.target_mode or "single"
             method = "eles" if target_mode == "list" else "ele"
-            visible_only = extra.get("visibleOnly", True)
+            visibility_mode = extra.get("visibilityMode")
+            visible_only = visibility_mode != "any" if visibility_mode else extra.get("visibleOnly", True)
             if visible_only and method == "ele":
                 return f"_ele_visible(tab, {_py_str(loc)})"
             return f"tab.{method}({_py_str(loc)})"
@@ -84,7 +85,8 @@ def _loc_call_by_name(element_name: str | None, extra: dict, element_map: dict |
     loc = ""
     target_mode = "single"
     method = "eles" if target_mode == "list" else "ele"
-    visible_only = extra.get("visibleOnly", True)
+    visibility_mode = extra.get("visibilityMode")
+    visible_only = visibility_mode != "any" if visibility_mode else extra.get("visibleOnly", True)
     if not loc:
         return "tab"
     if isinstance(loc, list):

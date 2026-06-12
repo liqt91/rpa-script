@@ -68,14 +68,21 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
         result.append(_retry_count_field())
     if "timeout" not in names:
         result.append(_timeout_field())
-    if has_element and "visibleOnly" not in names:
+    if has_element and "visibilityMode" not in names:
         result.append(
             {
-                "name": "visibleOnly",
-                "label": "只操作可见元素",
-                "type": "bool",
-                "default": True,
+                "name": "visibilityMode",
+                "label": "元素可见性",
+                "type": "select",
+                "options": [
+                    {"label": "排除渲染不可见或视窗外的", "value": "visible"},
+                    {"label": "排除渲染不可见的", "value": "rendered"},
+                    {"label": "排除视窗外的", "value": "viewport"},
+                    {"label": "不过滤", "value": "any"},
+                ],
+                "default": "visible",
                 "group": "advanced",
+                "description": "用排除法选择匹配哪些元素：排除渲染不可见=过滤display:none/visibility:hidden/opacity:0等；排除视窗外=过滤当前未出现在浏览器视窗内的元素；同时排除=以上两者都过滤；不过滤=任意DOM元素都参与匹配。",
             }
         )
     if "humanLike" not in names:

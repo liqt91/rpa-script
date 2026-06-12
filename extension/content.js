@@ -203,7 +203,7 @@
     return [];
   }
 
-  function resolveLocator(locator, selectorFamily, visibleOnly) {
+  function resolveLocator(locator, selectorFamily, mode) {
     locator = normalizeLocator(locator);
     selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
     if (!locator) return document;
@@ -262,25 +262,25 @@
       try { el = document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; } catch (e) {}
     }
 
-    if (!el || !visibleOnly) return el;
-    if (!isVisible(el)) {
+    if (!el || mode === 'any') return el;
+    if (!checkVisibility(el, mode)) {
       const all = resolveAllLocators(locator, selectorFamily);
-      const v = all.find(isVisible);
+      const v = all.find(e => checkVisibility(e, mode));
       if (v) return v;
     }
     return el;
   }
 
-  function waitForElement(locator, selectorFamily, visibleOnly, timeoutMs = 10000, pollMs = 200) {
+  function waitForElement(locator, selectorFamily, mode, timeoutMs = 10000, pollMs = 200) {
     locator = normalizeLocator(locator);
     selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
-    console.log(`[RPA waitForElement] normLocator=${locator} normType=${selectorFamily} visibleOnly=${visibleOnly} timeout=${timeoutMs}`);
+    console.log(`[RPA waitForElement] normLocator=${locator} normType=${selectorFamily} mode=${mode} timeout=${timeoutMs}`);
     const start = Date.now();
     let ticks = 0;
     return new Promise((resolve, reject) => {
       const tick = () => {
         ticks++;
-        const el = resolveLocator(locator, selectorFamily, visibleOnly);
+        const el = resolveLocator(locator, selectorFamily, mode);
         if (el && el !== document) {
           console.log(`[RPA waitForElement] FOUND after ${ticks} ticks, ${Date.now() - start}ms`);
           return resolve(el);
@@ -460,14 +460,14 @@
     return [];
   }
 
-  function waitForElementInContext(locator, selectorFamily, rootElement, timeoutMs = 10000, pollMs = 200) {
+  function waitForElementInContext(locator, selectorFamily, rootElement, mode = 'visible', timeoutMs = 10000, pollMs = 200) {
     locator = normalizeLocator(locator);
     selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
     const start = Date.now();
     return new Promise((resolve, reject) => {
       const tick = () => {
         const el = resolveLocatorInContext(locator, selectorFamily, rootElement);
-        if (el && el !== rootElement) return resolve(el);
+        if (el && el !== rootElement && checkVisibility(el, mode)) return resolve(el);
         if (Date.now() - start >= timeoutMs) {
           return reject(new Error(`元素未在 ${timeoutMs}ms 内出现: ${locator}`));
         }
@@ -477,14 +477,14 @@
     });
   }
 
-  function waitForElementWithContext(locator, selectorFamily, extra, visibleOnly = true, timeoutMs = 10000, pollMs = 200) {
+  function waitForElementWithContext(locator, selectorFamily, extra, mode = 'visible', timeoutMs = 10000, pollMs = 200) {
     const ctxLocator = extra?.contextLocator;
     const ctxLocatorType = extra?.contextLocatorType;
     const ctxIndex = extra?.contextIndex ?? 0;
     const ctxTotal = extra?.contextTotal;
 
     if (!ctxLocator) {
-      return waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+      return waitForElement(locator, selectorFamily, mode, timeoutMs);
     }
 
     const start = Date.now();
@@ -500,25 +500,25 @@
         }
 
         let el = resolveLocatorInContext(locator, selectorFamily, parent);
-        let mode = 'descendant';
+        let resolutionMode = 'descendant';
         let globalMatches = null;
-        if (visibleOnly && el && !isVisible(el)) {
+        if (mode !== 'any' && el && !checkVisibility(el, mode)) {
           const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          el = all.find(isVisible) || null;
+          el = all.find(e => checkVisibility(e, mode)) || null;
         }
 
         // Fallback: index alignment when descendant search yields nothing
         if (!el) {
           globalMatches = resolveAllLocators(locator, selectorFamily);
-          mode = 'index-alignment';
+          resolutionMode = 'index-alignment';
           if (globalMatches.length <= ctxIndex) {
             return reject(new Error(
               `按循环序号对齐失败：外层循环第 ${ctxIndex + 1} 个元素，但当前选择器只匹配到 ${globalMatches.length} 个元素`
             ));
           }
           el = globalMatches[ctxIndex] || null;
-          if (visibleOnly && el && !isVisible(el)) {
-            el = globalMatches.slice(ctxIndex).find(isVisible) || null;
+          if (mode !== 'any' && el && !checkVisibility(el, mode)) {
+            el = globalMatches.slice(ctxIndex).find(e => checkVisibility(e, mode)) || null;
           }
         }
 
@@ -542,7 +542,7 @@
     });
   }
 
-  function reResolveWithContext(locator, selectorFamily, extra, visibleOnly = true) {
+  function reResolveWithContext(locator, selectorFamily, extra, mode = 'visible') {
     const ctxLocator = extra?.contextLocator;
     const ctxLocatorType = extra?.contextLocatorType;
     const ctxIndex = extra?.contextIndex ?? 0;
@@ -553,21 +553,21 @@
       const parent = parents[ctxIndex];
       if (parent) {
         el = resolveLocatorInContext(locator, selectorFamily, parent);
-        if (visibleOnly && el && !isVisible(el)) {
+        if (mode !== 'any' && el && !checkVisibility(el, mode)) {
           const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          el = all.find(isVisible) || null;
+          el = all.find(e => checkVisibility(e, mode)) || null;
         }
         if (!el) {
           const all = resolveAllLocators(locator, selectorFamily);
           el = all[ctxIndex] || null;
-          if (visibleOnly && el && !isVisible(el)) {
-            el = all.slice(ctxIndex).find(isVisible) || null;
+          if (mode !== 'any' && el && !checkVisibility(el, mode)) {
+            el = all.slice(ctxIndex).find(e => checkVisibility(e, mode)) || null;
           }
         }
       }
     }
     if (!el) {
-      el = resolveLocator(locator, selectorFamily, visibleOnly);
+      el = resolveLocator(locator, selectorFamily, mode);
     }
     if (el && extra?.contextLocator) {
       window.__rpaLastContextDebugInfo = getElementDebugInfo(locator, selectorFamily, extra, el);
@@ -613,7 +613,7 @@ console.log({
     const ctxLocator = extra?.contextLocator;
     const ctxLocatorType = extra?.contextLocatorType;
     const ctxIndex = extra?.contextIndex ?? 0;
-    const visibleOnly = extra?.visibleOnly !== false;
+    const mode = getVisibilityMode(extra);
     const info = {
       mode: 'none',
       outerTotal: 0,
@@ -634,19 +634,19 @@ console.log({
     }
 
     const inCtxAll = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-    const inCtx = visibleOnly ? inCtxAll.filter(isVisible) : inCtxAll;
+    const inCtx = mode !== 'any' ? inCtxAll.filter(e => checkVisibility(e, mode)) : inCtxAll;
     const descendantEl = inCtx[0] || null;
     let innerList = inCtx;
-    let mode = 'descendant';
+    let resolutionMode = 'descendant';
     if (el && descendantEl !== el) {
-      mode = 'index-alignment';
+      resolutionMode = 'index-alignment';
       const globalAll = resolveAllLocators(locator, selectorFamily);
-      innerList = visibleOnly ? globalAll.filter(isVisible) : globalAll;
+      innerList = mode !== 'any' ? globalAll.filter(e => checkVisibility(e, mode)) : globalAll;
     }
-    info.mode = mode;
+    info.mode = resolutionMode;
     info.innerTotal = innerList.length;
     info.innerIndex = el ? innerList.indexOf(el) : -1;
-    info.jsSnippet = buildDebugSnippet(ctxLocator, ctxLocatorType, ctxIndex, locator, selectorFamily, mode, info.innerIndex, info.outerTotal, info.innerTotal);
+    info.jsSnippet = buildDebugSnippet(ctxLocator, ctxLocatorType, ctxIndex, locator, selectorFamily, resolutionMode, info.innerIndex, info.outerTotal, info.innerTotal);
     return info;
   }
 
@@ -1050,16 +1050,16 @@ console.log({
       return { navigatedTo: url };
     });
   registerHandler('click', async function click({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const humanLike = extra?.humanLike ?? true;
       const forceJs = extra?.forceJs ?? false;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      let el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      let el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
 
       await visualConfirmDelay();
 
-      const fresh = reResolveWithContext(locator, selectorFamily, extra, visibleOnly);
+      const fresh = reResolveWithContext(locator, selectorFamily, extra, mode);
       if (fresh && fresh !== document) el = fresh;
 
       if (forceJs) {
@@ -1072,11 +1072,11 @@ console.log({
       return { clicked: true, tagName: el.tagName };
     });
   registerHandler('input', async function input({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
 
       const text = extra?.text ?? '';
       const clearFirst = extra?.clearFirst !== false;
@@ -1098,10 +1098,10 @@ console.log({
       return { input: true, length: text.length };
     });
   registerHandler('extract', async function extract({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
 
       const attr = extra?.attribute;
       let value;
@@ -1129,9 +1129,9 @@ console.log({
 
       // scrollIntoView mode (element target)
       if (scrollType === 'intoView' || locator) {
-        const visibleOnly = extra?.visibleOnly ?? true;
+        const mode = getVisibilityMode(extra);
         const timeoutMs = (extra?.timeout ?? 10) * 1000;
-        const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+        const el = await waitForElement(locator, selectorFamily, mode, timeoutMs);
         if (humanLike) {
           const rect = el.getBoundingClientRect();
           const targetY = rect.top + window.scrollY;
@@ -1181,11 +1181,11 @@ console.log({
       return { pressed: key };
     });
   registerHandler('hover', async function hover({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
 
       const point = getClickPoint(el, humanLike);
       const rect = el.getBoundingClientRect();
@@ -1201,12 +1201,12 @@ console.log({
       return { hovered: true, tagName: el.tagName };
     });
   registerHandler('unhover', async function unhover({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
       let el;
       if (locator) {
-        el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+        el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
       } else {
         el = _lastHoveredElement;
       }
@@ -1221,22 +1221,22 @@ console.log({
       return { unhovered: true, tagName: el.tagName };
     });
   registerHandler('clearInput', async function clearInput({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
 
       if (humanLike) await visualConfirmDelay();
       setInputValue(el, '');
       return { cleared: true };
     });
   registerHandler('selectOption', async function selectOption({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const humanLike = extra?.humanLike ?? true;
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
 
       const value = extra?.value;
       if (!value) throw new Error('selectOption: value required');
@@ -1275,10 +1275,10 @@ console.log({
     });
 // ─── Condition check handlers ───────────────────────────────────
   registerHandler('checkElementExists', async function checkElementExists({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       try {
-        await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+        await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
         return { exists: true };
       } catch (e) {
         return { exists: false };
@@ -1289,7 +1289,7 @@ console.log({
       const ctxLocator = extra?.contextLocator;
       console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${selectorFamily} ctx=${ctxLocator ? 'yes' : 'no'} timeout=${timeoutMs}`);
       try {
-        const el = await waitForElementWithContext(locator, selectorFamily, extra, false, timeoutMs);
+        const el = await waitForElementWithContext(locator, selectorFamily, extra, 'any', timeoutMs);
         const vis = isVisible(el);
         console.log(`[RPA checkElementVisible] result tag=${el?.tagName} visible=${vis}`);
         return { visible: vis };
@@ -1299,9 +1299,9 @@ console.log({
       }
     });
   registerHandler('getElementText', async function getElementText({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
       return { text: el.textContent?.trim() ?? '' };
     });
   registerHandler('getCurrentUrl', function getCurrentUrl() {
@@ -1437,8 +1437,8 @@ console.log({
           }
         } else if (targetLocator && matchedCount === undefined) {
           const all = resolveAllLocators(targetLocator, targetLocatorType);
-          const visibleOnly = extra?.visibleOnly !== false;
-          matchedCount = visibleOnly ? all.filter(isVisible).length : all.length;
+          const mode = getVisibilityMode(extra);
+          matchedCount = mode !== 'any' ? all.filter(e => checkVisibility(e, mode)).length : all.length;
           console.log(`[RPA Agent] matched ${matchedCount} element(s) for locator=${targetLocator}`);
         }
 
