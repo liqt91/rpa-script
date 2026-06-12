@@ -68,18 +68,22 @@ def _emit_removeDictKey(node, extra, depth, prefix, by_parent, lines, element_ma
 
 @_handler("readTableCell")
 def _emit_readTableCell(node, extra, depth, prefix, by_parent, lines, element_map=None):
-    row = extra.get("rowIndex", 0)
+    row = _py_str(extra.get("rowIndex", 0))
     col = _py_str(extra.get("columnName", ""))
     var = _var_ref(extra.get("varName", "cellValue"))
-    lines.append(f"{prefix}{var} = _table_data[\"rows\"][{row}].get({col}, \"\")")
+    lines.append(f"{prefix}_row_idx = int(_resolve_vars(str({row})))")
+    lines.append(f"{prefix}{var} = _table_data[\"rows\"][_row_idx].get({_py_str(col)}, \"\")")
 
 
 @_handler("writeTableCell")
 def _emit_writeTableCell(node, extra, depth, prefix, by_parent, lines, element_map=None):
-    row = extra.get("rowIndex", 0)
+    row = _py_str(extra.get("rowIndex", 0))
     col = _py_str(extra.get("columnName", ""))
     value = _py_str(extra.get("value", ""))
-    lines.append(f"{prefix}_table_data[\"rows\"][{row}][{col}] = {value}")
+    lines.append(f"{prefix}_row_idx = int(_resolve_vars(str({row})))")
+    lines.append(f"{prefix}_col_name = _resolve_vars({col})")
+    lines.append(f"{prefix}_ensure_table_rows(_table_data, _row_idx)")
+    lines.append(f"{prefix}_table_data[\"rows\"][_row_idx][_col_name] = _resolve_vars({value})")
 
 
 @_handler("getTableRowCount")
@@ -91,19 +95,14 @@ def _emit_getTableRowCount(node, extra, depth, prefix, by_parent, lines, element
 @_handler("writeTableRow")
 def _emit_writeTableRow(node, extra, depth, prefix, by_parent, lines, element_map=None):
     mode = extra.get("writeMode", "append")
-    row = extra.get("rowIndex", 0)
-    data = extra.get("rowData", "{}")
-    ip = "    " * depth
-    lines.append(f"{ip}_row_raw = {data}")
-    _cols = "_table_data.get('columns', [])"
-    _expr = f"{{({_cols}[i]['name'] if i < len({_cols}) else chr(65 + i)): v for i, v in enumerate(_row_raw)}}"
-    lines.append(
-        f"{ip}_row_data = _row_raw if isinstance(_row_raw, dict) else {_expr} "
-        f"if isinstance(_row_raw, list) else {{}}"
-    )
+    row = _py_str(extra.get("rowIndex", 0))
+    data = _py_str(extra.get("rowData", "{}"))
+    lines.append(f"{prefix}_row_raw = _resolve_vars({data})")
+    lines.append(f"{prefix}_row_data = _coerce_row_data(_row_raw)")
     if mode == "append":
-        lines.append(f"{ip}_table_data['rows'].append(_row_data)")
+        lines.append(f"{prefix}_table_data['rows'].append(_row_data)")
     elif mode == "insert":
-        lines.append(f"{ip}_table_data['rows'].insert({row}, _row_data)")
+        lines.append(f"{prefix}_table_data['rows'].insert({row}, _row_data)")
     else:
-        lines.append(f"{ip}_table_data['rows'][{row}] = _row_data")
+        lines.append(f"{prefix}_ensure_table_rows(_table_data, int(_resolve_vars(str({row}))))")
+        lines.append(f"{prefix}_table_data['rows'][int(_resolve_vars(str({row})))] = _row_data")

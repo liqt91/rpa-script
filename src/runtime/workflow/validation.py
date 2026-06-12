@@ -16,44 +16,49 @@ COMMANDS_TABLE_MD = REPO_ROOT / "commands_table.md"
 
 
 def extract_js_handler_names() -> set[str]:
-    """Parse extension/content.js for the handlers object keys."""
+    """Parse extension/content.js for registered handler names.
+
+    Supports both the current registerHandler('name', fn) pattern and the
+    legacy ``const handlers = {...}`` object for backwards compatibility.
+    """
     if not CONTENT_JS.exists():
         return set()
 
     text = CONTENT_JS.read_text(encoding="utf-8")
+    names: set[str] = set()
+
+    # Current pattern: registerHandler('name', ...)
+    names.update(re.findall(r"registerHandler\s*\(\s*['\"]([^'\"]+)['\"]\s*,", text))
+
+    # Legacy pattern: const handlers = { async name(args) { ... }, ... }
     start_marker = "const handlers = {"
     start_idx = text.find(start_marker)
     if start_idx == -1:
         start_marker = "handlers = {"
         start_idx = text.find(start_marker)
-    if start_idx == -1:
-        return set()
+    if start_idx != -1:
+        brace_idx = text.find("{", start_idx)
+        if brace_idx != -1:
+            depth = 1
+            i = brace_idx + 1
+            while i < len(text) and depth > 0:
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                i += 1
 
-    brace_idx = text.find("{", start_idx)
-    if brace_idx == -1:
-        return set()
-
-    depth = 1
-    i = brace_idx + 1
-    while i < len(text) and depth > 0:
-        if text[i] == "{":
-            depth += 1
-        elif text[i] == "}":
-            depth -= 1
-        i += 1
-
-    body = text[brace_idx + 1 : i - 1]
-    names = set()
-    js_keywords = {"if", "while", "for", "switch", "catch", "with"}
-    for line in body.splitlines():
-        line = line.strip()
-        if not line or line.startswith("//"):
-            continue
-        mm = re.match(r"(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{", line)
-        if mm:
-            name = mm.group(1)
-            if name not in js_keywords:
-                names.add(name)
+            body = text[brace_idx + 1 : i - 1]
+            js_keywords = {"if", "while", "for", "switch", "catch", "with"}
+            for line in body.splitlines():
+                line = line.strip()
+                if not line or line.startswith("//"):
+                    continue
+                mm = re.match(r"(?:async\s+)?(\w+)\s*\([^)]*\)\s*{", line)
+                if mm:
+                    name = mm.group(1)
+                    if name not in js_keywords:
+                        names.add(name)
     return names
 
 
