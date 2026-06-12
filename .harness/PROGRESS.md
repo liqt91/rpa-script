@@ -27,3 +27,4 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-12 16:38 | forEachElement-viewport-mode | done
 2026-06-12 16:40 | forEachElement-visibility-reword | done
 2026-06-12 16:49 | element-commands-visibilityMode | done
+2026-06-12 17:03 | visibilityMode-simplified | done
