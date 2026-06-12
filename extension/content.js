@@ -1119,21 +1119,6 @@
       return { scrolled: direction, amount };
     },
 
-    goBack() {
-      window.history.back();
-      return { wentBack: true };
-    },
-
-    goForward() {
-      window.history.forward();
-      return { wentForward: true };
-    },
-
-    refresh() {
-      window.location.reload();
-      return { refreshed: true };
-    },
-
     async pressKey({ extra }) {
       const key = extra?.key || 'Enter';
       const humanLike = extra?.humanLike ?? true;
@@ -1319,99 +1304,6 @@
         index: idx,
       }));
       return { count: items.length, items };
-    },
-
-    // ─── Network interception handlers ──────────────────────────────
-
-    traceNetwork({ extra }) {
-      const duration = (extra?.duration || 5) * 1000;
-      const urlPattern = extra?.urlPattern || '*';
-      _traceResults.length = 0;
-      _interceptActive = true;
-      injectInterceptScript({ mode: 'trace', urlPattern, method: 'ALL', captureResponse: false });
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          removeInterceptScript();
-          const urls = _traceResults.map(r => `${r.method} ${r.url}`);
-          resolve({ traced: _traceResults.length, urls });
-        }, duration);
-      });
-    },
-
-    interceptNetwork({ extra }) {
-      const urlPattern = extra?.urlPattern || '*';
-      const method = extra?.method || 'ALL';
-      const captureResponse = extra?.captureResponse !== false;
-      _interceptQueue.length = 0;
-      _interceptActive = true;
-      injectInterceptScript({ mode: 'intercept', urlPattern, method, captureResponse });
-      return { started: true, pattern: urlPattern, method, captureResponse };
-    },
-
-    waitForNetwork({ extra }) {
-      const urlPattern = extra?.urlPattern || '*';
-      const timeoutMs = (extra?.timeout || 10) * 1000;
-      const start = Date.now();
-      if (!_interceptActive) {
-        // Auto-start intercept if not active
-        interceptNetwork({ extra: { urlPattern } });
-      }
-      return new Promise((resolve, reject) => {
-        const tick = () => {
-          const elapsed = Date.now() - start;
-          const match = _interceptQueue.find(item => matchPattern(item.url, urlPattern));
-          if (match) {
-            resolve({ matched: true, url: match.url, data: tryJsonParse(match.body) });
-            return;
-          }
-          if (elapsed >= timeoutMs) {
-            reject(new Error(`waitForNetwork 超时: ${timeoutMs}ms 内未匹配到 ${urlPattern}`));
-            return;
-          }
-          setTimeout(tick, 200);
-        };
-        tick();
-      });
-    },
-
-    getInterceptedData({ extra }) {
-      const limit = extra?.limit || 100;
-      const data = _interceptQueue.slice(0, limit).map(item => ({
-        url: item.url,
-        method: item.method,
-        status: item.status,
-        data: tryJsonParse(item.body),
-      }));
-      return { count: data.length, data };
-    },
-
-    previewInterceptData() {
-      if (_interceptQueue.length === 0) return { preview: null };
-      const first = _interceptQueue[0];
-      return { preview: { url: first.url, data: tryJsonParse(first.body) } };
-    },
-
-    logInterceptedData() {
-      const summary = _interceptQueue.slice(0, 5).map((item, idx) => {
-        const data = tryJsonParse(item.body);
-        const preview = typeof data === 'object'
-          ? JSON.stringify(data).slice(0, 180)
-          : String(data).slice(0, 180);
-        return `${idx + 1}. [${item.method}] ${item.url} → ${preview}...`;
-      });
-      console.log('[RPA Intercept] 已拦截数据摘要 (' + _interceptQueue.length + ' 条):\n' + summary.join('\n'));
-      return { logged: _interceptQueue.length, summary };
-    },
-
-    clearInterceptedData() {
-      const count = _interceptQueue.length;
-      _interceptQueue.length = 0;
-      return { cleared: count };
-    },
-
-    stopIntercept() {
-      removeInterceptScript();
-      return { stopped: true, remaining: _interceptQueue.length };
     },
 
     openBrowser() {

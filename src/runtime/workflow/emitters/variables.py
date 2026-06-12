@@ -43,6 +43,29 @@ def _emit_increment(node, extra, depth, prefix, by_parent, lines, element_map=No
     lines.append(f"{prefix}{var} += {step}")
 
 
+@_handler("setDictValue")
+def _emit_setDictValue(node, extra, depth, prefix, by_parent, lines, element_map=None):
+    dict_name = _var_ref(extra.get("dictName", "data"))
+    key = _py_str(extra.get("key", ""))
+    value = _py_str(extra.get("value", ""))
+    lines.append(f"{prefix}{dict_name}[{key}] = {value}")
+
+
+@_handler("getDictValue")
+def _emit_getDictValue(node, extra, depth, prefix, by_parent, lines, element_map=None):
+    dict_name = _var_ref(extra.get("dictName", "data"))
+    key = _py_str(extra.get("key", ""))
+    var = _var_ref(extra.get("varName", "dictValue"))
+    lines.append(f"{prefix}{var} = {dict_name}.get({key})")
+
+
+@_handler("removeDictKey")
+def _emit_removeDictKey(node, extra, depth, prefix, by_parent, lines, element_map=None):
+    dict_name = _var_ref(extra.get("dictName", "data"))
+    key = _py_str(extra.get("key", ""))
+    lines.append(f"{prefix}{dict_name}.pop({key}, None)")
+
+
 @_handler("readTableCell")
 def _emit_readTableCell(node, extra, depth, prefix, by_parent, lines, element_map=None):
     row = extra.get("rowIndex", 0)
