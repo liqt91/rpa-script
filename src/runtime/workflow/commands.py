@@ -830,7 +830,19 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [
             _element_name_field(),
             _scope_field(),
-            {"name": "visibleOnly", "label": "只匹配可见元素", "type": "bool", "default": True, "group": "advanced"},
+            {
+                "name": "visibilityMode",
+                "label": "元素可见性",
+                "type": "select",
+                "options": [
+                    {"label": "视口内可见", "value": "visible"},
+                    {"label": "已渲染（含屏幕外）", "value": "rendered"},
+                    {"label": "全部（含隐藏元素）", "value": "any"},
+                ],
+                "default": "visible",
+                "group": "advanced",
+                "description": "视口内可见=既渲染又在当前浏览器可视区域；已渲染=CSS未隐藏但可能在屏幕外；全部=只要DOM存在就匹配。",
+            },
             {"name": "itemVar", "label": "元素变量名", "type": "varName", "default": "item"},
             {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},
         ],

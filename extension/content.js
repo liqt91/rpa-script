@@ -16,7 +16,7 @@
 
   // ─── Locator resolution ──────────────────────────────────────────
 
-  function isVisible(el) {
+  function isRendered(el) {
     if (!el) return false;
     let node = el;
     let accumulatedOpacity = 1;
@@ -32,9 +32,34 @@
     }
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return false;
-    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return false;
     if (el.disabled === true || el.readOnly === true || el.getAttribute('tabindex') === '-1' || el.hasAttribute('inert')) return false;
     return true;
+  }
+
+  function isInViewport(el) {
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    return !(
+      rect.width <= 0 || rect.height <= 0 ||
+      rect.bottom < 0 || rect.top > window.innerHeight ||
+      rect.right < 0 || rect.left > window.innerWidth
+    );
+  }
+
+  function isVisible(el) {
+    return isRendered(el) && isInViewport(el);
+  }
+
+  function checkVisibility(el, mode) {
+    if (!el || mode === 'any') return true;
+    if (mode === 'rendered') return isRendered(el);
+    return isVisible(el);
+  }
+
+  function getVisibilityMode(extra) {
+    if (extra?.visibilityMode) return extra.visibilityMode;
+    if (extra?.visibleOnly === false) return 'any';
+    return 'visible';
   }
 
   // ─── web-verse text fingerprint ──────────────────────────────────
@@ -1283,7 +1308,7 @@ console.log({
     });
   registerHandler('findElements', async function findElements({ locator, selectorFamily, extra }) {
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const visibleOnly = extra?.visibleOnly ?? true;
+      const mode = getVisibilityMode(extra);
       const ctxLocator = extra?.contextLocator;
       const ctxLocatorType = extra?.contextLocatorType;
       const ctxIndex = extra?.contextIndex ?? 0;
@@ -1299,8 +1324,8 @@ console.log({
         } else {
           elements = resolveAllLocators(locator, selectorFamily);
         }
-        if (visibleOnly) {
-          elements = elements.filter(isVisible);
+        if (mode !== 'any') {
+          elements = elements.filter(el => checkVisibility(el, mode));
         }
         if (elements.length > 0) break;
         await sleep(200);
