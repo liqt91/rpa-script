@@ -18,3 +18,4 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-10 14:51 | session_end | prompt_input_exit | feat/browser-extension-agent | c3de6e3 | 12644704-f13f-4c5c-b98c-858d5ebb040c
 2026-06-11 18:17 | session_end | prompt_input_exit | feat/browser-extension-agent | 8477359 | d3a39110-a381-4659-a006-6690b4840e36
 2026-06-12 13:13 | prune-disabled-commands | done
+2026-06-12 14:08 | command-consistency-refactor | done
