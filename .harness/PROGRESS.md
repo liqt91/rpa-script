@@ -15,3 +15,6 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-03 11:19 | session_end | clear | feat/browser-extension-agent | 9a5ed7d | 59f0f99c-4e1d-4d7f-9705-8dbbd99f1f44
 2026-06-04 11:42 | session_end | clear | feat/browser-extension-agent | 9a5ed7d | 4b982e8a-1e8c-404b-ab06-0caded232ede
 2026-06-08 18:16 | session_end | prompt_input_exit | feat/browser-extension-agent | 959a3a8 | 17500b3c-fc1b-4f69-bd4b-704694c2dd62
+2026-06-10 14:51 | session_end | prompt_input_exit | feat/browser-extension-agent | c3de6e3 | 12644704-f13f-4c5c-b98c-858d5ebb040c
+2026-06-11 18:17 | session_end | prompt_input_exit | feat/browser-extension-agent | 8477359 | d3a39110-a381-4659-a006-6690b4840e36
+2026-06-12 13:13 | prune-disabled-commands | done

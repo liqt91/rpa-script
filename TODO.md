@@ -21,6 +21,12 @@
   - 更新 sidepanel `applyCandidateToUI` 直接基于 `pathMapping` 映射，保留 legacy 回退
   - 方案文档：`element-capture-refactor-proposal.html`
 
+- [x] **精简默认指令 seed 过滤**
+  - `src/runtime/main.py` 的 `_sync_commands_to_db` 仅写入 `enabled=True` 的内置指令
+  - 未启用且未被工作流节点引用的已有内置指令行在同步时删除
+  - 已存在的指令仍不覆盖用户手动设置的启停状态
+  - `src/runtime/workflow/commands.py` 已删除全部 `enabled=False` 的指令定义（26 个）
+
 - [ ] **setVar/setval 端到端验证**
   - 在真实工作流中测试变量设置、引用、传递
   - 验证 `${var}` / `{{var}}` 在各类节点中的解析

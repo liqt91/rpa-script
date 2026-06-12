@@ -65,12 +65,14 @@ def _load_ai_apps_from_db(db):
 
 def _sync_commands_to_db(db):
     """启动时：将 commands.py 中的内置指令同步到数据库。
-    新指令默认停用（enabled=0），已存在的指令不覆盖启停状态。
+    仅把 registry 中 enabled=True 的指令写入数据库；未启用的内置指令首次不插入，
+    已存在且无工作流节点引用时删除。已存在的指令不覆盖启停状态。
     自动根据 registry 的插入顺序计算 category_order / command_order。"""
     from .workflow import commands
     import json
 
     existing = {row.type: row for row in db.query(models.WorkflowCommand).all()}
+    referenced_types = {t for (t,) in db.query(models.WorkflowNode.type).distinct().all() if t}
     cat_order_map = {}
     cat_counter = {}
     for type_name, cmd in commands.COMMAND_REGISTRY.items():
@@ -79,6 +81,15 @@ def _sync_commands_to_db(db):
             cat_order_map[cat] = len(cat_order_map) + 1
         cat_counter[cat] = cat_counter.get(cat, 0) + 1
         ext = cmd.get("runtimes", {}).get("extension")
+        is_enabled = bool(cmd.get("enabled", False))
+
+        # 精简指令：未启用的内置指令不进入数据库
+        if not is_enabled:
+            row = existing.get(type_name)
+            if row and row.is_builtin and type_name not in referenced_types:
+                db.delete(row)
+            continue
+
         if type_name in existing:
             row = existing[type_name]
             row.label = cmd.get("label", type_name)
@@ -113,7 +124,7 @@ def _sync_commands_to_db(db):
                 fields=json.dumps(cmd.get("fields", [])),
                 description=cmd.get("description", ""),
                 is_builtin=1,
-                enabled=1 if cmd.get("enabled", False) else 0,
+                enabled=1,
                 handler=ext.get("handler") if ext else None,
                 local=1 if ext and ext.get("local") else 0,
                 category_order=cmd.get("categoryOrder", cat_order_map[cat]),
