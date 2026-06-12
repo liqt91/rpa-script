@@ -341,7 +341,21 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _window_var_field(),
             _element_name_field(),
             _scope_field(),
-            {"name": "forceJs", "label": "强制JS点击", "type": "bool", "default": False},
+            {
+                "name": "forceJs",
+                "label": "强制JS点击",
+                "type": "bool",
+                "default": False,
+                "description": "开启后直接调用元素的 el.click()，不触发鼠标移动和 mousedown/mouseup/click 事件序列。适合被反自动化拦截时使用。若同时开启，优先级高于“拟人化操作”。",
+            },
+            {
+                "name": "humanLike",
+                "label": "拟人化操作",
+                "type": "bool",
+                "default": True,
+                "group": "advanced",
+                "description": "开启时模拟鼠标移动轨迹，并依次触发 mousedown → mouseup → click 事件；关闭后跳过鼠标移动和事件间隔。若“强制JS点击”同时开启，本选项被忽略。",
+            },
         ],
     },
     "doubleClick": {
