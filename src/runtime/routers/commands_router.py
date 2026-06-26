@@ -258,10 +258,20 @@ def _analyze_command_recommendation(cmd_type: str, fields: list, is_container: b
         return {"needsRuntime": True, "handler": handler_guess, "local": False,
                 "reason": f"有 locator 字段，属于页面交互指令，推荐 handler={handler_guess}", "confidence": confidence}
 
-    # Rule 4: variable / data / output / network / AI / subflow → local=true
+    # Rule 4: known navigation commands → browser execution
+    nav_types = ("openBrowser", "closeBrowser", "navigate", "newTab", "goBack", "goForward", "refresh")
+    if cmd_type in nav_types:
+        handler_map = {"openBrowser": "openBrowser", "closeBrowser": "closeBrowser",
+                       "navigate": "navigate", "newTab": "newTab", "goBack": "goBack",
+                       "goForward": "goForward", "refresh": "refresh"}
+        h = handler_map.get(cmd_type, cmd_type)
+        return {"needsRuntime": True, "handler": h, "local": False,
+                "reason": "页面导航类指令，需要浏览器执行", "confidence": "high"}
+
+    # Rule 5: variable / data / output / network / AI / subflow → local=true
     local_keywords = {"varName", "name", "value", "listName", "targetVar", "step",
                       "message", "level", "dataExpr", "dataVar", "filePath", "format",
-                      "method", "url", "headers", "body", "appType", "inputs", "workflowId",
+                      "method", "headers", "body", "appType", "inputs", "workflowId",
                       "resultExpr", "savePath", "fullPage"}
     if field_names & local_keywords or cmd_type in ("setVar", "log", "appendToList", "increment",
                                                       "stringConcat", "pushItem", "saveToFile",
@@ -271,15 +281,12 @@ def _analyze_command_recommendation(cmd_type: str, fields: list, is_container: b
         return {"needsRuntime": True, "handler": handler_guess, "local": True,
                 "reason": "后端变量/日志/文件/网络/AI/子流程操作，推荐 local=True 后端执行", "confidence": "high"}
 
-    # Rule 5: navigation without locator
-    if "url" in field_names or cmd_type in ("navigate", "newTab", "goBack", "goForward", "refresh"):
-        handler_map = {"navigate": "navigate", "newTab": "newTab", "goBack": "goBack",
-                       "goForward": "goForward", "refresh": "refresh"}
-        h = handler_map.get(cmd_type, cmd_type)
-        return {"needsRuntime": True, "handler": h, "local": False,
-                "reason": "页面导航类指令，需要浏览器执行", "confidence": "high"}
+    # Rule 6: fallback url field (unknown command) → assume browser navigation
+    if "url" in field_names:
+        return {"needsRuntime": True, "handler": cmd_type, "local": False,
+                "reason": "包含 url 字段，疑似页面导航，建议浏览器执行", "confidence": "low"}
 
-    # Rule 6: wait / sleep
+    # Rule 7: wait / sleep
     if cmd_type in ("sleep", "waitForLoad", "waitForUrl") or "seconds" in field_names or "timeout" in field_names:
         return {"needsRuntime": True, "handler": "wait", "local": False,
                 "reason": "等待/超时类指令，推荐 wait handler", "confidence": "medium"}
