@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>指令一致性改造方案</title>
+<style>
+/* report.css — single source of truth for deliver-html HTML output.
+ *
+ * Extracted from NEXT_ACTIONS.html / PHAN_TICH.html so every deliverable
+ * shares the same dark Github-flavored look. Edit here, every future HTML
+ * deliverable picks it up. Existing HTML files at repo root keep inline
+ * copies (self-contained shipping artefacts — see ADR-0002).
+ */
+
+:root {
+  --bg: #0f1419;
+  --panel: #161b22;
+  --panel2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #a371f7;
+  --good: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code-bg: #1c2128;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.65;
+  font-size: 16px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+
+/* ----- Hero ----- */
+header.hero {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #161b22 0%, #0f1419 100%);
+  border-radius: 14px;
+  padding: 30px 36px;
+  margin-bottom: 28px;
+  position: relative;
+}
+header.hero::after {
+  content: attr(data-badge);
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  background: rgba(163, 113, 247, 0.15);
+  color: var(--accent2);
+  border: 1px solid rgba(163, 113, 247, 0.5);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+header.hero[data-badge-tone="good"]::after {
+  color: var(--good);
+  background: rgba(63, 185, 80, 0.15);
+  border-color: rgba(63, 185, 80, 0.5);
+}
+header.hero[data-badge-tone="warn"]::after {
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.15);
+  border-color: rgba(210, 153, 34, 0.5);
+}
+header.hero[data-badge-tone="bad"]::after {
+  color: var(--bad);
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.5);
+}
+header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.02em; }
+header.hero .sub { color: var(--muted); margin: 0 0 16px; font-size: 15px; }
+header.hero .meta {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+header.hero .meta span strong { color: var(--text); }
+header.hero .tldr {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  border-radius: 8px;
+  font-size: 14.5px;
+}
+header.hero .tldr strong { color: var(--accent); }
+
+/* ----- Typography ----- */
+h2 {
+  margin-top: 44px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 22px;
+}
+h2 .num {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 10px;
+  border: 1px solid var(--border);
+}
+h3 { margin-top: 28px; margin-bottom: 8px; font-size: 17px; color: var(--accent); }
+h4 { margin-top: 18px; margin-bottom: 6px; font-size: 15px; }
+h5 { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+h6 { margin: 10px 0 4px; font-size: 12.5px; color: var(--muted); }
+p { margin: 10px 0 14px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ----- Code ----- */
+code, kbd {
+  font-family: var(--mono);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+pre code { background: none; border: none; padding: 0; }
+
+/* ----- Tables ----- */
+table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+
+/* ----- Lists ----- */
+ul, ol { padding-left: 22px; }
+li { margin: 5px 0; }
+
+/* ----- Cards (border-left accent) ----- */
+.card { border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; background: var(--panel); margin: 16px 0; }
+.card.good { border-left: 4px solid var(--good); }
+.card.warn { border-left: 4px solid var(--warn); }
+.card.bad  { border-left: 4px solid var(--bad); }
+.card.info { border-left: 4px solid var(--accent); }
+.card.next { border-left: 4px solid var(--accent2); }
+.card h4 { margin-top: 0; }
+
+/* ----- Pills (inline badges) ----- */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  margin-right: 6px;
+}
+.pill.good { background: rgba(63, 185, 80, 0.12);  color: var(--good);    border-color: rgba(63, 185, 80, 0.5); }
+.pill.warn { background: rgba(210, 153, 34, 0.12); color: var(--warn);    border-color: rgba(210, 153, 34, 0.5); }
+.pill.bad  { background: rgba(248, 81, 73, 0.12);  color: var(--bad);     border-color: rgba(248, 81, 73, 0.5); }
+.pill.info { background: rgba(88, 166, 255, 0.12); color: var(--accent);  border-color: rgba(88, 166, 255, 0.5); }
+.pill.alt  { background: rgba(163, 113, 247, 0.12);color: var(--accent2); border-color: rgba(163, 113, 247, 0.5); }
+
+/* ----- Grids ----- */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0; }
+@media (max-width: 800px) {
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+}
+
+/* ----- Stat tiles ----- */
+.stat { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; background: var(--panel); }
+.stat .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.stat .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.stat.good .num { color: var(--good); }
+.stat.warn .num { color: var(--warn); }
+.stat.bad  .num { color: var(--bad);  }
+.stat.info .num { color: var(--accent); }
+.stat.alt  .num { color: var(--accent2); }
+
+/* ----- Blockquote ----- */
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 14px 0;
+  padding: 8px 16px;
+  color: var(--muted);
+  background: var(--panel2);
+  border-radius: 0 8px 8px 0;
+}
+blockquote p { margin: 4px 0; }
+
+/* ----- TOC ----- */
+.toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 22px; margin: 20px 0 28px; font-size: 14px; }
+.toc h4 { margin: 6px 0 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.toc ol { margin: 0; padding-left: 22px; columns: 2; }
+@media (max-width: 800px) { .toc ol { columns: 1; } }
+
+/* ----- Side-by-side diff ----- */
+.diff-side { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.diff-side .col { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 14px 16px; }
+.diff-side .col.before { border-top: 3px solid var(--warn); }
+.diff-side .col.after  { border-top: 3px solid var(--good); }
+.diff-side .col h5 { margin: 0 0 8px; }
+@media (max-width: 800px) { .diff-side { grid-template-columns: 1fr; } }
+
+/* ----- Horizontal rule ----- */
+hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ----- Footer ----- */
+footer {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero" data-badge="DECISION DOC" data-badge-tone="alt">
+  <h1>指令一致性改造方案</h1>
+  <p class="sub">一处配置、全链路少改动生效</p>
+  <div class="meta">
+    <span><strong>Generated:</strong> 2026-06-26</span>
+    <span><strong>Template:</strong> decision-doc</span>
+  </div>
+</header>
+
+<h1 id="deliverable">指令一致性改造方案：一处配置，全链路生效</h1>
+<h2 id="deliverable">一、现状诊断</h2>
+<p>当前指令系统存在<strong>“定义分散、执行硬编码”</strong>的问题。新增一条指令往往要改 4～6 处：</p>
+<table><thead><tr><th>环节</th><th>当前做法</th><th>改动成本</th></tr></thead><tbody><tr><td>指令元数据</td><td><code>src/runtime/workflow/commands.py</code> 的 <code>COMMAND_REGISTRY</code> 硬编码</td><td>中</td></tr><tr><td>数据持久化</td><td>启动时 <code>commands.py → DB</code> 单向同步，已存在的不覆盖启停状态</td><td>低</td></tr><tr><td>前端展示</td><td>通过 <code>/api/commands</code> 读取数据库字段，已 schema-driven</td><td>低</td></tr><tr><td>后端代码生成</td><td><code>src/runtime/workflow/emitters/*.py</code> 每个指令一个 emit 函数</td><td>高</td></tr><tr><td>后端本地执行</td><td><code>extension_runner._handle_local()</code> 中 <code>if cmd_type == &quot;xxx&quot;</code> 硬编码</td><td>高</td></tr><tr><td>扩展端执行</td><td><code>extension/content.js</code> 中每个 handler 单独 <code>registerHandler</code></td><td>高</td></tr></tbody></table>
+<p>结果是：<strong>改字段容易，改行为难；新增指令必须动代码+重启服务+重载扩展</strong>。</p>
+<h3 id="deliverable">关键瓶颈</h3>
+<ol>
+<li><strong>执行语义与元数据分离</strong>。<code>commands.py</code> 管“长什么样”，<code>emitters/</code>、<code>extension_runner.py</code>、<code>content.js</code> 管“怎么跑”。元数据里的 <code>handler</code> 字段虽然存在，但只被当作路由名，具体逻辑仍散落各处。</li>
+<li><strong>本地/扩展双端都硬编码</strong>。<code>_handle_local()</code> 里为 <code>setVar</code>、<code>log</code>、<code>appendToList</code> 等写了大量 <code>if</code> 分支；content.js 里 <code>click</code>、<code>input</code>、<code>extract</code> 等也各写一套。</li>
+<li><strong>容器/分支/结构标记语义强依赖代码</strong>。<code>if/for/try/else/catch/endIf</code> 等容器的括号匹配、子节点展开逻辑在前后端多处重复（<code>extension_emitter._match_brackets</code>、<code>WorkflowContext.matchBrackets</code> 等）。</li>
+</ol>
+<h2 id="deliverable">二、目标</h2>
+<blockquote><p>在后台（管理界面 / 数据库）一处完成指令的<strong>新增、修改、删除、启停</strong>，前端表单、后端代码生成、扩展端执行尽量<strong>少改动甚至不改动</strong>即可生效。</p></blockquote>
+<p>具体指标：</p>
+<ul>
+<li>新增一条“普通”指令（基于已有元素动作或本地计算），<strong>零代码改动</strong>即可上线。</li>
+<li>修改指令字段、默认值、图标、排序、启停状态，<strong>零代码改动</strong>、无需重启。</li>
+<li>删除/禁用指令，<strong>零代码改动</strong>，已引用工作流的节点保留兼容提示。</li>
+<li>容器指令和复杂控制流允许少量代码模板，但元数据可配置。</li>
+</ul>
+<h2 id="deliverable">三、可选方案</h2>
+<h3 id="a">方案 A：纯解释器模式（数据库即唯一事实来源）</h3>
+<p>把指令的字段、校验、执行语义全部存在数据库。后端和扩展端都改成通用解释器：</p>
+<ul>
+<li>扩展端只保留 <code>elementAction</code> 一个 handler，根据 <code>action</code> 字段（<code>click/input/extract/scroll/hover/...</code>）+ <code>extra</code> 参数统一执行。</li>
+<li>后端本地执行只保留一个 <code>localAction</code> 解释器，根据 <code>action</code> 字段（<code>setVar/log/appendToList/httpRequest/...</code>）统一执行。</li>
+<li>容器控制流仍由代码处理，但容器类型、分支类型、结构类型、闭合关系全部来自数据库字段（<code>isContainer/isBranch/isStructural/closesWith</code>）。</li>
+</ul>
+<p><strong>优点</strong>：一处配置即可上线普通指令；新增指令无需重启。 <strong>缺点</strong>：解释器必须覆盖全部通用模式，前期抽象工作量大；复杂指令（如 <code>callAiApp</code>、自定义 JS）仍需特殊处理。</p>
+<h3 id="b">方案 B：注册表 + 插件脚本混合模式</h3>
+<p>保持数据库作为元数据和简单逻辑的来源，复杂逻辑通过“插件脚本”注入：</p>
+<ul>
+<li>数据库增加 <code>runtime_script</code> 字段，可存放一段 JavaScript（扩展端）或 Python（后端）。</li>
+<li>普通指令走通用解释器；特殊指令走插件脚本。</li>
+<li>脚本可热加载，新增复杂指令只需在后台贴脚本。</li>
+</ul>
+<p><strong>优点</strong>：灵活性最高，连复杂指令都能配置上线。 <strong>缺点</strong>：引入 eval/exec 安全风险；脚本调试、版本管理、错误定位成本高；违背“validate at boundaries”原则。</p>
+<h3 id="c">方案 C：数据库元数据 + 代码注册表分层模式（推荐）</h3>
+<p>数据库保留所有<strong>元数据</strong>（字段、图标、排序、启停、handler、local、容器标记等），执行层改为<strong>注册表驱动的通用实现</strong>：</p>
+<ul>
+<li>后端 emitter：普通指令统一走 schema-driven 通用 emitter；只有容器/特殊转换保留专用 emitter。</li>
+<li>后端本地执行：把 <code>_handle_local()</code> 的硬编码 <code>if</code> 分支迁移到 <code>LOCAL_HANDLERS</code> 注册字典，新增本地指令只需新增一个函数并注册。</li>
+<li>扩展端执行：content.js 现有 <code>registerHandler</code>  already 是注册表，但 handler 函数仍是散的；把元素类 handler 合并为 <code>elementAction</code>，通过 <code>action</code> 参数内部分发。</li>
+<li>数据库作为唯一事实来源，启动时只做一次性同步或完全以 DB 为准；<code>commands.py</code> 退化为“默认 seed”，不再参与运行时。</li>
+</ul>
+<p><strong>优点</strong>：平衡了配置化和代码可控性；不需要 eval；大部分普通指令可零代码上线；保留复杂指令的代码扩展点。 <strong>缺点</strong>：需要一次中等规模的重构；容器控制流仍需代码维护。</p>
+<h2 id="c">四、推荐方案：方案 C 的详细设计</h2>
+<h3 id="4-1">4.1 元数据层：数据库为唯一事实来源</h3>
+<p><code>WorkflowCommand</code> 表已具备大部分字段，补充/明确如下：</p>
+<table><thead><tr><th>字段</th><th>用途</th></tr></thead><tbody><tr><td><code>type</code></td><td>唯一标识，如 <code>click</code>、<code>setVar</code></td></tr><tr><td><code>label/category/icon/...</code></td><td>展示层</td></tr><tr><td><code>fields</code></td><td>JSON Schema，驱动前端表单、默认值填充、后端代码生成</td></tr><tr><td><code>handler</code></td><td>扩展端 handler 名，如 <code>elementAction</code>、<code>navigate</code>、<code>pressKey</code></td></tr><tr><td><code>local</code></td><td>是否后端本地执行</td></tr><tr><td><code>is_container/is_branch/is_structural</code></td><td>控制流标记</td></tr><tr><td><code>closes_with</code></td><td>容器闭合指令类型，如 <code>forEachElement</code> → <code>endFor</code></td></tr><tr><td><code>enabled</code></td><td>启停开关</td></tr><tr><td><code>builtin</code></td><td>是否内置（防误删）</td></tr></tbody></table>
+<p>运行时<strong>只读 DB</strong>，不再从 <code>commands.py</code> 加载。<code>commands.py</code> 保留为“首次安装 seed”，由 <code>alembic</code> 或启动脚本一次性导入后淡出。</p>
+<h3 id="4-2-emitter">4.2 后端 emitter：普通指令通用化</h3>
+<p>当前 <code>emitters/*.py</code> 为几乎每个指令写了一个函数，例如 <code>_emit_click</code>、<code>_emit_input</code>、<code>_emit_getText</code>。它们本质上都做同一件事：</p>
+<pre><code class="language-python">loc = _loc_call(node, extra, element_map)
+lines.append(f&quot;{prefix}result = await ext_manager.send_step(tab, {loc}, ...)&quot;)</code></pre>
+<p>改造后：</p>
+<ol>
+<li>删除大量重复 emitter，只保留：</li>
+<ul>
+<li>通用 emitter：<code>_emit_generic_extension</code>、<code>_emit_generic_local</code></li>
+<li>容器 emitter：<code>if/else</code>、<code>for/while</code>、<code>try/catch</code>、<code>break/continue/end</code></li>
+<li>特殊转换 emitter：<code>extract</code>（需把 <code>attrName</code> 映射为 <code>attribute</code>）、<code>scroll</code>（需把 <code>scrollType</code> 映射为 <code>scrollType</code>）等</li>
+</ul>
+<li>emitter 注册表由 <code>handler</code> 字段决定：</li>
+</ol>
+<p>   ``<code>python    _EMIT_HANDLERS[node.type] = _generic_emitter_for(cmd)    </code>`<code>    或运行时从 </code>EMITTER_REGISTRY[cmd[&#39;handler&#39;]]` 查找。</p>
+<ol>
+<li><code>_attach_common_advanced</code> 继续为普通指令附加 <code>onError/retryCount/timeout/visibilityMode/humanLike</code>。</li>
+</ol>
+<h3 id="4-3-if">4.3 后端本地执行：注册表替代 if 分支</h3>
+<p>把 <code>extension_runner._handle_local()</code> 改造为：</p>
+<pre><code class="language-python">LOCAL_HANDLERS: dict[str, Callable] = {}
+
+def register_local(name: str):
+    def decorator(fn):
+        LOCAL_HANDLERS[name] = fn
+        return fn
+    return decorator
+
+@register_local(&quot;setVar&quot;)
+async def _local_setVar(runner, cmd_type, step_id, instr): ...
+
+@register_local(&quot;log&quot;)
+async def _local_log(runner, cmd_type, step_id, instr): ...</code></pre>
+<p>新增本地指令只需：在 <code>commands.py</code>（seed）和 DB 中定义元数据 + 新增一个 <code>@register_local</code> 函数。<strong>无需修改 <code>_execute_instruction</code> 分发逻辑</strong>。</p>
+<p>对于简单变量/数据/日志操作，可进一步抽象为“动作模板”：</p>
+<table><thead><tr><th>action</th><th>语义</th></tr></thead><tbody><tr><td><code>set</code></td><td><code>vars[name] = coerce(value, type)</code></td></tr><tr><td><code>append</code></td><td><code>vars[list].append(value)</code></td></tr><tr><td><code>log</code></td><td>打印并记录</td></tr><tr><td><code>http</code></td><td>发请求并保存结果</td></tr></tbody></table>
+<p>这样连 <code>@register_local</code> 都不用写，纯配置即可。</p>
+<h3 id="4-4-handler">4.4 扩展端执行：元素动作统一 handler</h3>
+<p>content.js 已有 <code>registerHandler</code>，建议新增一个通用 <code>elementAction</code> handler：</p>
+<pre><code class="language-javascript">registerHandler(&#39;elementAction&#39;, async function elementAction({ locator, selectorFamily, extra }) {
+  const action = extra?.action; // &#39;click&#39; | &#39;input&#39; | &#39;extract&#39; | &#39;scroll&#39; | ...
+  switch (action) {
+    case &#39;click&#39;: return doClick(...);
+    case &#39;input&#39;: return doInput(...);
+    case &#39;extract&#39;: return doExtract(...);
+    case &#39;scroll&#39;: return doScroll(...);
+    case &#39;hover&#39;: return doHover(...);
+    case &#39;clearInput&#39;: return doClearInput(...);
+    case &#39;selectOption&#39;: return doSelectOption(...);
+    default: throw new Error(`Unknown elementAction: ${action}`);
+  }
+});</code></pre>
+<p>原 <code>click</code>、<code>input</code>、<code>extract</code>、<code>scroll</code>、<code>hover</code>、<code>clearInput</code>、<code>selectOption</code> 等 handler 可保留作为兼容别名，也可以全部迁移到 <code>elementAction</code>。</p>
+<p>配置时：</p>
+<ul>
+<li><code>click</code> → <code>handler: &quot;elementAction&quot;</code>，<code>extra.action: &quot;click&quot;</code></li>
+<li><code>input</code> → <code>handler: &quot;elementAction&quot;</code>，<code>extra.action: &quot;input&quot;</code></li>
+<li>新增 <code>doubleClick</code> → <code>handler: &quot;elementAction&quot;</code>，<code>extra.action: &quot;doubleClick&quot;</code>，扩展端只需在 <code>switch</code> 加一行即可。</li>
+</ul>
+<h3 id="4-5">4.5 容器控制流：元数据驱动闭合关系</h3>
+<p>容器、分支、结构标记的语义无法完全通用化，但闭合关系可以配置：</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;forEachElement&quot;,
+  &quot;isContainer&quot;: true,
+  &quot;closesWith&quot;: &quot;endFor&quot;
+}</code></pre>
+<p>后端 <code>extension_emitter</code> 和前端 <code>WorkflowContext.matchBrackets</code> 都读取 <code>closesWith</code>，不再硬编码类型判断。</p>
+<h3 id="4-6-seed">4.6 同步机制：seed 一次性导入</h3>
+<ul>
+<li>删除 <code>_load_commands_from_db</code> 对 <code>COMMAND_REGISTRY</code> 的写回。</li>
+<li>启动时只做：<code>if DB 为空: 从 commands.py seed 导入</code>。</li>
+<li>后续所有修改走 <code>/api/commands</code> CRUD + “重新加载 emitter/handler”接口。</li>
+<li>提供 <code>/api/commands/reload</code>：重新加载后端 emitter 注册表；扩展端无需重载（因为 content.js 已经走通用 handler）。</li>
+</ul>
+<h2 id="deliverable">五、中文配置界面设计</h2>
+<p>配置人员不应直接面对英文字段，后台表单必须全部中文包装，英文字段只对系统和 API 可见。</p>
+<h3 id="5-1">5.1 字段中文映射</h3>
+<table><thead><tr><th>英文字段（系统用）</th><th>配置界面中文标签</th><th>说明</th></tr></thead><tbody><tr><td><code>type</code></td><td>指令标识</td><td>英文唯一标识，如 <code>doubleClick</code></td></tr><tr><td><code>label</code></td><td>显示名称</td><td>左侧面板显示的中文名，如“双击元素”</td></tr><tr><td><code>category</code></td><td>所属分类</td><td>下拉选择：元素点击、文本输入、数据提取等</td></tr><tr><td><code>icon</code></td><td>图标</td><td>图标选择器</td></tr><tr><td><code>iconColor</code></td><td>图标颜色</td><td>颜色选择器</td></tr><tr><td><code>bgColor</code></td><td>背景色</td><td>颜色选择器</td></tr><tr><td><code>fields</code></td><td>参数配置</td><td>表单设计器，配置这个指令有哪些参数</td></tr><tr><td><code>handler</code></td><td>执行方式</td><td>下拉选择：浏览器执行（扩展）/ 后端执行（本地）</td></tr><tr><td><code>local</code></td><td>是否本地执行</td><td>由“执行方式”自动带出，无需用户直接填</td></tr><tr><td><code>isContainer</code></td><td>是否容器指令</td><td>开关：是否包含子节点</td></tr><tr><td><code>isBranch</code></td><td>是否分支节点</td><td>开关：如 else/catch</td></tr><tr><td><code>isStructural</code></td><td>是否结构标记</td><td>开关：如 endIf/endFor</td></tr><tr><td><code>closesWith</code></td><td>闭合指令</td><td>容器指令才显示，如 forEachElement → endFor</td></tr><tr><td><code>enabled</code></td><td>是否启用</td><td>开关</td></tr><tr><td><code>categoryOrder</code></td><td>分类排序</td><td>数字</td></tr><tr><td><code>commandOrder</code></td><td>指令排序</td><td>数字</td></tr></tbody></table>
+<h3 id="5-2">5.2 “新增指令”表单示例</h3>
+<pre><code>┌─────────────────────────────────────┐
+│ 新增指令                             │
+├─────────────────────────────────────┤
+│ 指令标识        [ doubleClick       ] │
+│ 显示名称        [ 双击元素           ] │
+│ 所属分类        [ 元素点击 ▼        ] │
+│ 图标            [ 🖱️ 选择 ]          │
+│ 图标颜色        [ 蓝色 ▼ ]           │
+│ 背景色          [ 浅蓝 ▼ ]           │
+│                                     │
+│ 是否容器指令    [ ● 否 ]             │
+│ 是否启用        [ ● 是 ]             │
+│                                     │
+│ 执行方式        [ 浏览器执行（扩展） ▼ ] │
+│ 扩展动作        [ 双击 ▼ ]           │
+│                                     │
+│ 参数配置：                          │
+│ ┌───────────────────────────────┐   │
+│ │ 参数名  显示名  类型    必填  │   │
+│ │ element_name  元素  元素选择  是 │   │
+│ │ timeout      超时  数字     否 │   │
+│ └───────────────────────────────┘   │
+│                                     │
+│ [ 分析 ]  [ 测试 ]  [ 保存 ]         │
+└─────────────────────────────────────┘</code></pre>
+<h3 id="5-3">5.3 保存前自动分析与中文提示</h3>
+<p>保存指令时后台自动判断简单/复杂，并以中文展示：</p>
+<p><strong>普通指令示例：</strong></p>
+<pre><code>分析结果：
+✅ 该指令可被扩展端通用模板支持（动作：双击）
+✅ 参数 schema 校验通过
+✅ 无需新增代码，保存后即可在工作流中使用
+
+[确认保存]</code></pre>
+<p><strong>复杂指令示例：</strong></p>
+<pre><code>分析结果：
+⚠️ 当前扩展端暂不支持“长按”动作
+👉 需要开发人员在 extension/content.js 的 elementAction 中增加一行代码
+✅ 参数 schema 校验通过
+
+[保存为草稿]  [通知开发]</code></pre>
+<h3 id="5-4">5.4 能力矩阵中文页面</h3>
+<p>后台提供“模板支持矩阵”页面，配置人员可自行查阅：</p>
+<p><strong>浏览器端支持的动作：</strong> [双击] [单击] [右击] [输入] [清空输入] [输入并回车] [提取文本] [提取属性] [提取HTML] [提取值] [滚动到顶部] [滚动到底部] [滚动一屏] [滚动到元素] [悬停] [取消悬停] [选择下拉项] [按键]</p>
+<p><strong>后端本地支持的动作：</strong> [设置变量] [追加到列表] [设置字典值] [打印日志] [数值自增] [字符串拼接] [HTTP请求] [截图]</p>
+<p>不在矩阵中的动作，保存时自动标红提示“需开发支持”。</p>
+<h2 id="deliverable">六、实施路径</h2>
+<p>建议分 3 个阶段，每阶段都可独立验证：</p>
+<h3 id="1-1-2">阶段 1：元数据单一来源化（1～2 天）</h3>
+<ol>
+<li>确认 <code>WorkflowCommand</code> 表字段齐全，补充 <code>closes_with</code>。</li>
+<li>修改 <code>src/runtime/main.py</code>：</li>
+<ul>
+<li>启动时仅在 DB 为空时从 <code>commands.py</code> seed 导入。</li>
+<li>删除 <code>_load_commands_from_db</code> 写回 <code>COMMAND_REGISTRY</code> 的逻辑。</li>
+</ul>
+<li>修改 <code>commands.py</code>：保留 <code>get_command/list_commands_by_category</code> 等工具函数，但运行时从 DB 读取；<code>COMMAND_REGISTRY</code> 仅作为 seed。</li>
+<li>验证：后台修改指令字段/排序/启停，前端即时生效，无需重启。</li>
+</ol>
+<h3 id="2-2-3">阶段 2：后端执行层通用化（2～3 天）</h3>
+<ol>
+<li>重构 <code>emitters/*.py</code>：</li>
+<ul>
+<li>引入 <code>EMITTER_REGISTRY</code>，普通指令走 <code>_emit_generic_extension</code> / <code>_emit_generic_local</code>。</li>
+<li>保留容器 emitter 和少量特殊转换。</li>
+</ul>
+<li>重构 <code>extension_runner._handle_local()</code>：</li>
+<ul>
+<li>引入 <code>LOCAL_HANDLERS</code> 注册表。</li>
+<li>把现有 <code>setVar/log/appendToList/...</code> 迁移为 <code>@register_local</code> 函数。</li>
+</ul>
+<li>提供 <code>/api/commands/reload-emitters</code> 和 <code>/api/commands/reload-handlers</code>（或合并）。</li>
+<li>跑已有工作流回归测试，确保生成代码等价。</li>
+</ol>
+<h3 id="3-1-2">阶段 3：扩展端通用化（1～2 天）</h3>
+<ol>
+<li>content.js 新增 <code>elementAction</code> handler，内部统一分发 click/input/extract/scroll/hover/clearInput/selectOption。</li>
+<li>数据库中对应指令的 <code>handler</code> 改为 <code>elementAction</code>，<code>extra</code> 中保留/注入 <code>action</code> 字段。</li>
+<li>保留旧 handler 别名 1～2 个版本，平滑过渡。</li>
+<li>新增一条测试指令（如 <code>doubleClick</code>），不改动后端代码，只配置 DB + 扩展端加一行 case，验证“一处配置生效”。</li>
+</ol>
+<h2 id="deliverable">七、风险与缓解</h2>
+<table><thead><tr><th>风险</th><th>影响</th><th>缓解</th></tr></thead><tbody><tr><td>重构 emitter 破坏现有工作流生成代码</td><td>高</td><td>阶段 2 必须跑端到端回归；保留旧 emitter 作为 fallback</td></tr><tr><td>数据库成为唯一来源后误改内置指令</td><td>中</td><td><code>is_builtin=1</code> 的指令限制可改字段；提供“恢复默认”按钮</td></tr><tr><td>通用 handler 覆盖不了未来复杂指令</td><td>中</td><td>保留 <code>@register_local</code> 和 <code>registerHandler</code> 作为扩展出口</td></tr><tr><td>content.js 通用化后性能/调试变差</td><td>低</td><td>每个 action 仍是独立函数，只是入口统一；日志保留 action 名</td></tr><tr><td>多人同时改 DB 配置冲突</td><td>低</td><td>MVP 阶段单用户；后续可加版本/审计字段</td></tr></tbody></table>
+<h2 id="next-actions">七、Next Actions</h2>
+<ol>
+<li>确认是否采纳方案 C，以及是否分阶段实施。</li>
+<li>若采纳，先补 <code>WorkflowCommand.closes_with</code> 字段并调整启动同步逻辑（阶段 1）。</li>
+<li>选定一条“新增普通指令”作为试点（如 <code>doubleClick</code> 或 <code>getCurrentUrl</code>），用来验证阶段 3 的“零代码上线”目标。</li>
+</ol>
+
+<footer>
+  <p>Generated by agent-harness-kit / <code>/deliver-html</code> — HTML for humans, MD for agents.</p>
+</footer>
+</div>
+</body>
+</html>
