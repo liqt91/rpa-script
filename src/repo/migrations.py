@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine, Base
 
-_SCHEMA_VERSION = 3  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 4  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -181,12 +181,118 @@ def _migrate_003():
             conn.commit()
 
 
+# ── Migration 004: route built-in element commands through elementAction ─────
+
+def _migrate_004():
+    """Migrate existing built-in element commands to the unified elementAction handler.
+
+    - Updates handler to "elementAction".
+    - Injects a hidden `action` default field into each command's fields JSON so
+      old workflow nodes pick up the action without code changes.
+    - Enables rightClick and inserts doubleClick as a new built-in command.
+    """
+    import json
+    from sqlalchemy import text
+    from .models import engine
+
+    element_actions = {
+        "click": "click",
+        "rightClick": "rightClick",
+        "input": "input",
+        "inputAndPressEnter": "inputAndPressEnter",
+        "clearInput": "clearInput",
+        "getText": "extract",
+        "getAttr": "extract",
+        "getHtml": "extract",
+        "getValue": "extract",
+        "scrollToBottom": "scroll",
+        "scrollToTop": "scroll",
+        "scrollOneScreen": "scroll",
+        "scrollBy": "scroll",
+        "hover": "hover",
+        "unhover": "unhover",
+        "selectOption": "selectOption",
+    }
+
+    with engine.connect() as conn:
+        for cmd_type, action in element_actions.items():
+            result = conn.execute(
+                text("SELECT id, fields FROM workflow_commands WHERE type = :type"),
+                {"type": cmd_type},
+            )
+            row = result.fetchone()
+            if not row:
+                continue
+            fields = json.loads(row[1] or "[]")
+            if not any(f.get("name") == "action" for f in fields):
+                action_field = {
+                    "name": "action",
+                    "label": "扩展动作",
+                    "type": "hidden",
+                    "default": action,
+                }
+                # Place action after common element locators so hidden defaults are grouped
+                insert_idx = 0
+                for i, f in enumerate(fields):
+                    if f.get("name") in ("windowVar", "element_name", "scope"):
+                        insert_idx = i + 1
+                fields.insert(insert_idx, action_field)
+            conn.execute(
+                text("""
+                    UPDATE workflow_commands
+                    SET handler = 'elementAction', local = 0, fields = :fields, enabled = 1
+                    WHERE id = :id
+                """),
+                {"id": row[0], "fields": json.dumps(fields, ensure_ascii=False)},
+            )
+
+        # Insert doubleClick if missing
+        existing = conn.execute(
+            text("SELECT 1 FROM workflow_commands WHERE type = 'doubleClick'")
+        ).fetchone()
+        if not existing:
+            conn.execute(
+                text("""
+                    INSERT INTO workflow_commands
+                    (type, label, category, icon, icon_color, bg_color,
+                     is_container, is_branch, is_structural, closes_with,
+                     fields, description, is_builtin, enabled, handler, local,
+                     category_order, command_order)
+                    VALUES
+                    (:type, :label, :category, :icon, :icon_color, :bg_color,
+                     0, 0, 0, NULL,
+                     :fields, :description, 1, 1, 'elementAction', 0,
+                     :category_order, :command_order)
+                """),
+                {
+                    "type": "doubleClick",
+                    "label": "双击元素",
+                    "category": "元素点击",
+                    "icon": "fa-computer-mouse",
+                    "icon_color": "text-blue-500",
+                    "bg_color": "bg-blue-50",
+                    "fields": json.dumps([
+                        {"name": "windowVar", "label": "窗口变量", "type": "varName", "required": False, "default": "browser1", "placeholder": "如 browser1", "group": "input"},
+                        {"name": "element_name", "label": "元素", "type": "elementName", "required": True, "isPrimaryElement": True},
+                        {"name": "scope", "label": "匹配范围", "type": "select", "options": [{"label": "在当前外层元素内查找", "value": "local"}, {"label": "全页面匹配", "value": "global"}], "default": "global", "group": "advanced", "description": "在当前外层元素内查找=仅在当前 forEachElement 循环到的元素内部搜索该选择器；全页面匹配=在整个页面搜索，不依赖循环上下文。"},
+                        {"name": "action", "label": "扩展动作", "type": "hidden", "default": "doubleClick"},
+                    ], ensure_ascii=False),
+                    "description": "在元素上触发双击事件",
+                    "category_order": 20,
+                    "command_order": 50,
+                },
+            )
+
+        conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
     1: _migrate_001,
     2: _migrate_002,
     3: _migrate_003,
+    4: _migrate_004,
 }
 
 

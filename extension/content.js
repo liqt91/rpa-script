@@ -726,7 +726,7 @@ console.log({
   }
 
   // 拟人点击
-  async function humanClick(el, humanLike) {
+  async function humanClick(el, humanLike, clickType = 'click') {
     try {
       // 后台标签页 setTimeout 被节流到 1s，跳过拟人动画避免超时
       if (document.hidden) {
@@ -745,7 +745,7 @@ console.log({
       const rect = el.getBoundingClientRect();
       const startX = rect.left + rect.width / 2;
       const startY = rect.top + rect.height / 2;
-      console.log(`[humanClick] el=${el.tagName} point=(${point.x.toFixed(1)},${point.y.toFixed(1)}) humanLike=${humanLike}`);
+      console.log(`[humanClick] el=${el.tagName} point=(${point.x.toFixed(1)},${point.y.toFixed(1)}) humanLike=${humanLike} clickType=${clickType}`);
       try {
         console.log(`[humanClick] detail class="${el.className || ''}" id="${el.id || ''}" disabled=${el.disabled} readOnly=${el.readOnly} tabindex="${el.getAttribute?.('tabindex') || ''}"`);
         const style = window.getComputedStyle(el);
@@ -768,12 +768,15 @@ console.log({
         await sleep(rand(80, 300));
       }
 
+      const button = clickType === 'rightClick' ? 2 : 0;
+      const detail = clickType === 'doubleClick' ? 2 : 1;
+
       const mousedown = new MouseEvent('mousedown', {
         bubbles: true, cancelable: true, view: window,
-        clientX: point.x, clientY: point.y, button: 0
+        clientX: point.x, clientY: point.y, button, detail
       });
       el.dispatchEvent(mousedown);
-      console.log('[humanClick] dispatched mousedown to', el.tagName);
+      console.log('[humanClick] dispatched mousedown to', el.tagName, 'button=', button);
 
       if (humanLike) {
         await sleep(rand(80, 200));
@@ -781,23 +784,41 @@ console.log({
 
       const mouseup = new MouseEvent('mouseup', {
         bubbles: true, cancelable: true, view: window,
-        clientX: point.x, clientY: point.y, button: 0
+        clientX: point.x, clientY: point.y, button, detail
       });
       el.dispatchEvent(mouseup);
-      console.log('[humanClick] dispatched mouseup to', el.tagName);
+      console.log('[humanClick] dispatched mouseup to', el.tagName, 'button=', button);
 
-      const clickEvt = new MouseEvent('click', {
-        bubbles: true, cancelable: true, view: window,
-        clientX: point.x, clientY: point.y, button: 0
-      });
-      el.dispatchEvent(clickEvt);
-      console.log('[humanClick] dispatched click to', el.tagName, 'bubbles=true');
+      if (clickType === 'doubleClick') {
+        const dblclickEvt = new MouseEvent('dblclick', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: point.x, clientY: point.y, button: 0, detail: 2
+        });
+        el.dispatchEvent(dblclickEvt);
+        console.log('[humanClick] dispatched dblclick to', el.tagName);
+        // Fallback
+        if (el.click) { el.click(); await sleep(rand(80, 200)); el.click(); }
+      } else if (clickType === 'rightClick') {
+        const contextEvt = new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: point.x, clientY: point.y, button: 2, detail: 1
+        });
+        el.dispatchEvent(contextEvt);
+        console.log('[humanClick] dispatched contextmenu to', el.tagName);
+      } else {
+        const clickEvt = new MouseEvent('click', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: point.x, clientY: point.y, button: 0, detail: 1
+        });
+        el.dispatchEvent(clickEvt);
+        console.log('[humanClick] dispatched click to', el.tagName, 'bubbles=true');
+      }
 
       // Fallback：某些框架只响应原生 click()
-      if (el.click && !humanLike) {
+      if (clickType === 'click' && el.click && !humanLike) {
         console.log('[humanClick] fallback el.click()');
         el.click();
-      } else if (humanLike) {
+      } else if (clickType === 'click' && humanLike) {
         console.log('[humanClick] fallback el.click() skipped because humanLike=true');
       }
     } catch (e) {
@@ -1022,131 +1043,266 @@ console.log({
     handlers[name] = fn;
   }
 
+  // Generic element-action implementations used by both legacy handlers and elementAction.
+  async function doClick({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const forceJs = extra?.forceJs ?? false;
+    const clickType = extra?.clickType || extra?.action || 'click';
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    let el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+
+    await visualConfirmDelay();
+
+    const fresh = reResolveWithContext(locator, selectorFamily, extra, mode);
+    if (fresh && fresh !== document) el = fresh;
+
+    if (forceJs) {
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      if (el.focus) el.focus();
+      if (clickType === 'doubleClick') {
+        el.click(); el.click();
+      } else if (clickType === 'rightClick') {
+        // forceJs rightClick fallback: dispatch contextmenu
+        el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window, button: 2 }));
+      } else {
+        el.click();
+      }
+    } else {
+      await humanClick(el, humanLike, clickType);
+    }
+    return { clicked: true, clickType, tagName: el.tagName };
+  }
+
+  async function doInput({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+
+    const text = extra?.text ?? '';
+    const clearFirst = extra?.clearFirst !== false;
+
+    if (clearFirst) {
+      setInputValue(el, '');
+    }
+
+    await humanType(el, text, humanLike);
+
+    if (extra?.pressEnter) {
+      if (humanLike) await sleep(rand(200, 600));
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      if (humanLike) await sleep(rand(30, 100));
+      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+    }
+
+    return { input: true, length: text.length };
+  }
+
+  async function doExtract({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    try {
+      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+      const attr = extra?.attribute;
+      let value;
+      if (attr === 'innerHTML') {
+        value = el.innerHTML;
+      } else if (attr === 'value') {
+        value = el.value;
+      } else if (attr) {
+        value = el.getAttribute(attr);
+      } else {
+        value = el.textContent?.trim() ?? '';
+      }
+      return { extracted: value };
+    } catch (e) {
+      if (e?.contextNotFound || e?.message?.includes('按循环序号对齐失败')) {
+        console.log(`[RPA extract] element not found in loop context, returning empty: ${e.message}`);
+        return { extracted: '' };
+      }
+      throw e;
+    }
+  }
+
+  async function doScroll({ locator, selectorFamily, extra }) {
+    const scrollType = extra?.scrollType || 'toBottom';
+    const humanLike = extra?.humanLike ?? true;
+    const smooth = extra?.smooth ?? true;
+
+    if (scrollType === 'intoView' || locator) {
+      const mode = getVisibilityMode(extra);
+      const timeoutMs = (extra?.timeout ?? 10) * 1000;
+      const el = await waitForElement(locator, selectorFamily, mode, timeoutMs);
+      if (humanLike) {
+        const rect = el.getBoundingClientRect();
+        const targetY = rect.top + window.scrollY;
+        const currentY = window.scrollY;
+        const diff = targetY - currentY - window.innerHeight / 2;
+        await humanScroll(diff > 0 ? 'down' : 'up', Math.abs(diff), true);
+      } else {
+        const block = extra?.block || 'center';
+        el.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block });
+      }
+      return { scrolled: 'intoView' };
+    }
+
+    if (scrollType === 'oneScreen') {
+      const amount = window.innerHeight * 3;
+      await humanScroll('down', amount, humanLike);
+      return { scrolled: 'oneScreen', amount };
+    }
+
+    const direction = {
+      'toBottom': 'bottom',
+      'toTop': 'top',
+      'by': (extra?.y || 500) >= 0 ? 'down' : 'up',
+    }[scrollType] || 'bottom';
+    const amount = scrollType === 'by' ? Math.abs(extra?.y || 500) : 0;
+    await humanScroll(direction, amount, humanLike);
+    return { scrolled: direction, amount };
+  }
+
+  async function doHover({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+
+    const point = getClickPoint(el, humanLike);
+    const rect = el.getBoundingClientRect();
+    const startX = rect.left + rect.width / 2;
+    const startY = rect.top + rect.height / 2;
+    if (humanLike) {
+      await moveMouseBezier(startX, startY, point.x, point.y, true);
+      await hoverWiggle(point.x, point.y);
+    }
+    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
+    _lastHoveredElement = el;
+    return { hovered: true, tagName: el.tagName };
+  }
+
+  async function doUnhover({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    let el;
+    if (locator) {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } else {
+      el = _lastHoveredElement;
+    }
+    if (!el) throw new Error('unhover: 未指定元素且无最近悬停记录');
+
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
+    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
+    if (_lastHoveredElement === el) _lastHoveredElement = null;
+    return { unhovered: true, tagName: el.tagName };
+  }
+
+  async function doClearInput({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+
+    if (humanLike) await visualConfirmDelay();
+    setInputValue(el, '');
+    return { cleared: true };
+  }
+
+  async function doSelectOption({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+
+    const value = extra?.value;
+    if (!value) throw new Error('selectOption: value required');
+    if (humanLike) await visualConfirmDelay();
+
+    let option = el.querySelector(`option[value="${CSS.escape(value)}"]`);
+    if (!option) {
+      option = Array.from(el.options).find(o => o.textContent.trim() === value);
+    }
+    if (option) {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+      if (descriptor && descriptor.set) {
+        descriptor.set.call(el, option.value);
+      } else {
+        el.value = option.value;
+      }
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return { selected: option.value, text: option.textContent };
+    }
+    throw new Error(`selectOption: option "${value}" not found`);
+  }
+
+  // Unified elementAction handler: routes by extra.action so new element commands
+  // can reuse existing browser logic without adding a dedicated handler.
+  registerHandler('elementAction', async function elementAction({ locator, selectorFamily, extra }) {
+    const action = extra?.action;
+    if (!action) throw new Error('elementAction: extra.action is required');
+    switch (action) {
+      case 'click':
+      case 'doubleClick':
+      case 'rightClick':
+        return doClick({ locator, selectorFamily, extra });
+      case 'input':
+      case 'inputAndPressEnter':
+        return doInput({ locator, selectorFamily, extra });
+      case 'extract':
+      case 'getText':
+      case 'getAttr':
+      case 'getHtml':
+      case 'getValue':
+        return doExtract({ locator, selectorFamily, extra });
+      case 'scroll':
+      case 'scrollToBottom':
+      case 'scrollToTop':
+      case 'scrollOneScreen':
+      case 'scrollIntoView':
+      case 'scrollBy':
+        return doScroll({ locator, selectorFamily, extra });
+      case 'hover':
+        return doHover({ locator, selectorFamily, extra });
+      case 'unhover':
+        return doUnhover({ locator, selectorFamily, extra });
+      case 'clearInput':
+        return doClearInput({ locator, selectorFamily, extra });
+      case 'selectOption':
+        return doSelectOption({ locator, selectorFamily, extra });
+      default:
+        throw new Error(`elementAction: unknown action "${action}"`);
+    }
+  });
+
   registerHandler('navigate', function navigate({ extra }) {
       const url = extra?.url;
       if (!url) throw new Error('navigate: url required');
       window.location.href = url;
       return { navigatedTo: url };
     });
-  registerHandler('click', async function click({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const humanLike = extra?.humanLike ?? true;
-      const forceJs = extra?.forceJs ?? false;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      let el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-
-      await visualConfirmDelay();
-
-      const fresh = reResolveWithContext(locator, selectorFamily, extra, mode);
-      if (fresh && fresh !== document) el = fresh;
-
-      if (forceJs) {
-        el.scrollIntoView({ block: 'center', behavior: 'instant' });
-        if (el.focus) el.focus();
-        el.click();
-      } else {
-        await humanClick(el, humanLike);
-      }
-      return { clicked: true, tagName: el.tagName };
-    });
-  registerHandler('input', async function input({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const humanLike = extra?.humanLike ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-
-      const text = extra?.text ?? '';
-      const clearFirst = extra?.clearFirst !== false;
-
-      if (clearFirst) {
-        setInputValue(el, '');
-      }
-
-      await humanType(el, text, humanLike);
-
-      // If inputAndPressEnter, also dispatch Enter key
-      if (extra?.pressEnter) {
-        if (humanLike) await sleep(rand(200, 600));
-        el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        if (humanLike) await sleep(rand(30, 100));
-        el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
-      }
-
-      return { input: true, length: text.length };
-    });
-  registerHandler('extract', async function extract({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      try {
-        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-        const attr = extra?.attribute;
-        let value;
-        if (attr === 'innerHTML') {
-          value = el.innerHTML;
-        } else if (attr === 'value') {
-          value = el.value;
-        } else if (attr) {
-          value = el.getAttribute(attr);
-        } else {
-          value = el.textContent?.trim() ?? '';
-        }
-        return { extracted: value };
-      } catch (e) {
-        if (e?.contextNotFound || e?.message?.includes('按循环序号对齐失败')) {
-          console.log(`[RPA extract] element not found in loop context, returning empty: ${e.message}`);
-          return { extracted: '' };
-        }
-        throw e;
-      }
-    });
+  registerHandler('click', async function click(args) { return doClick(args); });
+  registerHandler('input', async function input(args) { return doInput(args); });
+  registerHandler('extract', async function extract(args) { return doExtract(args); });
   registerHandler('wait', function wait({ extra }) {
       const ms = (extra?.seconds || 1) * 1000;
       return new Promise((resolve) => {
         setTimeout(() => resolve({ waited: ms }), ms);
       });
     });
-  registerHandler('scroll', async function scroll({ locator, selectorFamily, extra }) {
-      const scrollType = extra?.scrollType || 'toBottom';
-      const humanLike = extra?.humanLike ?? true;
-      const smooth = extra?.smooth ?? true;
-
-      // scrollIntoView mode (element target)
-      if (scrollType === 'intoView' || locator) {
-        const mode = getVisibilityMode(extra);
-        const timeoutMs = (extra?.timeout ?? 10) * 1000;
-        const el = await waitForElement(locator, selectorFamily, mode, timeoutMs);
-        if (humanLike) {
-          const rect = el.getBoundingClientRect();
-          const targetY = rect.top + window.scrollY;
-          const currentY = window.scrollY;
-          const diff = targetY - currentY - window.innerHeight / 2;
-          await humanScroll(diff > 0 ? 'down' : 'up', Math.abs(diff), true);
-        } else {
-          const block = extra?.block || 'center';
-          el.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block });
-        }
-        return { scrolled: 'intoView' };
-      }
-
-      // Page scroll modes
-      if (scrollType === 'oneScreen') {
-        const amount = window.innerHeight * 3;
-        await humanScroll('down', amount, humanLike);
-        return { scrolled: 'oneScreen', amount };
-      }
-
-      const direction = {
-        'toBottom': 'bottom',
-        'toTop': 'top',
-        'by': (extra?.y || 500) >= 0 ? 'down' : 'up',
-      }[scrollType] || 'bottom';
-      const amount = scrollType === 'by' ? Math.abs(extra?.y || 500) : 0;
-      await humanScroll(direction, amount, humanLike);
-      return { scrolled: direction, amount };
-    });
+  registerHandler('scroll', async function scroll(args) { return doScroll(args); });
   registerHandler('pressKey', async function pressKey({ extra }) {
       const key = extra?.key || 'Enter';
       const humanLike = extra?.humanLike ?? true;
@@ -1166,86 +1322,10 @@ console.log({
       document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
       return { pressed: key };
     });
-  registerHandler('hover', async function hover({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const humanLike = extra?.humanLike ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-
-      const point = getClickPoint(el, humanLike);
-      const rect = el.getBoundingClientRect();
-      const startX = rect.left + rect.width / 2;
-      const startY = rect.top + rect.height / 2;
-      if (humanLike) {
-        await moveMouseBezier(startX, startY, point.x, point.y, true);
-        await hoverWiggle(point.x, point.y);
-      }
-      el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
-      el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
-      _lastHoveredElement = el;
-      return { hovered: true, tagName: el.tagName };
-    });
-  registerHandler('unhover', async function unhover({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      let el;
-      if (locator) {
-        el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-      } else {
-        el = _lastHoveredElement;
-      }
-      if (!el) throw new Error('unhover: 未指定元素且无最近悬停记录');
-
-      const rect = el.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
-      el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
-      if (_lastHoveredElement === el) _lastHoveredElement = null;
-      return { unhovered: true, tagName: el.tagName };
-    });
-  registerHandler('clearInput', async function clearInput({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const humanLike = extra?.humanLike ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-
-      if (humanLike) await visualConfirmDelay();
-      setInputValue(el, '');
-      return { cleared: true };
-    });
-  registerHandler('selectOption', async function selectOption({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const humanLike = extra?.humanLike ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-
-      const value = extra?.value;
-      if (!value) throw new Error('selectOption: value required');
-      if (humanLike) await visualConfirmDelay();
-
-      // Try select.by_value first
-      let option = el.querySelector(`option[value="${CSS.escape(value)}"]`);
-      if (!option) {
-        // Fallback: select.by_text
-        option = Array.from(el.options).find(o => o.textContent.trim() === value);
-      }
-      if (option) {
-        const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
-        if (descriptor && descriptor.set) {
-          descriptor.set.call(el, option.value);
-        } else {
-          el.value = option.value;
-        }
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        return { selected: option.value, text: option.textContent };
-      }
-      throw new Error(`selectOption: option "${value}" not found`);
-    });
+  registerHandler('hover', async function hover(args) { return doHover(args); });
+  registerHandler('unhover', async function unhover(args) { return doUnhover(args); });
+  registerHandler('clearInput', async function clearInput(args) { return doClearInput(args); });
+  registerHandler('selectOption', async function selectOption(args) { return doSelectOption(args); });
   registerHandler('newTab', function newTab({ extra }) {
       const url = extra?.url;
       if (!url) throw new Error('newTab: url required');
