@@ -289,6 +289,7 @@ let paramCounter = 0;
 // Action presets: 中文标签 -> { handler, local, action?, autoFields? }
 const ACTION_PRESETS = {
   extension: [
+    { label: '打开浏览器', handler: 'openBrowser', autoFields: ['browserType','urlOptional','windowState','saveToVar'] },
     { label: '点击元素', handler: 'elementAction', action: 'click', autoFields: ['windowVar','element_name','scope'] },
     { label: '双击元素', handler: 'elementAction', action: 'doubleClick', autoFields: ['windowVar','element_name','scope'] },
     { label: '右键点击', handler: 'elementAction', action: 'rightClick', autoFields: ['windowVar','element_name','scope'] },
@@ -371,6 +372,9 @@ const COMMON_FIELDS = {
   y: { name: 'y', label: '垂直距离(px)', type: 'number', default: 500, group: 'input' },
   humanLike: { name: 'humanLike', label: '拟人化/平滑', type: 'bool', default: true, group: 'advanced' },
   url: { name: 'url', label: '网址', type: 'text', required: true, placeholder: 'https://...', group: 'input' },
+  urlOptional: { name: 'url', label: '网址', type: 'text', required: false, placeholder: '留空则打开 about:blank', group: 'input' },
+  browserType: { name: 'browserType', label: '浏览器', type: 'select', options: [{label:'Chrome',value:'chrome'},{label:'Edge',value:'edge'}], default: 'chrome', group: 'input' },
+  windowState: { name: 'windowState', label: '窗口状态', type: 'select', options: [{label:'正常',value:'normal'},{label:'最大化',value:'maximized'}], default: 'normal', group: 'input' },
   waitLoad: { name: 'waitLoad', label: '等待加载完成', type: 'bool', default: true, group: 'advanced' },
   timeout: { name: 'timeout', label: '超时(秒)', type: 'number', default: 10, group: 'advanced' },
   saveToVar: { name: 'saveToVar', label: '保存到变量', type: 'varName', required: false, group: 'output' },
