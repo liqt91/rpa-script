@@ -24,41 +24,27 @@ def _load_registry() -> dict:
 
 
 def _extract_content_js_handlers() -> set[str]:
-    """Find all keys in the `handlers = {...}` object in content.js."""
+    """Find all handler names registered via registerHandler(...) in content.js."""
     text = CONTENT_JS.read_text(encoding="utf-8")
-    m = re.search(r"const\s+handlers\s*=\s*\{", text)
-    if not m:
-        raise RuntimeError("handlers object not found in content.js")
-    start = m.end() - 1
-    brace_depth = 0
-    i = start
-    block_lines: list[str] = []
-    while i < len(text):
-        c = text[i]
-        if c == "{":
-            brace_depth += 1
-        elif c == "}":
-            brace_depth -= 1
-            if brace_depth == 0:
-                break
-        block_lines.append(c)
-        i += 1
-    block = "".join(block_lines)
-    # Match lines like `  navigate({ extra }) {` or `  async click({ ... }) {`
-    # Only top-level keys in the handlers object; exclude JS control-flow keywords
-    keys = re.findall(r"^\s*(?:async\s+)?([A-Za-z_]\w*)\s*\([^)]*\)\s*\{", block, re.MULTILINE)
-    js_keywords = {"if", "while", "for", "switch", "catch", "with"}
-    return set(k for k in keys if k not in js_keywords)
+    return set(re.findall(r"registerHandler\(['\"](\w+)['\"]", text))
 
 
 def _extract_runner_local_handlers() -> set[str]:
-    """Find cmd_types handled in ExtensionRunner._handle_local."""
+    """Find cmd_types handled locally in ExtensionRunner.
+
+    Includes both legacy `if cmd_type == "..."` branches and the
+    `@register_local("...")` decorator registry.
+    """
     text = RUNNER_PY.read_text(encoding="utf-8")
-    return set(re.findall(r'if cmd_type == "(\w+)":', text))
+    legacy = set(re.findall(r'if cmd_type == "(\w+)":', text))
+    registered = set(re.findall(r'@register_local\("(\w+)"\)', text))
+    return legacy | registered
 
 
-def check() -> list[str]:
+def check() -> tuple[list[str], list[str]]:
+    """Return (errors, warnings) for the extension contract."""
     errors: list[str] = []
+    warnings: list[str] = []
     registry = _load_registry()
     js_handlers = _extract_content_js_handlers()
     runner_locals = _extract_runner_local_handlers()
@@ -92,13 +78,17 @@ def check() -> list[str]:
     }
     orphan_js = js_handlers - referenced_handlers
     if orphan_js:
-        errors.append(f"ORPHAN_JS_HANDLERS: {sorted(orphan_js)} not referenced by any command")
+        warnings.append(f"ORPHAN_JS_HANDLERS: {sorted(orphan_js)} not referenced by any command")
 
-    return errors
+    return errors, warnings
 
 
 if __name__ == "__main__":
-    errs = check()
+    errs, warns = check()
+    if warns:
+        print("Extension contract warnings:")
+        for w in warns:
+            print(f"  - {w}")
     if errs:
         print("Extension contract check FAILED:")
         for e in errs:

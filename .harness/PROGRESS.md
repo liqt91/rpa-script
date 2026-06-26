@@ -34,3 +34,4 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-12 18:14 | session_end | prompt_input_exit | feat/browser-extension-agent | a234864 | d3a39110-a381-4659-a006-6690b4840e36
 2026-06-26 12:14 | command-consistency-phase3 | done | elementAction unified handler + doubleClick
 2026-06-26 13:01 | command-config-wizard | done | 4-step wizard UI for command config
+2026-06-26 15:18 | openBrowser-backend-only | done | openBrowser launches browser from backend, navigate/click remain extension

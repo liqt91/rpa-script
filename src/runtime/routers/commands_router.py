@@ -258,10 +258,15 @@ def _analyze_command_recommendation(cmd_type: str, fields: list, is_container: b
         return {"needsRuntime": True, "handler": handler_guess, "local": False,
                 "reason": f"有 locator 字段，属于页面交互指令，推荐 handler={handler_guess}", "confidence": confidence}
 
-    # Rule 4: known navigation commands → browser execution
-    nav_types = ("openBrowser", "closeBrowser", "navigate", "newTab", "goBack", "goForward", "refresh")
+    # Rule 4: openBrowser is backend-only (launches browser + extension)
+    if cmd_type == "openBrowser":
+        return {"needsRuntime": True, "handler": "openBrowser", "local": True,
+                "reason": "openBrowser 由后端启动浏览器并加载扩展", "confidence": "high"}
+
+    # Rule 5: known navigation commands → browser execution
+    nav_types = ("closeBrowser", "navigate", "newTab", "goBack", "goForward", "refresh")
     if cmd_type in nav_types:
-        handler_map = {"openBrowser": "openBrowser", "closeBrowser": "closeBrowser",
+        handler_map = {"closeBrowser": "closeBrowser",
                        "navigate": "navigate", "newTab": "newTab", "goBack": "goBack",
                        "goForward": "goForward", "refresh": "refresh"}
         h = handler_map.get(cmd_type, cmd_type)

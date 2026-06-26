@@ -141,7 +141,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-blue-500",
         "bgColor": "bg-blue-50",
         "isContainer": False,
-        "runtimes": {"extension": {"handler": "openBrowser", "local": False}},
+        "runtimes": {"extension": {"handler": "openBrowser", "local": True}},
         "fields": [
             {"name": "browserType", "label": "浏览器", "type": "select", "options": [{"label": "Chrome", "value": "chrome"}, {"label": "Edge", "value": "edge"}], "default": "chrome"},
             {"name": "url", "label": "启动后打开网址", "type": "text", "required": False, "placeholder": "留空则打开 about:blank"},

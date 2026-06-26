@@ -65,27 +65,27 @@ def _get_output_var(extra: dict) -> str:
     return _clean_var_ref(raw)
 
 
-async def wait_for_extension(
+async def wait_for_extension_connection(
     browser_type: str,
     ext_manager,
     timeout: float = 10.0,
 ) -> str:
-    """等待指定浏览器的扩展 WebSocket 连接上线。
+    """Wait for the browser extension WebSocket connection to come online.
 
-    若浏览器未运行，会自动尝试以默认用户目录启动并加载 RPA Script 扩展。
-    返回 client_id，超时抛出 TimeoutError。
+    Does NOT launch the browser; the caller is responsible for starting Chrome.
+    Returns the client_id, or raises TimeoutError.
     """
     if ext_manager is None:
         from src.runtime.websocket_manager import ext_manager as _em
         ext_manager = _em
 
-    # 1. 已在线？
+    # 1. Already online?
     conns = ext_manager.connections_by_browser(browser_type)
     if conns:
         logger.info(f"[{browser_type}] 扩展已在线: {conns[0].client_id}")
         return conns[0].client_id
 
-    # 2. 扩展可能刚连接但还没 register，先短暂等待
+    # 2. Extension may have connected but not registered yet; brief wait
     if ext_manager.is_any_online:
         await asyncio.sleep(2)
         conns = ext_manager.connections_by_browser(browser_type)
@@ -93,16 +93,9 @@ async def wait_for_extension(
             logger.info(f"[{browser_type}] 扩展注册后已在线: {conns[0].client_id}")
             return conns[0].client_id
 
-    # 3. 浏览器没运行的话自动启动并加载扩展（默认用户目录）
-    if not is_browser_running(browser_type):
-        logger.info(f"[{browser_type}] 浏览器未运行，尝试自动启动并加载扩展...")
-        launch_browser_with_extension(browser_type)
-        # 给浏览器进程预留启动时间
-        await asyncio.sleep(3.0)
-    else:
-        logger.info(f"[{browser_type}] 浏览器已在运行，等待扩展连接...")
+    logger.info(f"[{browser_type}] 等待扩展连接...")
 
-    # 4. 指数退避轮询等待扩展连接
+    # 3. Exponential backoff polling
     start = time.time()
     delay = 0.5
 
@@ -118,6 +111,23 @@ async def wait_for_extension(
         f"{browser_type} 扩展未在 {timeout}s 内连接，"
         "请关闭该浏览器所有窗口后重试，或在扩展管理页面手动加载 extension/ 目录"
     )
+
+
+async def wait_for_extension(
+    browser_type: str,
+    ext_manager,
+    timeout: float = 10.0,
+) -> str:
+    """Legacy convenience: launch browser with extension if needed, then wait.
+
+    Kept for callers that expect auto-launch behavior; new code should launch
+    explicitly and call wait_for_extension_connection().
+    """
+    if not is_browser_running(browser_type):
+        logger.info(f"[{browser_type}] 浏览器未运行，尝试自动启动并加载扩展...")
+        launch_browser_with_extension(browser_type)
+        await asyncio.sleep(3.0)
+    return await wait_for_extension_connection(browser_type, ext_manager, timeout)
 
 
 class LoopBreak(Exception):
@@ -274,7 +284,7 @@ class ExtensionRunner:
             bt = extra.get("browserType")
             if bt:
                 browser_type = bt
-        self.client_id = await wait_for_extension(browser_type, ext_manager, timeout=10.0)
+        self.client_id = await wait_for_extension_connection(browser_type, ext_manager, timeout=10.0)
         if not self._run_started_sent:
             self._run_started_sent = True
             await ext_manager.send_to(self.client_id, "runStarted", {"runId": self.run_id})
@@ -1675,6 +1685,51 @@ async def _local_log(runner: "ExtensionRunner", cmd_type: str, step_id: str, ins
         "type": "stepComplete",
         "stepId": step_id, "nodeId": instr.get("nodeId"),
         "result": {"log": resolved_msg},
+    })
+    return True
+
+
+@register_local("openBrowser")
+async def _local_openBrowser(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    """Launch the browser with the RPA extension and wait for it to connect."""
+    extra = instr.get("extra") or {}
+    browser_type = extra.get("browserType", "chrome")
+    url = extra.get("url") or "about:blank"
+    state = extra.get("windowState", "normal")
+
+    logger.info(f"[ExtensionRunner] openBrowser type={browser_type} url={url} state={state}")
+
+    # Browser launch is the caller's responsibility; if already running we reuse it.
+    if not is_browser_running(browser_type):
+        logger.info(f"[{browser_type}] 浏览器未运行，启动并加载扩展...")
+        if not launch_browser_with_extension(browser_type):
+            raise RuntimeError(f"无法启动 {browser_type}，请检查浏览器安装路径")
+        # Give the browser process a moment to start
+        await asyncio.sleep(3.0)
+    else:
+        logger.info(f"[{browser_type}] 浏览器已在运行，等待扩展连接...")
+
+    runner.client_id = await wait_for_extension_connection(browser_type, ext_manager, timeout=10.0)
+    if not runner._run_started_sent:
+        runner._run_started_sent = True
+        await ext_manager.send_to(runner.client_id, "runStarted", {"runId": runner.run_id})
+
+    # Ask the extension to create/reuse the work window with the requested URL/state.
+    # background.js openBrowser will set workWindowId/workTabId for subsequent steps.
+    result = await runner._send_and_wait(step_id, instr, timeout=DEFAULT_STEP_TIMEOUT)
+
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"openBrowser": browser_type, "clientId": runner.client_id, "initialResult": result},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "result": {"openBrowser": browser_type, "clientId": runner.client_id},
     })
     return True
 

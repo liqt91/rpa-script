@@ -1418,10 +1418,6 @@ console.log({
       }));
       return { count: items.length, items };
     });
-  registerHandler('openBrowser', function openBrowser() {
-      // handled by background.js (_ensureWorkTab)
-      return {};
-    });
   registerHandler('closeBrowser', function closeBrowser() {
       // handled by background.js (chrome.windows.remove)
       return {};

@@ -289,7 +289,6 @@ let paramCounter = 0;
 // Action presets: 中文标签 -> { handler, local, action?, autoFields? }
 const ACTION_PRESETS = {
   extension: [
-    { label: '打开浏览器', handler: 'openBrowser', autoFields: ['browserType','urlOptional','windowState','saveToVar'] },
     { label: '点击元素', handler: 'elementAction', action: 'click', autoFields: ['windowVar','element_name','scope'] },
     { label: '双击元素', handler: 'elementAction', action: 'doubleClick', autoFields: ['windowVar','element_name','scope'] },
     { label: '右键点击', handler: 'elementAction', action: 'rightClick', autoFields: ['windowVar','element_name','scope'] },
@@ -317,6 +316,7 @@ const ACTION_PRESETS = {
     { label: '执行JS', handler: 'executeJs', autoFields: ['script','resultVar'] },
   ],
   local: [
+    { label: '打开浏览器', handler: 'openBrowser', autoFields: ['browserType','urlOptional','windowState','saveToVar'] },
     { label: '设置变量', handler: 'setVar', autoFields: ['name','value','valueType'] },
     { label: '追加到列表', handler: 'appendToList', autoFields: ['listName','value'] },
     { label: '字符串拼接', handler: 'stringConcat', autoFields: ['targetVar','part1','part2','part3'] },
