@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import re
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 import time
@@ -34,6 +34,20 @@ logger = logging.getLogger(__name__)
 DEFAULT_STEP_TIMEOUT = 30.0
 
 _VAR_PLACEHOLDER_RE = re.compile(r"\$\{(\w+)\}|\{\{(\w+)\}\}")
+
+# ─── Local command registry ───────────────────────────────────────
+# Handlers registered here execute backend-only commands without an
+# extension round-trip. New local commands just need a function + decorator.
+
+LOCAL_HANDLERS: dict[str, Callable[["ExtensionRunner", str, dict], Any]] = {}
+
+
+def register_local(name: str):
+    def decorator(fn: Callable[["ExtensionRunner", str, dict], Any]):
+        LOCAL_HANDLERS[name] = fn
+        return fn
+    return decorator
+
 
 def _clean_var_ref(val):
     """Strip ${var} or {{var}} wrapper from a variable name field."""
@@ -981,234 +995,13 @@ class ExtensionRunner:
 
     async def _handle_local(self, cmd_type: str, step_id: str, instr: dict) -> bool:
         """Execute a locally-handled command (backend-only, no extension round-trip)."""
+        # Schema-driven registry first — new local commands just need @register_local.
+        handler = LOCAL_HANDLERS.get(cmd_type)
+        if handler:
+            return await handler(self, cmd_type, step_id, instr)
+
+        # Legacy hard-coded handlers below. Migrate these to @register_local over time.
         extra = instr.get("extra") or {}
-        if cmd_type == "setVar":
-            var_name = _clean_var_ref(extra.get("name", ""))
-            var_value = self._resolve_vars(extra.get("value", ""), self.vars)
-            vtype = extra.get("valueType", "string")
-            if vtype == "number":
-                try:
-                    var_value = float(var_value)
-                except (ValueError, TypeError):
-                    pass
-            elif vtype == "bool":
-                var_value = str(var_value).lower() in ("true", "1", "yes")
-            elif vtype == "list":
-                try:
-                    var_value = json.loads(var_value)
-                except Exception:
-                    try:
-                        var_value = ast.literal_eval(var_value)
-                    except Exception:
-                        var_value = []
-            elif vtype == "dict":
-                try:
-                    var_value = json.loads(var_value)
-                except Exception:
-                    try:
-                        var_value = ast.literal_eval(var_value)
-                    except Exception:
-                        var_value = {}
-            elif vtype == "string":
-                val_str = str(var_value)
-                # Support simple string concatenation: "a" + "b" or a + "b"
-                if "+" in val_str:
-                    parts = val_str.split("+")
-                    has_quoted = any(
-                        (p.strip().startswith('"') and p.strip().endswith('"')) or
-                        (p.strip().startswith("'") and p.strip().endswith("'"))
-                        for p in parts
-                    )
-                    if has_quoted:
-                        merged = []
-                        for p in parts:
-                            p = p.strip()
-                            if (p.startswith('"') and p.endswith('"')) or (p.startswith("'") and p.endswith("'")):
-                                p = p[1:-1]
-                            merged.append(p)
-                        var_value = "".join(merged)
-            self.vars[var_name] = var_value
-            logger.info(f"[ExtensionRunner] setVar {var_name} = {var_value!r}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"setVar": var_name, "value": var_value},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id, "nodeId": instr.get("nodeId"),
-                "result": {"setVar": var_name, "value": var_value},
-            })
-            return True
-
-        if cmd_type == "log":
-            msg = extra.get("message", "")
-            level = extra.get("level", "info")
-            logger.info(f"[ExtensionRunner] LOG vars={list(self.vars.keys())} msg={msg!r}")
-            resolved_msg = self._resolve_vars(msg, self.vars)
-            logger.info(f"[ExtensionRunner] LOG [{level}] {resolved_msg}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"log": resolved_msg},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id, "nodeId": instr.get("nodeId"),
-                "result": {"log": resolved_msg},
-            })
-            return True
-
-        if cmd_type == "appendToList":
-            list_name = _clean_var_ref(extra.get("listName", ""))
-            value = extra.get("value", "")
-            resolved_value = self._resolve_vars(value, self.vars)
-            if list_name not in self.vars or not isinstance(self.vars[list_name], list):
-                self.vars[list_name] = []
-            self.vars[list_name].append(resolved_value)
-            logger.info(f"[ExtensionRunner] appendToList {list_name} += {resolved_value!r}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"appendToList": list_name, "value": resolved_value},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"appendToList": list_name},
-            })
-            return True
-
-        if cmd_type == "setDictValue":
-            dict_name = _clean_var_ref(extra.get("dictName", ""))
-            key = self._resolve_vars(str(extra.get("key", "")), self.vars)
-            value = self._resolve_vars(str(extra.get("value", "")), self.vars)
-            if dict_name not in self.vars or not isinstance(self.vars[dict_name], dict):
-                self.vars[dict_name] = {}
-            self.vars[dict_name][key] = value
-            logger.info(f"[ExtensionRunner] setDictValue {dict_name}[{key}] = {value!r}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"setDictValue": dict_name, "key": key, "value": value},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"setDictValue": dict_name},
-            })
-            return True
-
-        if cmd_type == "getDictValue":
-            dict_name = _clean_var_ref(extra.get("dictName", ""))
-            key = self._resolve_vars(str(extra.get("key", "")), self.vars)
-            target_var = _get_output_var(extra)
-            d = self.vars.get(dict_name, {})
-            result = d.get(key) if isinstance(d, dict) else None
-            if target_var:
-                self.vars[target_var] = result
-            logger.info(f"[ExtensionRunner] getDictValue {dict_name}[{key}] -> {target_var} = {result!r}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"getDictValue": dict_name, "key": key, "value": result},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"getDictValue": dict_name, "value": result},
-            })
-            return True
-
-        if cmd_type == "removeDictKey":
-            dict_name = _clean_var_ref(extra.get("dictName", ""))
-            key = self._resolve_vars(str(extra.get("key", "")), self.vars)
-            d = self.vars.get(dict_name, {})
-            removed = False
-            if isinstance(d, dict) and key in d:
-                del d[key]
-                removed = True
-            logger.info(f"[ExtensionRunner] removeDictKey {dict_name}[{key}] removed={removed}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"removeDictKey": dict_name, "key": key, "removed": removed},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"removeDictKey": dict_name},
-            })
-            return True
-
-        if cmd_type == "stringConcat":
-            target_var = _clean_var_ref(extra.get("targetVar", ""))
-            part1 = self._resolve_vars(str(extra.get("part1", "")), self.vars)
-            part2 = self._resolve_vars(str(extra.get("part2", "")), self.vars)
-            part3 = self._resolve_vars(str(extra.get("part3", "")), self.vars)
-            result = part1 + part2 + part3
-            self.vars[target_var] = result
-            logger.info(f"[ExtensionRunner] stringConcat {target_var} = {result!r}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"stringConcat": target_var, "value": result},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"stringConcat": target_var},
-            })
-            return True
-
-        if cmd_type == "increment":
-            var_name = _clean_var_ref(extra.get("varName", ""))
-            step = extra.get("step", 1)
-            try:
-                step = float(step)
-            except (ValueError, TypeError):
-                step = 1
-            current = self.vars.get(var_name, 0)
-            try:
-                current = float(current)
-            except (ValueError, TypeError):
-                current = 0
-            self.vars[var_name] = current + step
-            logger.info(f"[ExtensionRunner] increment {var_name} += {step}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"increment": var_name, "value": self.vars[var_name]},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"increment": var_name},
-            })
-            return True
-
         if cmd_type == "httpRequest":
             method = extra.get("method", "GET")
             url = extra.get("url", "")
@@ -1790,3 +1583,261 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     result["tableColumns"] = runner._table_data.get("columns", [])
     result["logDir"] = log_dir
     return result
+
+
+# ─── Local command handlers ───────────────────────────────────────
+# Register simple backend-only commands here. Each handler receives:
+#   runner: ExtensionRunner instance
+#   cmd_type: command type string
+#   step_id: current step id
+#   instr: instruction dict
+
+
+@register_local("setVar")
+async def _local_setVar(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    var_name = _clean_var_ref(extra.get("name", ""))
+    var_value = runner._resolve_vars(extra.get("value", ""), runner.vars)
+    vtype = extra.get("valueType", "string")
+    if vtype == "number":
+        try:
+            var_value = float(var_value)
+        except (ValueError, TypeError):
+            pass
+    elif vtype == "bool":
+        var_value = str(var_value).lower() in ("true", "1", "yes")
+    elif vtype == "list":
+        try:
+            var_value = json.loads(var_value)
+        except Exception:
+            try:
+                var_value = ast.literal_eval(var_value)
+            except Exception:
+                var_value = []
+    elif vtype == "dict":
+        try:
+            var_value = json.loads(var_value)
+        except Exception:
+            try:
+                var_value = ast.literal_eval(var_value)
+            except Exception:
+                var_value = {}
+    elif vtype == "string":
+        val_str = str(var_value)
+        if "+" in val_str:
+            parts = val_str.split("+")
+            has_quoted = any(
+                (p.strip().startswith('"') and p.strip().endswith('"')) or
+                (p.strip().startswith("'") and p.strip().endswith("'"))
+                for p in parts
+            )
+            if has_quoted:
+                merged = []
+                for p in parts:
+                    p = p.strip()
+                    if (p.startswith('"') and p.endswith('"')) or (p.startswith("'") and p.endswith("'")):
+                        p = p[1:-1]
+                    merged.append(p)
+                var_value = "".join(merged)
+    runner.vars[var_name] = var_value
+    logger.info(f"[ExtensionRunner] setVar {var_name} = {var_value!r}")
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"setVar": var_name, "value": var_value},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id, "nodeId": instr.get("nodeId"),
+        "result": {"setVar": var_name, "value": var_value},
+    })
+    return True
+
+
+@register_local("log")
+async def _local_log(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    msg = extra.get("message", "")
+    level = extra.get("level", "info")
+    logger.info(f"[ExtensionRunner] LOG vars={list(runner.vars.keys())} msg={msg!r}")
+    resolved_msg = runner._resolve_vars(msg, runner.vars)
+    logger.info(f"[ExtensionRunner] LOG [{level}] {resolved_msg}")
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"log": resolved_msg},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id, "nodeId": instr.get("nodeId"),
+        "result": {"log": resolved_msg},
+    })
+    return True
+
+
+@register_local("appendToList")
+async def _local_appendToList(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    list_name = _clean_var_ref(extra.get("listName", ""))
+    value = extra.get("value", "")
+    resolved_value = runner._resolve_vars(value, runner.vars)
+    if list_name not in runner.vars or not isinstance(runner.vars[list_name], list):
+        runner.vars[list_name] = []
+    runner.vars[list_name].append(resolved_value)
+    logger.info(f"[ExtensionRunner] appendToList {list_name} += {resolved_value!r}")
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"appendToList": list_name, "value": resolved_value},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "result": {"appendToList": list_name},
+    })
+    return True
+
+
+@register_local("setDictValue")
+async def _local_setDictValue(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    dict_name = _clean_var_ref(extra.get("dictName", ""))
+    key = runner._resolve_vars(str(extra.get("key", "")), runner.vars)
+    value = runner._resolve_vars(str(extra.get("value", "")), runner.vars)
+    if dict_name not in runner.vars or not isinstance(runner.vars[dict_name], dict):
+        runner.vars[dict_name] = {}
+    runner.vars[dict_name][key] = value
+    logger.info(f"[ExtensionRunner] setDictValue {dict_name}[{key}] = {value!r}")
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"setDictValue": dict_name, "key": key, "value": value},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "result": {"setDictValue": dict_name},
+    })
+    return True
+
+
+@register_local("getDictValue")
+async def _local_getDictValue(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    dict_name = _clean_var_ref(extra.get("dictName", ""))
+    key = runner._resolve_vars(str(extra.get("key", "")), runner.vars)
+    target_var = _get_output_var(extra)
+    d = runner.vars.get(dict_name, {})
+    result = d.get(key) if isinstance(d, dict) else None
+    if target_var:
+        runner.vars[target_var] = result
+    logger.info(f"[ExtensionRunner] getDictValue {dict_name}[{key}] -> {target_var} = {result!r}")
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"getDictValue": dict_name, "key": key, "value": result},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "result": {"getDictValue": dict_name, "value": result},
+    })
+    return True
+
+
+@register_local("removeDictKey")
+async def _local_removeDictKey(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    dict_name = _clean_var_ref(extra.get("dictName", ""))
+    key = runner._resolve_vars(str(extra.get("key", "")), runner.vars)
+    d = runner.vars.get(dict_name, {})
+    removed = False
+    if isinstance(d, dict) and key in d:
+        del d[key]
+        removed = True
+    logger.info(f"[ExtensionRunner] removeDictKey {dict_name}[{key}] removed={removed}")
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"removeDictKey": dict_name, "key": key, "removed": removed},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "result": {"removeDictKey": dict_name},
+    })
+    return True
+
+
+@register_local("stringConcat")
+async def _local_stringConcat(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    target_var = _clean_var_ref(extra.get("targetVar", ""))
+    part1 = runner._resolve_vars(str(extra.get("part1", "")), runner.vars)
+    part2 = runner._resolve_vars(str(extra.get("part2", "")), runner.vars)
+    part3 = runner._resolve_vars(str(extra.get("part3", "")), runner.vars)
+    result = part1 + part2 + part3
+    runner.vars[target_var] = result
+    logger.info(f"[ExtensionRunner] stringConcat {target_var} = {result!r}")
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"stringConcat": target_var, "value": result},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "result": {"stringConcat": target_var},
+    })
+    return True
+
+
+@register_local("increment")
+async def _local_increment(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    var_name = _clean_var_ref(extra.get("varName", ""))
+    step = extra.get("step", 1)
+    try:
+        step = float(step)
+    except (ValueError, TypeError):
+        step = 1
+    current = runner.vars.get(var_name, 0)
+    try:
+        current = float(current)
+    except (ValueError, TypeError):
+        current = 0
+    runner.vars[var_name] = current + step
+    logger.info(f"[ExtensionRunner] increment {var_name} += {step}")
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"increment": var_name, "value": runner.vars[var_name]},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "result": {"increment": var_name},
+    })
+    return True
