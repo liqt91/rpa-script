@@ -8,6 +8,7 @@ Design philosophy (影刀-style granularity):
 """
 
 import copy
+import json
 from typing import Any
 
 # ─── Field type helpers ───────────────────────────────────────────
@@ -1362,6 +1363,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
     # ═══════════════════════════════════════════════════════════════
 }
 
+# 保留原始代码种子，运行时会从数据库重建 COMMAND_REGISTRY
+COMMAND_REGISTRY_SEED: dict[str, dict[str, Any]] = copy.deepcopy(COMMAND_REGISTRY)
+
 
 # ─── Helpers ──────────────────────────────────────────────────────
 
@@ -1381,7 +1385,7 @@ def list_categories() -> list[str]:
     seen = set()
     result = []
     for cmd in COMMAND_REGISTRY.values():
-        cat = cmd["category"]
+        cat = cmd.get("category", "其他")
         if cat not in seen:
             seen.add(cat)
             result.append(cat)
@@ -1392,7 +1396,7 @@ def list_commands_by_category() -> dict[str, list[dict]]:
     """按分类分组返回指令列表"""
     result: dict[str, list[dict]] = {}
     for type_name, cmd in COMMAND_REGISTRY.items():
-        cat = cmd["category"]
+        cat = cmd.get("category", "其他")
         if cat not in result:
             result[cat] = []
         cmd_copy = copy.deepcopy(cmd)
@@ -1442,3 +1446,47 @@ def enrich_command_meta(row: dict) -> dict:
     return row
 
 
+def load_commands_from_db(db) -> None:
+    """从数据库读取指令配置，以数据库为唯一事实来源加载到 COMMAND_REGISTRY。
+    保留代码种子中的 runtimes（执行必需），其余字段数据库优先。"""
+    from src.repo import runtime_models as models
+
+    # 先清空内存注册表，再以 DB 为准重建
+    COMMAND_REGISTRY.clear()
+
+    for row in db.query(models.WorkflowCommand).filter(models.WorkflowCommand.enabled == 1).all():
+        # 尝试从代码种子找回运行时声明（handler/local 可被 DB 覆盖）
+        seed = COMMAND_REGISTRY_SEED.get(row.type, {})
+        ext_runtime = seed.get("runtimes", {}).get("extension", {})
+
+        COMMAND_REGISTRY[row.type] = {
+            **seed,
+            "label": row.label,
+            "category": row.category,
+            "icon": row.icon,
+            "iconColor": row.icon_color,
+            "bgColor": row.bg_color,
+            "isContainer": bool(row.is_container),
+            "isBranch": bool(row.is_branch),
+            "isStructural": bool(row.is_structural),
+            "closesWith": row.closes_with,
+            "fields": json.loads(row.fields) if row.fields else [],
+            "description": row.description or "",
+            "enabled": bool(row.enabled),
+            "runtimes": {
+                "extension": {
+                    "handler": row.handler if row.handler is not None else ext_runtime.get("handler"),
+                    "local": bool(row.local) if row.local is not None else ext_runtime.get("local", False),
+                }
+            } if ext_runtime or row.handler else {},
+        }
+
+
+def reload_commands() -> None:
+    """运行时重新从数据库加载指令配置。"""
+    from src.repo.models import SessionLocal
+    db = SessionLocal()
+    try:
+        load_commands_from_db(db)
+    finally:
+        db.close()

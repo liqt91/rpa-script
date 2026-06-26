@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine, Base
 
-_SCHEMA_VERSION = 2  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 3  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -170,11 +170,23 @@ def _migrate_002():
     )
 
 
+# ── Migration 003: add closes_with for container commands ───────────────────
+
+def _migrate_003():
+    inspector = inspect(engine)
+    cols = {c["name"] for c in inspector.get_columns("workflow_commands")}
+    with engine.connect() as conn:
+        if "closes_with" not in cols:
+            conn.execute(text("ALTER TABLE workflow_commands ADD COLUMN closes_with VARCHAR(32)"))
+            conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
     1: _migrate_001,
     2: _migrate_002,
+    3: _migrate_003,
 }
 
 

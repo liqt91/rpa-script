@@ -63,95 +63,52 @@ def _load_ai_apps_from_db(db):
         }
 
 
-def _sync_commands_to_db(db):
-    """启动时：将 commands.py 中的内置指令同步到数据库。
-    仅把 registry 中 enabled=True 的指令写入数据库；未启用的内置指令首次不插入，
-    已存在且无工作流节点引用时删除。已存在的指令不覆盖启停状态。
-    自动根据 registry 的插入顺序计算 category_order / command_order。"""
+def _seed_commands_to_db(db):
+    """首次安装时：将 commands.py 中的内置指令种子导入数据库。
+    如果数据库中已存在任何指令，则跳过，避免覆盖用户或线上已有配置。"""
     from .workflow import commands
-    import json
 
-    existing = {row.type: row for row in db.query(models.WorkflowCommand).all()}
-    referenced_types = {t for (t,) in db.query(models.WorkflowNode.type).distinct().all() if t}
+    has_any = db.query(models.WorkflowCommand).first() is not None
+    if has_any:
+        return
+
     cat_order_map = {}
     cat_counter = {}
     for type_name, cmd in commands.COMMAND_REGISTRY.items():
+        if not cmd.get("enabled", False):
+            continue
         cat = cmd.get("category", "其他")
         if cat not in cat_order_map:
             cat_order_map[cat] = len(cat_order_map) + 1
         cat_counter[cat] = cat_counter.get(cat, 0) + 1
         ext = cmd.get("runtimes", {}).get("extension")
-        is_enabled = bool(cmd.get("enabled", False))
-
-        # 精简指令：未启用的内置指令不进入数据库
-        if not is_enabled:
-            row = existing.get(type_name)
-            if row and row.is_builtin and type_name not in referenced_types:
-                db.delete(row)
-            continue
-
-        if type_name in existing:
-            row = existing[type_name]
-            row.label = cmd.get("label", type_name)
-            row.category = cat
-            row.icon = cmd.get("icon", "fa-circle")
-            row.icon_color = cmd.get("iconColor", "text-gray-500")
-            row.bg_color = cmd.get("bgColor", "bg-gray-50")
-            row.is_container = 1 if cmd.get("isContainer") else 0
-            row.is_branch = 1 if cmd.get("isBranch") else 0
-            row.is_structural = 1 if cmd.get("isStructural") else 0
-            row.fields = json.dumps(cmd.get("fields", []))
-            row.description = cmd.get("description", "")
-            row.is_builtin = 1
-            row.category_order = cmd.get("categoryOrder", cat_order_map[cat])
-            row.command_order = cmd.get("commandOrder", cat_counter[cat])
-            # Sync runtime metadata from registry (allow DB to override later)
-            if ext:
-                row.handler = ext.get("handler")
-                row.local = 1 if ext.get("local") else 0
-            # DO NOT overwrite enabled — user controls activation
-        else:
-            db.add(models.WorkflowCommand(
-                type=type_name,
-                label=cmd.get("label", type_name),
-                category=cat,
-                icon=cmd.get("icon", "fa-circle"),
-                icon_color=cmd.get("iconColor", "text-gray-500"),
-                bg_color=cmd.get("bgColor", "bg-gray-50"),
-                is_container=1 if cmd.get("isContainer") else 0,
-                is_branch=1 if cmd.get("isBranch") else 0,
-                is_structural=1 if cmd.get("isStructural") else 0,
-                fields=json.dumps(cmd.get("fields", [])),
-                description=cmd.get("description", ""),
-                is_builtin=1,
-                enabled=1,
-                handler=ext.get("handler") if ext else None,
-                local=1 if ext and ext.get("local") else 0,
-                category_order=cmd.get("categoryOrder", cat_order_map[cat]),
-                command_order=cmd.get("commandOrder", cat_counter[cat]),
-            ))
+        db.add(models.WorkflowCommand(
+            type=type_name,
+            label=cmd.get("label", type_name),
+            category=cat,
+            icon=cmd.get("icon", "fa-circle"),
+            icon_color=cmd.get("iconColor", "text-gray-500"),
+            bg_color=cmd.get("bgColor", "bg-gray-50"),
+            is_container=1 if cmd.get("isContainer") else 0,
+            is_branch=1 if cmd.get("isBranch") else 0,
+            is_structural=1 if cmd.get("isStructural") else 0,
+            closes_with=cmd.get("closesWith"),
+            fields=json.dumps(cmd.get("fields", [])),
+            description=cmd.get("description", ""),
+            is_builtin=1,
+            enabled=1,
+            handler=ext.get("handler") if ext else None,
+            local=1 if ext and ext.get("local") else 0,
+            category_order=cmd.get("categoryOrder", cat_order_map[cat]),
+            command_order=cmd.get("commandOrder", cat_counter[cat]),
+        ))
     db.commit()
 
 
 def _load_commands_from_db(db):
-    """从数据库读取指令配置，合并到 COMMAND_REGISTRY（保留代码中定义的额外字段如 runtimes）。"""
+    """从数据库加载指令配置到内存，数据库为唯一事实来源。"""
     from .workflow import commands
-    import json
-
-    for row in db.query(models.WorkflowCommand).filter(models.WorkflowCommand.enabled == 1).all():
-        existing = commands.COMMAND_REGISTRY.get(row.type, {})
-        commands.COMMAND_REGISTRY[row.type] = {
-            **existing,
-            "label": row.label,
-            "category": row.category,
-            "icon": row.icon,
-            "iconColor": row.icon_color,
-            "bgColor": row.bg_color,
-            "isContainer": bool(row.is_container),
-            "isBranch": bool(row.is_branch),
-            "isStructural": bool(row.is_structural),
-            "fields": json.loads(row.fields) if row.fields else [],
-        }
+    commands.load_commands_from_db(db)
 
 
 @asynccontextmanager
@@ -171,8 +128,8 @@ async def lifespan(app: FastAPI):
         # AI 应用配置：首次同步环境变量到数据库，再从数据库加载到内存
         _sync_ai_apps_to_db(db)
         _load_ai_apps_from_db(db)
-        # 工作流指令：首次同步内置指令到数据库，再从数据库加载到内存
-        _sync_commands_to_db(db)
+        # 工作流指令：首次安装时从代码种子导入数据库，之后运行时以数据库为唯一来源
+        _seed_commands_to_db(db)
         _load_commands_from_db(db)
     finally:
         db.close()

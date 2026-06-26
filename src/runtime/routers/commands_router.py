@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from .. import auth
 from src.repo import runtime_models as models
 from src.shared.datetime_utils import parse_iso_datetime
-from ..workflow.commands import enrich_command_meta
+from ..workflow.commands import enrich_command_meta, reload_commands
 from ..workflow.validation import validate, extract_js_handler_names
 
 router = APIRouter(prefix="/api/commands", tags=["commands"])
@@ -56,6 +56,7 @@ def list_commands(
             "isContainer": bool(r.is_container),
             "isBranch": bool(r.is_branch),
             "isStructural": bool(r.is_structural),
+            "closesWith": r.closes_with,
             "fields": json.loads(r.fields) if r.fields else [],
             "handler": r.handler,
             "local": bool(r.local) if r.local is not None else None,
@@ -78,6 +79,13 @@ def reload_emitters(user=Depends(auth.get_current_user)):
     """Runtime reload of emit handlers without server restart."""
     from src.runtime.workflow.emitters import reload_handlers
     reload_handlers()
+    return {"success": True}
+
+
+@router.post("/reload")
+def reload_commands_endpoint(user=Depends(auth.get_current_user)):
+    """Runtime reload of command catalog from database."""
+    reload_commands()
     return {"success": True}
 
 
@@ -112,6 +120,7 @@ def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=
         is_container=1 if payload.get("isContainer") else 0,
         is_branch=1 if payload.get("isBranch") else 0,
         is_structural=1 if payload.get("isStructural") else 0,
+        closes_with=payload.get("closesWith") or None,
         fields=json.dumps(payload.get("fields", [])),
         description=payload.get("description", ""),
         handler=payload.get("handler") or None,
@@ -143,7 +152,7 @@ def update_command(
         allowed = {
             "label", "category", "icon", "iconColor", "bgColor",
             "fields", "enabled", "reviewedAt", "handler", "local", "description",
-            "categoryOrder", "commandOrder",
+            "categoryOrder", "commandOrder", "closesWith",
         }
         payload = {k: v for k, v in payload.items() if k in allowed}
 
@@ -164,6 +173,8 @@ def update_command(
         cmd.is_branch = 1 if payload["isBranch"] else 0
     if "isStructural" in payload:
         cmd.is_structural = 1 if payload["isStructural"] else 0
+    if "closesWith" in payload:
+        cmd.closes_with = payload["closesWith"] or None
     if "fields" in payload:
         cmd.fields = json.dumps(payload["fields"])
     if "handler" in payload:

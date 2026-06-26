@@ -165,6 +165,7 @@ class WorkflowCommand(Base):
     is_container = Column(Integer, default=0)
     is_branch = Column(Integer, default=0)
     is_structural = Column(Integer, default=0)
+    closes_with = Column(String(32), nullable=True)  # 容器指令的闭合标记，如 forEachElement -> endFor
     fields = Column(Text, default="[]")
     description = Column(Text, default="")         # 指令说明，在编辑器中展示
     handler = Column(String(32), nullable=True)    # content.js handler name
