@@ -31,3 +31,6 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-12 17:22 | ifElementVisible-visibilityMode | done
 2026-06-12 17:40 | loop-context-missing-inner | done
 2026-06-12 18:05 | scope-local-descendant-only | done
+2026-06-12 18:14 | session_end | prompt_input_exit | feat/browser-extension-agent | a234864 | d3a39110-a381-4659-a006-6690b4840e36
+2026-06-26 12:14 | command-consistency-phase3 | done | elementAction unified handler + doubleClick
+2026-06-26 13:01 | command-config-wizard | done | 4-step wizard UI for command config

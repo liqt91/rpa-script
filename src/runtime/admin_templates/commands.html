@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}指令管理{% endblock %}
 {% block content %}
-<div class="p-8 max-w-7xl mx-auto">
+<div class="p-6 max-w-7xl mx-auto">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-white">指令管理</h1>
     <div class="flex gap-3">
@@ -26,7 +26,7 @@
       <option value="">全部分类</option>
     </select>
     <label class="flex items-center gap-2 text-sm text-gray-300">
-      <input type="checkbox" id="enabledOnly" onchange="loadCommands()" class="rounded bg-gray-700 border-gray-600">
+      <input type="checkbox" id="enabledOnly" onchange="loadCommands()" class="rounded bg-gray-700 border-gray-600" checked>
       仅显示启用
     </label>
     <label class="flex items-center gap-2 text-sm text-gray-300 ml-auto">
@@ -50,178 +50,230 @@
   <div id="commandBlocks" class="space-y-4"></div>
 </div>
 
-<!-- Modal -->
-<div id="modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
-  <div class="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-4xl mx-4 p-6">
-    <h2 id="modalTitle" class="text-lg font-semibold text-white mb-4">新增指令</h2>
-    <form id="commandForm" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-      <input type="hidden" id="cmdId">
-      <div>
-        <label class="block text-sm text-gray-300 mb-1">指令类型 <span class="text-red-400">*</span></label>
-        <input type="text" id="cmdType" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="如: myCustomAction">
+<!-- Wizard Modal -->
+<div id="modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+  <div class="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-6xl mx-4 flex flex-col" style="height:85vh;max-height:900px;">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-gray-700 flex items-center justify-between shrink-0">
+      <h2 id="modalTitle" class="text-lg font-semibold text-white">新增指令</h2>
+      <button onclick="hideModal()" class="text-gray-400 hover:text-white"><i class="fas fa-xmark"></i></button>
+    </div>
+
+    <!-- Step tabs -->
+    <div class="px-6 pt-4 shrink-0">
+      <div class="flex items-center gap-2" id="stepTabs">
+        <button type="button" data-step="1" onclick="setStep(1)" class="step-tab px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white">
+          1. 基础信息
+        </button>
+        <button type="button" data-step="2" onclick="setStep(2)" class="step-tab px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600">
+          2. 执行方式
+        </button>
+        <button type="button" data-step="3" onclick="setStep(3)" class="step-tab px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600">
+          3. 参数
+        </button>
+        <button type="button" data-step="4" onclick="setStep(4)" class="step-tab px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600">
+          4. 预览
+        </button>
       </div>
-      <div>
-        <label class="block text-sm text-gray-300 mb-1">显示名称 <span class="text-red-400">*</span></label>
-        <input type="text" id="cmdLabel" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm">
-      </div>
-      <div>
-        <label class="block text-sm text-gray-300 mb-1">分类 <span class="text-red-400">*</span></label>
-        <input type="text" id="cmdCategory" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="如: 数据提取">
-      </div>
-      <div class="grid grid-cols-5 gap-3">
-        <div>
-          <label class="block text-sm text-gray-300 mb-1">图标</label>
-          <input type="text" id="cmdIcon" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="fa-circle">
-        </div>
-        <div>
-          <label class="block text-sm text-gray-300 mb-1">图标颜色</label>
-          <input type="text" id="cmdIconColor" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="text-gray-500">
-        </div>
-        <div>
-          <label class="block text-sm text-gray-300 mb-1">背景颜色</label>
-          <input type="text" id="cmdBgColor" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="bg-gray-50">
-        </div>
-        <div>
-          <label class="block text-sm text-gray-300 mb-1">大类排序</label>
-          <input type="number" id="cmdCategoryOrder" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="0">
-        </div>
-        <div>
-          <label class="block text-sm text-gray-300 mb-1">类内排序</label>
-          <input type="number" id="cmdCommandOrder" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="0">
-        </div>
-      </div>
-      <div>
-        <label class="block text-sm text-gray-300 mb-1">指令说明（会在流程编辑器节点属性中展示）</label>
-        <textarea id="cmdDescription" rows="3" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="说明该指令的作用、用法和输出内容..."></textarea>
-      </div>
-      <div class="flex gap-4">
-        <label class="flex items-center gap-2 text-sm text-gray-300">
-          <input type="checkbox" id="cmdIsContainer" class="rounded bg-gray-700 border-gray-600">
-          容器（可含子节点）
-        </label>
-        <label class="flex items-center gap-2 text-sm text-gray-300">
-          <input type="checkbox" id="cmdIsBranch" class="rounded bg-gray-700 border-gray-600">
-          分支（else/catch）
-        </label>
-        <label class="flex items-center gap-2 text-sm text-gray-300">
-          <input type="checkbox" id="cmdIsStructural" class="rounded bg-gray-700 border-gray-600">
-          结构标记（endIf/endFor）
-        </label>
+    </div>
+
+    <!-- Body: form + preview -->
+    <div class="flex-1 overflow-hidden flex min-h-0">
+      <!-- Form area -->
+      <div class="flex-1 overflow-y-auto p-6">
+        <form id="commandForm" onsubmit="event.preventDefault();">
+          <input type="hidden" id="cmdId">
+
+          <!-- Step 1: Basic info -->
+          <div id="step-1" class="step-panel space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-300 mb-1">指令类型 <span class="text-red-400">*</span> <span class="text-xs text-gray-500">(英文系统名)</span></label>
+                <input type="text" id="cmdType" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono" placeholder="如 myCustomAction">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-300 mb-1">显示名称 <span class="text-red-400">*</span></label>
+                <input type="text" id="cmdLabel" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="如 我的自定义动作">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-300 mb-1">所属分类 <span class="text-red-400">*</span></label>
+              <div class="flex gap-2">
+                <input type="text" id="cmdCategory" required list="categoryList" class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="如 数据提取">
+                <datalist id="categoryList"></datalist>
+              </div>
+            </div>
+            <div class="grid grid-cols-4 gap-4">
+              <div>
+                <label class="block text-sm text-gray-300 mb-1">图标</label>
+                <div class="flex gap-2">
+                  <span id="iconPreview" class="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-700 text-gray-300"><i class="fas fa-circle"></i></span>
+                  <input type="text" id="cmdIcon" class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="fa-circle" placeholder="fa-mouse-pointer">
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-300 mb-1">图标颜色</label>
+                <input type="text" id="cmdIconColor" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="text-gray-500">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-300 mb-1">背景颜色</label>
+                <input type="text" id="cmdBgColor" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="bg-gray-50">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-300 mb-1">类内排序</label>
+                <input type="number" id="cmdCommandOrder" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" value="0">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-300 mb-1">指令说明 <span class="text-xs text-gray-500">(会在流程编辑器节点属性中展示)</span></label>
+              <textarea id="cmdDescription" rows="3" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm" placeholder="说明该指令的作用、用法和输出内容..."></textarea>
+            </div>
+            <div class="flex gap-4 pt-2">
+              <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                <input type="checkbox" id="cmdIsContainer" class="rounded bg-gray-700 border-gray-600">
+                容器（可含子节点）
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                <input type="checkbox" id="cmdIsBranch" class="rounded bg-gray-700 border-gray-600">
+                分支（else/catch）
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                <input type="checkbox" id="cmdIsStructural" class="rounded bg-gray-700 border-gray-600">
+                结构标记（endIf/endFor）
+              </label>
+            </div>
+            <div id="closesWithWrap" class="hidden">
+              <label class="block text-sm text-gray-300 mb-1">闭合指令 <span class="text-xs text-gray-500">(容器指令需要填写，如 endIf)</span></label>
+              <input type="text" id="cmdClosesWith" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono" placeholder="endIf">
+            </div>
+          </div>
+
+          <!-- Step 2: Runtime -->
+          <div id="step-2" class="step-panel hidden space-y-5">
+            <div>
+              <label class="block text-sm font-medium text-gray-200 mb-3">选择执行方式</label>
+              <div class="grid grid-cols-3 gap-4">
+                <div onclick="selectRuntimeMode('extension')" id="mode-extension" class="runtime-card cursor-pointer rounded-xl border-2 border-gray-600 bg-gray-700/50 p-4 hover:bg-gray-700 transition-colors">
+                  <div class="w-10 h-10 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center mb-3"><i class="fas fa-chrome text-lg"></i></div>
+                  <div class="font-medium text-white mb-1">浏览器执行</div>
+                  <div class="text-xs text-gray-400">通过扩展操作页面 DOM，如点击、输入、滚动、提取等</div>
+                </div>
+                <div onclick="selectRuntimeMode('local')" id="mode-local" class="runtime-card cursor-pointer rounded-xl border-2 border-gray-600 bg-gray-700/50 p-4 hover:bg-gray-700 transition-colors">
+                  <div class="w-10 h-10 rounded-lg bg-gray-600/30 text-gray-300 flex items-center justify-center mb-3"><i class="fas fa-server text-lg"></i></div>
+                  <div class="font-medium text-white mb-1">后端执行</div>
+                  <div class="text-xs text-gray-400">不经过浏览器，如设置变量、HTTP 请求、日志等</div>
+                </div>
+                <div onclick="selectRuntimeMode('none')" id="mode-none" class="runtime-card cursor-pointer rounded-xl border-2 border-gray-600 bg-gray-700/50 p-4 hover:bg-gray-700 transition-colors">
+                  <div class="w-10 h-10 rounded-lg bg-orange-600/20 text-orange-400 flex items-center justify-center mb-3"><i class="fas fa-code-branch text-lg"></i></div>
+                  <div class="font-medium text-white mb-1">无执行</div>
+                  <div class="text-xs text-gray-400">容器、分支、结构标记或自定义代码</div>
+                </div>
+              </div>
+              <input type="hidden" id="runtimeMode" value="none">
+            </div>
+
+            <div id="actionPresetWrap" class="hidden">
+              <label class="block text-sm text-gray-300 mb-2">动作模板 <span class="text-xs text-gray-500">(选择后自动填充 handler 与 action)</span></label>
+              <select id="actionPreset" onchange="applyActionPreset()" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm">
+                <option value="">-- 选择动作模板 --</option>
+              </select>
+            </div>
+
+            <div id="advancedRuntime" class="hidden border border-gray-600 rounded-lg p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-gray-300">高级设置</span>
+                <span class="text-xs text-gray-500">一般不需要修改</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs text-gray-400 mb-1">Handler 名称</label>
+                  <select id="cmdHandler" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono">
+                    <option value="">-- 选择 handler --</option>
+                  </select>
+                </div>
+                <div class="flex items-end pb-2">
+                  <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="cmdLocal" class="rounded bg-gray-700 border-gray-600">
+                    local（后端本地执行）
+                  </label>
+                </div>
+              </div>
+              <div id="actionFieldWrap" class="hidden">
+                <label class="block text-xs text-gray-400 mb-1">elementAction 的 action 值</label>
+                <input type="text" id="cmdAction" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono" placeholder="click">
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button type="button" onclick="toggleAdvancedRuntime()" class="text-xs text-blue-300 hover:text-blue-200">
+                <i class="fas fa-sliders mr-1"></i>高级设置
+              </button>
+              <button type="button" onclick="runSmartAudit()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs transition-colors">
+                <i class="fas fa-wand-magic-sparkles mr-1"></i>智能检验
+              </button>
+              <span id="auditLoading" class="hidden text-xs text-gray-400">分析中…</span>
+            </div>
+
+            <div id="auditResults" class="hidden space-y-2 bg-gray-900/50 rounded-lg p-3">
+              <div id="auditRecommendation" class="text-xs"></div>
+              <div id="auditIssues" class="space-y-1"></div>
+            </div>
+          </div>
+
+          <!-- Step 3: Parameters -->
+          <div id="step-3" class="step-panel hidden space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-gray-200">参数定义</span>
+              <button type="button" onclick="addParamCard()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs transition-colors">
+                <i class="fas fa-plus mr-1"></i>添加参数
+              </button>
+            </div>
+            <div id="paramCards" class="space-y-3"></div>
+            <div id="paramEmpty" class="text-center py-8 text-gray-500 text-sm hidden">暂无参数，点击上方按钮添加</div>
+          </div>
+
+          <!-- Step 4: Preview -->
+          <div id="step-4" class="step-panel hidden space-y-5">
+            <div>
+              <span class="text-sm font-medium text-gray-200">指令卡片预览</span>
+              <div id="previewCard" class="mt-3"></div>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-200">节点属性表单预览</span>
+              <div id="previewForm" class="mt-3 bg-gray-900/50 rounded-lg border border-gray-700 p-4"></div>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-200">配置摘要</span>
+              <div id="previewSummary" class="mt-3 text-xs text-gray-400 font-mono bg-gray-900/50 rounded-lg border border-gray-700 p-3 space-y-1"></div>
+            </div>
+          </div>
+        </form>
       </div>
 
-      <!-- Runtime config -->
-      <div class="border border-gray-600 rounded-lg p-4 space-y-3">
-        <h3 class="text-sm font-medium text-gray-300">Extension Runtime</h3>
-        <div class="flex items-center gap-3">
-          <label class="flex items-center gap-2 text-sm text-gray-300">
-            <input type="checkbox" id="cmdHasRuntime" class="rounded bg-gray-700 border-gray-600">
-            启用 Extension 执行
-          </label>
-          <span class="text-xs text-gray-500">（勾选后才需要填下方内容）</span>
-        </div>
-        <div id="runtimeFields" class="grid grid-cols-2 gap-3 hidden">
-          <div>
-            <label class="block text-sm text-gray-300 mb-1">Handler 名称</label>
-            <select id="cmdHandler" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono">
-              <option value="">-- 选择 content.js handler --</option>
-            </select>
-          </div>
-          <div class="flex items-end">
-            <label class="flex items-center gap-2 text-sm text-gray-300 pb-2">
-              <input type="checkbox" id="cmdLocal" class="rounded bg-gray-700 border-gray-600">
-              本地执行（后端不经过浏览器）
-            </label>
-          </div>
-        </div>
-
-        <!-- Runtime 判定标准速查表 -->
-        <div class="bg-gray-900/50 rounded p-3 text-xs space-y-1">
-          <p class="text-gray-400 font-medium mb-1">判定标准速查</p>
-          <div class="grid grid-cols-2 gap-x-3 gap-y-0.5">
-            <span class="text-gray-500">容器/结构标记/自定义代码</span>
-            <span class="text-red-400">不启用 runtime</span>
-            <span class="text-gray-500">页面交互（点击/输入/滚动/提取）</span>
-            <span class="text-green-400">启用 → handler=JS函数名 → local=否</span>
-            <span class="text-gray-500">等待（sleep/waitForElement）</span>
-            <span class="text-green-400">启用 → handler=wait → local=否</span>
-            <span class="text-gray-500">后端变量/子流程/HTTP/AI/文件</span>
-            <span class="text-blue-400">启用 → handler任意 → local=是</span>
-          </div>
-        </div>
-
-        <!-- 容器上下文与作用域 -->
-        <div class="bg-gray-900/50 rounded p-3 text-xs space-y-1">
-          <p class="text-gray-400 font-medium mb-1">容器上下文与作用域（scope）</p>
-          <p class="text-gray-500">以下容器的 body 内子指令会自动以容器元素为上下文进行查找：</p>
-          <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1">
-            <span class="text-gray-500">forEachElement</span>
-            <span class="text-green-400">注入上下文</span>
-            <span class="text-gray-500">ifElementExists / ifElementVisible</span>
-            <span class="text-green-400">注入上下文</span>
-            <span class="text-gray-500">ifTextContains / ifTextEquals</span>
-            <span class="text-green-400">注入上下文</span>
-            <span class="text-gray-500">ifElementNotExists / ifUrlContains / ifVarEquals</span>
-            <span class="text-red-400">不注入</span>
-          </div>
-          <p class="text-gray-500 mt-1">子指令可通过 <code class="text-blue-300">extra.scope</code> 控制查找范围：</p>
-          <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-0.5">
-            <span class="text-gray-500">scope: "local"（默认）</span>
-            <span class="text-green-400">在当前容器元素内查找</span>
-            <span class="text-gray-500">scope: "global"</span>
-            <span class="text-yellow-400">在整页全局查找（跳出容器上下文）</span>
-          </div>
-        </div>
-
-        <!-- Smart audit button -->
-        <div class="flex items-center gap-3 pt-1">
-          <button type="button" onclick="runSmartAudit()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs transition-colors">
-            <i class="fas fa-wand-magic-sparkles mr-1"></i>智能检验
-          </button>
-          <span id="auditLoading" class="hidden text-xs text-gray-400">分析中…</span>
-        </div>
-
-        <!-- Audit results -->
-        <div id="auditResults" class="hidden space-y-2">
-          <div id="auditRecommendation" class="text-xs"></div>
-          <div id="auditIssues" class="space-y-1"></div>
-        </div>
+      <!-- Preview sidebar -->
+      <div class="w-80 border-l border-gray-700 bg-gray-800/50 p-5 overflow-y-auto hidden lg:block">
+        <div class="text-sm font-medium text-gray-200 mb-3">实时预览</div>
+        <div id="sidePreviewCard" class="mb-5"></div>
+        <div class="text-xs text-gray-500 mb-2">执行方式</div>
+        <div id="sideRuntimeBadge" class="mb-4"></div>
+        <div class="text-xs text-gray-500 mb-2">参数数量</div>
+        <div id="sideParamCount" class="text-sm text-white">0</div>
       </div>
-      <div>
-        <label class="block text-sm text-gray-300 mb-1">参数定义</label>
-        <div class="bg-gray-700 border border-gray-600 rounded-lg overflow-hidden">
-          <table class="w-full text-xs text-left">
-            <thead class="bg-gray-600 text-gray-300">
-              <tr>
-                <th class="px-2 py-2 font-medium w-28">参数名</th>
-                <th class="px-2 py-2 font-medium w-32">显示名称</th>
-                <th class="px-2 py-2 font-medium w-24">类型</th>
-                <th class="px-2 py-2 font-medium w-20">分组</th>
-                <th class="px-2 py-2 font-medium w-12 text-center">必填</th>
-                <th class="px-2 py-2 font-medium w-28">默认值</th>
-                <th class="px-2 py-2 font-medium w-32">占位提示</th>
-                <th class="px-2 py-2 font-medium w-28">选项(逗号分隔)</th>
-                <th class="px-2 py-2 font-medium w-12 text-center">操作</th>
-              </tr>
-            </thead>
-            <tbody id="fieldsTableBody"></tbody>
-          </table>
-          <div class="px-3 py-2 border-t border-gray-600">
-            <button type="button" onclick="addFieldRow()" class="text-xs text-blue-300 hover:text-blue-200">
-              <i class="fas fa-plus mr-1"></i>添加参数
-            </button>
-          </div>
-        </div>
-        <input type="hidden" id="cmdFields">
-      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t border-gray-700 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-2">
         <input type="checkbox" id="cmdEnabled" checked class="rounded bg-gray-700 border-gray-600">
-        <label class="text-sm text-gray-300">启用</label>
+        <label class="text-sm text-gray-300 cursor-pointer">启用该指令</label>
       </div>
-      <div class="flex justify-end gap-3 pt-2">
-        <button type="button" onclick="hideModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm">取消</button>
-        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm">保存</button>
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="prevStep()" id="btnPrev" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm disabled:opacity-50">上一步</button>
+        <button type="button" onclick="nextStep()" id="btnNext" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm">下一步</button>
+        <button type="button" onclick="saveCommand()" id="btnSave" class="hidden px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm">保存</button>
+        <button type="button" onclick="hideModal()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm">取消</button>
       </div>
-    </form>
+    </div>
   </div>
 </div>
 
@@ -231,6 +283,120 @@ let allCategories = [];
 let auditMode = false;
 let currentData = [];
 let availableHandlers = [];
+let currentStep = 1;
+let paramCounter = 0;
+
+// Action presets: 中文标签 -> { handler, local, action?, autoFields? }
+const ACTION_PRESETS = {
+  extension: [
+    { label: '点击元素', handler: 'elementAction', action: 'click', autoFields: ['windowVar','element_name','scope'] },
+    { label: '双击元素', handler: 'elementAction', action: 'doubleClick', autoFields: ['windowVar','element_name','scope'] },
+    { label: '右键点击', handler: 'elementAction', action: 'rightClick', autoFields: ['windowVar','element_name','scope'] },
+    { label: '输入文本', handler: 'elementAction', action: 'input', autoFields: ['windowVar','element_name','scope','text','clearFirst'] },
+    { label: '输入并回车', handler: 'elementAction', action: 'inputAndPressEnter', autoFields: ['windowVar','element_name','scope','text','clearFirst'] },
+    { label: '清空输入框', handler: 'elementAction', action: 'clearInput', autoFields: ['windowVar','element_name'] },
+    { label: '下拉框选择', handler: 'elementAction', action: 'selectOption', autoFields: ['windowVar','element_name','by','value'] },
+    { label: '获取元素文本', handler: 'elementAction', action: 'extract', autoFields: ['windowVar','element_name','scope','varName'] },
+    { label: '获取元素属性', handler: 'elementAction', action: 'extract', autoFields: ['windowVar','element_name','scope','attrName','varName'] },
+    { label: '获取元素HTML', handler: 'elementAction', action: 'extract', autoFields: ['windowVar','element_name','mode','varName'] },
+    { label: '获取输入框值', handler: 'elementAction', action: 'extract', autoFields: ['windowVar','element_name','varName'] },
+    { label: '滚动到底部', handler: 'elementAction', action: 'scroll', autoFields: ['windowVar','scrollType','humanLike'] },
+    { label: '滚动到顶部', handler: 'elementAction', action: 'scroll', autoFields: ['windowVar','scrollType','humanLike'] },
+    { label: '滚动一屏', handler: 'elementAction', action: 'scroll', autoFields: ['windowVar','scrollType','humanLike'] },
+    { label: '滚动指定距离', handler: 'elementAction', action: 'scroll', autoFields: ['windowVar','x','y','humanLike'] },
+    { label: '悬停', handler: 'elementAction', action: 'hover', autoFields: ['element_name','scope'] },
+    { label: '取消悬停', handler: 'elementAction', action: 'unhover', autoFields: ['windowVar','element_name','scope'] },
+    { label: '打开网页', handler: 'navigate', autoFields: ['url','windowVar','waitLoad','timeout','saveToVar'] },
+    { label: '新建标签页', handler: 'newTab', autoFields: ['windowVar','url'] },
+    { label: '关闭浏览器', handler: 'closeBrowser', autoFields: ['windowVar'] },
+    { label: '获取当前URL', handler: 'getCurrentUrl', autoFields: ['windowVar','varName'] },
+    { label: '按键', handler: 'pressKey', autoFields: ['windowVar','key'] },
+    { label: '等待固定时间', handler: 'wait', autoFields: ['windowVar','seconds'] },
+    { label: '等待元素出现', handler: 'wait', autoFields: ['windowVar','element_name','scope','timeout'] },
+    { label: '执行JS', handler: 'executeJs', autoFields: ['script','resultVar'] },
+  ],
+  local: [
+    { label: '设置变量', handler: 'setVar', autoFields: ['name','value','valueType'] },
+    { label: '追加到列表', handler: 'appendToList', autoFields: ['listName','value'] },
+    { label: '字符串拼接', handler: 'stringConcat', autoFields: ['targetVar','part1','part2','part3'] },
+    { label: '计数器累加', handler: 'increment', autoFields: ['varName','step'] },
+    { label: '设置字典值', handler: 'setDictValue', autoFields: ['dictName','key','value'] },
+    { label: '获取字典值', handler: 'getDictValue', autoFields: ['dictName','key','varName'] },
+    { label: '删除字典键', handler: 'removeDictKey', autoFields: ['dictName','key'] },
+    { label: '打印日志', handler: 'log', autoFields: ['message','level'] },
+    { label: 'HTTP请求', handler: 'httpRequest', autoFields: ['method','url','headers','body','timeout','resultVar'] },
+    { label: '自定义代码', handler: 'custom', autoFields: ['code','description','resultVar'] },
+  ],
+};
+
+const FIELD_TYPE_LABELS = {
+  text: '文本',
+  number: '数字',
+  bool: '开关',
+  select: '下拉选择',
+  textarea: '多行文本',
+  locator: '选择器',
+  varName: '变量名',
+  elementName: '元素选择',
+  elementNameList: '元素列表',
+  hidden: '隐藏字段',
+};
+
+const FIELD_TYPE_ICONS = {
+  text: 'fa-font',
+  number: 'fa-hashtag',
+  bool: 'fa-toggle-on',
+  select: 'fa-list',
+  textarea: 'fa-align-left',
+  locator: 'fa-crosshairs',
+  varName: 'fa-superscript',
+  elementName: 'fa-mouse-pointer',
+  elementNameList: 'fa-list-check',
+  hidden: 'fa-eye-slash',
+};
+
+const COMMON_FIELDS = {
+  windowVar: { name: 'windowVar', label: '窗口变量', type: 'varName', required: false, default: 'browser1', placeholder: '如 browser1', group: 'input' },
+  element_name: { name: 'element_name', label: '元素', type: 'elementName', required: true, isPrimaryElement: true, group: 'input' },
+  scope: { name: 'scope', label: '匹配范围', type: 'select', options: [{label:'在当前外层元素内查找',value:'local'},{label:'全页面匹配',value:'global'}], default: 'global', group: 'advanced', description: '在当前外层元素内查找=仅在当前 forEachElement 循环到的元素内部搜索该选择器；全页面匹配=在整个页面搜索，不依赖循环上下文。' },
+  text: { name: 'text', label: '输入内容', type: 'text', required: true, group: 'input' },
+  clearFirst: { name: 'clearFirst', label: '先清空', type: 'bool', default: true, group: 'input' },
+  by: { name: 'by', label: '选择方式', type: 'select', options: [{label:'值',value:'value'},{label:'文本',value:'label'},{label:'索引',value:'index'}], default: 'label', group: 'input' },
+  value: { name: 'value', label: '值', type: 'text', required: true, group: 'input' },
+  attrName: { name: 'attrName', label: '属性名', type: 'text', required: true, placeholder: 'href / src / data-id', group: 'input' },
+  mode: { name: 'mode', label: '模式', type: 'select', options: [{label:'内部HTML',value:'inner'},{label:'包含标签',value:'outer'}], default: 'inner', group: 'input' },
+  varName: { name: 'varName', label: '保存到变量', type: 'varName', required: false, group: 'output' },
+  scrollType: { name: 'scrollType', label: '滚动类型', type: 'hidden', default: 'toBottom', group: 'advanced' },
+  x: { name: 'x', label: '水平距离(px)', type: 'number', default: 0, group: 'input' },
+  y: { name: 'y', label: '垂直距离(px)', type: 'number', default: 500, group: 'input' },
+  humanLike: { name: 'humanLike', label: '拟人化/平滑', type: 'bool', default: true, group: 'advanced' },
+  url: { name: 'url', label: '网址', type: 'text', required: true, placeholder: 'https://...', group: 'input' },
+  waitLoad: { name: 'waitLoad', label: '等待加载完成', type: 'bool', default: true, group: 'advanced' },
+  timeout: { name: 'timeout', label: '超时(秒)', type: 'number', default: 10, group: 'advanced' },
+  saveToVar: { name: 'saveToVar', label: '保存到变量', type: 'varName', required: false, group: 'output' },
+  key: { name: 'key', label: '按键', type: 'select', options: [{label:'回车',value:'Enter'},{label:'Tab',value:'Tab'},{label:'Esc',value:'Esc'},{label:'向下箭头',value:'ArrowDown'},{label:'向上箭头',value:'ArrowUp'},{label:'PageDown',value:'PageDown'},{label:'PageUp',value:'PageUp'},{label:'空格',value:'Space'},{label:'退格',value:'Backspace'}], default: 'Enter', group: 'input' },
+  seconds: { name: 'seconds', label: '等待秒数', type: 'number', default: 1, group: 'input' },
+  script: { name: 'script', label: 'JavaScript代码', type: 'textarea', required: true, rows: 4, group: 'input' },
+  resultVar: { name: 'resultVar', label: '返回值变量', type: 'varName', required: false, group: 'output' },
+  name: { name: 'name', label: '变量名', type: 'varName', required: true, group: 'input' },
+  value: { name: 'value', label: '值', type: 'text', required: true, group: 'input' },
+  valueType: { name: 'valueType', label: '值类型', type: 'select', options: [{label:'字符串',value:'string'},{label:'数字',value:'number'},{label:'布尔值',value:'bool'},{label:'列表',value:'list'},{label:'字典',value:'dict'}], default: 'string', group: 'input' },
+  listName: { name: 'listName', label: '列表变量', type: 'varName', required: true, group: 'input' },
+  targetVar: { name: 'targetVar', label: '目标变量', type: 'varName', required: true, group: 'input' },
+  part1: { name: 'part1', label: '片段1', type: 'text', required: true, group: 'input' },
+  part2: { name: 'part2', label: '片段2', type: 'text', required: false, group: 'input' },
+  part3: { name: 'part3', label: '片段3', type: 'text', required: false, group: 'input' },
+  step: { name: 'step', label: '步长', type: 'number', default: 1, group: 'input' },
+  dictName: { name: 'dictName', label: '字典变量', type: 'varName', required: true, group: 'input' },
+  key: { name: 'key', label: '键', type: 'text', required: true, group: 'input' },
+  message: { name: 'message', label: '日志内容', type: 'text', required: true, group: 'input' },
+  level: { name: 'level', label: '级别', type: 'select', options: [{label:'信息',value:'info'},{label:'警告',value:'warn'},{label:'错误',value:'error'}], default: 'info', group: 'input' },
+  method: { name: 'method', label: '方法', type: 'select', options: [{label:'GET',value:'GET'},{label:'POST',value:'POST'},{label:'PUT',value:'PUT'},{label:'DELETE',value:'DELETE'}], default: 'GET', group: 'input' },
+  headers: { name: 'headers', label: 'Headers(JSON)', type: 'textarea', required: false, group: 'input' },
+  body: { name: 'body', label: 'Body', type: 'textarea', required: false, group: 'input' },
+  code: { name: 'code', label: 'Python代码', type: 'textarea', required: true, rows: 6, placeholder: "# 直接插入的Python代码\nprint('hello')", group: 'input' },
+  description: { name: 'description', label: '描述', type: 'text', required: false, group: 'input' },
+};
 
 async function loadHandlers() {
   try {
@@ -239,7 +405,7 @@ async function loadHandlers() {
     availableHandlers = data.handlers || [];
     const sel = document.getElementById('cmdHandler');
     const current = sel.value;
-    sel.innerHTML = '<option value="">-- 选择 content.js handler --</option>' +
+    sel.innerHTML = '<option value="">-- 选择 handler --</option>' +
       availableHandlers.map(h => `<option value="${esc(h)}">${esc(h)}</option>`).join('');
     if (current && availableHandlers.includes(current)) sel.value = current;
   } catch (e) {
@@ -252,16 +418,11 @@ async function runValidation() {
   const originalText = btn.innerHTML;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>验证中…';
   btn.disabled = true;
-
   try {
     const res = await fetch(`${API}/validate`, { method: 'POST' });
     const data = await res.json();
     const output = (data.stdout || '') + (data.stderr || '');
-    if (data.passed) {
-      alert('✅ 指令一致性验证通过\n\n' + output);
-    } else {
-      alert('❌ 指令一致性验证失败\n\n' + output);
-    }
+    alert((data.passed ? '✅ 指令一致性验证通过\n\n' : '❌ 指令一致性验证失败\n\n') + output);
   } catch (e) {
     alert('验证请求失败: ' + e.message);
   } finally {
@@ -292,7 +453,6 @@ async function loadCommands() {
   const url = new URL(API, location.origin);
   if (cat) url.searchParams.set('category', cat);
   url.searchParams.set('enabled_only', enabledOnly);
-
   const res = await fetch(url);
   const data = await res.json();
   currentData = data;
@@ -323,25 +483,18 @@ async function updateOrder(id, field, value) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ [field]: num }),
   });
-  if (res.ok) {
-    loadCommands();
-  } else {
-    alert('更新排序失败');
-    loadCommands();
-  }
+  if (res.ok) loadCommands(); else { alert('更新排序失败'); loadCommands(); }
 }
 
 async function updateCategoryOrder(cat, value) {
   const num = parseInt(value, 10) || 0;
   const ids = currentData.filter(c => c.category === cat).map(c => c.id);
   if (!ids.length) return;
-  await Promise.all(ids.map(id =>
-    fetch(`${API}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ categoryOrder: num }),
-    })
-  ));
+  await Promise.all(ids.map(id => fetch(`${API}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoryOrder: num }),
+  })));
   loadCommands();
 }
 
@@ -383,8 +536,6 @@ function renderBlocks(data) {
     container.innerHTML = '<div class="text-center text-gray-500 py-12">暂无指令</div>';
     return;
   }
-
-  // Sort: enabled first, then by categoryOrder, then commandOrder
   const sorted = [...data].sort((a, b) => {
     if (a.enabled !== b.enabled) return b.enabled - a.enabled;
     const ao = a.categoryOrder ?? 0;
@@ -392,13 +543,11 @@ function renderBlocks(data) {
     if (ao !== bo) return ao - bo;
     return (a.commandOrder ?? 0) - (b.commandOrder ?? 0);
   });
-
   const byCat = {};
   for (const c of sorted) {
     if (!byCat[c.category]) byCat[c.category] = [];
     byCat[c.category].push(c);
   }
-
   container.innerHTML = Object.entries(byCat).map(([cat, cmds]) => {
     const catOrder = cmds[0]?.categoryOrder ?? 0;
     return `
@@ -421,18 +570,21 @@ function renderBlocks(data) {
   }).join('');
 }
 
+function runtimeLabel(c) {
+  if (c.isContainer) return '<span class="px-1.5 py-0.5 rounded text-[10px] bg-orange-900/40 text-orange-300">容器</span>';
+  if (c.isStructural) return '<span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/40 text-purple-300">结构</span>';
+  if (!c.hasRuntime) return '<span class="px-1.5 py-0.5 rounded text-[10px] bg-gray-700 text-gray-400">无执行</span>';
+  if (c.local) return '<span class="px-1.5 py-0.5 rounded text-[10px] bg-gray-700 text-gray-300">后端</span>';
+  return '<span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-900/40 text-blue-300">扩展</span>';
+}
+
 function renderCommandCard(c) {
   const issues = [];
-  if (c.isBuiltin && !c.hasRuntime && !c.isContainer && !c.isStructural && c.type !== 'custom') {
-    issues.push('无runtime');
-  }
-  if (!c.isContainer && !c.isStructural && c.fields?.length === 0) {
-    issues.push('无参数');
-  }
+  if (c.isBuiltin && !c.hasRuntime && !c.isContainer && !c.isStructural && c.type !== 'custom') issues.push('无runtime');
+  if (!c.isContainer && !c.isStructural && c.fields?.length === 0) issues.push('无参数');
   const issueHtml = issues.length
     ? `<div class="flex flex-wrap gap-1 mt-1">${issues.map(i => `<span class="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-300">${i}</span>`).join('')}</div>`
     : '';
-
   const auditHtml = auditMode ? `
     <div class="flex items-center gap-2 mt-1">
       <input type="checkbox" ${c.reviewedAt ? 'checked' : ''} onchange="toggleReviewed(${c.id}, this.checked)"
@@ -443,7 +595,6 @@ function renderCommandCard(c) {
       ${issueHtml}
     </div>
   ` : '';
-
   return `
     <div class="px-4 py-3 flex items-center gap-3 hover:bg-gray-700/30 transition-colors ${c.enabled ? '' : 'opacity-50'}">
       <input type="checkbox" ${c.enabled ? 'checked' : ''} onchange="toggleEnabled(${c.id}, this.checked)"
@@ -455,8 +606,7 @@ function renderCommandCard(c) {
         <div class="flex items-center gap-2">
           <span class="text-sm text-white">${esc(c.label)}</span>
           ${c.isBuiltin ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-900/40 text-blue-300">内置</span>' : ''}
-          ${c.isContainer ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-orange-900/40 text-orange-300">容器</span>' : ''}
-          ${c.isStructural ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/40 text-purple-300">结构</span>' : ''}
+          ${runtimeLabel(c)}
         </div>
         <div class="text-xs text-gray-500 font-mono">${esc(c.type)} · ${c.fields?.length || 0} 个参数</div>
         ${auditHtml}
@@ -475,33 +625,21 @@ function renderCommandCard(c) {
     </div>`;
 }
 
-async function toggleAllReviewed(checked) {
-  for (const c of currentData) {
-    if ((!!c.reviewedAt) !== checked) {
-      await toggleReviewed(c.id, checked);
-    }
-  }
-  loadCommands();
-}
-
 function updateCategoryFilter(data) {
   const cats = [...new Set(data.map(c => c.category))].sort();
   const sel = document.getElementById('categoryFilter');
   const current = sel.value;
   allCategories = cats;
-  sel.innerHTML = '<option value="">全部分类</option>' +
-    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.innerHTML = '<option value="">全部分类</option>' + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
   if (current && cats.includes(current)) sel.value = current;
+  const list = document.getElementById('categoryList');
+  if (list) list.innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
 }
 
 function showCreateModal() {
+  resetWizard();
   document.getElementById('modalTitle').textContent = '新增指令';
-  document.getElementById('commandForm').reset();
-  document.getElementById('cmdId').value = '';
   document.getElementById('cmdType').disabled = false;
-  document.getElementById('cmdHasRuntime').checked = false;
-  toggleRuntimeFields();
-  renderFieldsTable([]);
   loadHandlers();
   document.getElementById('modal').classList.remove('hidden');
   document.getElementById('modal').classList.add('flex');
@@ -512,6 +650,21 @@ function hideModal() {
   document.getElementById('modal').classList.remove('flex');
 }
 
+function resetWizard() {
+  currentStep = 1;
+  document.getElementById('commandForm').reset();
+  document.getElementById('cmdId').value = '';
+  document.getElementById('runtimeMode').value = 'none';
+  document.getElementById('paramCards').innerHTML = '';
+  document.getElementById('auditResults').classList.add('hidden');
+  document.getElementById('advancedRuntime').classList.add('hidden');
+  document.getElementById('closesWithWrap').classList.add('hidden');
+  updateRuntimeCards();
+  updateActionPresetOptions();
+  setStep(1);
+  updatePreview();
+}
+
 async function editCommand(id) {
   let c = currentData.find(x => x.id === id);
   if (!c) {
@@ -520,7 +673,7 @@ async function editCommand(id) {
     c = data.find(x => x.id === id);
   }
   if (!c) return alert('指令不存在');
-
+  resetWizard();
   document.getElementById('modalTitle').textContent = '编辑指令';
   document.getElementById('cmdId').value = c.id;
   document.getElementById('cmdType').value = c.type;
@@ -530,178 +683,380 @@ async function editCommand(id) {
   document.getElementById('cmdIcon').value = c.icon;
   document.getElementById('cmdIconColor').value = c.iconColor;
   document.getElementById('cmdBgColor').value = c.bgColor;
-  document.getElementById('cmdCategoryOrder').value = c.categoryOrder ?? 0;
   document.getElementById('cmdCommandOrder').value = c.commandOrder ?? 0;
+  document.getElementById('cmdDescription').value = c.description || '';
   document.getElementById('cmdIsContainer').checked = c.isContainer;
   document.getElementById('cmdIsBranch').checked = c.isBranch;
   document.getElementById('cmdIsStructural').checked = c.isStructural;
-  const hasRuntime = c.hasRuntime || false;
-  document.getElementById('cmdHasRuntime').checked = hasRuntime;
+  document.getElementById('cmdClosesWith').value = c.closesWith || '';
+  document.getElementById('cmdEnabled').checked = c.enabled;
+
+  // Runtime mode
+  let mode = 'none';
+  if (c.isContainer || c.isStructural || c.type === 'custom') mode = 'none';
+  else if (c.hasRuntime && c.local) mode = 'local';
+  else if (c.hasRuntime) mode = 'extension';
+  selectRuntimeMode(mode, false);
   document.getElementById('cmdHandler').value = c.handler || '';
   document.getElementById('cmdLocal').checked = !!c.local;
-  document.getElementById('cmdDescription').value = c.description || '';
-  toggleRuntimeFields();
-  renderFieldsTable(c.fields || []);
-  document.getElementById('cmdEnabled').checked = c.enabled;
-  loadHandlers();
+  // Try to detect action from fields
+  const actionField = c.fields?.find(f => f.name === 'action');
+  if (actionField?.default) document.getElementById('cmdAction').value = actionField.default;
 
+  // Render params
+  (c.fields || []).forEach(f => addParamCard(f));
+  updateActionPresetSelectFromCurrent();
+  updatePreview();
+  loadHandlers();
   document.getElementById('modal').classList.remove('hidden');
   document.getElementById('modal').classList.add('flex');
 }
 
-function addFieldRow(data = {}) {
-  const tbody = document.getElementById('fieldsTableBody');
-  const tr = document.createElement('tr');
-  tr.className = 'border-t border-gray-600';
-  const types = ['text', 'number', 'select', 'bool', 'textarea', 'locator', 'varName'];
-  tr.innerHTML = `
-    <td class="px-2 py-1"><input type="text" class="field-name w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.name || '')}" placeholder="name"></td>
-    <td class="px-2 py-1"><input type="text" class="field-label w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.label || '')}" placeholder="显示名称"></td>
-    <td class="px-2 py-1"><select class="field-type w-full px-1 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs">${types.map(t => `<option value="${t}" ${data.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
-    <td class="px-2 py-1"><select class="field-group w-full px-1 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"><option value="input" ${data.group === 'input' ? 'selected' : ''}>输入</option><option value="output" ${data.group === 'output' ? 'selected' : ''}>输出</option><option value="advanced" ${data.group === 'advanced' ? 'selected' : ''}>高级</option></select></td>
-    <td class="px-2 py-1 text-center"><input type="checkbox" class="field-required" ${data.required ? 'checked' : ''}></td>
-    <td class="px-2 py-1"><input type="text" class="field-default w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.default !== undefined ? String(data.default) : '')}" placeholder="默认值"></td>
-    <td class="px-2 py-1"><input type="text" class="field-placeholder w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.placeholder || '')}" placeholder="提示文本"></td>
-    <td class="px-2 py-1"><input type="text" class="field-options w-full px-1.5 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(Array.isArray(data.options) && data.options.length > 0 ? (typeof data.options[0] === 'object' ? data.options.map(o => `${o.label || ''}:${o.value || ''}`).join(',') : data.options.join(',')) : '')}" placeholder="a,b,c 或 标签:值,标签:值"></td>
-    <td class="px-2 py-1 text-center"><button type="button" onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-300 text-xs"><i class="fas fa-trash"></i></button></td>
-  `;
-  tbody.appendChild(tr);
+function setStep(n) {
+  currentStep = n;
+  document.querySelectorAll('.step-tab').forEach(btn => {
+    const s = parseInt(btn.dataset.step, 10);
+    if (s === n) {
+      btn.classList.remove('bg-gray-700', 'text-gray-300', 'hover:bg-gray-600');
+      btn.classList.add('bg-blue-600', 'text-white');
+    } else {
+      btn.classList.add('bg-gray-700', 'text-gray-300', 'hover:bg-gray-600');
+      btn.classList.remove('bg-blue-600', 'text-white');
+    }
+  });
+  document.querySelectorAll('.step-panel').forEach(el => el.classList.add('hidden'));
+  document.getElementById(`step-${n}`).classList.remove('hidden');
+  document.getElementById('btnPrev').disabled = n === 1;
+  if (n === 4) {
+    document.getElementById('btnNext').classList.add('hidden');
+    document.getElementById('btnSave').classList.remove('hidden');
+    updatePreview();
+  } else {
+    document.getElementById('btnNext').classList.remove('hidden');
+    document.getElementById('btnSave').classList.add('hidden');
+  }
 }
 
-function getFieldsFromTable() {
-  const rows = document.querySelectorAll('#fieldsTableBody tr');
+function nextStep() {
+  if (!validateStep(currentStep)) return;
+  if (currentStep < 4) setStep(currentStep + 1);
+}
+
+function prevStep() {
+  if (currentStep > 1) setStep(currentStep - 1);
+}
+
+function validateStep(n) {
+  if (n === 1) {
+    const type = document.getElementById('cmdType').value.trim();
+    const label = document.getElementById('cmdLabel').value.trim();
+    const category = document.getElementById('cmdCategory').value.trim();
+    if (!type) { alert('请填写指令类型'); return false; }
+    if (!label) { alert('请填写显示名称'); return false; }
+    if (!category) { alert('请填写所属分类'); return false; }
+  }
+  return true;
+}
+
+function selectRuntimeMode(mode, autoPreset = true) {
+  document.getElementById('runtimeMode').value = mode;
+  updateRuntimeCards();
+  const presetWrap = document.getElementById('actionPresetWrap');
+  const advanced = document.getElementById('advancedRuntime');
+  if (mode === 'none') {
+    presetWrap.classList.add('hidden');
+    if (!advanced.classList.contains('force-show')) advanced.classList.add('hidden');
+    document.getElementById('cmdHandler').value = '';
+    document.getElementById('cmdLocal').checked = false;
+    document.getElementById('cmdAction').value = '';
+    if (mode === 'none') {
+      // Auto-check container if none selected? No, keep user choice.
+    }
+  } else {
+    presetWrap.classList.remove('hidden');
+    updateActionPresetOptions();
+    if (autoPreset) {
+      const sel = document.getElementById('actionPreset');
+      sel.value = '';
+      document.getElementById('cmdHandler').value = '';
+      document.getElementById('cmdLocal').checked = mode === 'local';
+      document.getElementById('cmdAction').value = '';
+    }
+  }
+  updatePreview();
+}
+
+function updateRuntimeCards() {
+  const mode = document.getElementById('runtimeMode').value;
+  ['extension','local','none'].forEach(m => {
+    const el = document.getElementById('mode-' + m);
+    if (m === mode) {
+      el.classList.remove('border-gray-600', 'bg-gray-700/50');
+      el.classList.add('border-blue-500', 'bg-blue-900/20');
+    } else {
+      el.classList.add('border-gray-600', 'bg-gray-700/50');
+      el.classList.remove('border-blue-500', 'bg-blue-900/20');
+    }
+  });
+}
+
+function updateActionPresetOptions() {
+  const mode = document.getElementById('runtimeMode').value;
+  const sel = document.getElementById('actionPreset');
+  const presets = ACTION_PRESETS[mode] || [];
+  sel.innerHTML = '<option value="">-- 选择动作模板 --</option>' +
+    presets.map((p, i) => `<option value="${mode}:${i}">${esc(p.label)}</option>`).join('');
+}
+
+function applyActionPreset() {
+  const val = document.getElementById('actionPreset').value;
+  if (!val) return;
+  const [mode, idx] = val.split(':');
+  const preset = ACTION_PRESETS[mode][parseInt(idx, 10)];
+  if (!preset) return;
+  document.getElementById('cmdHandler').value = preset.handler;
+  document.getElementById('cmdLocal').checked = mode === 'local';
+  document.getElementById('cmdAction').value = preset.action || '';
+  // Auto-add common fields if params empty
+  const existingNames = new Set(getParamsFromCards().map(f => f.name));
+  if (preset.autoFields && existingNames.size === 0) {
+    preset.autoFields.forEach(name => {
+      if (COMMON_FIELDS[name]) addParamCard(COMMON_FIELDS[name]);
+    });
+  }
+  updatePreview();
+}
+
+function updateActionPresetSelectFromCurrent() {
+  const handler = document.getElementById('cmdHandler').value;
+  const action = document.getElementById('cmdAction').value;
+  const mode = document.getElementById('runtimeMode').value;
+  const sel = document.getElementById('actionPreset');
+  const presets = ACTION_PRESETS[mode] || [];
+  let found = false;
+  presets.forEach((p, i) => {
+    if (p.handler === handler && (p.action || '') === action) {
+      sel.value = `${mode}:${i}`;
+      found = true;
+    }
+  });
+  if (!found) sel.value = '';
+}
+
+function toggleAdvancedRuntime() {
+  const el = document.getElementById('advancedRuntime');
+  el.classList.toggle('hidden');
+  el.classList.toggle('force-show');
+}
+
+function toggleClosesWith() {
+  const isContainer = document.getElementById('cmdIsContainer').checked;
+  document.getElementById('closesWithWrap').classList.toggle('hidden', !isContainer);
+}
+
+// Parameter cards
+function addParamCard(data = {}) {
+  paramCounter++;
+  const id = `param-${paramCounter}`;
+  const types = Object.keys(FIELD_TYPE_LABELS);
+  const wrap = document.createElement('div');
+  wrap.className = 'bg-gray-700 border border-gray-600 rounded-lg overflow-hidden param-card';
+  wrap.dataset.paramId = id;
+  wrap.innerHTML = `
+    <div class="px-3 py-2 bg-gray-600/40 flex items-center gap-2 cursor-pointer" onclick="toggleParamBody('${id}')">
+      <i class="fas fa-grip-vertical text-gray-400 text-xs drag-handle cursor-move"></i>
+      <span class="param-title-name text-sm font-medium text-white">${esc(data.name || '新参数')}</span>
+      <span class="param-title-label text-xs text-gray-400 truncate flex-1">${esc(data.label || '')}</span>
+      <span class="param-type-badge text-[10px] px-1.5 py-0.5 rounded bg-gray-600 text-gray-300">${FIELD_TYPE_LABELS[data.type] || '文本'}</span>
+      ${data.required ? '<span class="text-[10px] text-red-300 ml-1">必填</span>' : ''}
+      <button type="button" onclick="event.stopPropagation();deleteParamCard('${id}')" class="ml-2 text-red-400 hover:text-red-300 text-xs"><i class="fas fa-trash"></i></button>
+    </div>
+    <div id="${id}-body" class="param-body px-4 py-3 space-y-3 ${data._expanded !== false ? '' : 'hidden'}">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">参数名 <span class="text-gray-600">(英文)</span></label>
+          <input type="text" class="param-name w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs font-mono" value="${esc(data.name || '')}" placeholder="name">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">显示名称</label>
+          <input type="text" class="param-label w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.label || '')}" placeholder="显示名称">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">类型</label>
+          <select class="param-type w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs">
+            ${types.map(t => `<option value="${t}" ${data.type === t ? 'selected' : ''}>${FIELD_TYPE_LABELS[t]} (${t})</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">分组</label>
+          <select class="param-group w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs">
+            <option value="input" ${data.group === 'input' ? 'selected' : ''}>输入</option>
+            <option value="output" ${data.group === 'output' ? 'selected' : ''}>输出</option>
+            <option value="advanced" ${data.group === 'advanced' ? 'selected' : ''}>高级</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">默认值</label>
+          <input type="text" class="param-default w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.default !== undefined ? String(data.default) : '')}" placeholder="空">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">占位提示</label>
+          <input type="text" class="param-placeholder w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.placeholder || '')}" placeholder="提示文本">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">选项 <span class="text-gray-600">(仅下拉选择，格式：标签:值,标签:值)</span></label>
+        <input type="text" class="param-options w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(formatOptions(data.options))}" placeholder="a,b,c 或 标签:值,标签:值">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">字段说明 <span class="text-gray-600">(鼠标悬停提示)</span></label>
+        <input type="text" class="param-description w-full px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs" value="${esc(data.description || '')}" placeholder="说明该参数的用途...">
+      </div>
+      <div class="flex items-center gap-4">
+        <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+          <input type="checkbox" class="param-required" ${data.required ? 'checked' : ''}>
+          必填
+        </label>
+        <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+          <input type="checkbox" class="param-primary" ${data.isPrimaryElement ? 'checked' : ''}>
+          主元素
+        </label>
+      </div>
+    </div>
+  `;
+  document.getElementById('paramCards').appendChild(wrap);
+  updateParamCardListeners(wrap);
+  updatePreview();
+}
+
+function formatOptions(options) {
+  if (!options || !options.length) return '';
+  if (typeof options[0] === 'object') {
+    return options.map(o => `${o.label || ''}:${o.value || ''}`).join(',');
+  }
+  return options.join(',');
+}
+
+function updateParamCardListeners(card) {
+  card.querySelectorAll('input, select').forEach(input => {
+    input.addEventListener('input', () => {
+      updateParamCardHeader(card);
+      updatePreview();
+    });
+  });
+}
+
+function updateParamCardHeader(card) {
+  const name = card.querySelector('.param-name')?.value.trim() || '新参数';
+  const label = card.querySelector('.param-label')?.value.trim() || '';
+  const type = card.querySelector('.param-type')?.value || 'text';
+  const required = card.querySelector('.param-required')?.checked;
+  card.querySelector('.param-title-name').textContent = name;
+  card.querySelector('.param-title-label').textContent = label;
+  const badge = card.querySelector('.param-type-badge');
+  badge.textContent = FIELD_TYPE_LABELS[type] || type;
+  let reqBadge = card.querySelector('.param-required-badge');
+  if (required) {
+    if (!reqBadge) {
+      reqBadge = document.createElement('span');
+      reqBadge.className = 'param-required-badge text-[10px] text-red-300 ml-1';
+      reqBadge.textContent = '必填';
+      badge.after(reqBadge);
+    }
+  } else if (reqBadge) {
+    reqBadge.remove();
+  }
+}
+
+function toggleParamBody(id) {
+  document.getElementById(id + '-body').classList.toggle('hidden');
+}
+
+function deleteParamCard(id) {
+  const card = document.querySelector(`.param-card[data-param-id="${id}"]`);
+  if (card) card.remove();
+  updatePreview();
+}
+
+function getParamsFromCards() {
+  const cards = document.querySelectorAll('.param-card');
   const fields = [];
-  rows.forEach(tr => {
-    const name = tr.querySelector('.field-name')?.value.trim();
+  cards.forEach(card => {
+    const name = card.querySelector('.param-name')?.value.trim();
     if (!name) return;
-    const type = tr.querySelector('.field-type')?.value || 'text';
+    const type = card.querySelector('.param-type')?.value || 'text';
     const f = {
       name,
-      label: tr.querySelector('.field-label')?.value.trim() || name,
+      label: card.querySelector('.param-label')?.value.trim() || name,
       type,
-      group: tr.querySelector('.field-group')?.value || 'input',
-      required: tr.querySelector('.field-required')?.checked || false,
+      group: card.querySelector('.param-group')?.value || 'input',
+      required: card.querySelector('.param-required')?.checked || false,
     };
-    const defVal = tr.querySelector('.field-default')?.value.trim();
+    if (card.querySelector('.param-primary')?.checked) f.isPrimaryElement = true;
+    const defVal = card.querySelector('.param-default')?.value.trim();
     if (defVal !== '') {
-      if (type === 'number') {
-        const n = Number(defVal);
-        if (!isNaN(n)) f.default = n;
-      } else if (type === 'bool') {
-        f.default = defVal.toLowerCase() === 'true';
-      } else {
-        f.default = defVal;
-      }
+      if (type === 'number') { const n = Number(defVal); if (!isNaN(n)) f.default = n; }
+      else if (type === 'bool') { f.default = defVal.toLowerCase() === 'true'; }
+      else { f.default = defVal; }
     }
-    const placeholder = tr.querySelector('.field-placeholder')?.value.trim();
+    const placeholder = card.querySelector('.param-placeholder')?.value.trim();
     if (placeholder) f.placeholder = placeholder;
-    const options = tr.querySelector('.field-options')?.value.trim();
+    const description = card.querySelector('.param-description')?.value.trim();
+    if (description) f.description = description;
+    const options = card.querySelector('.param-options')?.value.trim();
     if (options) {
       const parts = options.split(',').map(s => s.trim()).filter(Boolean);
       if (parts.length > 0 && parts[0].includes(':')) {
-        f.options = parts.map(p => {
-          const idx = p.indexOf(':');
-          return {label: p.slice(0, idx).trim(), value: p.slice(idx + 1).trim()};
-        });
+        f.options = parts.map(p => { const idx = p.indexOf(':'); return { label: p.slice(0, idx).trim(), value: p.slice(idx + 1).trim() }; });
       } else {
         f.options = parts;
       }
     }
+    // Inject action default from runtime config if not present
     fields.push(f);
   });
+  // Ensure action hidden field matches runtime action
+  const mode = document.getElementById('runtimeMode').value;
+  const action = document.getElementById('cmdAction').value.trim();
+  if (mode !== 'none' && action && !fields.some(f => f.name === 'action')) {
+    fields.push({ name: 'action', label: '扩展动作', type: 'hidden', default: action });
+  }
   return fields;
 }
 
-function renderFieldsTable(fields = []) {
-  document.getElementById('fieldsTableBody').innerHTML = '';
-  (fields || []).forEach(f => addFieldRow(f));
-}
-
-function toggleRuntimeFields() {
-  const hasRuntime = document.getElementById('cmdHasRuntime').checked;
-  document.getElementById('runtimeFields').classList.toggle('hidden', !hasRuntime);
-}
-document.getElementById('cmdHasRuntime').addEventListener('change', toggleRuntimeFields);
-
-async function runSmartAudit() {
-  const btn = document.querySelector('button[onclick="runSmartAudit()"]');
-  const loading = document.getElementById('auditLoading');
-  const resultsDiv = document.getElementById('auditResults');
-  const recDiv = document.getElementById('auditRecommendation');
-  const issuesDiv = document.getElementById('auditIssues');
-
-  btn.disabled = true;
-  loading.classList.remove('hidden');
-  resultsDiv.classList.add('hidden');
-
-  const payload = {
-    type: document.getElementById('cmdType').value.trim(),
-    fields: getFieldsFromTable(),
-    isContainer: document.getElementById('cmdIsContainer').checked,
-    isStructural: document.getElementById('cmdIsStructural').checked,
-    hasRuntime: document.getElementById('cmdHasRuntime').checked,
-    handler: document.getElementById('cmdHandler').value,
-    local: document.getElementById('cmdLocal').checked,
-  };
-
-  try {
-    const res = await fetch(`${API}/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-
-    const rec = data.recommendation;
-    const recColor = rec.confidence === 'high' ? 'text-green-400' : rec.confidence === 'medium' ? 'text-yellow-400' : 'text-gray-400';
-    recDiv.innerHTML = `
-      <div class="${recColor} font-medium">${rec.needsRuntime ? '推荐启用 runtime' : '推荐不启用 runtime'}（置信度: ${rec.confidence}）</div>
-      <div class="text-gray-400 mt-0.5">${esc(rec.reason)}</div>
-      ${rec.handler ? `<div class="text-gray-300 mt-0.5">推荐 handler: <span class="font-mono">${esc(rec.handler)}</span>${rec.local ? '，local=是' : '，local=否'}</div>` : ''}
-    `;
-
-    if (data.issues.length > 0) {
-      issuesDiv.innerHTML = data.issues.map(i =>
-        `<div class="px-2 py-1 rounded text-xs bg-red-900/40 text-red-300">${esc(i)}</div>`
-      ).join('');
-    } else {
-      issuesDiv.innerHTML = `<div class="px-2 py-1 rounded text-xs bg-green-900/40 text-green-300">当前配置与推荐一致，无问题</div>`;
-    }
-
-    resultsDiv.classList.remove('hidden');
-  } catch (e) {
-    alert('检验请求失败: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    loading.classList.add('hidden');
-  }
-}
-
-document.getElementById('commandForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fields = getFieldsFromTable();
-  const hasRuntime = document.getElementById('cmdHasRuntime').checked;
-
-  const id = document.getElementById('cmdId').value;
-  const payload = {
+function collectPayload() {
+  const mode = document.getElementById('runtimeMode').value;
+  const hasRuntime = mode !== 'none';
+  let fields = getParamsFromCards();
+  return {
     type: document.getElementById('cmdType').value.trim(),
     label: document.getElementById('cmdLabel').value.trim(),
     category: document.getElementById('cmdCategory').value.trim(),
     icon: document.getElementById('cmdIcon').value.trim(),
     iconColor: document.getElementById('cmdIconColor').value.trim(),
     bgColor: document.getElementById('cmdBgColor').value.trim(),
-    categoryOrder: parseInt(document.getElementById('cmdCategoryOrder').value, 10) || 0,
+    categoryOrder: parseInt(document.getElementById('cmdCategoryOrder')?.value || '0', 10) || 0,
     commandOrder: parseInt(document.getElementById('cmdCommandOrder').value, 10) || 0,
     isContainer: document.getElementById('cmdIsContainer').checked,
     isBranch: document.getElementById('cmdIsBranch').checked,
     isStructural: document.getElementById('cmdIsStructural').checked,
+    closesWith: document.getElementById('cmdClosesWith').value.trim() || null,
     fields,
     description: document.getElementById('cmdDescription').value.trim(),
     enabled: document.getElementById('cmdEnabled').checked,
     handler: hasRuntime ? document.getElementById('cmdHandler').value.trim() : null,
     local: hasRuntime ? document.getElementById('cmdLocal').checked : false,
   };
+}
 
+async function saveCommand() {
+  if (!validateStep(1)) return;
+  const id = document.getElementById('cmdId').value;
+  const payload = collectPayload();
   const url = id ? `${API}/${id}` : API;
   const method = id ? 'PUT' : 'POST';
   const res = await fetch(url, {
@@ -716,18 +1071,132 @@ document.getElementById('commandForm').addEventListener('submit', async (e) => {
     const err = await res.json();
     alert('保存失败: ' + (err.detail || '未知错误'));
   }
-});
+}
 
 async function deleteCommand(id) {
   if (!confirm('确定删除该指令？此操作不可恢复。')) return;
   const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
-  if (res.ok) {
-    loadCommands();
-  } else {
-    const err = await res.json();
-    alert('删除失败: ' + (err.detail || '未知错误'));
+  if (res.ok) loadCommands(); else { const err = await res.json(); alert('删除失败: ' + (err.detail || '未知错误')); }
+}
+
+async function runSmartAudit() {
+  const btn = document.querySelector('button[onclick="runSmartAudit()"]');
+  const loading = document.getElementById('auditLoading');
+  const resultsDiv = document.getElementById('auditResults');
+  const recDiv = document.getElementById('auditRecommendation');
+  const issuesDiv = document.getElementById('auditIssues');
+  btn.disabled = true;
+  loading.classList.remove('hidden');
+  resultsDiv.classList.add('hidden');
+  const payload = collectPayload();
+  try {
+    const res = await fetch(`${API}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    const rec = data.recommendation;
+    const recColor = rec.confidence === 'high' ? 'text-green-400' : rec.confidence === 'medium' ? 'text-yellow-400' : 'text-gray-400';
+    recDiv.innerHTML = `
+      <div class="${recColor} font-medium">${rec.needsRuntime ? '推荐启用 runtime' : '推荐不启用 runtime'}（置信度: ${rec.confidence}）</div>
+      <div class="text-gray-400 mt-0.5">${esc(rec.reason)}</div>
+      ${rec.handler ? `<div class="text-gray-300 mt-0.5">推荐 handler: <span class="font-mono">${esc(rec.handler)}</span>${rec.local ? '，local=是' : '，local=否'}</div>` : ''}
+    `;
+    if (data.issues.length > 0) {
+      issuesDiv.innerHTML = data.issues.map(i => `<div class="px-2 py-1 rounded text-xs bg-red-900/40 text-red-300">${esc(i)}</div>`).join('');
+    } else {
+      issuesDiv.innerHTML = `<div class="px-2 py-1 rounded text-xs bg-green-900/40 text-green-300">当前配置与推荐一致，无问题</div>`;
+    }
+    resultsDiv.classList.remove('hidden');
+  } catch (e) {
+    alert('检验请求失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    loading.classList.add('hidden');
   }
 }
+
+// Preview
+function updatePreview() {
+  const payload = collectPayload();
+  // Icon preview
+  const iconEl = document.getElementById('iconPreview');
+  iconEl.className = `w-10 h-10 rounded-lg flex items-center justify-center ${esc(payload.bgColor)} ${esc(payload.iconColor)}`;
+  iconEl.innerHTML = `<i class="fas ${esc(payload.icon)}"></i>`;
+  // Side card
+  document.getElementById('sidePreviewCard').innerHTML = renderMiniCard(payload);
+  document.getElementById('previewCard').innerHTML = renderMiniCard(payload);
+  document.getElementById('sideParamCount').textContent = payload.fields.length;
+  const runtimeText = payload.isContainer ? '容器' : payload.isStructural ? '结构' : !payload.handler ? '无执行' : payload.local ? '后端执行' : '浏览器执行';
+  const runtimeClass = payload.isContainer ? 'bg-orange-900/40 text-orange-300' : payload.isStructural ? 'bg-purple-900/40 text-purple-300' : !payload.handler ? 'bg-gray-700 text-gray-400' : payload.local ? 'bg-gray-700 text-gray-300' : 'bg-blue-900/40 text-blue-300';
+  document.getElementById('sideRuntimeBadge').innerHTML = `<span class="px-2 py-1 rounded text-xs ${runtimeClass}">${runtimeText}</span>`;
+  // Form preview
+  const formPreview = document.getElementById('previewForm');
+  const visibleFields = payload.fields.filter(f => f.type !== 'hidden');
+  if (!visibleFields.length) {
+    formPreview.innerHTML = '<div class="text-gray-500 text-sm">该指令没有可见参数</div>';
+  } else {
+    formPreview.innerHTML = visibleFields.map(f => renderFieldPreview(f)).join('');
+  }
+  // Summary
+  document.getElementById('previewSummary').innerHTML = `
+    <div>type: ${esc(payload.type)}</div>
+    <div>handler: ${payload.handler || '无'} · local: ${payload.local}</div>
+    <div>action: ${document.getElementById('cmdAction').value || '无'}</div>
+    <div>参数: ${payload.fields.map(f => f.name).join(', ') || '无'}</div>
+  `;
+}
+
+function renderMiniCard(c) {
+  return `
+    <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-600 bg-gray-800">
+      <div class="w-9 h-9 rounded-lg flex items-center justify-center ${esc(c.bgColor)} ${esc(c.iconColor)} text-xs shrink-0">
+        <i class="fas ${esc(c.icon)}"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm text-white truncate">${esc(c.label)}</div>
+        <div class="text-[10px] text-gray-500 truncate">${esc(c.type)} · ${esc(c.category)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFieldPreview(f) {
+  const icon = FIELD_TYPE_ICONS[f.type] || 'fa-font';
+  let inputHtml = '';
+  if (f.type === 'select') {
+    const opts = Array.isArray(f.options) ? f.options.map(o => typeof o === 'object' ? `<option>${esc(o.label)}</option>` : `<option>${esc(o)}</option>`).join('') : '';
+    inputHtml = `<select class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-white" disabled><option>${f.default !== undefined ? esc(String(f.default)) : '请选择'}</option>${opts}</select>`;
+  } else if (f.type === 'bool') {
+    inputHtml = `<label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" ${f.default ? 'checked' : ''} disabled class="rounded bg-gray-700 border-gray-600"> ${esc(f.label)}</label>`;
+  } else if (f.type === 'textarea') {
+    inputHtml = `<textarea class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-white" rows="2" disabled placeholder="${esc(f.placeholder || '')}">${f.default !== undefined ? esc(String(f.default)) : ''}</textarea>`;
+  } else {
+    inputHtml = `<input type="text" class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-white" disabled value="${f.default !== undefined ? esc(String(f.default)) : ''}" placeholder="${esc(f.placeholder || '')}">`;
+  }
+  return `
+    <div class="mb-3">
+      <label class="flex items-center gap-2 text-xs text-gray-300 mb-1">
+        <i class="fas ${icon} text-gray-500 text-[10px]"></i>
+        ${esc(f.label)}
+        ${f.required ? '<span class="text-red-400">*</span>' : ''}
+        <span class="text-[10px] text-gray-600 font-mono">${esc(f.name)}</span>
+      </label>
+      ${inputHtml}
+    </div>
+  `;
+}
+
+// Event listeners for preview updates
+['cmdType','cmdLabel','cmdCategory','cmdIcon','cmdIconColor','cmdBgColor','cmdDescription','cmdCommandOrder','cmdClosesWith','cmdHandler','cmdLocal','cmdAction'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updatePreview);
+});
+['cmdIsContainer','cmdIsBranch','cmdIsStructural','cmdEnabled'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => { toggleClosesWith(); updatePreview(); });
+});
 
 function esc(s) {
   const d = document.createElement('div');
