@@ -35,3 +35,4 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-26 12:14 | command-consistency-phase3 | done | elementAction unified handler + doubleClick
 2026-06-26 13:01 | command-config-wizard | done | 4-step wizard UI for command config
 2026-06-26 15:18 | openBrowser-backend-only | done | openBrowser launches browser from backend, navigate/click remain extension
+2026-06-26 15:42 | openBrowser-wizard-fix | done | fix migration + enrich fallback so backend mode persists

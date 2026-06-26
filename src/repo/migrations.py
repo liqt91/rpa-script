@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine, Base
 
-_SCHEMA_VERSION = 5  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 6  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -291,12 +291,27 @@ def _migrate_004():
 def _migrate_005():
     """openBrowser is now a backend-only command that launches the browser.
 
-    Updates existing openBrowser rows to local=True so the extension runner
-    routes it through LOCAL_HANDLERS instead of sending it to content.js.
+    Updates existing openBrowser rows to local=True and handler='openBrowser'
+    so the extension runner routes it through LOCAL_HANDLERS instead of sending
+    it to content.js.
     """
     with engine.connect() as conn:
         conn.execute(
-            text("UPDATE workflow_commands SET local = 1 WHERE type = 'openBrowser'")
+            text("UPDATE workflow_commands SET local = 1, handler = 'openBrowser' WHERE type = 'openBrowser'")
+        )
+        conn.commit()
+
+
+# ── Migration 006: repair openBrowser rows that have local but no handler ─────
+
+def _migrate_006():
+    """Earlier Migration 005 set local=1 without handler for some rows.
+
+    Ensure openBrowser always has handler='openBrowser' when it is local.
+    """
+    with engine.connect() as conn:
+        conn.execute(
+            text("UPDATE workflow_commands SET handler = 'openBrowser' WHERE type = 'openBrowser' AND (handler IS NULL OR handler = '')")
         )
         conn.commit()
 
@@ -309,6 +324,7 @@ _MIGRATIONS = {
     3: _migrate_003,
     4: _migrate_004,
     5: _migrate_005,
+    6: _migrate_006,
 }
 
 

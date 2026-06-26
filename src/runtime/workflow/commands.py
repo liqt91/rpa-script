@@ -1463,16 +1463,19 @@ def enrich_command_meta(row: dict) -> dict:
     reg = COMMAND_REGISTRY.get(row.get("type", ""), {})
     ext = reg.get("runtimes", {}).get("extension")
 
-    # 优先数据库值，其次 registry
+    # 优先数据库值，但若 handler 为空而 local 已设置，仍回退到 registry handler
     db_handler = row.get("handler")
     db_local = row.get("local")
+    fallback_handler = ext.get("handler") if ext else None
+    fallback_local = ext.get("local") if ext else None
+
     if db_handler is not None or db_local is not None:
-        row["handler"] = db_handler
-        row["local"] = db_local
-        row["hasRuntime"] = bool(db_handler is not None)
+        row["handler"] = db_handler if db_handler is not None else fallback_handler
+        row["local"] = db_local if db_local is not None else fallback_local
+        row["hasRuntime"] = bool(row["handler"] is not None)
     else:
-        row["handler"] = ext.get("handler") if ext else None
-        row["local"] = ext.get("local") if ext else None
+        row["handler"] = fallback_handler
+        row["local"] = fallback_local
         row["hasRuntime"] = bool(ext)
 
     # 补充结构元数据（若数据库未存储）

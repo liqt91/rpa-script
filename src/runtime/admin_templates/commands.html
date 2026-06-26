@@ -1053,7 +1053,7 @@ function collectPayload() {
     description: document.getElementById('cmdDescription').value.trim(),
     enabled: document.getElementById('cmdEnabled').checked,
     handler: hasRuntime ? document.getElementById('cmdHandler').value.trim() : null,
-    local: hasRuntime ? document.getElementById('cmdLocal').checked : false,
+    local: hasRuntime ? (mode === 'local') : false,
   };
 }
 
@@ -1061,6 +1061,11 @@ async function saveCommand() {
   if (!validateStep(1)) return;
   const id = document.getElementById('cmdId').value;
   const payload = collectPayload();
+  const mode = document.getElementById('runtimeMode').value;
+  if (mode !== 'none' && !payload.handler) {
+    alert('已选择执行方式，请选择对应的动作模板或填写 handler');
+    return;
+  }
   const url = id ? `${API}/${id}` : API;
   const method = id ? 'PUT' : 'POST';
   const res = await fetch(url, {
