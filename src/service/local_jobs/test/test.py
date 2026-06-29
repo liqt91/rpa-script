@@ -32,9 +32,9 @@ try:
     random_sleep()
 
     # 步骤 3：在输入框中输入文本
-    print("在 「输入文本」(#search-input) 中输入: 东方财富")
+    print("在 「输入文本」(#search-input) 中输入: 示例关键词")
     input_box = tab.ele('#search-input')
-    input_box.input('东方财富')
+    input_box.input('示例关键词')
     random_sleep()
 
     # 步骤 4：点击搜索按钮

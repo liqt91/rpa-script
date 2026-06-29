@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 import zipfile
 import io
 import importlib
@@ -128,6 +129,15 @@ def upload_result(req: schemas.ResultUpload, db: Session = Depends(auth.get_db),
 system_router = APIRouter(prefix="/api/system", tags=["system"])
 
 
+def _get_db_folder() -> str:
+    """Return the folder containing the SQLite database file."""
+    url = config.DATABASE_URL
+    if url.startswith("sqlite:///"):
+        db_path = url[len("sqlite:///"):]
+        return os.path.dirname(os.path.abspath(db_path))
+    return os.path.abspath(".")
+
+
 def _parse_semver(tag: str):
     """Strip leading 'v' and return (major, minor, patch) integers."""
     ver = tag.strip().lstrip("vV")
@@ -210,6 +220,22 @@ def check_update():
         "release_url": release_url,
         "published_at": published_at,
     }
+
+
+@system_router.post("/open-db-folder")
+def open_db_folder_api(user=Depends(auth.get_current_user)):
+    """Open the local database folder in the system's file manager."""
+    folder = _get_db_folder()
+    try:
+        if sys.platform == "win32":
+            os.startfile(folder)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", folder])
+        else:
+            subprocess.Popen(["xdg-open", folder])
+    except Exception as e:
+        return {"error": f"无法打开文件夹: {e}", "path": folder}
+    return {"opened": True, "path": folder}
 
 
 @system_router.post("/open-extensions-page")
@@ -817,3 +843,28 @@ def delete_ai_app(cap_type: str, db: Session = Depends(auth.get_db),
     db.commit()
     config.DIFY_APPS.pop(cap_type, None)
     return {"ok": True}
+
+
+# ====== Admin API ======
+admin_api_router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+@admin_api_router.get("/dashboard")
+def admin_dashboard_stats(
+    db: Session = Depends(auth.get_db),
+    _user=Depends(auth.get_current_user),
+):
+    """管理后台仪表盘统计。"""
+    threshold = utcnow() - timedelta(minutes=2)
+    return {
+        "tasks_total": db.query(models.Task).count(),
+        "tasks_pending": db.query(models.Task).filter(models.Task.status == "pending").count(),
+        "tasks_running": db.query(models.Task).filter(models.Task.status == "running").count(),
+        "tasks_done": db.query(models.Task).filter(models.Task.status == "done").count(),
+        "tasks_failed": db.query(models.Task).filter(models.Task.status == "failed").count(),
+        "clients_total": db.query(models.Client).count(),
+        "clients_online": db.query(models.Client).filter(
+            models.Client.last_heartbeat >= threshold
+        ).count(),
+        "results_total": db.query(models.Result).count(),
+    }

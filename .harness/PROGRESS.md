@@ -36,3 +36,6 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-26 13:01 | command-config-wizard | done | 4-step wizard UI for command config
 2026-06-26 15:18 | openBrowser-backend-only | done | openBrowser launches browser from backend, navigate/click remain extension
 2026-06-26 15:42 | openBrowser-wizard-fix | done | fix migration + enrich fallback so backend mode persists
+2026-06-29 14:00 | admin-spa-phase2 | done | Tasks/Results/Clients migrated to React SPA
+2026-06-29 14:05 | admin-spa-phase6 | done | Commands migrated to React SPA
+2026-06-29 14:10 | admin-spa-phase7 | done | admin_router reduced to login/logout, templates removed
