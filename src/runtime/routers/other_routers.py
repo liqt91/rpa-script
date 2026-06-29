@@ -168,11 +168,23 @@ def check_update():
         resp.raise_for_status()
         data = resp.json()
     except httpx.TimeoutException:
-        return {"current": current, "latest": current, "has_update": False, "download_url": "", "release_url": "", "published_at": "", "error": "请求 Gitea 超时"}
+        return {
+            "current": current, "latest": current, "has_update": False,
+            "download_url": "", "release_url": "", "published_at": "",
+            "error": "请求 Gitea 超时",
+        }
     except httpx.HTTPError as e:
-        return {"current": current, "latest": current, "has_update": False, "download_url": "", "release_url": "", "published_at": "", "error": f"Gitea 请求失败: {e}"}
+        return {
+            "current": current, "latest": current, "has_update": False,
+            "download_url": "", "release_url": "", "published_at": "",
+            "error": f"Gitea 请求失败: {e}",
+        }
     except Exception as e:
-        return {"current": current, "latest": current, "has_update": False, "download_url": "", "release_url": "", "published_at": "", "error": f"解析失败: {e}"}
+        return {
+            "current": current, "latest": current, "has_update": False,
+            "download_url": "", "release_url": "", "published_at": "",
+            "error": f"解析失败: {e}",
+        }
 
     latest_tag = (data.get("tag_name") or "").strip()
     latest = latest_tag.lstrip("vV")

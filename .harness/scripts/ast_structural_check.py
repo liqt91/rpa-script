@@ -63,7 +63,8 @@ def check_file(path: str, file_layer: str) -> list[str]:
                     if LAYER_ORDER.index(file_layer) < LAYER_ORDER.index(target_layer):
                         line = getattr(node, "lineno", 0)
                         errors.append(
-                            f"{path}:{line} [{file_layer}] imports '{alias.name}' [{target_layer}] — backward dependency"
+                            f"{path}:{line} [{file_layer}] imports "
+                            f"'{alias.name}' [{target_layer}] — backward dependency"
                         )
 
     return errors

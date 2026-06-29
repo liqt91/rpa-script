@@ -211,7 +211,13 @@ _last_run_tables: dict[int, dict] = {}
 
 
 class ExtensionRunner:
-    def __init__(self, client_id: str, run_id: str | None = None, log_dir: str | None = None, queue: asyncio.Queue | None = None):
+    def __init__(
+        self,
+        client_id: str,
+        run_id: str | None = None,
+        log_dir: str | None = None,
+        queue: asyncio.Queue | None = None,
+    ):
         self.client_id = client_id
         self.run_id = run_id or f"run_{id(self)}"
         self.vars: dict[str, Any] = {}
@@ -403,7 +409,10 @@ class ExtensionRunner:
                 key = m.group(1) or m.group(2)
                 if key in vars_dict:
                     return str(vars_dict[key])
-                logger.warning(f"[ExtensionRunner] resolve_vars: key '{key}' not found in vars={list(vars_dict.keys())}")
+                logger.warning(
+                    f"[ExtensionRunner] resolve_vars: key '{key}' not found "
+                    f"in vars={list(vars_dict.keys())}"
+                )
                 return m.group(0)
             return _VAR_PLACEHOLDER_RE.sub(_repl, obj)
         if isinstance(obj, list):
@@ -624,7 +633,8 @@ class ExtensionRunner:
             op = extra.get("operator", "visible")
             logger.info(
                 f"[ExtensionRunner] evaluating ifElementVisible "
-                f"locators={locators} timeout={timeout} operator={op} visibilityMode={extra.get('visibilityMode', 'visible')}"
+                f"locators={locators} timeout={timeout} operator={op} "
+                f"visibilityMode={extra.get('visibilityMode', 'visible')}"
             )
             elements = []
             results = []
@@ -814,7 +824,11 @@ class ExtensionRunner:
             timeout = extra.get("timeout", 10)
             body = instr.get("body", [])
 
-            logger.info(f"[ExtensionRunner] forEachElement visibilityMode={extra.get('visibilityMode', 'visible')} visibleOnly={extra.get('visibleOnly', '-')}")
+            logger.info(
+                f"[ExtensionRunner] forEachElement "
+                f"visibilityMode={extra.get('visibilityMode', 'visible')} "
+                f"visibleOnly={extra.get('visibleOnly', '-')}"
+            )
             elements = await self._find_elements(locator, selector_family, timeout=timeout, extra=extra)
             logger.info(f"[ExtensionRunner] forEachElement found {len(elements)} elements")
             prev_ctx = self.vars.get("__loop_ctx")
@@ -1408,9 +1422,17 @@ class ExtensionRunner:
 
                 # Save results to variable if requested (extracted, navigatedTo, or whole result)
                 save_to_var = _get_output_var(resolved_instr.get("extra") or {})
-                logger.info(f"[ExtensionRunner] save check step={step_id} cmd={cmd_type} save_to_var={save_to_var!r} result={result!r}")
+                logger.info(
+                    f"[ExtensionRunner] save check step={step_id} cmd={cmd_type} "
+                    f"save_to_var={save_to_var!r} result={result!r}"
+                )
                 if save_to_var and result:
-                    value = result.get("extracted") or result.get("navigatedTo") or result.get("value") or result
+                    value = (
+                        result.get("extracted")
+                        or result.get("navigatedTo")
+                        or result.get("value")
+                        or result
+                    )
                     self.vars[save_to_var] = value
                     logger.info(f"[ExtensionRunner] saved result to var {save_to_var}: {value!r}")
 
@@ -1430,7 +1452,10 @@ class ExtensionRunner:
                             wid = int(window_val)
                         except (ValueError, TypeError):
                             wid = window_val
-                        self.vars[window_var] = {"windowId": window_id if window_id is not None else wid, "tabId": tab_id}
+                        self.vars[window_var] = {
+                            "windowId": window_id if window_id is not None else wid,
+                            "tabId": tab_id,
+                        }
                         logger.info(f"[ExtensionRunner] upgraded {window_var} to dict with tabId={tab_id}")
 
                 return True
@@ -1444,7 +1469,10 @@ class ExtensionRunner:
                     await asyncio.sleep(1.0)
 
         # All retries exhausted
-        self.failed_steps.append({"stepId": step_id, "nodeId": instr.get("nodeId"), "instruction": instr, "error": last_error})
+        self.failed_steps.append({
+            "stepId": step_id, "nodeId": instr.get("nodeId"),
+            "instruction": instr, "error": last_error,
+        })
         self.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"), "status": "error", "error": last_error})
         await self._emit({
             "type": "stepError",

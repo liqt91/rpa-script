@@ -230,7 +230,10 @@ class ExtensionManager:
                     conn.browser = browser
                     conn.extension_id = ext_id
                     conn.install_type = install_type
-                    logger.info(f"扩展注册: {conn.client_id} browser={conn.browser} extId={ext_id} installType={install_type}")
+                    logger.info(
+                        f"扩展注册: {conn.client_id} browser={conn.browser} "
+                        f"extId={ext_id} installType={install_type}"
+                    )
                 else:
                     await self.dispatch(action, payload, conn.client_id)
         except WebSocketDisconnect:

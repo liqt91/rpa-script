@@ -33,8 +33,10 @@ ANNOTATIONS = [
     (r"(el\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\);)", r"\1  // 触发 change 事件，通知表单校验/框架状态更新"),
     (r"(el\.value = text;)", r"\1  // 设置输入框为目标文本"),
     (r"(if \(extra\?\.pressEnter\) \{)", r"\1  // 如果指令标记了输入后按回车"),
-    (r"(el\.dispatchEvent\(new KeyboardEvent\('keydown', \{ key: 'Enter', bubbles: true \}\)\);)", r"\1  // 模拟按下 Enter 键"),
-    (r"(el\.dispatchEvent\(new KeyboardEvent\('keyup', \{ key: 'Enter', bubbles: true \}\)\);)", r"\1  // 模拟松开 Enter 键"),
+    (r"(el\.dispatchEvent\(new KeyboardEvent\('keydown', \{ key: 'Enter', bubbles: true \}\)\);)",
+     r"\1  // 模拟按下 Enter 键"),
+    (r"(el\.dispatchEvent\(new KeyboardEvent\('keyup', \{ key: 'Enter', bubbles: true \}\)\);)",
+     r"\1  // 模拟松开 Enter 键"),
     (r"(const attr = extra\?\.attribute;)", r"\1  // 读取要提取的属性名（null=文本）"),
     (r"(if \(attr === 'innerHTML'\) \{)", r"\1  // 提取 innerHTML"),
     (r"(} else if \(attr === 'value'\) \{)", r"\1  // 提取 value 属性"),
@@ -47,7 +49,9 @@ ANNOTATIONS = [
     (r"(return \{ navigatedTo: url \};)", r"\1  // 返回跳转结果"),
     (r"(if \(el\.click\) \{)", r"\1  // 优先使用原生 click 方法"),
     (r"(el\.click\(\);)", r"\1  // 触发原生点击"),
-    (r"(const evt = new MouseEvent\('click', \{ bubbles: true, cancelable: true, view: window \}\);)", r"\1  // 构造点击事件"),
+    (r"(const evt = new MouseEvent\('click', "
+     r"\{ bubbles: true, cancelable: true, view: window \}\);)",
+     r"\1  // 构造点击事件"),
     (r"(el\.dispatchEvent\(evt\);)", r"\1  // 通过事件派发模拟点击"),
     (r"(return \{ clicked: true, tagName: el\.tagName \};)", r"\1  // 返回点击成功及元素标签名"),
     (r"(const text = extra\?\.text \?\? '';)", r"\1  // 读取要输入的文本"),
@@ -78,8 +82,12 @@ ANNOTATIONS = [
     (r"(document\.dispatchEvent\(new KeyboardEvent\('keydown', \{ key, bubbles: true \}\)\);)", r"\1  // 模拟按键按下"),
     (r"(document\.dispatchEvent\(new KeyboardEvent\('keyup', \{ key, bubbles: true \}\)\);)", r"\1  // 模拟按键松开"),
     (r"(return \{ pressed: key \};)", r"\1  // 返回按下的键名"),
-    (r"(el\.dispatchEvent\(new MouseEvent\('mouseover', \{ bubbles: true, cancelable: true, view: window \}\)\);)", r"\1  // 模拟鼠标移入"),
-    (r"(el\.dispatchEvent\(new MouseEvent\('mouseenter', \{ bubbles: true, cancelable: true, view: window \}\)\);)", r"\1  // 模拟鼠标进入"),
+    (r"(el\.dispatchEvent\(new MouseEvent\('mouseover', "
+     r"\{ bubbles: true, cancelable: true, view: window \}\)\);)",
+     r"\1  // 模拟鼠标移入"),
+    (r"(el\.dispatchEvent\(new MouseEvent\('mouseenter', "
+     r"\{ bubbles: true, cancelable: true, view: window \}\)\);)",
+     r"\1  // 模拟鼠标进入"),
     (r"(return \{ hovered: true, tagName: el\.tagName \};)", r"\1  // 返回悬停成功及元素标签名"),
     (r"(return \{ cleared: true \};)", r"\1  // 返回清空成功"),
     (r"(const value = extra\?\.value;)", r"\1  // 读取要选中的选项值"),
@@ -131,11 +139,11 @@ with open('commands_full.md', 'w', encoding='utf-8') as out:
         out.write(f'- **参数**: {params}\n')
         body = handler_blocks.get(handler, 'N/A')
         annotated = annotate(body)
-        out.write(f'- **content.js 行为**:\n')
-        out.write(f'  ```javascript\n')
+        out.write('- **content.js 行为**:\n')
+        out.write('  ```javascript\n')
         for line in annotated.split('\n'):
             out.write(f'  {line}\n')
-        out.write(f'  ```\n')
+        out.write('  ```\n')
         out.write('\n')
 
 print('written commands_full.md')

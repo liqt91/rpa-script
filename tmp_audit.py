@@ -127,8 +127,11 @@ def main():
     if stale_md:
         issues.append(f"[Docs→Registry] commands_table.md lists removed commands: {sorted(stale_md)}")
 
-    print(f"Audit summary: {len(reg)} enabled commands, {len(js_handlers)} JS handlers, "
-          f"{len(runner_locals)} local handlers, {len(emit_handlers)} emitters, {len(nodelist_cases)} NodeList cases, {len(md_cmds)} md rows")
+    print(
+        f"Audit summary: {len(reg)} enabled commands, {len(js_handlers)} JS handlers, "
+        f"{len(runner_locals)} local handlers, {len(emit_handlers)} emitters, "
+        f"{len(nodelist_cases)} NodeList cases, {len(md_cmds)} md rows"
+    )
     if issues:
         print(f"\n{len(issues)} issue groups:")
         for issue in issues:

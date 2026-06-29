@@ -1,4 +1,4 @@
-from ._registry import _handler, _loc_call, _py_str
+from ._registry import _handler
 
 
 @_handler("scrollToBottom")

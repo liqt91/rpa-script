@@ -11,7 +11,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 """
 
 from sqlalchemy import inspect, text
-from .models import engine, Base
+from .models import engine
 
 _SCHEMA_VERSION = 6  # Bump this when you add a new _migrate_N()
 
@@ -272,9 +272,17 @@ def _migrate_004():
                     "icon_color": "text-blue-500",
                     "bg_color": "bg-blue-50",
                     "fields": json.dumps([
-                        {"name": "windowVar", "label": "窗口变量", "type": "varName", "required": False, "default": "browser1", "placeholder": "如 browser1", "group": "input"},
-                        {"name": "element_name", "label": "元素", "type": "elementName", "required": True, "isPrimaryElement": True},
-                        {"name": "scope", "label": "匹配范围", "type": "select", "options": [{"label": "在当前外层元素内查找", "value": "local"}, {"label": "全页面匹配", "value": "global"}], "default": "global", "group": "advanced", "description": "在当前外层元素内查找=仅在当前 forEachElement 循环到的元素内部搜索该选择器；全页面匹配=在整个页面搜索，不依赖循环上下文。"},
+                        {"name": "windowVar", "label": "窗口变量", "type": "varName",
+                         "required": False, "default": "browser1", "placeholder": "如 browser1", "group": "input"},
+                        {"name": "element_name", "label": "元素", "type": "elementName",
+                         "required": True, "isPrimaryElement": True},
+                        {"name": "scope", "label": "匹配范围", "type": "select",
+                         "options": [
+                             {"label": "在当前外层元素内查找", "value": "local"},
+                             {"label": "全页面匹配", "value": "global"},
+                         ], "default": "global", "group": "advanced",
+                         "description": "在当前外层元素内查找=仅在当前 forEachElement 循环到的元素内部搜索该选择器；"
+                                        "全页面匹配=在整个页面搜索，不依赖循环上下文。"},
                         {"name": "action", "label": "扩展动作", "type": "hidden", "default": "doubleClick"},
                     ], ensure_ascii=False),
                     "description": "在元素上触发双击事件",
@@ -311,7 +319,10 @@ def _migrate_006():
     """
     with engine.connect() as conn:
         conn.execute(
-            text("UPDATE workflow_commands SET handler = 'openBrowser' WHERE type = 'openBrowser' AND (handler IS NULL OR handler = '')")
+            text(
+                "UPDATE workflow_commands SET handler = 'openBrowser' "
+                "WHERE type = 'openBrowser' AND (handler IS NULL OR handler = '')"
+            )
         )
         conn.commit()
 

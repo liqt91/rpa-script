@@ -6,7 +6,10 @@ def _emit_openBrowser(node, extra, depth, prefix, by_parent, lines, element_map=
     browser = extra.get("browserType", "chrome")
     url = extra.get("url")
     state = extra.get("windowState", "normal")
-    lines.append(f"{prefix}tab = page.new_tab({{'browser': {browser!r}, 'url': {_py_str(url or 'about:blank')}, 'state': {state!r}}})  # openBrowser")
+    lines.append(
+        f"{prefix}tab = page.new_tab({{'browser': {browser!r}, "
+        f"'url': {_py_str(url or 'about:blank')}, 'state': {state!r}}})  # openBrowser"
+    )
 
 
 @_handler("navigate")

@@ -25,10 +25,16 @@ def infer_selector_family(locator: str, locator_type: str) -> str:
     ):
         return "drission"
     if locator:
-        l = str(locator).strip()
-        if l.startswith("xpath:") or l.startswith("//"):
+        locator_str = str(locator).strip()
+        if locator_str.startswith("xpath:") or locator_str.startswith("//"):
             return "xpath"
-        if l.startswith("@") or l.startswith("tag:") or l.startswith("verse:") or l.startswith("text=") or l.startswith("@@class:"):
+        if (
+            locator_str.startswith("@")
+            or locator_str.startswith("tag:")
+            or locator_str.startswith("verse:")
+            or locator_str.startswith("text=")
+            or locator_str.startswith("@@class:")
+        ):
             return "drission"
     return "css"
 

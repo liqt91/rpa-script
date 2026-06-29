@@ -1,5 +1,4 @@
-import json
-from ._registry import _handler, _var_ref, _py_str
+from ._registry import _handler, _py_str
 
 
 @_handler("log")

@@ -20,7 +20,11 @@ def _emit_ifElementVisible(node, extra, depth, prefix, by_parent, lines, element
     else:
         calls = _loc_calls(node, extra, element_map)
         if op == "visible":
-            cond = " or ".join(f"{c}.states.is_displayed" for c in calls) if len(calls) > 1 else f"{calls[0]}.states.is_displayed"
+            cond = (
+                " or ".join(f"{c}.states.is_displayed" for c in calls)
+                if len(calls) > 1
+                else f"{calls[0]}.states.is_displayed"
+            )
         else:
             if len(calls) > 1:
                 cond = " and ".join(f"not {c}.states.is_displayed" for c in calls)
