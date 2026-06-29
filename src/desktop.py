@@ -46,6 +46,20 @@ os.environ.setdefault("RPA_REPO_ROOT", BUNDLE_DIR)
 os.environ.setdefault("RPA_LOG_DIR", USER_DATA_DIR)
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{os.path.join(USER_DATA_DIR, 'data.db')}")
 
+# 桌面端自动生成/复用 JWT 密钥，避免用户手动配置环境变量
+_SECRET_KEY_PATH = os.path.join(USER_DATA_DIR, ".secret_key")
+if not os.environ.get("SECRET_KEY"):
+    if os.path.isfile(_SECRET_KEY_PATH):
+        with open(_SECRET_KEY_PATH, "r", encoding="utf-8") as f:
+            _secret_key = f.read().strip()
+    else:
+        import secrets
+
+        _secret_key = secrets.token_hex(32)
+        with open(_SECRET_KEY_PATH, "w", encoding="utf-8") as f:
+            f.write(_secret_key)
+    os.environ["SECRET_KEY"] = _secret_key
+
 # 打包后默认端口 8811，与开发环境 8000 区分，避免冲突
 # 如需多实例运行，可在启动前设置环境变量 PORT 覆盖
 os.environ.setdefault("HOST", "127.0.0.1")
