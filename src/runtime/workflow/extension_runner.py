@@ -1718,6 +1718,15 @@ async def _local_openBrowser(runner: "ExtensionRunner", cmd_type: str, step_id: 
     # background.js openBrowser will set workWindowId/workTabId for subsequent steps.
     result = await runner._send_and_wait(step_id, instr, timeout=DEFAULT_STEP_TIMEOUT)
 
+    # Persist the window object so later steps can reference it via windowVar.
+    save_to_var = _get_output_var(extra)
+    if save_to_var and isinstance(result, dict):
+        runner.vars[save_to_var] = {
+            "windowId": result.get("windowId"),
+            "tabId": result.get("tabId"),
+        }
+        logger.info(f"[ExtensionRunner] openBrowser saved window to {save_to_var}: {runner.vars[save_to_var]!r}")
+
     runner.results.append({
         "stepId": step_id,
         "nodeId": instr.get("nodeId"),
