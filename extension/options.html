@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RPA Script Agent 设置</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      margin: 0;
+      padding: 24px;
+      min-width: 320px;
+    }
+    h1 { font-size: 18px; margin: 0 0 16px; color: #f8fafc; }
+    .field { margin-bottom: 16px; }
+    label {
+      display: block;
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus { border-color: #3b82f6; }
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    button {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-secondary { background: #334155; color: #e2e8f0; }
+    #status {
+      margin-top: 12px;
+      font-size: 13px;
+      min-height: 20px;
+    }
+    #status.ok { color: #4ade80; }
+    #status.err { color: #f87171; }
+    .preset {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .preset button {
+      flex: 1;
+      font-size: 12px;
+      padding: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>后端连接设置</h1>
+
+  <div class="preset">
+    <button class="btn-secondary" id="btnDev">开发环境 (8000)</button>
+    <button class="btn-secondary" id="btnPkg">打包应用 (8811)</button>
+  </div>
+
+  <div class="field">
+    <label for="host">主机地址</label>
+    <input type="text" id="host" value="localhost" placeholder="localhost">
+    <div class="hint">通常为 localhost，远程部署时填写 IP</div>
+  </div>
+
+  <div class="field">
+    <label for="port">端口</label>
+    <input type="number" id="port" value="8811" placeholder="8811">
+    <div class="hint">开发环境默认 8000，打包应用默认 8811</div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-primary" id="btnSave">保存</button>
+    <button class="btn-secondary" id="btnReset">恢复默认</button>
+  </div>
+
+  <div class="actions" style="margin-top: 10px;">
+    <button class="btn-secondary" id="btnReconnect" style="flex: 1; background: #0f766e; color: #fff;">
+      <i class="fas fa-sync-alt" style="margin-right: 4px;"></i>立即重连
+    </button>
+  </div>
+
+  <div id="status"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>
