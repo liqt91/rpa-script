@@ -22,7 +22,9 @@ from .routers.workflows_router import router as workflows_router
 from .routers.extension_router import router as extension_router
 from .routers.commands_router import router as commands_router
 from .routers.data_tables_router import router as data_tables_router
-from .routers.other_routers import result_router, script_router, client_router, ai_router, system_router, admin_api_router
+from .routers.other_routers import (
+    result_router, script_router, client_router, ai_router, system_router, admin_api_router,
+)
 from .admin_router import router as admin_router
 from src.config.runtime_config import HOST, PORT
 from src.config import runtime_config as config

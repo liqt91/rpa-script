@@ -1,7 +1,6 @@
 """Admin API endpoints."""
 
 from src.repo import runtime_models as models
-from src.runtime import auth
 
 
 def test_dashboard_stats(client, auth_headers, db_session):
