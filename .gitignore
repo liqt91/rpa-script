@@ -13,3 +13,14 @@ __pycache__/
 # Runtime data & telemetry
 data/data.db
 .harness/telemetry.jsonl
+
+# Private jobs / internal examples not shipped in the open-source repo
+.private/
+
+# Build artifacts and local environment
+dist/
+build/
+*.exe
+*.zip
+.env
+server.log

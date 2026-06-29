@@ -1,0 +1,10 @@
+name: hello_world
+version: 1.0.0
+description: A minimal example job for the open-source release.
+enabled: true
+params:
+  name:
+    type: string
+    required: false
+    default: world
+    description: Name to greet.

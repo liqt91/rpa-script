@@ -26,9 +26,8 @@ JOBS_DIR = os.path.join(REPO_DIR, "service", "jobs")
 VERSION_FILE = os.path.join(os.path.dirname(REPO_DIR), "VERSION")
 
 # AI: Dify 配置（替换原有 OpenAI 配置）
-# 内网 Dify 多应用配置：每个 capability 对应独立的应用
-# Dify 基础地址（内网部署）
-DIFY_BASE_URL = os.getenv("DIFY_BASE_URL", "https://your-dify-instance.example.com")
+# 每个 capability 对应独立的应用；所有密钥与地址均通过环境变量配置
+DIFY_BASE_URL = os.getenv("DIFY_BASE_URL", "")
 
 # 每个分析能力独立配置：api_key, app_type, input_schema
 # app_type: chat | agent | text | chatflow | workflow

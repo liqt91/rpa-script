@@ -2,7 +2,7 @@
 
 
 def _create(client, headers, **overrides):
-    body = {"job_type": "xhs_comments", "urls": ["https://x.com"]}
+    body = {"job_type": "hello_world", "urls": ["https://x.com"]}
     body.update(overrides)
     return client.post("/api/tasks", json=body, headers=headers)
 
@@ -11,7 +11,7 @@ def test_create_multiple(client, auth_headers):
     r = _create(
         client, auth_headers,
         urls=["https://a.com", "https://b.com"],
-        params={"scrolls": 12, "delay": 2.0},
+        params={"name": "open_source"},
     )
     assert r.status_code == 200
     body = r.json()
@@ -22,7 +22,7 @@ def test_create_multiple(client, auth_headers):
 
 def test_params_round_trip(client, auth_headers):
     r = _create(client, auth_headers, urls=["https://a.com"],
-                params={"scrolls": 7, "delay": 1.5})
+                params={"name": "round_trip"})
     tid = r.json()["ids"][0]
 
     pending = client.get(
@@ -30,7 +30,7 @@ def test_params_round_trip(client, auth_headers):
     ).json()["tasks"]
 
     matched = next(t for t in pending if t["id"] == tid)
-    assert matched["params"] == {"scrolls": 7, "delay": 1.5}
+    assert matched["params"] == {"name": "round_trip"}
 
 
 def test_pending_atomic_claim(client, auth_headers):

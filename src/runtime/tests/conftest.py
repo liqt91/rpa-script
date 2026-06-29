@@ -13,6 +13,7 @@ from pathlib import Path
 _DB_DIR = Path(tempfile.mkdtemp(prefix="xhs_test_"))
 _DB_PATH = _DB_DIR / "test.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH.as_posix()}"
+os.environ["SECRET_KEY"] = os.environ.get("SECRET_KEY", "test-secret-key-for-pytest-only")
 
 import pytest
 from fastapi.testclient import TestClient

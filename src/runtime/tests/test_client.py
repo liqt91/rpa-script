@@ -51,8 +51,8 @@ def test_config_round_trip(tmp_config):
 
 # ===== job discovery =====
 
-def test_discover_jobs_lists_xhs_comments():
-    assert "xhs_comments" in cli.discover_jobs()
+def test_discover_jobs_lists_hello_world():
+    assert "hello_world" in cli.discover_jobs()
 
 
 def test_load_run_unknown():
@@ -91,24 +91,24 @@ def test_cmd_pull_executes_and_uploads(tmp_config, asgi_factory, client, auth_he
     r = client.post(
         "/api/tasks", headers=auth_headers,
         json={
-            "job_type": "xhs_comments",
-            "urls": ["https://www.xiaohongshu.com/explore/fake"],
+            "job_type": "hello_world",
+            "urls": ["https://example.com/page"],
             "client_id": cid,
-            "params": {"scrolls": 3, "delay": 0.1},
+            "params": {"name": "client_e2e"},
         },
     )
     task_id = r.json()["ids"][0]
 
-    # 3. run cmd_pull, but mock execute_job (DrissionPage is not installed in venv)
-    fake_result = {"total": 2, "items": [{"author": "a", "content": "x"}, {"author": "b"}]}
+    # 3. run cmd_pull, but mock execute_job
+    fake_result = {"message": "Hello, client_e2e!"}
     with patch.object(cli, "execute_job", return_value=fake_result) as exec_mock:
         cli.cmd_pull(SimpleNamespace(), client_factory=asgi_factory)
 
     exec_mock.assert_called_once()
     job_type, url, params = exec_mock.call_args[0]
-    assert job_type == "xhs_comments"
-    assert url == "https://www.xiaohongshu.com/explore/fake"
-    assert params == {"scrolls": 3, "delay": 0.1}
+    assert job_type == "hello_world"
+    assert url == "https://example.com/page"
+    assert params == {"name": "client_e2e"}
 
     # 4. server-side: task is done, result row exists
     db = models.SessionLocal()
@@ -117,7 +117,6 @@ def test_cmd_pull_executes_and_uploads(tmp_config, asgi_factory, client, auth_he
         assert task.status == "done"
         results = db.query(models.Result).filter(models.Result.task_id == task_id).all()
         assert len(results) == 1
-        assert results[0].total == 2
     finally:
         db.close()
 
@@ -182,7 +181,8 @@ def test_cmd_update_first_time_downloads(tmp_path, monkeypatch, asgi_factory):
     cli.cmd_update(SimpleNamespace(force=False), client_factory=asgi_factory)
 
     assert (tmp_path / "VERSION").read_text().strip()  # version was written
-    assert (tmp_path / "jobs" / "xhs_comments" / "main.py").exists()
+    assert (tmp_path / "jobs" / "hello_world" / "main.py").exists()
+    assert (tmp_path / "jobs" / "hello_world" / "job.yaml").exists()
     assert (tmp_path / "shared" / "chrome_utils.py").exists()
     assert (tmp_path / "requirements.txt").exists()
     # client.py is shipped via /api/script/download so update overwrites itself too.
@@ -214,7 +214,7 @@ def test_cmd_update_force_redownloads(tmp_path, monkeypatch, asgi_factory):
     cli.cmd_update(SimpleNamespace(force=True), client_factory=asgi_factory)
 
     # Force: download even though versions match.
-    assert (tmp_path / "jobs" / "xhs_comments" / "main.py").exists()
+    assert (tmp_path / "jobs" / "hello_world" / "main.py").exists()
 
 
 # ===== chrome_user_data injection =====
@@ -261,20 +261,20 @@ def test_cmd_submit_creates_runs_uploads(tmp_config, asgi_factory, client):
     )
     cid = cli.cmd_setup(args, client_factory=asgi_factory)
 
-    fake_result = {"total": 7, "items": [{"author": "x", "content": "y"}]}
+    fake_result = {"message": "Hello, submit!"}
     submit_args = SimpleNamespace(
-        url="https://www.xiaohongshu.com/explore/abcd",
-        job_type="xhs_comments",
-        scrolls=2, delay=1.5,
+        url="https://example.com/submit",
+        job_type="hello_world",
+        name="submit",
     )
     with patch.object(cli, "execute_job", return_value=fake_result) as exec_mock:
         cli.cmd_submit(submit_args, client_factory=asgi_factory)
 
     # execute_job called with the URL we submitted + params
     job_type, url, params = exec_mock.call_args[0]
-    assert job_type == "xhs_comments"
-    assert url == "https://www.xiaohongshu.com/explore/abcd"
-    assert params == {"scrolls": 2, "delay": 1.5}
+    assert job_type == "hello_world"
+    assert url == "https://example.com/submit"
+    assert params == {"name": "submit"}
 
     # Server-side: a task was created (status done after upload), result row carries client_id
     db = models.SessionLocal()
@@ -282,11 +282,10 @@ def test_cmd_submit_creates_runs_uploads(tmp_config, asgi_factory, client):
         tasks = db.query(models.Task).filter(models.Task.client_id == cid).all()
         assert len(tasks) == 1
         assert tasks[0].status == "done"
-        assert tasks[0].url == "https://www.xiaohongshu.com/explore/abcd"
+        assert tasks[0].url == "https://example.com/submit"
 
         results = db.query(models.Result).filter(models.Result.task_id == tasks[0].id).all()
         assert len(results) == 1
-        assert results[0].total == 7
         assert results[0].client_id == cid
     finally:
         db.close()
@@ -295,7 +294,7 @@ def test_cmd_submit_creates_runs_uploads(tmp_config, asgi_factory, client):
 def test_cmd_submit_unconfigured_exits(tmp_config):
     """submit without prior setup exits with code 1."""
     cli.save_config(cli.default_config())  # default has empty client.id
-    args = SimpleNamespace(url="https://x", job_type="xhs_comments", scrolls=None, delay=None)
+    args = SimpleNamespace(url="https://x", job_type="hello_world", name=None)
     with pytest.raises(SystemExit) as exc:
         cli.cmd_submit(args)
     assert exc.value.code == 1

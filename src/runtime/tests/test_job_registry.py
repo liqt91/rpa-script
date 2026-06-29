@@ -6,19 +6,18 @@ from src.runtime.job_registry import JobRegistry
 from src.config import settings as config
 
 
-def test_scan_finds_xhs_comments():
+def test_scan_finds_hello_world():
     registry = JobRegistry(config.JOBS_DIR)
-    meta = registry.get_job("xhs_comments")
+    meta = registry.get_job("hello_world")
     assert meta is not None
-    assert meta.name == "xhs_comments"
+    assert meta.name == "hello_world"
     assert meta.version == "1.0.0"
-    assert "scrolls" in meta.params
-    assert "delay" in meta.params
+    assert "name" in meta.params
 
 
 def test_validate_params_ok():
     registry = JobRegistry(config.JOBS_DIR)
-    ok, errors = registry.validate_params("xhs_comments", {"scrolls": 5, "delay": 1.0})
+    ok, errors = registry.validate_params("hello_world", {"name": "test"})
     assert ok is True
     assert errors == []
 
@@ -26,28 +25,21 @@ def test_validate_params_ok():
 def test_validate_params_default_values():
     """使用默认值（空 params）应通过。"""
     registry = JobRegistry(config.JOBS_DIR)
-    ok, errors = registry.validate_params("xhs_comments", {})
+    ok, errors = registry.validate_params("hello_world", {})
     assert ok is True
     assert errors == []
 
 
 def test_validate_params_type_error():
     registry = JobRegistry(config.JOBS_DIR)
-    ok, errors = registry.validate_params("xhs_comments", {"scrolls": "not_a_number"})
+    ok, errors = registry.validate_params("hello_world", {"name": 123})
     assert ok is False
-    assert any("应为 integer" in e or "应为" in e for e in errors)
-
-
-def test_validate_params_range_error():
-    registry = JobRegistry(config.JOBS_DIR)
-    ok, errors = registry.validate_params("xhs_comments", {"scrolls": -1})
-    assert ok is False
-    assert any(">=" in e for e in errors)
+    assert any("应为 string" in e or "应为" in e for e in errors)
 
 
 def test_validate_params_unknown_param():
     registry = JobRegistry(config.JOBS_DIR)
-    ok, errors = registry.validate_params("xhs_comments", {"unknown": 1})
+    ok, errors = registry.validate_params("hello_world", {"unknown": 1})
     assert ok is False
     assert any("未知参数" in e for e in errors)
 

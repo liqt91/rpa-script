@@ -25,6 +25,7 @@ from .routers.data_tables_router import router as data_tables_router
 from .routers.other_routers import result_router, script_router, client_router, ai_router, system_router
 from .admin_router import router as admin_router
 from src.config.runtime_config import HOST, PORT
+from src.config import runtime_config as config
 
 
 def _sync_ai_apps_to_db(db):
@@ -113,6 +114,11 @@ def _load_commands_from_db(db):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not config.SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY environment variable is required. "
+            "Set a strong random secret before starting the server."
+        )
     models.init_db()
     from src.repo.migrations import run_migrations
     run_migrations()

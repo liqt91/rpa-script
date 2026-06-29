@@ -18,8 +18,8 @@ def test_list_scripts(client):
     assert r.status_code == 200
     scripts = r.json()["scripts"]
     names = [s["name"] for s in scripts]
-    # Phase 2 migrated xhs_comments under jobs/.
-    assert "xhs_comments" in names
+    # Open-source example job shipped with the repo.
+    assert "hello_world" in names
 
 
 def test_download_zip_contains_job(client):
@@ -32,8 +32,8 @@ def test_download_zip_contains_job(client):
     zf = zipfile.ZipFile(io.BytesIO(r.content))
     names = zf.namelist()
     # Forward slashes are how zipfile records arcnames regardless of platform.
-    assert "jobs/xhs_comments/main.py" in names
-    assert "jobs/xhs_comments/rules.xml" in names
+    assert "jobs/hello_world/main.py" in names
+    assert "jobs/hello_world/job.yaml" in names
     assert "shared/chrome_utils.py" in names
     assert "shared/extraction_engine.py" in names
     # client.py / requirements.txt / VERSION 从项目根目录打包（如存在）

@@ -48,7 +48,7 @@ def test_heartbeat_updates_existing(client, auth_headers, db_session):
 def test_heartbeat_returns_push_tasks(client, auth_headers):
     client.post(
         "/api/tasks", headers=auth_headers,
-        json={"job_type": "xhs_comments", "urls": ["u"], "client_id": "client_x"},
+        json={"job_type": "hello_world", "urls": ["u"], "client_id": "client_x"},
     )
     r = client.post(
         "/api/clients/heartbeat", headers=auth_headers,
@@ -56,4 +56,4 @@ def test_heartbeat_returns_push_tasks(client, auth_headers):
     )
     push = r.json()["push_tasks"]
     assert len(push) == 1
-    assert push[0]["job_type"] == "xhs_comments"
+    assert push[0]["job_type"] == "hello_world"

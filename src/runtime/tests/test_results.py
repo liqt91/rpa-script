@@ -6,15 +6,15 @@ from src.repo import models
 def test_upload_marks_task_done(client, auth_headers, db_session):
     r = client.post(
         "/api/tasks", headers=auth_headers,
-        json={"job_type": "xhs_comments", "urls": ["u"]},
+        json={"job_type": "hello_world", "urls": ["u"]},
     )
     tid = r.json()["ids"][0]
 
     r2 = client.post(
         "/api/results", headers=auth_headers,
         json={
-            "task_id": tid, "url": "u", "total": 5,
-            "data": {"comments": [{"author": "a", "content": "c"}]},
+            "task_id": tid, "url": "u", "total": 1,
+            "data": {"message": "Hello, world!"},
         },
     )
     assert r2.status_code == 200
@@ -51,7 +51,7 @@ def test_upload_persists_client_id_from_request(client, auth_headers, db_session
 def test_upload_falls_back_to_task_client_id(client, auth_headers, db_session):
     """If client_id is omitted but the linked task has one, copy it onto the Result."""
     r = client.post("/api/tasks", headers=auth_headers, json={
-        "job_type": "xhs_comments", "urls": ["u"], "client_id": "owner_xyz",
+        "job_type": "hello_world", "urls": ["u"], "client_id": "owner_xyz",
     })
     tid = r.json()["ids"][0]
 
