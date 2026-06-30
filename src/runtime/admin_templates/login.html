@@ -4,8 +4,69 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>登录 - 分布式脚本执行平台</title>
-  <script src="/workflow-editor/assets/tailwindcss.js"></script>
-  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14'>🤖</text></svg>">
+  <style>
+    /* Self-contained styles for the login page (Tailwind utility classes the
+       page uses, inlined so the desktop app works offline — no CDN script). */
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+    .bg-gray-900 { background-color: #111827; }
+    .text-gray-100 { color: #f3f4f6; }
+    .min-h-screen { min-height: 100vh; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .justify-center { justify-content: center; }
+
+    .w-full { width: 100%; }
+    .max-w-md { max-width: 28rem; }
+    .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+
+    .bg-gray-800 { background-color: #1f2937; }
+    .rounded-xl { border-radius: 0.75rem; }
+    .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,.4), 0 4px 6px -4px rgba(0,0,0,.4); }
+    .border { border-width: 1px; border-style: solid; }
+    .border-gray-700 { border-color: #374151; }
+    .border-gray-600 { border-color: #4b5563; }
+    .p-8 { padding: 2rem; }
+
+    .text-center { text-align: center; }
+    .mb-8 { margin-bottom: 2rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .mt-2 { margin-top: 0.5rem; }
+    .p-3 { padding: 0.75rem; }
+
+    .text-2xl { font-size: 1.5rem; line-height: 2rem; }
+    .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+    .font-bold { font-weight: 700; }
+    .font-medium { font-weight: 500; }
+    .text-white { color: #fff; }
+    .text-gray-400 { color: #9ca3af; }
+    .text-gray-300 { color: #d1d5db; }
+
+    .bg-red-900\/30 { background-color: rgba(127,29,29,.3); }
+    .border-red-700 { border-color: #b91c1c; }
+    .text-red-300 { color: #fca5a5; }
+    .rounded-lg { border-radius: 0.5rem; }
+
+    .space-y-5 > * + * { margin-top: 1.25rem; }
+    .block { display: block; }
+
+    .px-4 { padding-left: 1rem; padding-right: 1rem; }
+    .py-2\.5 { padding-top: 0.625rem; padding-bottom: 0.625rem; }
+    .bg-gray-700 { background-color: #374151; }
+    .placeholder-gray-400::placeholder { color: #9ca3af; }
+    input { font: inherit; }
+    .focus\:outline-none:focus { outline: none; }
+    .focus\:border-blue-500:focus { border-color: #3b82f6; }
+    .focus\:ring-1:focus { box-shadow: 0 0 0 1px #3b82f6; }
+
+    .bg-blue-600 { background-color: #2563eb; }
+    .hover\:bg-blue-500:hover { background-color: #3b82f6; }
+    button { font: inherit; cursor: pointer; border: none; }
+    .transition-colors { transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+  </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center">
   <div class="w-full max-w-md px-6">
