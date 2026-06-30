@@ -221,11 +221,7 @@ export default function WorkflowParametersPanel({ variant = 'sidebar' }) {
             </div>
           </div>
           <div className="flex-1 overflow-x-auto overflow-y-hidden">
-            {params.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-gray-400">
-                暂无流程参数，点击右上角「添加」创建一个
-              </div>
-            ) : (
+            {params.length > 0 && (
               <div className="flex items-start gap-3 px-4 py-2 h-full">
                 {params.map((p, idx) => renderParamCard(p, idx, true))}
               </div>
