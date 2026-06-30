@@ -8,3 +8,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 DrissionPage
 jinja2
+markdownify
+pywebview
+python-multipart
