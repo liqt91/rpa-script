@@ -96,6 +96,7 @@ def create_workflow(payload: schemas.WorkflowCreate, db: Session = Depends(get_d
         description=payload.description,
         url=payload.url,
         framework=payload.framework,
+        parameters=json.dumps(payload.parameters or [], ensure_ascii=False),
     )
     db.add(wf)
     db.commit()
@@ -173,7 +174,10 @@ def update_workflow(wf_id: int, payload: schemas.WorkflowUpdate, db: Session = D
     wf = db.get(models.Workflow, wf_id)
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
-    for field, val in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "parameters" in data:
+        data["parameters"] = json.dumps(data["parameters"] or [], ensure_ascii=False)
+    for field, val in data.items():
         setattr(wf, field, val)
     db.commit()
     db.refresh(wf)
@@ -669,9 +673,15 @@ def export_python(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.g
 # ---------- Run workflow ----------
 
 @router.post("/{wf_id}/run")
-def run_workflow(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+def run_workflow(
+    wf_id: int,
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user)
+):
     """Generate Python script from workflow and execute it in a subprocess.
     Returns stdout, stderr, and return code.
+    Optional body: {"parameters": {"postUrl": "..."}}
     """
     wf = db.get(models.Workflow, wf_id)
     if not wf:
@@ -684,7 +694,8 @@ def run_workflow(wf_id: int, db: Session = Depends(get_db), user=Depends(auth.ge
 
     print(f"[run_workflow] wf_id={wf_id} name='{wf.name}' nodes={len(nodes)}")
 
-    lines = build_python(wf, nodes, config.REPO_DIR)
+    parameters = payload.get("parameters") or {}
+    lines = build_python(wf, nodes, config.REPO_DIR, initial_params=parameters)
     code = "\n".join(lines)
 
     # Write to local_jobs/_generated/workflows/{uuid}/main.py (overwrite each run)
@@ -815,7 +826,7 @@ async def run_workflow_extension_endpoint(
 ):
     """Run workflow via browser extension (WebSocket).
     Supply run_id (e.g. a UUID) so the matching SSE stream can receive progress.
-    Optional body: {"initialTableData": {"columns": [...], "rows": [...]}}
+    Optional body: {"initialTableData": {...}, "parameters": {"postUrl": "..."}}
     """
     wf = db.get(models.Workflow, wf_id)
     if not wf:
@@ -829,12 +840,14 @@ async def run_workflow_extension_endpoint(
         _parse_node_fields(n)
 
     initial_table_data = payload.get("initialTableData")
+    parameters = payload.get("parameters") or {}
     import datetime as _dt
     started_at = _dt.datetime.now()
     result = await run_workflow_extension(
         wf, nodes,
         run_id=run_id or None,
         initial_table_data=initial_table_data,
+        initial_parameters=parameters,
     )
     completed_at = _dt.datetime.now()
 

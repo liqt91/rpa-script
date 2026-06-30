@@ -602,6 +602,19 @@ export function WorkflowProvider({ children, wfId }) {
     }
   }, [loadWorkflow]);
 
+  const updateWorkflowParameters = useCallback(async (parameters) => {
+    const current = stateRef.current;
+    if (!current.wfId || !current.workflow) return;
+    try {
+      const updated = await api.updateWorkflow(current.wfId, { parameters });
+      dispatch({ type: 'SET_WORKFLOW', payload: updated });
+    } catch (e) {
+      console.error('[WorkflowContext] updateWorkflowParameters failed:', e);
+      dispatch({ type: 'SET_ERROR', payload: e.message });
+      throw e;
+    }
+  }, []);
+
   // Derived values
   const NODE_TYPES = getNodeTypes(state.commands);
   const CATEGORIES = getCategories(state.commands);
@@ -627,6 +640,7 @@ export function WorkflowProvider({ children, wfId }) {
     replaceNodes,
     commit,
     reorderNodes,
+    updateWorkflowParameters,
     dispatch,
   };
 

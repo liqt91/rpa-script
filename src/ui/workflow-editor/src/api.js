@@ -59,10 +59,16 @@ export const api = {
     body: JSON.stringify(payload),
   }),
   exportPython: (wfId) => request(`/api/workflows/${wfId}/export/python`),
-  runWorkflow: (wfId) => request(`/api/workflows/${wfId}/run`, { method: 'POST' }),
-  runWorkflowExtension: (wfId, runId, tableData) => request(`/api/workflows/${wfId}/run/extension?run_id=${encodeURIComponent(runId)}`, {
+  runWorkflow: (wfId, parameters = null) => request(`/api/workflows/${wfId}/run`, {
     method: 'POST',
-    body: JSON.stringify({ initialTableData: tableData }),
+    body: JSON.stringify(parameters ? { parameters } : {}),
+  }),
+  runWorkflowExtension: (wfId, runId, tableData, parameters = null) => request(`/api/workflows/${wfId}/run/extension?run_id=${encodeURIComponent(runId)}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      initialTableData: tableData,
+      ...(parameters ? { parameters } : {}),
+    }),
   }),
   pauseRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/pause`, { method: 'POST' }),
   resumeRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/resume`, { method: 'POST' }),

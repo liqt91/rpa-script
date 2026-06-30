@@ -2,9 +2,10 @@
 Pydantic schemas
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, Any
 from datetime import datetime
+import json
 
 
 # ====== Auth ======
@@ -169,11 +170,20 @@ class WorkflowNodeOut(BaseModel):
     extra: Optional[dict] = None
 
 
+class WorkflowParameter(BaseModel):
+    name: str
+    label: str = ""
+    type: str = "text"  # text | number | bool | select
+    options: Optional[list] = None  # for select
+    default: Any = None
+
+
 class WorkflowCreate(BaseModel):
     name: str
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
+    parameters: list[WorkflowParameter] = Field(default_factory=list)
 
 
 class WorkflowUpdate(BaseModel):
@@ -181,6 +191,7 @@ class WorkflowUpdate(BaseModel):
     description: Optional[str] = None
     url: Optional[str] = None
     framework: Optional[str] = None
+    parameters: Optional[list[WorkflowParameter]] = None
 
 
 class WorkflowOut(BaseModel):
@@ -192,9 +203,22 @@ class WorkflowOut(BaseModel):
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
+    parameters: Optional[list] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     nodes: list[WorkflowNodeOut] = Field(default_factory=list)
+
+    @field_validator("parameters", mode="before")
+    @classmethod
+    def _parse_parameters(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return json.loads(v or "[]")
+            except Exception:
+                return []
+        return v
 
 
 class WorkflowListOut(BaseModel):

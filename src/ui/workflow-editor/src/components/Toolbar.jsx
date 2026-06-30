@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
+import RunParametersDialog from './RunParametersDialog';
 
 function formatResult(result) {
   if (typeof result !== 'object' || result === null) return String(result);
@@ -35,6 +36,7 @@ export default function Toolbar() {
   const [currentRunId, setCurrentRunId] = useState(null);
   const [runResult, setRunResult] = useState(null);
   const [runMode, setRunMode] = useState('extension'); // 'python' | 'extension'
+  const [runParamsOpen, setRunParamsOpen] = useState(false);
   const [extStatus, setExtStatus] = useState(null);
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
@@ -227,7 +229,16 @@ export default function Toolbar() {
     }
   };
 
-  const handleRun = async () => {
+  const handleRunClick = () => {
+    const params = workflow?.parameters;
+    if (Array.isArray(params) && params.length > 0) {
+      setRunParamsOpen(true);
+      return;
+    }
+    doRun(null);
+  };
+
+  const doRun = async (parameters = null) => {
     console.log(`[Toolbar] run clicked, mode=${runMode}, isDirty=${isDirty}`);
     if (isDirty) {
       const ok = confirm('工作流有未保存的更改，先保存再运行？');
@@ -327,8 +338,8 @@ export default function Toolbar() {
     console.log(`[Toolbar] calling runWorkflow mode=${runMode} wfId=${wfId}`);
     try {
       const data = runMode === 'extension'
-        ? await api.runWorkflowExtension(wfId, runId, getDesignTableData())
-        : await api.runWorkflow(wfId);
+        ? await api.runWorkflowExtension(wfId, runId, getDesignTableData(), parameters)
+        : await api.runWorkflow(wfId, parameters);
       console.log(`[Toolbar] runWorkflow result success=${data.success}`);
       if (!stoppedRef.current) {
         setRunResult(data);
@@ -512,7 +523,7 @@ export default function Toolbar() {
           {!running ? (
             <button
               className={`h-7 px-3 flex items-center gap-1.5 rounded bg-[#1f1f1f] hover:bg-black text-white text-xs transition-colors run-pulse`}
-              onClick={handleRun}
+              onClick={handleRunClick}
             >
               <i className="fas fa-play text-[10px]"></i>
               <span>运行</span>
@@ -585,6 +596,18 @@ export default function Toolbar() {
           )}
         </div>
       </header>
+
+      {/* 运行参数弹窗 */}
+      {runParamsOpen && (
+        <RunParametersDialog
+          parameters={workflow?.parameters}
+          onConfirm={(values) => {
+            setRunParamsOpen(false);
+            doRun(values);
+          }}
+          onCancel={() => setRunParamsOpen(false)}
+        />
+      )}
 
       {/* 运行结果弹窗 */}
       {runResult && (

@@ -1556,15 +1556,18 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
                                   client_id: str | None = None,
                                   run_id: str | None = None,
                                   initial_table_data: dict | None = None,
+                                  initial_parameters: dict | None = None,
                                   trigger_type: str = "manual") -> dict:
     """
     Convenience entry point.
     If client_id is None, connection is deferred until the first extension
     instruction is encountered (on-demand connection).
     initial_table_data: {"columns": [...], "rows": [...]} passed from frontend.
+    initial_parameters: {"varName": "value"} overrides workflow parameter defaults.
     trigger_type: manual / scheduled
     """
     import time
+    import json as _json
     from src.config import runtime_config as config
 
     _run_id = run_id or f"run_{int(time.time() * 1000)}"
@@ -1579,6 +1582,21 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     run_progress.register(_run_id, pre_queue)
 
     runner = ExtensionRunner(client_id or "", run_id=_run_id, log_dir=log_dir, queue=pre_queue)
+
+    # Initialize workflow-level parameters (design-time defaults + runtime overrides)
+    param_defaults = {}
+    try:
+        wf_params = _json.loads(wf.parameters or "[]") if hasattr(wf, "parameters") else []
+    except Exception:
+        wf_params = []
+    for p in wf_params:
+        name = p.get("name")
+        if name:
+            param_defaults[name] = p.get("default")
+    if initial_parameters:
+        param_defaults.update(initial_parameters)
+    runner.vars.update(param_defaults)
+    logger.info(f"[run_workflow_extension] initialized parameters: {list(runner.vars.keys())}")
 
     # Initialize table data from frontend payload (runtime variable, no DB)
     if initial_table_data:

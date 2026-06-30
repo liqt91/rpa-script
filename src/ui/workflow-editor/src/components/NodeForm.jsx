@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { useWorkflow } from '../store/WorkflowContext';
+import WorkflowParametersPanel from './WorkflowParametersPanel';
 
 // ─── Variable extraction helpers ─────────────────────────────────
 
@@ -137,11 +138,7 @@ export default function NodeForm() {
   };
 
   if (!selectedNode) {
-    return (
-      <aside className="w-[280px] bg-white border-l border-[#e8e8e8] flex items-center justify-center text-gray-400 text-sm shrink-0">
-        选择一个节点以编辑属性
-      </aside>
-    );
+    return <WorkflowParametersPanel />;
   }
 
   return (

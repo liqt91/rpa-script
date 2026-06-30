@@ -24,6 +24,19 @@
         { "id": "smoke", "title": "curl /no-such-path returns 404 with the custom body", "done": false }
       ],
       "domain": "default"
+    },
+    {
+      "id": "workflow-parameters",
+      "title": "Workflow-level run parameters with ${var} interpolation",
+      "passes": true,
+      "steps": [
+        { "id": "model", "title": "Add parameters JSON column + migration", "done": true },
+        { "id": "schema", "title": "Expose parameters in schemas", "done": true },
+        { "id": "runtime", "title": "Inject parameters into runner.vars and Python exporter", "done": true },
+        { "id": "ui", "title": "Editor parameter panel and run dialog", "done": true },
+        { "id": "test", "title": "Backend CRUD + injection tests pass", "done": true }
+      ],
+      "domain": "workflows"
     }
   ]
 }
