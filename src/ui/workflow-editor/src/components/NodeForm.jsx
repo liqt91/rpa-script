@@ -361,6 +361,8 @@ function findVarContext(value, cursorPos) {
 function VarInput({ value, onChange, placeholder, className, vars, multiline = false, enableFullscreen = false }) {
   const inputRef = useRef(null);
   const [ctx, setCtx] = useState(null); // { start, end, prefix, hasBrace }
+  const ctxRef = useRef(ctx);
+  useEffect(() => { ctxRef.current = ctx; }, [ctx]);
   const [highlighted, setHighlighted] = useState(0);
   const containerRef = useRef(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -401,6 +403,17 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
     const val = el.value;
     const found = findVarContext(val, cursorPos);
     if (found && vars.length > 0) {
+      const current = ctxRef.current;
+      if (
+        current &&
+        current.start === found.start &&
+        current.end === found.end &&
+        current.prefix === found.prefix &&
+        current.hasBrace === found.hasBrace
+      ) {
+        // Same context (e.g. arrow keys) — keep current highlight.
+        return;
+      }
       setCtx(found);
       setHighlighted(0);
     } else {
