@@ -30,7 +30,7 @@ function formatResult(result) {
 }
 
 export default function Toolbar() {
-  const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch, elements } = useWorkflow();
+  const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch, elements, updateWorkflowParameters } = useWorkflow();
   const [running, setRunning] = useState(false);
   const [paused, setPaused] = useState(false);
   const [currentRunId, setCurrentRunId] = useState(null);
@@ -103,7 +103,12 @@ export default function Toolbar() {
     }
     const usedElements = elements.filter(e => usedElementNames.has(e.name)).map(e => ({ ...e }));
     const data = {
-      workflow: { id: workflow?.id, name: workflow?.name, url: workflow?.url },
+      workflow: {
+        id: workflow?.id,
+        name: workflow?.name,
+        url: workflow?.url,
+        parameters: Array.isArray(workflow?.parameters) ? workflow.parameters : [],
+      },
       nodes: nodes.map(n => ({ ...n })),
       elements: usedElements,
       exportedAt: new Date().toISOString(),
@@ -149,7 +154,8 @@ export default function Toolbar() {
         return;
       }
       const elementCount = Array.isArray(data.elements) ? data.elements.length : 0;
-      if (!confirm(`确定导入 "${file.name}"？\n共 ${data.nodes.length} 个节点${elementCount > 0 ? `，含 ${elementCount} 个元素` : ''}，将覆盖当前流程。`)) {
+      const paramCount = Array.isArray(data.workflow?.parameters) ? data.workflow.parameters.length : 0;
+      if (!confirm(`确定导入 "${file.name}"？\n共 ${data.nodes.length} 个节点${elementCount > 0 ? `，含 ${elementCount} 个元素` : ''}${paramCount > 0 ? `，含 ${paramCount} 个流程参数` : ''}，将覆盖当前流程。`)) {
         e.target.value = '';
         return;
       }
@@ -176,6 +182,16 @@ export default function Toolbar() {
         } catch (err) {
           console.error('[Toolbar] import elements failed:', err);
           alert('元素库导入失败: ' + err.message);
+        }
+      }
+      // 恢复流程参数（旧版导出文件可能没有此字段，则跳过保留现有参数）
+      const importedParams = data.workflow?.parameters;
+      if (Array.isArray(importedParams)) {
+        try {
+          await updateWorkflowParameters(importedParams);
+        } catch (err) {
+          console.error('[Toolbar] import parameters failed:', err);
+          alert('流程参数导入失败: ' + err.message);
         }
       }
       // 重新生成 temp_id 并修正 parent_id 映射，避免与现有节点 ID 冲突
