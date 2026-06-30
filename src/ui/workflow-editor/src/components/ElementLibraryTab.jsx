@@ -547,7 +547,7 @@ export default function ElementLibraryTab() {
             </div>
           </>
         )}
-        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && (
+        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && activeTab !== 'params' && activeTab !== 'images' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
               <i className="fas fa-inbox text-gray-400 text-xl"></i>
