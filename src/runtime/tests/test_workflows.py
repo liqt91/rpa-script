@@ -64,13 +64,21 @@ async def test_run_injects_initial_parameters(client, auth_headers, workflow_id)
     db = models.SessionLocal()
     try:
         wf = db.get(models.Workflow, workflow_id)
-        nodes = db.query(models.WorkflowNode).filter(models.WorkflowNode.workflow_id == workflow_id).order_by(models.WorkflowNode.order).all()
+        nodes = (
+            db.query(models.WorkflowNode)
+            .filter(models.WorkflowNode.workflow_id == workflow_id)
+            .order_by(models.WorkflowNode.order)
+            .all()
+        )
         result = await run_workflow_extension(
             wf, nodes,
             initial_parameters={"postUrl": "https://post.example.com/123"},
         )
         assert result["success"] is True, result
-        set_var_result = [x for x in result.get("results", []) if x.get("result", {}).get("setVar") == "targetUrl"]
+        set_var_result = [
+            x for x in result.get("results", [])
+            if x.get("result", {}).get("setVar") == "targetUrl"
+        ]
         assert set_var_result, result
         assert set_var_result[0]["result"]["value"] == "https://post.example.com/123"
     finally:

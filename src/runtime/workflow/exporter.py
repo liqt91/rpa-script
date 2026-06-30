@@ -15,7 +15,12 @@ import src.runtime.workflow.emitters  # noqa: F401
 from src.runtime.workflow.emitters._registry import _emit_dispatch
 
 
-def build_python(wf: models.Workflow, flat_nodes: list[models.WorkflowNode], repo_root: str = "", initial_params: dict | None = None) -> list[str]:
+def build_python(
+    wf: models.Workflow,
+    flat_nodes: list[models.WorkflowNode],
+    repo_root: str = "",
+    initial_params: dict | None = None,
+) -> list[str]:
     """Generate DrissionPage Python lines from a workflow and its nodes."""
     print(f"[exporter] building python for '{wf.name}' with {len(flat_nodes)} nodes")
 
