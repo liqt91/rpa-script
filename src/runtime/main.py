@@ -67,44 +67,46 @@ def _load_ai_apps_from_db(db):
 
 
 def _seed_commands_to_db(db):
-    """首次安装时：将 commands.py 中的内置指令种子导入数据库。
-    如果数据库中已存在任何指令，则跳过，避免覆盖用户或线上已有配置。"""
+    """将 commands.py 中的内置指令种子同步到数据库。
+
+    - 首次安装：插入所有内置指令。
+    - 后续启动：用代码种子更新已有内置指令（保持自定义指令不变）。
+    - 自定义指令（is_builtin=0）永远不会被覆盖。
+    """
     from .workflow import commands
 
-    has_any = db.query(models.WorkflowCommand).first() is not None
-    if has_any:
-        return
-
-    cat_order_map = {}
-    cat_counter = {}
+    existing = {row.type: row for row in db.query(models.WorkflowCommand).all()}
     for type_name, cmd in commands.COMMAND_REGISTRY.items():
-        if not cmd.get("enabled", False):
+        row = existing.get(type_name)
+        # 如果该类型已被用户当作自定义指令占用，不要覆盖
+        if row is not None and not row.is_builtin:
             continue
-        cat = cmd.get("category", "其他")
-        if cat not in cat_order_map:
-            cat_order_map[cat] = len(cat_order_map) + 1
-        cat_counter[cat] = cat_counter.get(cat, 0) + 1
+
         ext = cmd.get("runtimes", {}).get("extension")
-        db.add(models.WorkflowCommand(
-            type=type_name,
-            label=cmd.get("label", type_name),
-            category=cat,
-            icon=cmd.get("icon", "fa-circle"),
-            icon_color=cmd.get("iconColor", "text-gray-500"),
-            bg_color=cmd.get("bgColor", "bg-gray-50"),
-            is_container=1 if cmd.get("isContainer") else 0,
-            is_branch=1 if cmd.get("isBranch") else 0,
-            is_structural=1 if cmd.get("isStructural") else 0,
-            closes_with=cmd.get("closesWith"),
-            fields=json.dumps(cmd.get("fields", [])),
-            description=cmd.get("description", ""),
-            is_builtin=1,
-            enabled=1,
-            handler=ext.get("handler") if ext else None,
-            local=1 if ext and ext.get("local") else 0,
-            category_order=cmd.get("categoryOrder", cat_order_map[cat]),
-            command_order=cmd.get("commandOrder", cat_counter[cat]),
-        ))
+        fields = {
+            "label": cmd.get("label", type_name),
+            "category": cmd.get("category", "其他"),
+            "icon": cmd.get("icon", "fa-circle"),
+            "icon_color": cmd.get("iconColor", "text-gray-500"),
+            "bg_color": cmd.get("bgColor", "bg-gray-50"),
+            "is_container": 1 if cmd.get("isContainer") else 0,
+            "is_branch": 1 if cmd.get("isBranch") else 0,
+            "is_structural": 1 if cmd.get("isStructural") else 0,
+            "closes_with": cmd.get("closesWith"),
+            "fields": json.dumps(cmd.get("fields", []), ensure_ascii=False),
+            "description": cmd.get("description", ""),
+            "is_builtin": 1,
+            "enabled": 1 if cmd.get("enabled", True) else 0,
+            "handler": ext.get("handler") if ext else None,
+            "local": 1 if ext and ext.get("local") else 0,
+            "category_order": cmd.get("categoryOrder", 0),
+            "command_order": cmd.get("commandOrder", 0),
+        }
+        if row is None:
+            db.add(models.WorkflowCommand(type=type_name, **fields))
+        else:
+            for key, value in fields.items():
+                setattr(row, key, value)
     db.commit()
 
 
