@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 import DataTableTab from './DataTableTab';
+import WorkflowParametersPanel from './WorkflowParametersPanel';
 
 const BOTTOM_TABS = [
   { key: 'elements', label: '元素库', icon: 'fa-crosshairs' },
@@ -554,6 +555,10 @@ export default function ElementLibraryTab() {
             <p className="text-gray-500 text-sm">{BOTTOM_TABS.find(t => t.key === activeTab)?.label}</p>
             <p className="text-gray-400 text-xs mt-1">暂无内容</p>
           </div>
+        )}
+
+        {activeTab === 'params' && (
+          <WorkflowParametersPanel variant="bottom" />
         )}
 
         {/* DataTableTab 始终挂载，通过 hidden 控制显隐，确保运行时事件不丢失 */}

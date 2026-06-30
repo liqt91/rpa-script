@@ -31,7 +31,7 @@ function parseOptions(raw) {
   return [];
 }
 
-export default function WorkflowParametersPanel() {
+export default function WorkflowParametersPanel({ variant = 'sidebar' }) {
   const { workflow, updateWorkflowParameters } = useWorkflow();
   const [params, setParams] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -92,8 +92,14 @@ export default function WorkflowParametersPanel() {
     }
   };
 
+  const isBottom = variant === 'bottom';
+  const Tag = isBottom ? 'div' : 'aside';
+  const outerClass = isBottom
+    ? 'flex-1 bg-white flex flex-col select-none overflow-hidden min-h-0'
+    : 'w-[280px] bg-white border-l border-[#e8e8e8] flex flex-col shrink-0 select-none overflow-hidden';
+
   return (
-    <aside className="w-[280px] bg-white border-l border-[#e8e8e8] flex flex-col shrink-0 select-none overflow-hidden">
+    <Tag className={outerClass}>
       <div className="px-4 py-3 border-b border-[#e8e8e8]">
         <h2 className="text-sm font-medium text-gray-700">流程参数</h2>
         <p className="text-xs text-gray-500">运行时通过弹窗输入，支持 ${name} 插值</p>
@@ -199,6 +205,6 @@ export default function WorkflowParametersPanel() {
           {saving ? '保存中...' : '保存参数'}
         </button>
       </div>
-    </aside>
+    </Tag>
   );
 }
