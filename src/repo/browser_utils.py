@@ -143,6 +143,47 @@ def is_browser_running(browser_type: str) -> bool:
         return False
 
 
+def focus_browser_window(browser_type: str) -> bool:
+    """Windows 下尝试将已有浏览器窗口前置。
+
+    通过窗口标题匹配（Chrome 窗口标题含 "Google Chrome"，Edge 含 "Microsoft Edge"）。
+    找不到窗口或非 Windows 平台返回 False。
+    """
+    if os.name != "nt":
+        return False
+
+    import ctypes
+    from ctypes import wintypes
+
+    target_suffix = "Microsoft Edge" if browser_type == "edge" else "Google Chrome"
+    found = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def enum_proc(hwnd, _lparam):
+        if not ctypes.windll.user32.IsWindowVisible(hwnd):
+            return True
+        length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+        if length == 0:
+            return True
+        buf = ctypes.create_unicode_buffer(length + 1)
+        ctypes.windll.user32.GetWindowTextW(hwnd, buf, length + 1)
+        if target_suffix in buf.value:
+            found.append(hwnd)
+            return False
+        return True
+
+    ctypes.windll.user32.EnumWindows(enum_proc, 0)
+    if not found:
+        return False
+
+    hwnd = found[0]
+    SW_RESTORE = 9
+    if ctypes.windll.user32.IsIconic(hwnd):
+        ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
+    ctypes.windll.user32.SetForegroundWindow(hwnd)
+    return True
+
+
 def launch_browser_with_extension(browser_type: str) -> bool:
     """以默认用户目录启动浏览器，并自动加载 RPA Script 扩展。
 

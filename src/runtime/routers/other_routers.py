@@ -20,7 +20,13 @@ from sqlalchemy.orm import Session
 from .. import schemas, auth
 from src.repo import runtime_models as models
 from src.config import runtime_config as config
-from src.repo.browser_utils import get_chrome_path, get_edge_path, find_extension_dir, is_browser_running
+from src.repo.browser_utils import (
+    get_chrome_path,
+    get_edge_path,
+    find_extension_dir,
+    is_browser_running,
+    focus_browser_window,
+)
 from ..utils import utcnow
 from ..job_registry import get_registry
 from ..dify_client import get_dify_client
@@ -248,12 +254,11 @@ def open_extensions_page(browser: str = "chrome"):
         return {"success": False, "error": f"未找到 {browser} 浏览器"}
 
     if is_browser_running(browser):
+        if focus_browser_window(browser):
+            return {"success": True, "browser": browser, "broughtToFront": True}
         return {
             "success": False,
-            "error": (
-                f"{browser.title()} 已经在运行。"
-                "请先关闭所有该浏览器窗口，再点击此按钮以加载扩展。"
-            ),
+            "error": f"{browser.title()} 已经在运行。",
         }
 
     ext_dir = find_extension_dir()
