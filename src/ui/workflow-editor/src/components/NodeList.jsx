@@ -14,6 +14,8 @@ export default function NodeList() {
     NODE_TYPE_MAP,
     saveNode,
     replaceNodes,
+    copyNodes,
+    pasteNodes,
     wfId,
     runStatus,
     runningStepId,
@@ -62,6 +64,35 @@ export default function NodeList() {
     window.addEventListener('dragend', onDragEnd);
     return () => window.removeEventListener('dragend', onDragEnd);
   }, [dragOver, draggingIds, stopAutoScroll]);
+
+  // ─── 复制 / 粘贴快捷键 ─────────────────────────────────────────
+  useEffect(() => {
+    const isTextField = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      return el.isContentEditable;
+    };
+
+    const onKeyDown = (e) => {
+      const isMeta = e.ctrlKey || e.metaKey;
+      if (!isMeta) return;
+      if (isTextField(e.target)) return;
+      if (e.key === 'c' || e.key === 'C') {
+        const ids = Array.from(selectedNodeIds);
+        if (ids.length > 0) {
+          e.preventDefault();
+          copyNodes(ids);
+        }
+      } else if (e.key === 'v' || e.key === 'V') {
+        if (!selectedNodeId) return;
+        e.preventDefault();
+        pasteNodes(selectedNodeId);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedNodeIds, selectedNodeId, copyNodes, pasteNodes]);
 
   // ─── 选区合法性 ──────────────────────────────────────────────
 
@@ -397,6 +428,14 @@ export default function NodeList() {
             <i className="fas fa-arrow-down text-[10px]"></i>
           </button>
           <div className="w-px h-4 bg-gray-200 mx-1" />
+          <button
+            onClick={() => copyNodes(Array.from(selectedNodeIds))}
+            disabled={!selectionValidation.valid}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-blue-100 text-gray-400 hover:text-blue-500 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="复制"
+          >
+            <i className="fas fa-copy text-[10px]"></i>
+          </button>
           <button
             onClick={(e) => handleDelete(e, Array.from(selectedNodeIds)[0])}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-100 text-gray-400 hover:text-red-500"

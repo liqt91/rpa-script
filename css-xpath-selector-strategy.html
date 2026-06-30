@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>浏览器扩展元素选择器策略</title>
+<style>
+/* report.css — single source of truth for deliver-html HTML output.
+ *
+ * Extracted from NEXT_ACTIONS.html / PHAN_TICH.html so every deliverable
+ * shares the same dark Github-flavored look. Edit here, every future HTML
+ * deliverable picks it up. Existing HTML files at repo root keep inline
+ * copies (self-contained shipping artefacts — see ADR-0002).
+ */
+
+:root {
+  --bg: #0f1419;
+  --panel: #161b22;
+  --panel2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #a371f7;
+  --good: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code-bg: #1c2128;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.65;
+  font-size: 16px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+
+/* ----- Hero ----- */
+header.hero {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #161b22 0%, #0f1419 100%);
+  border-radius: 14px;
+  padding: 30px 36px;
+  margin-bottom: 28px;
+  position: relative;
+}
+header.hero::after {
+  content: attr(data-badge);
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  background: rgba(163, 113, 247, 0.15);
+  color: var(--accent2);
+  border: 1px solid rgba(163, 113, 247, 0.5);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+header.hero[data-badge-tone="good"]::after {
+  color: var(--good);
+  background: rgba(63, 185, 80, 0.15);
+  border-color: rgba(63, 185, 80, 0.5);
+}
+header.hero[data-badge-tone="warn"]::after {
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.15);
+  border-color: rgba(210, 153, 34, 0.5);
+}
+header.hero[data-badge-tone="bad"]::after {
+  color: var(--bad);
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.5);
+}
+header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.02em; }
+header.hero .sub { color: var(--muted); margin: 0 0 16px; font-size: 15px; }
+header.hero .meta {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+header.hero .meta span strong { color: var(--text); }
+header.hero .tldr {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  border-radius: 8px;
+  font-size: 14.5px;
+}
+header.hero .tldr strong { color: var(--accent); }
+
+/* ----- Typography ----- */
+h2 {
+  margin-top: 44px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 22px;
+}
+h2 .num {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 10px;
+  border: 1px solid var(--border);
+}
+h3 { margin-top: 28px; margin-bottom: 8px; font-size: 17px; color: var(--accent); }
+h4 { margin-top: 18px; margin-bottom: 6px; font-size: 15px; }
+h5 { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+h6 { margin: 10px 0 4px; font-size: 12.5px; color: var(--muted); }
+p { margin: 10px 0 14px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ----- Code ----- */
+code, kbd {
+  font-family: var(--mono);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+pre code { background: none; border: none; padding: 0; }
+
+/* ----- Tables ----- */
+table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+
+/* ----- Lists ----- */
+ul, ol { padding-left: 22px; }
+li { margin: 5px 0; }
+
+/* ----- Cards (border-left accent) ----- */
+.card { border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; background: var(--panel); margin: 16px 0; }
+.card.good { border-left: 4px solid var(--good); }
+.card.warn { border-left: 4px solid var(--warn); }
+.card.bad  { border-left: 4px solid var(--bad); }
+.card.info { border-left: 4px solid var(--accent); }
+.card.next { border-left: 4px solid var(--accent2); }
+.card h4 { margin-top: 0; }
+
+/* ----- Pills (inline badges) ----- */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  margin-right: 6px;
+}
+.pill.good { background: rgba(63, 185, 80, 0.12);  color: var(--good);    border-color: rgba(63, 185, 80, 0.5); }
+.pill.warn { background: rgba(210, 153, 34, 0.12); color: var(--warn);    border-color: rgba(210, 153, 34, 0.5); }
+.pill.bad  { background: rgba(248, 81, 73, 0.12);  color: var(--bad);     border-color: rgba(248, 81, 73, 0.5); }
+.pill.info { background: rgba(88, 166, 255, 0.12); color: var(--accent);  border-color: rgba(88, 166, 255, 0.5); }
+.pill.alt  { background: rgba(163, 113, 247, 0.12);color: var(--accent2); border-color: rgba(163, 113, 247, 0.5); }
+
+/* ----- Grids ----- */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0; }
+@media (max-width: 800px) {
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+}
+
+/* ----- Stat tiles ----- */
+.stat { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; background: var(--panel); }
+.stat .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.stat .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.stat.good .num { color: var(--good); }
+.stat.warn .num { color: var(--warn); }
+.stat.bad  .num { color: var(--bad);  }
+.stat.info .num { color: var(--accent); }
+.stat.alt  .num { color: var(--accent2); }
+
+/* ----- Blockquote ----- */
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 14px 0;
+  padding: 8px 16px;
+  color: var(--muted);
+  background: var(--panel2);
+  border-radius: 0 8px 8px 0;
+}
+blockquote p { margin: 4px 0; }
+
+/* ----- TOC ----- */
+.toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 22px; margin: 20px 0 28px; font-size: 14px; }
+.toc h4 { margin: 6px 0 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.toc ol { margin: 0; padding-left: 22px; columns: 2; }
+@media (max-width: 800px) { .toc ol { columns: 1; } }
+
+/* ----- Side-by-side diff ----- */
+.diff-side { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.diff-side .col { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 14px 16px; }
+.diff-side .col.before { border-top: 3px solid var(--warn); }
+.diff-side .col.after  { border-top: 3px solid var(--good); }
+.diff-side .col h5 { margin: 0 0 8px; }
+@media (max-width: 800px) { .diff-side { grid-template-columns: 1fr; } }
+
+/* ----- Horizontal rule ----- */
+hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ----- Footer ----- */
+footer {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero" data-badge="DECISION DOC" data-badge-tone="alt">
+  <h1>浏览器扩展元素选择器策略</h1>
+  <p class="sub">CSS/XPath 生成、校验与优先级可视化手册</p>
+  <div class="meta">
+    <span><strong>Generated:</strong> 2026-06-05</span>
+    <span><strong>Template:</strong> decision-doc</span>
+  </div>
+</header>
+
+<h1 id="deliverable">浏览器扩展元素选择器策略</h1>
+<h2 id="deliverable">概述</h2>
+<p>RPA Script 浏览器扩展在元素采集时需要同时输出 <strong>CSS、XPath、Drission</strong> 三种选择器。本手册固化生成、校验、双向一致性、优先级四层规则，确保侧板切换任意标签时都有可用候选。</p>
+<div class="grid3">
+<div class="stat good"><div class="lbl">CSS</div><div class="num">原生 QSA</div></div>
+<div class="stat good"><div class="lbl">XPath</div><div class="num">双轨策略</div></div>
+<div class="stat good"><div class="lbl">Drission</div><div class="num">text/attr</div></div>
+</div>
+<h2 id="1-css">1. CSS：严格限制在原生范围</h2>
+<div class="card good">
+核心原则：CSS 选择器必须能被 <code>document.querySelectorAll</code> 原生解析。
+</div>
+<ul>
+<li><strong>禁止生成</strong> <code>:contains(&quot;text&quot;)</code>、<code>/deep/</code>、<code>::shadow</code> 等非标准语法。</li>
+<li><code>innerText</code> 在 CSS 标签下可勾选，但<strong>不输出到选择器</strong>。</li>
+<li>校验直接走 <code>querySelectorAll</code>，不再做 jQuery shim。</li>
+</ul>
+<h2 id="2-xpath">2. XPath：双轨策略</h2>
+<p>XPath 候选分两类：</p>
+<table><thead><tr><th>类型</th><th>生成位置</th><th>特点</th><th>示例</th></tr></thead><tbody><tr><td>Target-only</td><td><code>buildTargetOnlyXPathCandidates</code></td><td>从目标元素向外特化，尽量短</td><td><code>//*[@id=&#39;foo&#39;]</code></td></tr><tr><td>Structural</td><td><code>getElementXPathFromPath</code></td><td>完整 path 兜底</td><td><code>//body/div[1]/nav/a[3]</code></td></tr></tbody></table>
+<h3 id="2-1-target-only">2.1 Target-only 生成优先级</h3>
+<div class="card info">
+仅当 <code>document.evaluate</code> 返回唯一匹配时才加入候选。
+</div>
+<div class="grid3">
+<div class="stat good"><div class="lbl">id</div><div class="num">100</div></div>
+<div class="stat good"><div class="lbl">data-*</div><div class="num">95</div></div>
+<div class="stat good"><div class="lbl">aria-label / name</div><div class="num">90 / 88</div></div>
+<div class="stat warn"><div class="lbl">text</div><div class="num">80</div></div>
+<div class="stat warn"><div class="lbl">placeholder / title</div><div class="num">80 / 75</div></div>
+<div class="stat warn"><div class="lbl">href / role+attr</div><div class="num">85 / 82</div></div>
+<div class="stat info"><div class="lbl">stable class</div><div class="num">72</div></div>
+<div class="stat info"><div class="lbl">type</div><div class="num">65</div></div>
+<div class="stat bad"><div class="lbl">[n] 结构路径</div><div class="num">15</div></div>
+</div>
+<h3 id="2-2-n">2.2 位置序号 <code>[n]</code> 惩罚</h3>
+<div class="card bad">
+每个 <code>:nth-of-type()</code> 或 XPath <code>[n]</code> 扣 50 分。位置信息是最后手段。
+</div>
+<h2 id="3">3. 校验层</h2>
+<p>单一入口 <code>verifyLocator(syntax, family)</code>：</p>
+<ul>
+<li><strong>xpath</strong>：去掉 <code>xpath:</code> 前缀后直接 <code>document.evaluate</code>。</li>
+<li><strong>drission</strong>：<code>verse:</code> / <code>text=</code> / <code>tag:*@text()</code> 转给 <code>resolveAllForVerify</code>。</li>
+<li><strong>css</strong>：去掉 <code>css:</code> 前缀后 <code>querySelectorAll</code>。</li>
+</ul>
+<h2 id="4">4. 双向一致性</h2>
+<h3 id="4-1-ui">4.1 推荐 → UI</h3>
+<p>候选附带 <code>pathMapping</code>，标明每个 segment 对应 <code>path[i]</code> 的哪个层级：</p>
+<pre><code>css:body &gt; div &gt; nav &gt; a
+xpath://body/div/nav/a[3]
+mapping: [0, 1, 2, 3]</code></pre>
+<p>侧板直接按映射勾选，不再反向猜测。</p>
+<h3 id="4-2-ui">4.2 UI → 选择器</h3>
+<p>同一组 checkbox 状态，CSS/XPath 语义一致：</p>
+<table><thead><tr><th>勾选</th><th>CSS</th><th>XPath</th></tr></thead><tbody><tr><td>tag</td><td><code>div</code></td><td><code>div</code></td></tr><tr><td>id</td><td><code>#foo</code></td><td><code>[@id=&#39;foo&#39;]</code></td></tr><tr><td>class</td><td><code>.bar</code></td><td><code>[contains(@class,&#39;bar&#39;)]</code></td></tr><tr><td>attr</td><td><code>[href=&quot;x&quot;]</code></td><td><code>[@href=&#39;x&#39;]</code></td></tr><tr><td>nth-of-type</td><td><code>:nth-of-type(2)</code></td><td><code>[2]</code></td></tr><tr><td>nth-child</td><td><code>:nth-child(3)</code></td><td><code>[position()=3]</code></td></tr><tr><td>innerText</td><td>忽略</td><td><code>[contains(text(),&#39;text&#39;)]</code></td></tr></tbody></table>
+<h2 id="5-top-10">5. 候选截取：各家族 Top 10</h2>
+<div class="card warn">
+不再使用全局 Top 10，改为 CSS / XPath / Drission 各取前 10，避免 XPath 被 CSS 大量挤出侧板。
+</div>
+<pre><code class="language-js">function pickCandidatesByFamily(all, limitPerFamily = 10) {
+  const byFamily = {};
+  for (const c of all) {
+    const family = c.family || c.type || &#39;css&#39;;
+    (byFamily[family] ||= []).push(c);
+  }
+  return Object.values(byFamily).flatMap(arr =&gt; arr.slice(0, limitPerFamily));
+}</code></pre>
+<h2 id="6">6. 动态属性黑名单</h2>
+<p>新增 <code>isFragileAttr(name)</code>，采集阶段直接过滤：</p>
+<ul>
+<li><code>style</code></li>
+<li><code>onclick</code>、<code>onchange</code> 等事件处理器</li>
+<li><code>data-react*</code>、<code>data-v-*</code></li>
+<li><code>_ngcontent-*</code>、<code>_nghost-*</code></li>
+<li>动态 ARIA：<code>aria-owns</code>、<code>aria-activedescendant</code>、<code>aria-busy</code>、<code>aria-live</code>、<code>aria-relevant</code></li>
+</ul>
+<h2 id="deliverable">相关文件</h2>
+<ul>
+<li><code>extension/content_capture.js</code> — 采集、生成、校验</li>
+<li><code>extension/sidepanel.js</code> — 侧板双向一致性</li>
+<li><code>.harness/docs/adr/0004-css-xpath-selector-strategy.md</code> — 完整 ADR</li>
+</ul>
+
+<footer>
+  <p>Generated by agent-harness-kit / <code>/deliver-html</code> — HTML for humans, MD for agents.</p>
+</footer>
+</div>
+</body>
+</html>

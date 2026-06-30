@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "model-profile",
+  "name": "model-profile",
+  "version": "1.0.0",
+  "description": "Use this skill when choosing, upgrading, or comparing models for a harness lane. Runs the same task set across candidate model profiles and reports pass rate, latency, token cost, intervention count, and failure class movement before changing defaults.",
+  "capabilities": [
+    "generation",
+    "workflow"
+  ],
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}

@@ -34,7 +34,7 @@ def _scope_field() -> dict:
             {"label": "在当前外层元素内查找", "value": "local"},
             {"label": "全页面匹配", "value": "global"},
         ],
-        "default": "global",
+        "default": "local",
         "group": "advanced",
         "description": "在当前外层元素内查找=仅在当前 forEachElement 循环到的元素内部搜索该选择器；全页面匹配=在整个页面搜索，不依赖循环上下文。",
     }
@@ -108,7 +108,7 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
 # 【多对一】多个指令共享一个通用 handler，通过 extra 字段区分行为：
 #   extract → getText(None), getAttr(attrName), getHtml(innerHTML), getValue(value)
 #   scroll  → scrollToBottom, scrollToTop, scrollOneScreen, scrollIntoView, scrollBy
-#   wait    → sleep(seconds), waitForElement(timeout) — 待扩展
+#   wait    → sleep(seconds) 本地执行, waitForElement(timeout) 扩展执行
 #
 # 【后端本地】不操作页面 DOM，由 extension_runner._handle_local 直接执行：
 #   setVar, appendToList, stringConcat, increment,
@@ -275,7 +275,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
                 "type": "bool",
                 "default": True,
                 "group": "advanced",
-                "description": "开启时模拟鼠标移动轨迹，并依次触发 mousedown → mouseup → click 事件；关闭后跳过鼠标移动和事件间隔。若“强制JS点击”同时开启，本选项被忽略。",
+                "description": "开启时点击前会先平滑滚动到元素，并模拟鼠标移动轨迹，依次触发 mousedown → mouseup → click 事件；关闭后使用瞬时滚动并直接点击。若“强制JS点击”同时开启，本选项被忽略。",
             },
         ],
     },
@@ -313,6 +313,38 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _element_name_field(),
             _scope_field(),
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "doubleClick"},
+        ],
+    },
+    "clickCurrentLoopItem": {
+        "label": "点击当前循环元素",
+        "categoryOrder": 20,
+        "commandOrder": 25,
+        "enabled": True,
+        "category": "元素点击",
+        "icon": "fa-bullseye",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "elementAction", "local": False}},
+        "fields": [
+            _window_var_field(),
+            {"name": "action", "label": "扩展动作", "type": "hidden", "default": "clickCurrentLoopItem"},
+            {"name": "itemVar", "label": "循环元素变量名", "type": "varName", "default": "item", "description": "需要与外层 forEachElement 的元素变量名保持一致，仅影响 Python 导出。"},
+            {
+                "name": "forceJs",
+                "label": "强制JS点击",
+                "type": "bool",
+                "default": False,
+                "description": "开启后直接调用当前循环元素的 el.click()，不触发鼠标移动和 mousedown/mouseup/click 事件序列。",
+            },
+            {
+                "name": "humanLike",
+                "label": "拟人化操作",
+                "type": "bool",
+                "default": True,
+                "group": "advanced",
+                "description": "开启时点击前会先平滑滚动到当前循环元素，并模拟鼠标移动轨迹触发点击事件；关闭后使用瞬时滚动并直接点击。",
+            },
         ],
     },
     "clickIfExists": {
@@ -540,7 +572,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "elementAction", "local": False}},
         "fields": [
             _window_var_field(),
+            {**_element_name_field(required=False), "label": "目标元素(可选)", "description": "留空则滚动页面；指定元素则在元素内部滚动到底部"},
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "scroll"},
+            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
@@ -557,7 +591,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "elementAction", "local": False}},
         "fields": [
             _window_var_field(),
+            {**_element_name_field(required=False), "label": "目标元素(可选)", "description": "留空则滚动页面；指定元素则在元素内部滚动到顶部"},
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "scroll"},
+            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
@@ -574,7 +610,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "elementAction", "local": False}},
         "fields": [
             _window_var_field(),
+            {**_element_name_field(required=False), "label": "目标元素(可选)", "description": "留空则滚动页面；指定元素则在元素内部滚动一屏"},
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "scroll"},
+            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
         ],
     },
@@ -591,7 +629,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "elementAction", "local": False}},
         "fields": [
             _window_var_field(),
+            {**_element_name_field(required=False), "label": "目标元素(可选)", "description": "留空则滚动页面；指定元素则在元素内部滚动指定距离"},
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "scroll"},
+            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
             {"name": "x", "label": "水平距离(px)", "type": "number", "default": 0},
             {"name": "y", "label": "垂直距离(px)", "type": "number", "default": 500},
             {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
@@ -611,10 +651,27 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "iconColor": "text-gray-500",
         "bgColor": "bg-gray-50",
         "isContainer": False,
-        "runtimes": {"extension": {"handler": "wait", "local": False}},
+        "runtimes": {"extension": {"handler": "wait", "local": True}},
         "fields": [
             _window_var_field(),
             {"name": "seconds", "label": "等待秒数", "type": "number", "default": 1.0},
+        ],
+    },
+    "randomSleep": {
+        "label": "等待随机时间",
+        "categoryOrder": 30,
+        "commandOrder": 15,
+        "enabled": True,
+        "category": "等待",
+        "icon": "fa-shuffle",
+        "iconColor": "text-gray-500",
+        "bgColor": "bg-gray-50",
+        "isContainer": False,
+        "runtimes": {"extension": {"handler": "randomWait", "local": True}},
+        "fields": [
+            _window_var_field(),
+            {"name": "minSeconds", "label": "最短等待(秒)", "type": "number", "default": 1.0},
+            {"name": "maxSeconds", "label": "最长等待(秒)", "type": "number", "default": 3.0},
         ],
     },
     "waitForElement": {
@@ -957,6 +1014,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             {"name": "varName", "label": "变量名", "type": "varName", "required": False},
             {"name": "varValue", "label": "变量值", "type": "text", "required": False},
             {"name": "maxIterations", "label": "最大迭代次数", "type": "number", "default": 100},
+            {"name": "executeFirst", "label": "先执行循环体再判断条件", "type": "bool", "default": False, "description": "开启后变为 do-while：循环体至少执行一次，执行完再判断条件决定是否继续。"},
         ],
     },
     "break": {

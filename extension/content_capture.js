@@ -1276,6 +1276,37 @@
       }
     }
 
+    // ── Phase 1.6: target self repeated fallback ──
+    // If the target element itself appears multiple times across the page
+    // (even if not as direct siblings), offer it as a list item.
+    const selfItemSel = buildListItemSelector(element);
+    const familyItemSel = (family.container && family.items.length >= 2)
+      ? buildListItemSelector(family.items.find(item => item === element || item.contains(element)) || element)
+      : '';
+    if (selfItemSel && selfItemSel !== familyItemSel) {
+      const selfCount = verifyLocator(selfItemSel, 'css');
+      if (selfCount >= 2 && selfCount <= 200) {
+        candidates.push({
+          syntax: 'css:' + selfItemSel,
+          label: `${selfItemSel} (列表, ${selfCount}个)`,
+          family: 'css', score: 60, matchCount: selfCount, isList: true,
+          listItem: selfItemSel,
+        });
+      }
+      const selfItemXp = buildXPathForElement(element);
+      if (selfItemXp) {
+        const selfXpCount = verifyLocator(selfItemXp, 'xpath');
+        if (selfXpCount >= 2 && selfXpCount <= 200) {
+          candidates.push({
+            syntax: 'xpath:' + selfItemXp,
+            label: `${selfItemXp} (列表, ${selfXpCount}个)`,
+            family: 'xpath', score: 58, matchCount: selfXpCount, isList: true,
+            listItem: selfItemXp,
+          });
+        }
+      }
+    }
+
     // ── Phase 1.5: ancestor list fallback ──
     // If the target itself has no list family, walk up ancestors and
     // recommend list candidates for every ancestor that qualifies.

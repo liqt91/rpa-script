@@ -537,6 +537,140 @@ export function WorkflowProvider({ children, wfId }) {
     setTimeout(() => persistToLocal(), 0);
   }, [persistToLocal]);
 
+  // ─── Copy / Paste nodes ─────────────────────────────────────────
+
+  const copyNodes = useCallback(async (nodeIds) => {
+    const current = stateRef.current;
+    if (!nodeIds || nodeIds.length === 0) return;
+
+    // Collect each selected root plus its descendants, preserving order.
+    const roots = new Set(nodeIds);
+    const inSelection = new Set(nodeIds);
+    const queue = Array.from(nodeIds);
+    while (queue.length > 0) {
+      const id = queue.shift();
+      for (const n of current.nodes) {
+        if (n.parent_id === id && !inSelection.has(n.id)) {
+          inSelection.add(n.id);
+          queue.push(n.id);
+        }
+      }
+    }
+
+    const copied = current.nodes
+      .filter(n => inSelection.has(n.id))
+      .map(n => ({ ...n }))
+      .sort((a, b) => a.order - b.order);
+
+    const rootsOrderMin = Math.min(...copied.filter(n => roots.has(n.id)).map(n => n.order));
+    const payload = {
+      version: 1,
+      roots: Array.from(roots),
+      nodes: copied,
+      baseOrder: rootsOrderMin,
+    };
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload));
+      console.log(`[WorkflowContext] copyNodes count=${copied.length}`);
+    } catch (e) {
+      console.error('[WorkflowContext] copyNodes failed:', e);
+      dispatch({ type: 'SET_ERROR', payload: '复制失败：' + e.message });
+    }
+  }, []);
+
+  const pasteNodes = useCallback(async (targetNodeId) => {
+    const current = stateRef.current;
+    try {
+      const text = await navigator.clipboard.readText();
+      const payload = JSON.parse(text);
+      if (!payload || payload.version !== 1 || !Array.isArray(payload.nodes)) {
+        console.warn('[WorkflowContext] pasteNodes: clipboard does not contain workflow nodes');
+        return;
+      }
+
+      const copiedNodes = payload.nodes.map(n => ({ ...n }));
+      const oldRootIds = new Set(payload.roots || []);
+
+      // Determine target parent and insertion order.
+      let targetParentId = null;
+      let insertAfterOrder = 0;
+      const targetNode = targetNodeId ? current.nodes.find(n => n.id === targetNodeId) : null;
+
+      if (targetNode) {
+        targetParentId = targetNode.parent_id;
+        // Insert after the selected node's entire subtree.
+        const tree = buildTree(current.nodes);
+        const targetIdx = tree.findIndex(n => n.id === targetNode.id);
+        if (targetIdx !== -1) {
+          const targetDepth = tree[targetIdx].depth;
+          let endIdx = targetIdx;
+          for (let i = targetIdx + 1; i < tree.length; i++) {
+            if (tree[i].depth <= targetDepth) break;
+            endIdx = i;
+          }
+          insertAfterOrder = tree[endIdx].order;
+        } else {
+          insertAfterOrder = targetNode.order;
+        }
+      } else {
+        const siblings = current.nodes.filter(n => n.parent_id === null);
+        insertAfterOrder = siblings.length > 0 ? Math.max(...siblings.map(n => n.order)) : 0;
+      }
+
+      // Generate new IDs and remap parent IDs.
+      const idMap = new Map();
+      const pasted = copiedNodes.map(n => {
+        const newId = crypto.randomUUID();
+        idMap.set(n.id, newId);
+        return { ...n, id: newId };
+      });
+
+      for (const n of pasted) {
+        if (idMap.has(n.parent_id)) {
+          n.parent_id = idMap.get(n.parent_id);
+        } else if (oldRootIds.has(n.parent_id)) {
+          n.parent_id = targetParentId;
+        } else {
+          n.parent_id = targetParentId;
+        }
+      }
+
+      // Merge into existing nodes: shift later orders, assign new orders to pasted nodes.
+      const pastedCount = pasted.length;
+      const existing = current.nodes.map(n => ({ ...n }));
+      for (const n of existing) {
+        if (n.order > insertAfterOrder) {
+          n.order += pastedCount;
+        }
+      }
+
+      const sortedPasted = pasted.sort((a, b) => a.order - b.order);
+      for (let i = 0; i < sortedPasted.length; i++) {
+        sortedPasted[i].order = insertAfterOrder + i + 1;
+      }
+
+      const combined = [...existing, ...sortedPasted];
+      combined.sort((a, b) => a.order - b.order);
+      for (let i = 0; i < combined.length; i++) {
+        combined[i].order = i + 1;
+      }
+
+      console.log(`[WorkflowContext] pasteNodes count=${pastedCount} after=${insertAfterOrder}`);
+      dispatch({ type: 'REPLACE_NODES', payload: combined });
+      setTimeout(() => persistToLocal(), 0);
+
+      // Select the pasted root nodes.
+      const pastedRootIds = pasted.filter(n => n.parent_id === targetParentId).map(n => n.id);
+      if (pastedRootIds.length > 0) {
+        dispatch({ type: 'SELECT_NODE', payload: pastedRootIds[0] });
+      }
+    } catch (e) {
+      console.error('[WorkflowContext] pasteNodes failed:', e);
+      dispatch({ type: 'SET_ERROR', payload: '粘贴失败：' + e.message });
+    }
+  }, [persistToLocal]);
+
   // ─── Commit: batch save to backend ──────────────────────────────
 
   const commit = useCallback(async () => {
@@ -638,6 +772,8 @@ export function WorkflowProvider({ children, wfId }) {
     deleteNode,
     deleteNodes,
     replaceNodes,
+    copyNodes,
+    pasteNodes,
     commit,
     reorderNodes,
     updateWorkflowParameters,

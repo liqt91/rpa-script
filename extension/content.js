@@ -66,6 +66,25 @@
     return 'visible';
   }
 
+  function getElementXPath(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return '';
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === Node.ELEMENT_NODE) {
+      let index = 1;
+      let sibling = node.previousSibling;
+      while (sibling) {
+        if (sibling.nodeType === Node.ELEMENT_NODE && sibling.localName === node.localName) {
+          index += 1;
+        }
+        sibling = sibling.previousSibling;
+      }
+      parts.unshift(`${node.localName.toLowerCase()}[${index}]`);
+      node = node.parentNode;
+    }
+    return 'xpath:/' + parts.join('/');
+  }
+
   // ─── web-verse text fingerprint ──────────────────────────────────
 
   function generateVerseFingerprint(text) {
@@ -389,10 +408,16 @@
 
     if (lt === 'xpath') {
       let xl = l;
-      if (xl.startsWith('//')) xl = '.' + xl;
-      const r = document.evaluate(xl, rootElement, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      // If the XPath was captured as an absolute document path (//...), evaluating it
+      // relative to a context element with './/...' would fail because the path includes
+      // ancestor nodes outside the context. Always evaluate against document and then
+      // filter to descendants of the context element.
+      const r = document.evaluate(xl, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
       const arr = [];
-      for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+      for (let i = 0; i < r.snapshotLength; i++) {
+        const node = r.snapshotItem(i);
+        if (rootElement.contains(node)) arr.push(node);
+      }
       return arr;
     }
     if (lt === 'drission') {
@@ -504,9 +529,18 @@
 
         // Local/descendant scope: only search within the current outer element.
         const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-        const el = mode === 'any'
+        let el = mode === 'any'
           ? allDescendants[0] || null
           : allDescendants.find(e => checkVisibility(e, mode)) || null;
+
+        // Fallback: when the child selector is the same as the loop selector,
+        // the intended target is the current loop item itself (not a descendant).
+        if (!el) {
+          const globalMatches = resolveAllLocators(locator, selectorFamily);
+          if (globalMatches.includes(parent) && (mode === 'any' || checkVisibility(parent, mode))) {
+            el = parent;
+          }
+        }
 
         if (el) {
           const debugInfo = getElementDebugInfo(locator, selectorFamily, extra, el);
@@ -543,6 +577,14 @@
         el = mode === 'any'
           ? allDescendants[0] || null
           : allDescendants.find(e => checkVisibility(e, mode)) || null;
+
+        // Fallback: loop item itself matches the child selector.
+        if (!el) {
+          const globalMatches = resolveAllLocators(locator, selectorFamily);
+          if (globalMatches.includes(parent) && (mode === 'any' || checkVisibility(parent, mode))) {
+            el = parent;
+          }
+        }
       }
     }
     if (!el) {
@@ -725,6 +767,27 @@ console.log({
     }
   }
 
+  // 等待元素滚动停止（用于平滑滚动）
+  async function waitForScrollEnd(el, timeout = 2000) {
+    const start = performance.now();
+    let lastTop = el.getBoundingClientRect().top;
+    let lastWindowY = window.scrollY;
+    let stableFrames = 0;
+    while (performance.now() - start < timeout) {
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      const top = el.getBoundingClientRect().top;
+      const windowY = window.scrollY;
+      if (Math.abs(top - lastTop) < 0.5 && Math.abs(windowY - lastWindowY) < 0.5) {
+        stableFrames += 1;
+        if (stableFrames >= 3) return;
+      } else {
+        stableFrames = 0;
+      }
+      lastTop = top;
+      lastWindowY = windowY;
+    }
+  }
+
   // 拟人点击
   async function humanClick(el, humanLike, clickType = 'click') {
     try {
@@ -737,8 +800,13 @@ console.log({
       }
 
       // 确保元素在视口内并可交互
-      el.scrollIntoView({ block: 'center', behavior: 'instant' });
-      await sleep(50);
+      const scrollBehavior = humanLike ? 'smooth' : 'instant';
+      el.scrollIntoView({ block: 'center', behavior: scrollBehavior });
+      if (humanLike) {
+        await waitForScrollEnd(el);
+      } else {
+        await sleep(50);
+      }
       if (el.focus) el.focus();
 
       const point = getClickPoint(el, humanLike);
@@ -1058,13 +1126,40 @@ console.log({
     const fresh = reResolveWithContext(locator, selectorFamily, extra, mode);
     if (fresh && fresh !== document) el = fresh;
 
+    return performClick(el, { humanLike, forceJs, clickType });
+  }
+
+  async function doClickCurrentLoopItem({ extra }) {
+    const ctxLocator = extra?.contextLocator;
+    const ctxLocatorType = extra?.contextLocatorType;
+    const ctxIndex = extra?.contextIndex ?? 0;
+    const ctxTotal = extra?.contextTotal;
+
+    if (!ctxLocator) {
+      throw new Error('点击当前循环元素 必须在 forEachElement 循环体内使用');
+    }
+
+    const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+    const parent = parents[ctxIndex];
+    if (!parent) {
+      throw new Error(`当前循环元素未找到 (第 ${ctxIndex + 1}/${ctxTotal || '?'} 个)`);
+    }
+
+    await visualConfirmDelay();
+
+    const humanLike = extra?.humanLike ?? true;
+    const forceJs = extra?.forceJs ?? false;
+    const clickType = extra?.clickType || 'click';
+    return performClick(parent, { humanLike, forceJs, clickType });
+  }
+
+  async function performClick(el, { humanLike, forceJs, clickType }) {
     if (forceJs) {
       el.scrollIntoView({ block: 'center', behavior: 'instant' });
       if (el.focus) el.focus();
       if (clickType === 'doubleClick') {
         el.click(); el.click();
       } else if (clickType === 'rightClick') {
-        // forceJs rightClick fallback: dispatch contextmenu
         el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window, button: 2 }));
       } else {
         el.click();
@@ -1128,26 +1223,143 @@ console.log({
     }
   }
 
+  function isScrollableElement(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const style = window.getComputedStyle(el);
+    const overflowY = style.overflowY;
+    const overflow = style.overflow;
+    const canOverflow = overflowY === 'auto' || overflowY === 'scroll' || overflow === 'auto' || overflow === 'scroll';
+    return canOverflow && el.scrollHeight > el.clientHeight + 1;
+  }
+
+  function findLargestScrollableElement() {
+    const all = document.querySelectorAll('*');
+    let best = null;
+    let bestDiff = 0;
+    for (const el of all) {
+      if (isScrollableElement(el)) {
+        const diff = el.scrollHeight - el.clientHeight;
+        if (diff > bestDiff) {
+          bestDiff = diff;
+          best = el;
+        }
+      }
+    }
+    return best;
+  }
+
+  function findScrollableElement(el) {
+    // 1. try ancestors of the captured element
+    let current = el;
+    while (current && current !== document.body && current !== document.documentElement) {
+      if (isScrollableElement(current)) return current;
+      current = current.parentElement;
+    }
+    // 2. fall back to body/html if they scroll
+    if (isScrollableElement(document.documentElement)) return document.documentElement;
+    if (isScrollableElement(document.body)) return document.body;
+    // 3. last resort: the largest scrollable element on the page
+    return findLargestScrollableElement();
+  }
+
+  async function elementHumanScroll(el, delta, smooth) {
+    if (!smooth || document.hidden) {
+      el.scrollTop += delta;
+      return;
+    }
+    const startTop = el.scrollTop;
+    const maxTop = el.scrollHeight - el.clientHeight;
+    const targetTop = Math.max(0, Math.min(maxTop, startTop + delta));
+    const distance = targetTop - startTop;
+    if (Math.abs(distance) < 5) return;
+
+    const duration = rand(600, 1400);
+    const startTime = performance.now();
+    const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    await new Promise((resolve) => {
+      function tick(now) {
+        const elapsed = now - startTime;
+        const p = Math.min(elapsed / duration, 1);
+        el.scrollTop = startTop + distance * ease(p);
+        if (p < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          if (Math.random() < 0.1) {
+            el.scrollTop += distance > 0 ? randInt(3, 10) : randInt(-10, -3);
+          }
+          resolve();
+        }
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
   async function doScroll({ locator, selectorFamily, extra }) {
     const scrollType = extra?.scrollType || 'toBottom';
     const humanLike = extra?.humanLike ?? true;
     const smooth = extra?.smooth ?? true;
 
-    if (scrollType === 'intoView' || locator) {
+    if (locator) {
       const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const el = await waitForElement(locator, selectorFamily, mode, timeoutMs);
-      if (humanLike) {
-        const rect = el.getBoundingClientRect();
-        const targetY = rect.top + window.scrollY;
-        const currentY = window.scrollY;
-        const diff = targetY - currentY - window.innerHeight / 2;
-        await humanScroll(diff > 0 ? 'down' : 'up', Math.abs(diff), true);
-      } else {
-        const block = extra?.block || 'center';
-        el.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block });
+
+      if (scrollType === 'intoView') {
+        if (humanLike) {
+          const rect = el.getBoundingClientRect();
+          const targetY = rect.top + window.scrollY;
+          const currentY = window.scrollY;
+          const diff = targetY - currentY - window.innerHeight / 2;
+          await humanScroll(diff > 0 ? 'down' : 'up', Math.abs(diff), true);
+        } else {
+          const block = extra?.block || 'center';
+          el.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block });
+        }
+        return { scrolled: 'intoView', element: true };
       }
-      return { scrolled: 'intoView' };
+
+      const scrollEl = extra?.lookupScrollable ? (findScrollableElement(el) || el) : el;
+      const usingAncestor = scrollEl !== el;
+      console.log(`[RPA scroll] lookup=${extra?.lookupScrollable} captured=${el.tagName}.${el.className} scrollable=${scrollEl.tagName}.${scrollEl.className} sh=${scrollEl.scrollHeight} ch=${scrollEl.clientHeight}`);
+
+      if (!humanLike) {
+        if (scrollType === 'oneScreen') {
+          scrollEl.scrollTop += scrollEl.clientHeight;
+          return { scrolled: 'oneScreen', element: !usingAncestor, ancestor: usingAncestor };
+        }
+        if (scrollType === 'toBottom') {
+          scrollEl.scrollTop = scrollEl.scrollHeight;
+          return { scrolled: 'toBottom', element: !usingAncestor, ancestor: usingAncestor };
+        }
+        if (scrollType === 'toTop') {
+          scrollEl.scrollTop = 0;
+          return { scrolled: 'toTop', element: !usingAncestor, ancestor: usingAncestor };
+        }
+        if (scrollType === 'by') {
+          scrollEl.scrollBy(0, extra?.y || 500);
+          return { scrolled: 'by', y: extra?.y || 500, element: !usingAncestor, ancestor: usingAncestor };
+        }
+        return { scrolled: 'unknown', scrollType, element: !usingAncestor, ancestor: usingAncestor };
+      }
+
+      if (scrollType === 'oneScreen') {
+        await elementHumanScroll(scrollEl, scrollEl.clientHeight, smooth);
+        return { scrolled: 'oneScreen', element: !usingAncestor, ancestor: usingAncestor };
+      }
+      if (scrollType === 'toBottom') {
+        await elementHumanScroll(scrollEl, scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight, smooth);
+        return { scrolled: 'toBottom', element: !usingAncestor, ancestor: usingAncestor };
+      }
+      if (scrollType === 'toTop') {
+        await elementHumanScroll(scrollEl, -scrollEl.scrollTop, smooth);
+        return { scrolled: 'toTop', element: !usingAncestor, ancestor: usingAncestor };
+      }
+      if (scrollType === 'by') {
+        await elementHumanScroll(scrollEl, extra?.y || 500, smooth);
+        return { scrolled: 'by', y: extra?.y || 500, element: !usingAncestor, ancestor: usingAncestor };
+      }
+      return { scrolled: 'unknown', scrollType, element: !usingAncestor, ancestor: usingAncestor };
     }
 
     if (scrollType === 'oneScreen') {
@@ -1258,6 +1470,8 @@ console.log({
       case 'doubleClick':
       case 'rightClick':
         return doClick({ locator, selectorFamily, extra });
+      case 'clickCurrentLoopItem':
+        return doClickCurrentLoopItem({ extra });
       case 'input':
       case 'inputAndPressEnter':
         return doInput({ locator, selectorFamily, extra });
@@ -1296,12 +1510,6 @@ console.log({
   registerHandler('click', async function click(args) { return doClick(args); });
   registerHandler('input', async function input(args) { return doInput(args); });
   registerHandler('extract', async function extract(args) { return doExtract(args); });
-  registerHandler('wait', function wait({ extra }) {
-      const ms = (extra?.seconds || 1) * 1000;
-      return new Promise((resolve) => {
-        setTimeout(() => resolve({ waited: ms }), ms);
-      });
-    });
   registerHandler('scroll', async function scroll(args) { return doScroll(args); });
   registerHandler('pressKey', async function pressKey({ extra }) {
       const key = extra?.key || 'Enter';
@@ -1415,6 +1623,8 @@ console.log({
         html: el.innerHTML?.slice(0, 500) ?? '',
         tagName: el.tagName,
         index: idx,
+        contextLocator: getElementXPath(el),
+        contextLocatorType: 'xpath',
       }));
       return { count: items.length, items };
     });

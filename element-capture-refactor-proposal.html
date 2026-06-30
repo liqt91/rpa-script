@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>浏览器扩展元素采集与推荐方案重构</title>
+<style>
+/* report.css — single source of truth for deliver-html HTML output.
+ *
+ * Extracted from NEXT_ACTIONS.html / PHAN_TICH.html so every deliverable
+ * shares the same dark Github-flavored look. Edit here, every future HTML
+ * deliverable picks it up. Existing HTML files at repo root keep inline
+ * copies (self-contained shipping artefacts — see ADR-0002).
+ */
+
+:root {
+  --bg: #0f1419;
+  --panel: #161b22;
+  --panel2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #a371f7;
+  --good: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code-bg: #1c2128;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.65;
+  font-size: 16px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+
+/* ----- Hero ----- */
+header.hero {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #161b22 0%, #0f1419 100%);
+  border-radius: 14px;
+  padding: 30px 36px;
+  margin-bottom: 28px;
+  position: relative;
+}
+header.hero::after {
+  content: attr(data-badge);
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  background: rgba(163, 113, 247, 0.15);
+  color: var(--accent2);
+  border: 1px solid rgba(163, 113, 247, 0.5);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+header.hero[data-badge-tone="good"]::after {
+  color: var(--good);
+  background: rgba(63, 185, 80, 0.15);
+  border-color: rgba(63, 185, 80, 0.5);
+}
+header.hero[data-badge-tone="warn"]::after {
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.15);
+  border-color: rgba(210, 153, 34, 0.5);
+}
+header.hero[data-badge-tone="bad"]::after {
+  color: var(--bad);
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.5);
+}
+header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.02em; }
+header.hero .sub { color: var(--muted); margin: 0 0 16px; font-size: 15px; }
+header.hero .meta {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+header.hero .meta span strong { color: var(--text); }
+header.hero .tldr {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  border-radius: 8px;
+  font-size: 14.5px;
+}
+header.hero .tldr strong { color: var(--accent); }
+
+/* ----- Typography ----- */
+h2 {
+  margin-top: 44px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 22px;
+}
+h2 .num {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 10px;
+  border: 1px solid var(--border);
+}
+h3 { margin-top: 28px; margin-bottom: 8px; font-size: 17px; color: var(--accent); }
+h4 { margin-top: 18px; margin-bottom: 6px; font-size: 15px; }
+h5 { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+h6 { margin: 10px 0 4px; font-size: 12.5px; color: var(--muted); }
+p { margin: 10px 0 14px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ----- Code ----- */
+code, kbd {
+  font-family: var(--mono);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+pre code { background: none; border: none; padding: 0; }
+
+/* ----- Tables ----- */
+table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+
+/* ----- Lists ----- */
+ul, ol { padding-left: 22px; }
+li { margin: 5px 0; }
+
+/* ----- Cards (border-left accent) ----- */
+.card { border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; background: var(--panel); margin: 16px 0; }
+.card.good { border-left: 4px solid var(--good); }
+.card.warn { border-left: 4px solid var(--warn); }
+.card.bad  { border-left: 4px solid var(--bad); }
+.card.info { border-left: 4px solid var(--accent); }
+.card.next { border-left: 4px solid var(--accent2); }
+.card h4 { margin-top: 0; }
+
+/* ----- Pills (inline badges) ----- */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  margin-right: 6px;
+}
+.pill.good { background: rgba(63, 185, 80, 0.12);  color: var(--good);    border-color: rgba(63, 185, 80, 0.5); }
+.pill.warn { background: rgba(210, 153, 34, 0.12); color: var(--warn);    border-color: rgba(210, 153, 34, 0.5); }
+.pill.bad  { background: rgba(248, 81, 73, 0.12);  color: var(--bad);     border-color: rgba(248, 81, 73, 0.5); }
+.pill.info { background: rgba(88, 166, 255, 0.12); color: var(--accent);  border-color: rgba(88, 166, 255, 0.5); }
+.pill.alt  { background: rgba(163, 113, 247, 0.12);color: var(--accent2); border-color: rgba(163, 113, 247, 0.5); }
+
+/* ----- Grids ----- */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0; }
+@media (max-width: 800px) {
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+}
+
+/* ----- Stat tiles ----- */
+.stat { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; background: var(--panel); }
+.stat .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.stat .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.stat.good .num { color: var(--good); }
+.stat.warn .num { color: var(--warn); }
+.stat.bad  .num { color: var(--bad);  }
+.stat.info .num { color: var(--accent); }
+.stat.alt  .num { color: var(--accent2); }
+
+/* ----- Blockquote ----- */
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 14px 0;
+  padding: 8px 16px;
+  color: var(--muted);
+  background: var(--panel2);
+  border-radius: 0 8px 8px 0;
+}
+blockquote p { margin: 4px 0; }
+
+/* ----- TOC ----- */
+.toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 22px; margin: 20px 0 28px; font-size: 14px; }
+.toc h4 { margin: 6px 0 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.toc ol { margin: 0; padding-left: 22px; columns: 2; }
+@media (max-width: 800px) { .toc ol { columns: 1; } }
+
+/* ----- Side-by-side diff ----- */
+.diff-side { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.diff-side .col { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 14px 16px; }
+.diff-side .col.before { border-top: 3px solid var(--warn); }
+.diff-side .col.after  { border-top: 3px solid var(--good); }
+.diff-side .col h5 { margin: 0 0 8px; }
+@media (max-width: 800px) { .diff-side { grid-template-columns: 1fr; } }
+
+/* ----- Horizontal rule ----- */
+hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ----- Footer ----- */
+footer {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero" data-badge="DECISION DOC" data-badge-tone="alt">
+  <h1>浏览器扩展元素采集与推荐方案重构</h1>
+  <p class="sub">基于 Path 快照统一生成推荐选择器，消除映射不一致</p>
+  <div class="meta">
+    <span><strong>Generated:</strong> 2026-06-05</span>
+    <span><strong>Template:</strong> decision-doc</span>
+  </div>
+</header>
+
+<h1 id="deliverable">浏览器扩展元素采集与推荐方案重构方案</h1>
+<h2 id="deliverable">背景与问题</h2>
+<p>当前扩展的元素采集和推荐方案生成使用<strong>两套独立的数据源</strong>：</p>
+<table><thead><tr><th>环节</th><th>函数</th><th>数据来源</th><th>问题</th></tr></thead><tbody><tr><td>采集页面层级</td><td><code>buildElementPath</code></td><td><code>cur.attributes</code>、<code>parent.children</code></td><td>给 sidepanel 展示用</td></tr><tr><td>生成推荐方案</td><td><code>generateLocators</code> / <code>_levelCandidates</code></td><td>重新遍历 <code>el.attributes</code>、<code>parent.children</code></td><td>生成候选列表</td></tr></tbody></table>
+<p>两套遍历独立执行，即使都在同一个 click 事件里，也可能因为以下原因产生不一致：</p>
+<ul>
+<li><strong>Property vs Attribute</strong>：React/Vue 通过 IDL property 设置 <code>href</code>/<code>value</code>，<code>attributes</code> 集合中看不到，但推荐算法重新查询 DOM 时可能读到不同的值。</li>
+<li><strong>Shadow DOM 边界</strong>：<code>parentElement</code> 在 shadow boundary 处停止，<code>path</code> 断链，但推荐算法可能生成基于逻辑父元素的选择器。</li>
+<li><strong>动态 DOM</strong>：采集后、生成前框架重渲染，导致 <code>index</code>、<code>classes</code>、<code>attributes</code> 变化。</li>
+<li><strong>iframe 跨域</strong>：<code>buildElementPath</code> 无法穿透跨域 iframe，但推荐算法如果通过其他方式访问到 iframe 内元素，会产生完全不对应的候选。</li>
+</ul>
+<p>直接后果：用户点击推荐方案后，<code>applyCandidateToUI</code> 的反向匹配频繁失败——<code>[href=&quot;...&quot;]</code> 找不到对应属性、<code>:nth-of-type(1)</code> 对应不上 <code>node.index</code>、<code>[role=&quot;banner&quot;]</code> 在祖先上但 fallback 只检查目标元素。</p>
+<h2 id="deliverable">目标</h2>
+<ol>
+<li><strong>单源 truth</strong>：推荐方案的每个 segment 必须能精确映射到 <code>buildElementPath</code> 已采集的某个 <code>path[i]</code>，消除猜测式反向匹配。</li>
+<li><strong>双向一致性</strong>：手动勾选生成的选择器，与基于 path 生成的推荐方案，在相同语义下必须输出完全一致的语法。</li>
+<li><strong>可扩展</strong>：为二期接入 DrissionPage CDP snapshot 预留接口，不破坏前端闭环能力。</li>
+</ol>
+<h2 id="deliverable">技术方案</h2>
+<h3 id="3-1-path">3.1 核心思路：基于 Path 生成推荐</h3>
+<p>不再让 <code>generateLocators</code> 重新查询 DOM，而是接收 <code>buildElementPath</code> 产出的 <code>path</code> 数组，基于 <code>path[i]</code> 的已采集字段生成候选。</p>
+<pre><code>用户 Alt+Click
+    │
+    ▼
+buildElementPath(element)  ──►  path[]
+    │                              ├── tag, id, classes, attrs
+    │                              ├── index, realIndex
+    │                              ├── childrenTags, siblings
+    │                              └── parentRef (预留)
+    │
+    ▼
+generateLocatorsFromPath(path)  ◄──  不再查 DOM
+    │
+    ▼
+candidates[] + pathMapping[]  ──►  sidepanel</code></pre>
+<p><code>path</code> 节点结构保持不变：</p>
+<pre><code class="language-js">{
+  tag: &#39;a&#39;,
+  id: &#39;&#39;,
+  classes: [&#39;css-1xvhq7k&#39;],
+  attrs: { href: &#39;https://...&#39;, role: &#39;link&#39; },
+  index: 0,          // same-tag sibling index
+  realIndex: 6,      // all-children index
+  childrenTags: [&#39;div&#39;, &#39;a&#39;, &#39;span&#39;, &#39;a&#39;, &#39;a&#39;],
+  siblings: [...]
+}</code></pre>
+<h3 id="3-2-level-node">3.2 Level 候选生成（基于 Node）</h3>
+<pre><code class="language-js">function _levelCandidatesFromNode(node) {
+  const level = [];
+
+  if (node.id) {
+    level.push({ name: &#39;#&#39; + cssEscape(node.id), penalty: 0 });
+  }
+
+  node.classes.filter(isStableClass).forEach(c =&gt; {
+    level.push({ name: &#39;.&#39; + cssEscape(c), penalty: 1 });
+  });
+
+  Object.entries(node.attrs).forEach(([k, v]) =&gt; {
+    if (acceptedAttrs.has(k) || k.startsWith(&#39;data-&#39;)) {
+      if (v &amp;&amp; !attrValNeedsCssFallback(v) &amp;&amp; v.length &lt; 100) {
+        level.push({ name: `[${cssEscape(k)}=&quot;${attrValueEscape(v)}&quot;]`, penalty: 2 });
+      }
+    }
+  });
+
+  level.push({ name: node.tag, penalty: 5 });
+
+  const sameTagCount = node.childrenTags?.filter(t =&gt; t === node.tag).length || 1;
+  if (sameTagCount &gt; 1) {
+    level.push({ name: `${node.tag}:nth-of-type(${node.index + 1})`, penalty: 10 });
+  }
+
+  return level;
+}</code></pre>
+<p>与当前 <code>_levelCandidates(el)</code> 的区别：</p>
+<ul>
+<li>不访问 <code>el.attributes</code>，直接读 <code>node.attrs</code></li>
+<li>不访问 <code>parent.children</code>，直接读 <code>node.childrenTags</code></li>
+<li><code>index</code> 直接使用已采集值，不再重新计算</li>
+</ul>
+<h3 id="3-3-path">3.3 结构路径生成（基于 Path 组合）</h3>
+<p>当前 <code>buildStructuralCss</code> 和 <code>getElementCssPath</code> 从目标元素逐层向上爬，每次重新查 DOM。重构后直接从 <code>path</code> 数组组合：</p>
+<pre><code class="language-js">function buildStructuralCssFromPath(path) {
+  const segs = [];
+  for (let i = path.length - 1; i &gt;= 0; i--) {
+    const seg = buildSegFromNode(path[i]);
+    segs.unshift(seg);
+    const selector = segs.join(&#39; &gt; &#39;);
+    if (verifyCount(selector) === 1) return selector;
+    if (seg.startsWith(&#39;#&#39;)) break;
+  }
+  return segs.join(&#39; &gt; &#39;);
+}</code></pre>
+<h3 id="3-4-sidepanel">3.4 Sidepanel 映射简化</h3>
+<p>推荐方案附带 <code>pathMapping</code>，标明每个 segment 对应 <code>path</code> 的哪个 index：</p>
+<pre><code class="language-js">candidates.push({
+  syntax: &#39;css:[role=&quot;banner&quot;] &gt; div &gt; div:nth-of-type(1) &gt; div &gt; nav &gt; [href=&quot;...&quot;]&#39;,
+  pathMapping: [2, 3, 4, 5, 6, 7],  // 6 个 segment 对应 path 的 6 个层级
+  family: &#39;css&#39;,
+  score: 88,
+  matchCount: 1
+});</code></pre>
+<p><code>applyCandidateToUI</code> 不再需要 <code>parseSeg</code> + <code>segMatchesNode</code> 的反向猜测，直接根据映射勾选：</p>
+<pre><code class="language-js">function applyCandidateToUI(c) {
+  if (!elementData?.path?.length) return;
+  const path = elementData.path;
+
+  // Reset
+  pathEnabled = path.map(() =&gt; false);
+  attrEnabled = {};
+  path.forEach((_, i) =&gt; { attrEnabled[i] = {}; });
+
+  if (c.pathMapping) {
+    const segs = c.syntax.replace(/^css:/, &#39;&#39;).split(/\s*&gt;\s*|\s+/).filter(Boolean);
+    segs.forEach((segStr, idx) =&gt; {
+      const pathIdx = c.pathMapping[idx];
+      if (pathIdx === undefined) return;
+      const seg = parseSeg(segStr);
+      applySegToNode(seg, pathIdx);
+    });
+  } else {
+    // 兼容旧数据：回退到反向匹配
+    legacyApplyCandidateToUI(c);
+  }
+
+  selectedPathIndex = pathEnabled.lastIndexOf(true);
+  renderDomTree();
+  renderProperties();
+}</code></pre>
+<h3 id="3-5-idl-property">3.5 补充 IDL Property（前端兜底）</h3>
+<p><code>buildElementPath</code> 中，在遍历 <code>attributes</code> 后，显式补充高频 IDL 属性，解决框架通过 property 设置值的问题：</p>
+<pre><code class="language-js">// 补充框架通过 property 设置的值（attributes 中可能缺失）
+if (cur.href &amp;&amp; !attrs.href) attrs.href = cur.href;
+if (cur.src &amp;&amp; !attrs.src) attrs.src = cur.src;
+if (cur.value !== undefined &amp;&amp; !attrs.value) attrs.value = String(cur.value);
+if (cur.checked !== undefined &amp;&amp; !attrs.checked) attrs.checked = String(cur.checked);</code></pre>
+<h2 id="deliverable">架构边界</h2>
+<h3 id="mvp">前端闭环（MVP）</h3>
+<p>扩展在离线状态下仍能完整工作：</p>
+<ul>
+<li><code>buildElementPath</code> + <code>generateLocatorsFromPath</code> 全部在 content script 中同步执行</li>
+<li>sidepanel 基于 path 渲染和映射</li>
+<li>校验通过 <code>document.querySelectorAll</code> 在真实 DOM 上执行</li>
+</ul>
+<h3 id="deliverable">后端增强（二期）</h3>
+<p>DrissionPage CDP snapshot 作为可选增强，不破坏前端闭环：</p>
+<pre><code>┌─────────────────┐     WebSocket     ┌─────────────────────────────┐
+│  Sidepanel      │ ◄────────────────► │  Python Backend             │
+│  (前端闭环)      │                    │  - DrissionPage CDP         │
+│  - path 渲染     │                    │  - DOM.getDocument          │
+│  - 手动勾选      │                    │  - 穿透 shadow/iframe       │
+│  - querySelector │                    │  - 完整 property snapshot   │
+│    校验         │                    └─────────────────────────────┘
+└─────────────────┘
+         │
+         │  二期：后端异步补充 shadow/iframe/property 信息
+         │  合并到 path 后重新渲染属性面板
+         ▼
+   更完整的 path[]</code></pre>
+<p>接口预留：</p>
+<pre><code class="language-js">// sidepanel 收到后端 snapshot 补充
+chrome.runtime.onMessage.addListener((msg) =&gt; {
+  if (msg.action === &#39;snapshotEnhance&#39;) {
+    mergeSnapshotIntoPath(elementData.path, msg.enhancements);
+    renderDomTree();
+    renderProperties();
+    updateSelector();
+  }
+});</code></pre>
+<h2 id="deliverable">风险与缓解</h2>
+<table><thead><tr><th>风险</th><th>影响</th><th>缓解措施</th></tr></thead><tbody><tr><td>采集后 DOM 变化</td><td><code>path</code> 中的 <code>index</code> 与实际 DOM 不一致，选择器校验失败</td><td>保留 sidepanel <strong>校验按钮</strong>作为最终兜底；校验失败时提示用户重新捕获</td></tr><tr><td><code>path</code> 截断（&gt;15 层）</td><td>深层元素缺少足够祖先，组合不出唯一选择器</td><td>放宽截断限制到 25；截断时 fallback 到结构路径（<code>div:nth-of-type(3) &gt; a</code>）</td></tr><tr><td>Shadow DOM 不完整</td><td><code>path</code> 在 shadow boundary 断链，祖先缺失</td><td>一期接受此限制，二期通过 CDP snapshot 补充</td></tr><tr><td><code>childrenTags</code> 只存 tag 名</td><td>生成 ancestor 候选时缺少兄弟的 id/class 信息</td><td>一期足够（finder 组合只依赖 tag/index）；如需更精细的 ancestor 锚点，二期扩展 <code>childrenTags</code> 为 <code>childrenMeta</code></td></tr></tbody></table>
+<h2 id="deliverable">实施计划</h2>
+<h3 id="2-3">第一期：前端重构（2-3 天）</h3>
+<ol>
+<li><strong>重构 <code>buildElementPath</code></strong></li>
+<ul>
+<li>补充 IDL property fallback</li>
+<li>增加 <code>childrenMeta</code>（可选，为二期预留）</li>
+</ul>
+</ol>
+<ol>
+<li><strong>重构 <code>generateLocators</code></strong></li>
+<ul>
+<li>新增 <code>generateLocatorsFromPath(path)</code></li>
+<li><code>_levelCandidatesFromNode</code> 替代 <code>_levelCandidates</code></li>
+<li><code>buildStructuralCssFromPath</code> 替代 <code>buildStructuralCss</code></li>
+<li><code>getElementCssPathFromPath</code> 替代 <code>getElementCssPath</code></li>
+</ul>
+</ol>
+<ol>
+<li><strong>重构 <code>applyCandidateToUI</code></strong></li>
+<ul>
+<li>支持 <code>pathMapping</code> 直接映射</li>
+<li>保留 legacy 反向匹配作为降级</li>
+</ul>
+</ol>
+<ol>
+<li><strong>UI 增强</strong></li>
+<ul>
+<li>橙色标注：tag 未勾选但有属性被勾选的层级</li>
+<li><code>index-of-type</code> / <code>nth-child</code> 强制显示（当推荐方案已勾选时）</li>
+</ul>
+</ol>
+<ol>
+<li><strong>验证</strong></li>
+<ul>
+<li>10 个不同网站的手动测试</li>
+<li>推荐方案点击后 100% 能正确勾选所有层级和属性</li>
+<li>手动勾选结果与推荐方案的双向一致性</li>
+</ul>
+</ol>
+<h3 id="cdp">第二期：后端 CDP 增强（待定）</h3>
+<ol>
+<li>Python 后端接入 DrissionPage CDP snapshot</li>
+<li>WebSocket 协议设计（snapshot 请求/响应格式）</li>
+<li>sidepanel 异步合并增强数据</li>
+<li>shadow DOM / iframe 场景专项测试</li>
+</ol>
+<h2 id="deliverable">验收标准</h2>
+<ol>
+<li>推荐方案点击后，<code>applyCandidateToUI</code> 的映射成功率 &gt;= 99%（基于 pathMapping，不再依赖反向猜测）。</li>
+<li>手动勾选任意组合，生成的选择器语法与对应推荐方案完全一致。</li>
+<li>离线状态下（无后端连接），扩展仍能完成完整的捕获、推荐、校验、保存流程。</li>
+<li><code>ruff check src</code> 通过，扩展 JS 无语法错误。</li>
+</ol>
+<h2 id="deliverable">下一步行动</h2>
+<ul>
+<li>[ ] 评审本方案</li>
+<li>[ ] 确认第一期范围</li>
+<li>[ ] 开始重构 <code>buildElementPath</code>（补充 IDL property）</li>
+<li>[ ] 开始重构 <code>generateLocatorsFromPath</code></li>
+<li>[ ] 同步更新 sidepanel 的 <code>applyCandidateToUI</code></li>
+</ul>
+
+<footer>
+  <p>Generated by agent-harness-kit / <code>/deliver-html</code> — HTML for humans, MD for agents.</p>
+</footer>
+</div>
+</body>
+</html>

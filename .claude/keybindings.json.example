@@ -1,0 +1,20 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-keybindings.json",
+  "$docs": "https://code.claude.com/.harness/docs/en/keybindings",
+  "$comment": "agent-harness-kit sample. RENAME to ~/.claude/keybindings.json after editing. Claude Code's keybinding action list is FIXED — there is no action that runs a slash command (no `chat:runCommand` or similar), so we cannot bind keys to /gc, /add-feature, etc. The bindings below tune the chat workflow only. To run a slash command, type `/` and use autocomplete — that is the supported UX.",
+  "bindings": [
+    {
+      "context": "Chat",
+      "bindings": {
+        "ctrl+e": "chat:externalEditor"
+      }
+    },
+    {
+      "context": "Global",
+      "bindings": {
+        "ctrl+shift+t": "app:toggleTodos",
+        "ctrl+shift+r": "app:toggleTranscript"
+      }
+    }
+  ]
+}

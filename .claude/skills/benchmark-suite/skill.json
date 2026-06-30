@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "benchmark-suite",
+  "name": "benchmark-suite",
+  "version": "1.0.0",
+  "description": "Run Mini SWE-bench style harness regression tasks and A/B comparisons to measure harness improvement objectively.",
+  "capabilities": [
+    "evaluation",
+    "workflow"
+  ],
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}

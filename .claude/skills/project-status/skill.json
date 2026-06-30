@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "project-status",
+  "name": "project-status",
+  "version": "1.0.0",
+  "description": "Render project phases, MVP scope, checklists, risks, features, and recent shared memory into a self-contained HTML status report.",
+  "capabilities": [
+    "project-management",
+    "reporting",
+    "workflow"
+  ],
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}

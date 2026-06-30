@@ -837,13 +837,23 @@ class ExtensionRunner:
                     break
                 self.vars[idx_var] = idx
                 self.vars[item_var] = item.get("text", "") if isinstance(item, dict) else str(item)
-                # Set loop context so child instructions resolve locators relative to current element
-                self.vars["__loop_ctx"] = {
-                    "locator": locator,
-                    "selectorFamily": selector_family,
-                    "index": idx,
-                    "total": len(elements),
-                }
+                # Set loop context so child instructions resolve locators relative to current element.
+                # When the extension gives us a unique element selector, use it directly so nested
+                # loops don't rely on a global list index (which would resolve to the wrong item).
+                if isinstance(item, dict) and item.get("contextLocator"):
+                    self.vars["__loop_ctx"] = {
+                        "locator": item["contextLocator"],
+                        "selectorFamily": item.get("contextLocatorType", selector_family),
+                        "index": 0,
+                        "total": 1,
+                    }
+                else:
+                    self.vars["__loop_ctx"] = {
+                        "locator": locator,
+                        "selectorFamily": selector_family,
+                        "index": idx,
+                        "total": len(elements),
+                    }
                 logger.info(f"[ExtensionRunner] forEachElement [{idx}] {item_var}={self.vars[item_var]!r}")
                 try:
                     if not await self._run_body(body):
@@ -936,13 +946,21 @@ class ExtensionRunner:
         if cmd_type == "whileCondition":
             max_iter = int(extra.get("maxIterations", 100))
             body = instr.get("body", [])
+            execute_first = extra.get("executeFirst", False)
+            first_iter = True
             for _iter in range(max_iter):
                 if self._stopped:
                     break
-                condition_met = (await self._evaluate_condition(instr))["met"]
-                logger.info(f"[ExtensionRunner] whileCondition iter={_iter} met={condition_met}")
-                if not condition_met:
-                    break
+                # do-while: execute body first, then check condition for continuation
+                if not (execute_first and first_iter):
+                    condition_met = (await self._evaluate_condition(instr))["met"]
+                    logger.info(
+                        f"[ExtensionRunner] whileCondition iter={_iter} "
+                        f"met={condition_met} executeFirst={execute_first}"
+                    )
+                    if not condition_met:
+                        break
+                first_iter = False
                 try:
                     if not await self._run_body(body):
                         return False
@@ -1427,12 +1445,17 @@ class ExtensionRunner:
                     f"save_to_var={save_to_var!r} result={result!r}"
                 )
                 if save_to_var and result:
-                    value = (
-                        result.get("extracted")
-                        or result.get("navigatedTo")
-                        or result.get("value")
-                        or result
-                    )
+                    if isinstance(result, dict):
+                        if "extracted" in result:
+                            value = result["extracted"]
+                        elif "navigatedTo" in result:
+                            value = result["navigatedTo"]
+                        elif "value" in result:
+                            value = result["value"]
+                        else:
+                            value = result
+                    else:
+                        value = result
                     self.vars[save_to_var] = value
                     logger.info(f"[ExtensionRunner] saved result to var {save_to_var}: {value!r}")
 
@@ -1949,5 +1972,52 @@ async def _local_increment(runner: "ExtensionRunner", cmd_type: str, step_id: st
         "stepId": step_id,
         "nodeId": instr.get("nodeId"),
         "result": {"increment": var_name},
+    })
+    return True
+
+
+@register_local("sleep")
+async def _local_sleep(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    extra = instr.get("extra") or {}
+    seconds = float(extra.get("seconds", 1.0))
+    ms = int(seconds * 1000)
+    logger.info(f"[ExtensionRunner] sleep {seconds}s")
+    await asyncio.sleep(seconds)
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"waited": ms},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id, "nodeId": instr.get("nodeId"),
+        "result": {"waited": ms},
+    })
+    return True
+
+
+@register_local("randomSleep")
+async def _local_randomSleep(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
+    import random
+    extra = instr.get("extra") or {}
+    min_sec = float(extra.get("minSeconds", 1.0))
+    max_sec = float(extra.get("maxSeconds", 3.0))
+    seconds = random.uniform(min_sec, max_sec)
+    ms = int(seconds * 1000)
+    logger.info(f"[ExtensionRunner] randomSleep {seconds:.3f}s (min={min_sec}, max={max_sec})")
+    await asyncio.sleep(seconds)
+    runner.results.append({
+        "stepId": step_id,
+        "nodeId": instr.get("nodeId"),
+        "status": "success",
+        "result": {"waited": ms, "min": min_sec, "max": max_sec},
+    })
+    runner.completed += 1
+    await runner._emit({
+        "type": "stepComplete",
+        "stepId": step_id, "nodeId": instr.get("nodeId"),
+        "result": {"waited": ms, "min": min_sec, "max": max_sec},
     })
     return True
