@@ -18,12 +18,19 @@ function extractVarsFromNode(node) {
   return vars;
 }
 
-function useAvailableVars(selectedNode, nodes) {
+function useAvailableVars(selectedNode, nodes, parameters = []) {
   return useMemo(() => {
     if (!selectedNode) return [];
     const currentOrder = selectedNode.order ?? Infinity;
     const seen = new Set();
     const result = [];
+    // Workflow-level parameters are always available
+    for (const p of parameters || []) {
+      if (p.name && !seen.has(p.name)) {
+        seen.add(p.name);
+        result.push({ name: p.name, source: '流程参数' });
+      }
+    }
     for (const node of nodes) {
       if ((node.order ?? 0) >= currentOrder) continue;
       for (const v of extractVarsFromNode(node)) {
@@ -34,7 +41,7 @@ function useAvailableVars(selectedNode, nodes) {
       }
     }
     return result;
-  }, [selectedNode, nodes]);
+  }, [selectedNode, nodes, parameters]);
 }
 
 // Primary element field is marked by the schema (replaces hard-coded element_name special case)
@@ -43,13 +50,13 @@ function findPrimaryElementField(fields) {
 }
 
 export default function NodeForm() {
-  const { selectedNode, updateNode, elements, NODE_TYPE_MAP, containerNodes, nodes } = useWorkflow();
+  const { selectedNode, updateNode, elements, NODE_TYPE_MAP, containerNodes, nodes, workflow } = useWorkflow();
   const [form, setForm] = useState({});
   const [extra, setExtra] = useState({});
   const [activeTab, setActiveTab] = useState('params');
 
   const command = selectedNode ? NODE_TYPE_MAP[selectedNode.type] : null;
-  const availableVars = useAvailableVars(selectedNode, nodes);
+  const availableVars = useAvailableVars(selectedNode, nodes, workflow?.parameters);
 
   // Schema-driven field buckets
   const primaryElementField = useMemo(() => findPrimaryElementField(command?.fields), [command]);
@@ -510,7 +517,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
             >
               <span className="font-mono">${v.name}</span>
               <span className="text-[11px] text-gray-400 ml-2">
-                #{v.node.order} {v.node.type}
+                {v.node ? `#${v.node.order} ${v.node.type}` : (v.source || '流程参数')}
               </span>
             </div>
           ))}
