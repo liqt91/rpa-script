@@ -547,6 +547,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // 2c) Side panel 请求根据已选锚点计算相对选择器 → 转发给捕获标签页
+  if (message.action === 'computeRelativeFromAnchor') {
+    const tabId = message.tabId ?? message.payload?.tabId;
+    const payload = message.payload?.payload ?? message.payload;
+    if (!tabId) {
+      sendResponse({ error: 'tabId required' });
+      return false;
+    }
+    chrome.tabs.sendMessage(tabId, { action: 'computeRelativeFromAnchor', payload })
+      .then(result => sendResponse(result))
+      .catch(err => sendResponse({ error: err.message }));
+    return true;
+  }
+
   // 3) Content script 返回校验结果 → 广播给 side panel
   if (message.action === 'verifyResult') {
     // Broadcast to side panel (and anyone listening)

@@ -155,6 +155,11 @@
     font-size: 11px; font-family: monospace; background: #fff;
   }
   .anchor-row input[type="text"]:read-only { background: #fafafa; color: #666; }
+  .anchor-row select {
+    flex: 1; padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px;
+    font-size: 12px; background: #fff;
+  }
+  .anchor-row select:disabled { background: #fafafa; color: #999; }
   .anchor-pill {
     display: inline-block; padding: 1px 6px; border-radius: 10px;
     font-size: 11px; background: #e6f7ff; color: #1677ff; border: 1px solid #91d5ff;
@@ -365,14 +370,20 @@
   </div>
   <div class="verify-meta" id="verifyResult">点击"校验元素"查看匹配结果</div>
 
-  <!-- Loop-relative anchoring (capture-time). Hidden unless the element was anchored. -->
+  <!-- Loop-relative anchoring (capture-time). Hidden unless the element has an anchor relation. -->
   <div class="anchor-card" id="anchorCard" style="display:none;">
     <div class="anchor-card-title">
       <span>循环锚点</span>
       <span class="anchor-pill" id="anchorMode">自动</span>
     </div>
     <div class="anchor-row">
-      <label>锚点元素</label>
+      <label>相对锚点</label>
+      <select id="anchorElementSelect">
+        <option value="">不使用相对解析</option>
+      </select>
+    </div>
+    <div class="anchor-row">
+      <label>锚点选择器</label>
       <input type="text" id="anchorSelectorInput" readonly>
     </div>
     <div class="anchor-row">
@@ -385,7 +396,7 @@
         <span>使用相对解析</span>
       </label>
       <button class="btn btn-sm" id="btnVerifyRelative">校验相对</button>
-      <button class="btn btn-sm" id="btnRecomputeAnchor">重新捕获锚点</button>
+      <button class="btn btn-sm" id="btnRecomputeAnchor">重新计算</button>
     </div>
   </div>
 </div>

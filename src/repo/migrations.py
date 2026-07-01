@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine
 
-_SCHEMA_VERSION = 8  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 9  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -365,6 +365,20 @@ def _migrate_008():
         conn.commit()
 
 
+# ── Migration 009: add explicit anchor element name reference ─────────────────
+
+def _migrate_009():
+    """Add anchor_element_name to workflow_elements for explicit named-anchor relationships."""
+    inspector = inspect(engine)
+    if "workflow_elements" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("workflow_elements")}
+    with engine.connect() as conn:
+        if "anchor_element_name" not in cols:
+            conn.execute(text("ALTER TABLE workflow_elements ADD COLUMN anchor_element_name VARCHAR(128)"))
+        conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
@@ -376,6 +390,7 @@ _MIGRATIONS = {
     6: _migrate_006,
     7: _migrate_007,
     8: _migrate_008,
+    9: _migrate_009,
 }
 
 

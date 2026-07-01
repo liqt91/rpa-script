@@ -6,7 +6,9 @@ Only emits commands that declare extension runtime support.
 Container nodes are emitted as compound instructions with body/elseBody.
 """
 
+import contextvars
 import json
+from contextlib import contextmanager
 from src.repo import runtime_models as models
 from src.runtime.workflow.commands import COMMAND_REGISTRY
 
@@ -24,6 +26,32 @@ _EXTRA_TRANSFORMS = {
     "getValue": lambda e: {**e, "attribute": "value"},
     "inputAndPressEnter": lambda e: {**e, "pressEnter": True},
 }
+
+
+# ─── Loop-context stack for relative element resolution ─────────────
+# Tracks the element_names of active forEachElement loops so child
+# instructions can automatically resolve relative to their anchor.
+_LOOP_STACK: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+    "_loop_stack_ext", default=()
+)
+
+
+def _push_loop(element_name: str) -> contextvars.Token:
+    current = _LOOP_STACK.get()
+    return _LOOP_STACK.set(current + (element_name,))
+
+
+def _pop_loop(token: contextvars.Token) -> None:
+    _LOOP_STACK.reset(token)
+
+
+@contextmanager
+def _loop_context(element_name: str):
+    token = _push_loop(element_name)
+    try:
+        yield
+    finally:
+        _pop_loop(token)
 
 
 def _build_by_parent(nodes: list[models.WorkflowNode]) -> dict:
@@ -148,8 +176,9 @@ def _inject_relative_fields(extra: dict, el) -> dict:
 
     Only writes the fields when the element carries a non-empty relative
     selector, relative resolution is enabled, and scope is not global.
-    Old/unanchored elements leave `extra` untouched so the runtime falls
-    back to legacy global resolution unchanged.
+    If the element has an explicit anchor_element_name, the relative fields
+    are only injected when the named anchor matches an active forEachElement
+    loop in the current stack.
     """
     if not el:
         return extra
@@ -163,6 +192,14 @@ def _inject_relative_fields(extra: dict, el) -> dict:
     rel_selector, rel_family = _split_prefixed_selector(rel)
     if not rel_selector:
         return extra
+
+    anchor_name = (getattr(el, "anchor_element_name", "") or "").strip()
+    if anchor_name:
+        stack = _LOOP_STACK.get()
+        matched = any(loop_name == anchor_name for loop_name in reversed(stack))
+        if not matched:
+            return extra
+
     anchor = (getattr(el, "anchor_selector", "") or "").strip()
     anchor_selector, anchor_family = _split_prefixed_selector(anchor) if anchor else ("", "css")
     enriched = dict(extra)
@@ -278,10 +315,17 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
         locator, selector_family = _resolve_locator(node.element_name)
 
         if is_container:
-            # Build compound instruction
-            body = _build_body(node.id)
-            branch_id = container_branch.get(node.id)
-            else_body = _build_body(branch_id) if branch_id else []
+            # Build compound instruction. forEachElement pushes its element_name
+            # onto the loop stack so descendants can auto-resolve relatives.
+            if node.type == "forEachElement" and node.element_name:
+                with _loop_context(node.element_name):
+                    body = _build_body(node.id)
+                    branch_id = container_branch.get(node.id)
+                    else_body = _build_body(branch_id) if branch_id else []
+            else:
+                body = _build_body(node.id)
+                branch_id = container_branch.get(node.id)
+                else_body = _build_body(branch_id) if branch_id else []
 
             compound = {
                 "stepId": _next_step_id(),

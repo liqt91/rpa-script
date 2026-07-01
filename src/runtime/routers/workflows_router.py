@@ -521,6 +521,7 @@ def create_workflow_element(
         drission_selector=payload.drission_selector,
         relative_selector=payload.relative_selector,
         anchor_selector=payload.anchor_selector,
+        anchor_element_name=payload.anchor_element_name,
         anchor_mode=payload.anchor_mode,
         dom_path=json.dumps(payload.dom_path),
         attributes=json.dumps(payload.attributes),
@@ -574,6 +575,7 @@ def update_workflow_element(
     el.drission_selector = payload.drission_selector
     el.relative_selector = payload.relative_selector
     el.anchor_selector = payload.anchor_selector
+    el.anchor_element_name = payload.anchor_element_name
     el.anchor_mode = payload.anchor_mode
     el.dom_path = json.dumps(payload.dom_path)
     el.attributes = json.dumps(payload.attributes)

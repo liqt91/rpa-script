@@ -95,7 +95,22 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
         # back to global resolution, preserving legacy behavior.
         relative_selector = payload.get("relativeSelector", "") or ""
         anchor_selector = payload.get("anchorSelector", "") or ""
+        anchor_element_name = payload.get("anchorElementName") or payload.get("anchor_element_name") or None
         anchor_mode = payload.get("anchorMode", "auto") or "auto"
+
+        # If an explicit anchor element name is provided, also store its selector
+        # in anchor_selector for content-script/runtime fallback.
+        if anchor_element_name and not anchor_selector:
+            anchor_el = (
+                db.query(models.WorkflowElement)
+                .filter(
+                    models.WorkflowElement.workflow_id == workflow_id,
+                    models.WorkflowElement.name == anchor_element_name,
+                )
+                .first()
+            )
+            if anchor_el and anchor_el.web_selector:
+                anchor_selector = anchor_el.web_selector
 
         # Check for existing element with same name in this workflow
         existing = (
@@ -117,6 +132,7 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             existing.drission_selector = drission_selector
             existing.relative_selector = relative_selector
             existing.anchor_selector = anchor_selector
+            existing.anchor_element_name = anchor_element_name
             existing.anchor_mode = anchor_mode
             existing.dom_path = json.dumps(payload.get("path", []))
             existing.attributes = json.dumps(attributes)
@@ -139,6 +155,7 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             drission_selector=drission_selector,
             relative_selector=relative_selector,
             anchor_selector=anchor_selector,
+            anchor_element_name=anchor_element_name,
             anchor_mode=anchor_mode,
             dom_path=json.dumps(payload.get("path", [])),
             attributes=json.dumps(attributes),

@@ -2793,6 +2793,43 @@
       return false;
     }
 
+    if (message.action === 'computeRelativeFromAnchor') {
+      const { targetSelector, anchorSelector } = message.payload || {};
+      try {
+        const targetEl = resolveLocatorForVerify(targetSelector);
+        const anchorEl = resolveLocatorForVerify(anchorSelector);
+        if (!targetEl || !anchorEl) {
+          sendResponse({ error: '目标元素或锚点元素未匹配' });
+          return false;
+        }
+        if (!anchorEl.contains(targetEl)) {
+          sendResponse({ error: '目标元素不在所选锚点元素内部' });
+          return false;
+        }
+        let relative = null;
+        let family = null;
+        const relCss = buildRelativeCss(anchorEl, targetEl);
+        if (relCss) {
+          relative = 'css:' + relCss;
+          family = 'css';
+        } else {
+          const relXp = buildRelativeXPath(anchorEl, targetEl);
+          if (relXp) {
+            relative = 'xpath:' + relXp;
+            family = 'xpath';
+          }
+        }
+        if (!relative) {
+          sendResponse({ error: '无法构建稳定的相对选择器' });
+          return false;
+        }
+        sendResponse({ relativeSelector: relative, family });
+      } catch (e) {
+        sendResponse({ error: e?.message || String(e) });
+      }
+      return false;
+    }
+
     if (message.action === 'verifyRelative') {
       const { anchorSelector, relativeSelector } = message.payload || {};
       try {

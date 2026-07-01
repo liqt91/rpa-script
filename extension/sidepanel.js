@@ -45,25 +45,27 @@
   const anchorSelectorInput = $('anchorSelectorInput');
   const relativeSelectorInput = $('relativeSelectorInput');
   const anchorModeLabel = $('anchorMode');
+  const anchorElementSelect = $('anchorElementSelect');
   // Tracks whether the user manually edited the relative selector this capture.
   let relativeManuallyEdited = false;
+  // Existing elements of the selected workflow, loaded for anchor selection.
+  let workflowElements = [];
 
   // Populate the loop-relative anchor card from a capture payload.
   function loadAnchorData(data) {
     relativeManuallyEdited = false;
     const rel = data?.relativeSelector || '';
-    if (!rel) {
-      anchorCard.style.display = 'none';
-      relativeSelectorInput.value = '';
-      anchorSelectorInput.value = '';
-      return;
-    }
+    const anchorElName = data?.anchorElementName || '';
     anchorCard.style.display = 'block';
     relativeSelectorInput.value = rel;
-    anchorSelectorInput.value = data.anchorSelector || '';
-    useRelativeChk.checked = true;
-    anchorCard.classList.remove('disabled');
-    const mode = data.anchorMode || 'auto';
+    anchorSelectorInput.value = data?.anchorSelector || '';
+    useRelativeChk.checked = !!rel || !!anchorElName;
+    anchorCard.classList.toggle('disabled', !useRelativeChk.checked);
+    // Select the anchor element in the dropdown if it exists.
+    if (anchorElementSelect) {
+      anchorElementSelect.value = anchorElName;
+    }
+    const mode = data?.anchorMode || 'auto';
     anchorModeLabel.textContent = mode === 'manual' ? '手动' : (mode === 'backfill' ? '回填' : '自动');
   }
 
@@ -71,6 +73,18 @@
     relativeSelectorInput.addEventListener('input', () => {
       relativeManuallyEdited = true;
       anchorModeLabel.textContent = '手动';
+    });
+  }
+
+  if (anchorElementSelect) {
+    anchorElementSelect.addEventListener('change', () => {
+      computeRelativeForSelectedAnchor();
+    });
+  }
+
+  if (elName) {
+    elName.addEventListener('input', () => {
+      renderAnchorElementOptions();
     });
   }
 
@@ -195,10 +209,96 @@
         // Restore previous selection
         if (selectedWorkflowId) {
           select.value = selectedWorkflowId;
+          await loadWorkflowElements(selectedWorkflowId);
         }
       }
     } catch (e) {
       console.warn('[SidePanel] failed to load workflows:', e);
+    }
+  }
+
+  async function loadWorkflowElements(workflowId) {
+    if (!workflowId) {
+      workflowElements = [];
+      renderAnchorElementOptions();
+      return;
+    }
+    try {
+      const resp = await chrome.runtime.sendMessage({ action: 'getWorkflowElements', workflowId });
+      workflowElements = resp?.elements || [];
+      renderAnchorElementOptions();
+    } catch (e) {
+      console.warn('[SidePanel] failed to load workflow elements:', e);
+      workflowElements = [];
+      renderAnchorElementOptions();
+    }
+  }
+
+  function renderAnchorElementOptions() {
+    if (!anchorElementSelect) return;
+    const currentValue = anchorElementSelect.value;
+    const excludeName = (elName?.value || elementData?.name || '').trim();
+    anchorElementSelect.innerHTML = '<option value="">不使用相对解析</option>';
+    workflowElements.forEach((el) => {
+      if (!el?.name || el.name === excludeName) return;
+      const opt = document.createElement('option');
+      opt.value = el.name;
+      opt.textContent = el.name;
+      anchorElementSelect.appendChild(opt);
+    });
+    if (currentValue && currentValue !== excludeName) {
+      anchorElementSelect.value = currentValue;
+    } else if (currentValue === excludeName) {
+      anchorElementSelect.value = '';
+    }
+  }
+
+  function getCurrentAnchorElement() {
+    const name = anchorElementSelect?.value;
+    if (!name) return null;
+    return workflowElements.find((el) => el.name === name) || null;
+  }
+
+  async function computeRelativeForSelectedAnchor() {
+    const anchorEl = getCurrentAnchorElement();
+    if (!anchorEl) {
+      anchorSelectorInput.value = '';
+      relativeSelectorInput.value = '';
+      useRelativeChk.checked = false;
+      anchorCard.classList.add('disabled');
+      return;
+    }
+    anchorSelectorInput.value = anchorEl.webSelector || '';
+    useRelativeChk.checked = true;
+    anchorCard.classList.remove('disabled');
+
+    const targetSelector = selectorPreview.value;
+    const anchorSelector = anchorEl.webSelector || '';
+    if (!targetSelector || !anchorSelector || !currentTabId) {
+      verifyResult.textContent = '请确认目标元素和锚点元素';
+      verifyResult.className = 'verify-meta err';
+      return;
+    }
+    verifyResult.textContent = '计算相对选择器中...';
+    verifyResult.className = 'verify-meta';
+    try {
+      const res = await send('computeRelativeFromAnchor', {
+        tabId: currentTabId,
+        payload: { targetSelector, anchorSelector },
+      });
+      if (res && res.error) {
+        verifyResult.textContent = '相对选择器计算失败: ' + res.error;
+        verifyResult.className = 'verify-meta err';
+        return;
+      }
+      relativeSelectorInput.value = res.relativeSelector || '';
+      relativeManuallyEdited = false;
+      anchorModeLabel.textContent = '自动';
+      verifyResult.textContent = '相对选择器已生成: ' + (res.relativeSelector || '');
+      verifyResult.className = 'verify-meta ok';
+    } catch (err) {
+      verifyResult.textContent = '计算失败: ' + err.message;
+      verifyResult.className = 'verify-meta err';
     }
   }
 
@@ -1174,7 +1274,7 @@
     });
   }
 
-  // Recompute anchor
+  // Recompute relative selector from the selected anchor element.
   if ($('btnRecomputeAnchor')) {
     $('btnRecomputeAnchor').addEventListener('click', () => {
       if (!currentTabId) {
@@ -1182,36 +1282,12 @@
         verifyResult.className = 'verify-meta err';
         return;
       }
-      verifyResult.textContent = '重新捕获锚点中...';
-      verifyResult.className = 'verify-meta';
-      send('recomputeAnchor', {
-        tabId: currentTabId,
-        payload: {
-          selector: selectorPreview.value,
-          selectorFamily: choiceFamily(activeChoice),
-        },
-      }).then((res) => {
-        if (res && res.error) {
-          verifyResult.textContent = '重新捕获失败: ' + res.error;
-          verifyResult.className = 'verify-meta err';
-          return;
-        }
-        if (!res || !res.relativeSelector) {
-          verifyResult.textContent = '未找到更稳定的锚点';
-          verifyResult.className = 'verify-meta err';
-          return;
-        }
-        relativeManuallyEdited = false;
-        elementData.relativeSelector = res.relativeSelector;
-        elementData.anchorSelector = res.anchorSelector || '';
-        elementData.anchorMode = 'auto';
-        loadAnchorData(elementData);
-        verifyResult.textContent = '锚点已重新捕获';
-        verifyResult.className = 'verify-meta ok';
-      }).catch((err) => {
-        verifyResult.textContent = '重新捕获失败: ' + err.message;
+      if (!anchorElementSelect.value) {
+        verifyResult.textContent = '请先选择相对锚点元素';
         verifyResult.className = 'verify-meta err';
-      });
+        return;
+      }
+      computeRelativeForSelectedAnchor();
     });
   }
 
@@ -1268,12 +1344,14 @@
     if (useRelativeChk.checked && relValue) {
       payload.relativeSelector = relValue;
       payload.anchorSelector = (anchorSelectorInput.value || '').trim();
+      payload.anchorElementName = anchorElementSelect?.value || '';
       payload.anchorMode = relativeManuallyEdited
         ? 'manual'
         : (elementData?.anchorMode || 'auto');
     } else {
       payload.relativeSelector = '';
       payload.anchorSelector = '';
+      payload.anchorElementName = '';
       payload.anchorMode = useRelativeChk.checked ? 'auto' : 'none';
     }
     send('saveElement', payload)
@@ -1382,6 +1460,7 @@
     } else {
       localStorage.removeItem('rpa_selected_workflow_id');
     }
+    loadWorkflowElements(selectedWorkflowId);
   });
 
   // ─── Init ────────────────────────────────────────────────────────

@@ -168,6 +168,8 @@ def _loc_call_by_name(
 
     When the call is inside a forEachElement loop and the element or extra
     asks for relative resolution, emits item.ele('...') or just the loop item.
+    An element with anchor_element_name automatically resolves relative to the
+    matching loop in the current loop stack.
     Pass method='eles' to force list resolution (used by forEachElement itself).
     """
     # Scope=global forces legacy global resolution regardless of loop context.
@@ -182,8 +184,29 @@ def _loc_call_by_name(
     if item_var and extra.get("referenceItemItself"):
         return item_var
 
+    rel = (getattr(el, "relative_selector", "") or "").strip()
+    anchor_name = (getattr(el, "anchor_element_name", "") or "").strip()
+    stack = _LOOP_STACK.get()
+    explicit_loop_anchor = (extra.get("loopAnchor") or "").strip()
+
+    matched_anchor = False
+    if anchor_name and stack and (not explicit_loop_anchor or explicit_loop_anchor == anchor_name):
+        for loop_name, var in reversed(stack):
+            if loop_name == anchor_name:
+                item_var = var
+                matched_anchor = True
+                break
+    elif item_var and rel and not anchor_name:
+        # Legacy: element has a relative selector but no named anchor; use the
+        # innermost loop for backward compatibility.
+        matched_anchor = True
+
     use_relative = bool(
-        item_var and extra.get("useRelative", True) and el and (getattr(el, "relative_selector", "") or "").strip()
+        item_var
+        and extra.get("useRelative", True) is not False
+        and el
+        and rel
+        and matched_anchor
     )
 
     # Resolve from element_map first (per-workflow element library).
@@ -193,7 +216,6 @@ def _loc_call_by_name(
         visibility_mode = extra.get("visibilityMode")
         visible_only = visibility_mode != "any" if visibility_mode else extra.get("visibleOnly", True)
 
-        rel = (getattr(el, "relative_selector", "") or "").strip()
         loc = _build_relative_locator(rel) if use_relative else el.drission_selector
         base_var = item_var if use_relative else "tab"
         if visible_only and method == "ele":

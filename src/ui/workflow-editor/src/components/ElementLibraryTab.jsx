@@ -204,6 +204,26 @@ export default function ElementLibraryTab() {
     setShowGuide(true);
   };
 
+  const updateAnchor = async (el, anchorName) => {
+    const payload = { ...el, anchor_element_name: anchorName || null };
+    if (anchorName) {
+      const anchorEl = elements.find(e => e.name === anchorName);
+      payload.anchor_selector = anchorEl?.web_selector || '';
+      payload.anchor_mode = 'manual';
+    } else {
+      payload.anchor_selector = '';
+      payload.relative_selector = '';
+      payload.anchor_mode = 'none';
+    }
+    try {
+      await api.updateWorkflowElement(wfId, el.id, payload);
+      showToast(anchorName ? `已设置相对锚点: ${anchorName}` : '已清除相对锚点');
+      await refresh();
+    } catch (e) {
+      showToast('更新锚点失败: ' + e.message, 'error');
+    }
+  };
+
   if (!expanded) {
     return (
       <div className="h-8 bg-white border-t border-[#e8e8e8] flex items-center px-4 cursor-pointer hover:bg-gray-50"
@@ -320,6 +340,11 @@ export default function ElementLibraryTab() {
                               selectedElementId === el.id ? 'text-blue-700 font-medium' : 'text-gray-700'
                             }`}>{el.name}</div>
                             <div className="text-[10px] text-gray-400 truncate">{el.web_selector || el.drission_selector || '-'}</div>
+                            {el.anchor_element_name && (
+                              <div className="text-[10px] text-blue-500 truncate">
+                                → {el.anchor_element_name}
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
@@ -438,6 +463,44 @@ export default function ElementLibraryTab() {
                         {selectedElement.page_url || '-'}
                       </div>
                     </div>
+                  </div>
+
+                  {/* 相对锚点 */}
+                  <div className="mb-4">
+                    <div className="text-[10px] text-gray-400 mb-1">相对锚点</div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedElement.anchor_element_name || ''}
+                        onChange={(e) => updateAnchor(selectedElement, e.target.value)}
+                        className="flex-1 min-w-0 px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700 outline-none"
+                      >
+                        <option value="">不使用相对解析</option>
+                        {elements
+                          .filter((e) => e.id !== selectedElement.id && e.name !== selectedElement.name)
+                          .map((e) => (
+                            <option key={e.id} value={e.name}>
+                              {e.name}
+                            </option>
+                          ))}
+                      </select>
+                      {selectedElement.anchor_element_name && (
+                        <button
+                          onClick={() => updateAnchor(selectedElement, '')}
+                          className="text-gray-400 hover:text-red-500 px-1.5 py-1 rounded hover:bg-gray-100"
+                          title="清除锚点"
+                        >
+                          <i className="fas fa-times text-xs"></i>
+                        </button>
+                      )}
+                    </div>
+                    {selectedElement.relative_selector && (
+                      <div className="mt-1">
+                        <div className="text-[10px] text-gray-400 mb-0.5">相对选择器</div>
+                        <code className="block text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded break-all font-mono">
+                          {selectedElement.relative_selector}
+                        </code>
+                      </div>
+                    )}
                   </div>
 
                   {/* Web Selector */}
