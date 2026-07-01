@@ -45,9 +45,7 @@
   const anchorSelectorInput = $('anchorSelectorInput');
   const relativeSelectorInput = $('relativeSelectorInput');
   const anchorModeLabel = $('anchorMode');
-  const anchorOptionSection = $('anchorOptionSection');
-  const isAnchorChk = $('isAnchorChk');
-  // Merged loop-anchor control (top row) — drives both pre-capture highlight
+  // Merged anchor control (top row) — drives both pre-capture highlight
   // and the captured element's anchor selection.
   const activeAnchorSelect = $('activeAnchorSelect');
   const btnClearActiveAnchor = $('btnClearActiveAnchor');
@@ -76,15 +74,11 @@
     }
     const mode = data?.anchorMode || '';
     anchorModeLabel.textContent = mode === 'manual' ? '手动' : (mode === 'anchor-first' ? '锚定' : '无');
-    // Restore anchor checkbox for previously saved anchor elements.
-    if (isAnchorChk && data?.elementKind === 'anchor') {
-      isAnchorChk.checked = true;
-    }
   }
 
   // Capture mode, driven by the top tabs:
   //  - 'new'   → clean global capture, no anchor (原方案);
-  //  - 'child' → anchored capture: loop-anchor row + relative card primary,
+  //  - 'child' → anchored capture: anchor element row + relative card primary,
   //              global selector demoted to a collapsible fallback.
   let captureMode = 'new';
 
@@ -105,12 +99,11 @@
     if (anchorCard) anchorCard.style.display = child ? 'block' : 'none';
     const header = $('globalSelectorHeader');
     if (header) header.style.display = child ? '' : 'none';
-    if (anchorOptionSection) anchorOptionSection.style.display = child ? 'none' : '';
     // 新元素: global selector is the primary output (open, no header).
-    // 子元素: global selector is the fallback (collapsed under the header).
+    // 关联元素: global selector is the fallback (collapsed under the header).
     setCollapsibleOpen('globalSelectorHeader', 'globalSelectorBody', !child);
     if (!child && activeAnchorSelect && activeAnchorSelect.value) {
-      // Leaving anchored mode drops any active loop anchor + page highlight.
+      // Leaving anchored mode drops any active anchor + page highlight.
       activeAnchorSelect.value = '';
       applyActiveAnchor('');
     }
@@ -302,25 +295,24 @@
     return workflowElements.find((el) => el.name === name) || null;
   }
 
-  // ─── Loop anchor (merged control) ────────────────────────────────
-  // Populate the loop-anchor dropdown from the loaded workflow elements,
+  // ─── Anchor element (merged control) ─────────────────────────────
+  // Populate the anchor dropdown from the loaded workflow elements,
   // excluding the element currently being edited (it can't be its own anchor).
-  // Only elements explicitly saved as element_kind='anchor' are valid anchors.
+  // Any previously captured element may serve as an anchor.
   function renderActiveAnchorOptions() {
     if (!activeAnchorSelect) return;
     const current = activeAnchorName;
     const excludeName = (elName?.value || elementData?.name || '').trim();
-    const anchorEls = workflowElements.filter((el) => el?.elementKind === 'anchor');
+    const anchorEls = workflowElements.filter((el) => el?.name && el.name !== excludeName);
     activeAnchorSelect.innerHTML = '<option value="">全局捕获（无锚点）</option>';
     if (anchorEls.length === 0) {
       const opt = document.createElement('option');
       opt.value = '';
-      opt.textContent = '无可用锚点（先捕获一个锚点元素）';
+      opt.textContent = '无可用锚点（先捕获一个元素）';
       opt.disabled = true;
       activeAnchorSelect.appendChild(opt);
     }
     anchorEls.forEach((el) => {
-      if (!el?.name || el.name === excludeName) return;
       const opt = document.createElement('option');
       opt.value = el.name;
       opt.textContent = el.name;
@@ -373,7 +365,7 @@
     activeAnchorSelect.addEventListener('change', () => {
       const name = activeAnchorSelect.value;
       applyActiveAnchor(name);
-      // In 捕获子元素 mode the anchor card is always visible. Recompute the
+      // In 捕获关联元素 mode the anchor card is always visible. Recompute the
       // relative selector against the newly chosen anchor, or clear it.
       if (name) {
         computeRelativeForSelectedAnchor();
@@ -511,7 +503,7 @@
     }
 
     // Loop-relative anchoring. An element with element_kind='child' or explicit
-    // relative/anchor metadata opens in 捕获子元素 mode; otherwise clean mode.
+    // relative/anchor metadata opens in 捕获关联元素 mode; otherwise clean mode.
     loadAnchorData(data);
     const anchored = (data?.elementKind === 'child') || !!(data?.relativeSelector || data?.anchorElementName);
     applyCaptureMode(anchored ? 'child' : 'new');
@@ -1442,12 +1434,12 @@
       return;
     }
     if (captureMode === 'child' && !activeAnchorSelect?.value) {
-      verifyResult.textContent = '子元素捕获需要先选择循环锚点';
+      verifyResult.textContent = '捕获关联元素需要先选择锚点元素';
       verifyResult.className = 'verify-meta err';
       if (activeAnchorSelect) activeAnchorSelect.focus();
       return;
     }
-    const elementKind = captureMode === 'child' ? 'child' : (isAnchorChk?.checked ? 'anchor' : 'plain');
+    const elementKind = captureMode === 'child' ? 'child' : 'plain';
     const payload = {
       workflowId: parseInt(selectedWorkflowId, 10),
       name: elName.value.trim(),
@@ -1508,7 +1500,6 @@
     if (anchorCard) anchorCard.style.display = 'none';
     if (relativeSelectorInput) relativeSelectorInput.value = '';
     if (anchorSelectorInput) anchorSelectorInput.value = '';
-    if (isAnchorChk) isAnchorChk.checked = false;
     relativeManuallyEdited = false;
     verifyResult.textContent = '点击"校验元素"查看匹配结果';
     verifyResult.className = 'verify-meta';

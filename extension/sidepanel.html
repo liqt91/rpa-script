@@ -316,19 +316,19 @@
     </select>
   </div>
 
-  <!-- Capture-mode tabs. 捕获新元素 = clean global capture (no anchor). 捕获子元素
-       = anchored capture: pick a loop anchor, capture children relative to it. -->
+  <!-- Capture-mode tabs. 捕获新元素 = clean global capture (no anchor). 捕获关联元素
+       = anchored capture: pick an anchor element, capture associated elements relative to it. -->
   <div class="capture-tabs">
     <button class="capture-tab active" data-capmode="new">捕获新元素</button>
-    <button class="capture-tab" data-capmode="child">捕获子元素</button>
+    <button class="capture-tab" data-capmode="child">捕获关联元素</button>
   </div>
 
-  <!-- Loop anchor (single merged control). Only shown in 捕获子元素 mode. Pick an
-       existing element as the loop anchor BEFORE capturing its inner children —
+  <!-- Anchor element (single merged control). Only shown in 捕获关联元素 mode. Pick an
+       existing captured element as the anchor BEFORE capturing its associated elements —
        the page highlights every anchor instance until cleared or the flow is
-       switched. Also reflects the anchor of an already-captured child element. -->
+       switched. Also reflects the anchor of an already-captured associated element. -->
   <div class="workflow-row" id="activeAnchorRow" style="background:#fffbe6; display:none;">
-    <label style="width:56px;">循环锚点</label>
+    <label style="width:56px;">锚点元素</label>
     <select id="activeAnchorSelect" style="flex:1;">
       <option value="">全局捕获（无锚点）</option>
     </select>
@@ -398,10 +398,10 @@
 </div>
 
 <!-- Selector + anchor card. Driven by the capture-mode tabs: 捕获新元素 → global
-     selector is the sole primary output, anchor card hidden; 捕获子元素 → relative
+     selector is the sole primary output, anchor card hidden; 捕获关联元素 → relative
      selector card is primary, global selector collapses to a fallback. -->
 <div class="selector-section" id="selectorSection">
-  <!-- Relative selector — primary output in 捕获子元素 mode. The loop anchor lives
+  <!-- Relative selector — primary output in 捕获关联元素 mode. The anchor element lives
        in #activeAnchorSelect above. -->
   <div class="anchor-card" id="anchorCard" style="display:none;">
     <div class="anchor-card-title">
@@ -440,14 +440,6 @@
     </div>
   </div>
 
-  <!-- Anchor option: only in 捕获新元素 mode. Marks the captured element as
-       element_kind='anchor' so it can be used as a loop anchor later. -->
-  <div class="section" id="anchorOptionSection" style="display:none; padding-top:0;">
-    <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#555; cursor:pointer;">
-      <input type="checkbox" id="isAnchorChk">
-      <span>此元素可作为循环锚点</span>
-    </label>
-  </div>
   <div class="verify-meta" id="verifyResult">点击"校验元素"查看匹配结果</div>
 </div>
 

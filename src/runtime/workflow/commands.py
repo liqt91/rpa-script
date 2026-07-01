@@ -85,7 +85,7 @@ def _use_relative_field() -> dict:
 def _loop_anchor_field() -> dict:
     return {
         "name": "loopAnchor",
-        "label": "循环锚点",
+        "label": "锚点元素",
         "type": "select",
         "options": [{"label": "最近外层循环", "value": ""}],
         "default": "",

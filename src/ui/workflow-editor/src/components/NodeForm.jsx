@@ -251,7 +251,7 @@ export default function NodeForm() {
                       {extra.useRelative !== false && (
                         <>
                           <div>
-                            <label className="block text-[10px] text-gray-400 mb-1">循环锚点</label>
+                            <label className="block text-[10px] text-gray-400 mb-1">锚点元素</label>
                             <select
                               value={extra.loopAnchor || ''}
                               onChange={(e) => handleExtraChange('loopAnchor', e.target.value || null)}

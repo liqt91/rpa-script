@@ -123,7 +123,7 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             print("[elements_service] screenshot too large, dropping")
             screenshot = None
 
-        # Child elements must reference an existing anchor element in the same workflow.
+        # Child elements must reference an existing element in the same workflow.
         if element_kind == "child":
             if not anchor_element_name:
                 print("[elements_service] child element requires anchor_element_name")
@@ -138,9 +138,6 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             )
             if not anchor_el:
                 print(f"[elements_service] child element references unknown anchor '{anchor_element_name}'")
-                return None
-            if anchor_el.element_kind != "anchor":
-                print(f"[elements_service] referenced element '{anchor_element_name}' is not an anchor")
                 return None
             if not anchor_selector and anchor_el.web_selector:
                 anchor_selector = anchor_el.web_selector
