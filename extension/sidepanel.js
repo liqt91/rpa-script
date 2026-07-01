@@ -1308,6 +1308,7 @@
     verifyResult.textContent = '点击"校验元素"查看匹配结果';
     verifyResult.className = 'verify-meta';
     broadcastSelectedCandidate();
+    maybeRecomputeRelative();
   }
 
   // ─── Verify ──────────────────────────────────────────────────────
