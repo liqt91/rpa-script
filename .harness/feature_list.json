@@ -40,7 +40,7 @@
     },
     {
       "id": "capture-element-kind-redesign",
-      "title": "捕获新元素 / 捕获子元素模块重构",
+      "title": "捕获新元素 / 捕获关联元素模块重构",
       "passes": true,
       "steps": [
         { "id": "adr", "title": "ADR accepted", "done": true },

@@ -46,3 +46,4 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-07-01 23:07 | session_end | prompt_input_exit | master | 3a645af | 824b4c12-2f90-42dc-b6c7-e606cf00ee56
 2026-07-01 23:30 | capture-element-kind-redesign | done | ADR 0006 + element_kind + child-mode anchor-first capture + runtime/exporter routing
 2026-07-01 23:40 | capture-element-kind-redesign-security-fix | done | payload bounds + safe JSON parsing
+2026-07-02 00:00 | capture-element-kind-redesign-rename | done | 捕获子元素→捕获关联元素，循环锚点→锚点元素，任意元素可作锚点
