@@ -45,3 +45,4 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-07-01 10:10 | session_end | prompt_input_exit | master | db1a4b8 | f39091d2-4bfb-4685-b277-7a1b88c9e377
 2026-07-01 23:07 | session_end | prompt_input_exit | master | 3a645af | 824b4c12-2f90-42dc-b6c7-e606cf00ee56
 2026-07-01 23:30 | capture-element-kind-redesign | done | ADR 0006 + element_kind + child-mode anchor-first capture + runtime/exporter routing
+2026-07-01 23:40 | capture-element-kind-redesign-security-fix | done | payload bounds + safe JSON parsing
