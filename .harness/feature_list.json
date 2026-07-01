@@ -37,6 +37,22 @@
         { "id": "test", "title": "Backend CRUD + injection tests pass", "done": true }
       ],
       "domain": "workflows"
+    },
+    {
+      "id": "capture-element-kind-redesign",
+      "title": "捕获新元素 / 捕获子元素模块重构",
+      "passes": true,
+      "steps": [
+        { "id": "adr", "title": "ADR accepted", "done": true },
+        { "id": "model", "title": "Add element_kind column + migration", "done": true },
+        { "id": "types", "title": "Update WorkflowElement schemas", "done": true },
+        { "id": "service", "title": "Save validation by element_kind", "done": true },
+        { "id": "runtime", "title": "Return elementKind in element library", "done": true },
+        { "id": "extension", "title": "Child-mode anchor-first capture + auto recompute", "done": true },
+        { "id": "runner", "title": "Resolve element by element_kind in runtime/exporter", "done": true },
+        { "id": "test", "title": "End-to-end child capture test passes", "done": true }
+      ],
+      "domain": "workflows"
     }
   ]
 }

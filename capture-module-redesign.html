@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>捕获新元素 / 捕获子元素模块重构方案</title>
+<style>
+/* report.css — single source of truth for deliver-html HTML output.
+ *
+ * Extracted from NEXT_ACTIONS.html / PHAN_TICH.html so every deliverable
+ * shares the same dark Github-flavored look. Edit here, every future HTML
+ * deliverable picks it up. Existing HTML files at repo root keep inline
+ * copies (self-contained shipping artefacts — see ADR-0002).
+ */
+
+:root {
+  --bg: #0f1419;
+  --panel: #161b22;
+  --panel2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #a371f7;
+  --good: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code-bg: #1c2128;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.65;
+  font-size: 16px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+
+/* ----- Hero ----- */
+header.hero {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #161b22 0%, #0f1419 100%);
+  border-radius: 14px;
+  padding: 30px 36px;
+  margin-bottom: 28px;
+  position: relative;
+}
+header.hero::after {
+  content: attr(data-badge);
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  background: rgba(163, 113, 247, 0.15);
+  color: var(--accent2);
+  border: 1px solid rgba(163, 113, 247, 0.5);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+header.hero[data-badge-tone="good"]::after {
+  color: var(--good);
+  background: rgba(63, 185, 80, 0.15);
+  border-color: rgba(63, 185, 80, 0.5);
+}
+header.hero[data-badge-tone="warn"]::after {
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.15);
+  border-color: rgba(210, 153, 34, 0.5);
+}
+header.hero[data-badge-tone="bad"]::after {
+  color: var(--bad);
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.5);
+}
+header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.02em; }
+header.hero .sub { color: var(--muted); margin: 0 0 16px; font-size: 15px; }
+header.hero .meta {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+header.hero .meta span strong { color: var(--text); }
+header.hero .tldr {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  border-radius: 8px;
+  font-size: 14.5px;
+}
+header.hero .tldr strong { color: var(--accent); }
+
+/* ----- Typography ----- */
+h2 {
+  margin-top: 44px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 22px;
+}
+h2 .num {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 10px;
+  border: 1px solid var(--border);
+}
+h3 { margin-top: 28px; margin-bottom: 8px; font-size: 17px; color: var(--accent); }
+h4 { margin-top: 18px; margin-bottom: 6px; font-size: 15px; }
+h5 { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+h6 { margin: 10px 0 4px; font-size: 12.5px; color: var(--muted); }
+p { margin: 10px 0 14px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ----- Code ----- */
+code, kbd {
+  font-family: var(--mono);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+pre code { background: none; border: none; padding: 0; }
+
+/* ----- Tables ----- */
+table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+
+/* ----- Lists ----- */
+ul, ol { padding-left: 22px; }
+li { margin: 5px 0; }
+
+/* ----- Cards (border-left accent) ----- */
+.card { border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; background: var(--panel); margin: 16px 0; }
+.card.good { border-left: 4px solid var(--good); }
+.card.warn { border-left: 4px solid var(--warn); }
+.card.bad  { border-left: 4px solid var(--bad); }
+.card.info { border-left: 4px solid var(--accent); }
+.card.next { border-left: 4px solid var(--accent2); }
+.card h4 { margin-top: 0; }
+
+/* ----- Pills (inline badges) ----- */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  margin-right: 6px;
+}
+.pill.good { background: rgba(63, 185, 80, 0.12);  color: var(--good);    border-color: rgba(63, 185, 80, 0.5); }
+.pill.warn { background: rgba(210, 153, 34, 0.12); color: var(--warn);    border-color: rgba(210, 153, 34, 0.5); }
+.pill.bad  { background: rgba(248, 81, 73, 0.12);  color: var(--bad);     border-color: rgba(248, 81, 73, 0.5); }
+.pill.info { background: rgba(88, 166, 255, 0.12); color: var(--accent);  border-color: rgba(88, 166, 255, 0.5); }
+.pill.alt  { background: rgba(163, 113, 247, 0.12);color: var(--accent2); border-color: rgba(163, 113, 247, 0.5); }
+
+/* ----- Grids ----- */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0; }
+@media (max-width: 800px) {
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+}
+
+/* ----- Stat tiles ----- */
+.stat { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; background: var(--panel); }
+.stat .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.stat .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.stat.good .num { color: var(--good); }
+.stat.warn .num { color: var(--warn); }
+.stat.bad  .num { color: var(--bad);  }
+.stat.info .num { color: var(--accent); }
+.stat.alt  .num { color: var(--accent2); }
+
+/* ----- Blockquote ----- */
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 14px 0;
+  padding: 8px 16px;
+  color: var(--muted);
+  background: var(--panel2);
+  border-radius: 0 8px 8px 0;
+}
+blockquote p { margin: 4px 0; }
+
+/* ----- TOC ----- */
+.toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 22px; margin: 20px 0 28px; font-size: 14px; }
+.toc h4 { margin: 6px 0 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.toc ol { margin: 0; padding-left: 22px; columns: 2; }
+@media (max-width: 800px) { .toc ol { columns: 1; } }
+
+/* ----- Side-by-side diff ----- */
+.diff-side { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.diff-side .col { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 14px 16px; }
+.diff-side .col.before { border-top: 3px solid var(--warn); }
+.diff-side .col.after  { border-top: 3px solid var(--good); }
+.diff-side .col h5 { margin: 0 0 8px; }
+@media (max-width: 800px) { .diff-side { grid-template-columns: 1fr; } }
+
+/* ----- Horizontal rule ----- */
+hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ----- Footer ----- */
+footer {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero" data-badge="DECISION DOC" data-badge-tone="alt">
+  <h1>捕获新元素 / 捕获子元素模块重构方案</h1>
+  <p class="sub">数据模型、前端联动与后端校验设计</p>
+  <div class="meta">
+    <span><strong>Generated:</strong> 2026-07-01</span>
+    <span><strong>Template:</strong> decision-doc</span>
+  </div>
+</header>
+
+<h1 id="deliverable">捕获新元素 / 捕获子元素模块重构方案</h1>
+<h2 id="deliverable">执行摘要</h2>
+<p>将侧板的&quot;捕获新元素&quot;与&quot;捕获子元素&quot;重新划分为两个独立语义模块：</p>
+<ul>
+<li><strong>捕获新元素</strong>：生成并保存全局选择器，元素类型为 <code>plain</code> 或 <code>anchor</code>。  </li>
+<li><strong>捕获子元素</strong>：必须基于已选循环锚点，生成相对选择器，元素类型固定为 <code>child</code>。</li>
+</ul>
+<p>核心变更是在后端显式引入 <code>WorkflowElement.element_kind ∈ {plain, anchor, child}</code>，并以前端 <code>activeAnchor</code> 为唯一锚点上下文，让推荐方案与手动编辑都驱动同一份相对选择器，而不是两套并行的输入。</p>
+<div class="card info">
+<b>决策建议：</b>先落地数据模型与保存校验，再调整前端自动重算逻辑，最后补端到端测试。整体改动集中在 extension 与 repo/service 两层，不引入新外部依赖。
+</div>
+<hr />
+<h2 id="1">1. 现状</h2>
+<table><thead><tr><th>层级</th><th>已具备能力</th><th>缺口</th></tr></thead><tbody><tr><td>后端</td><td><code>WorkflowElement.relative_selector</code>、<code>anchor_selector</code>、<code>anchor_element_name</code>、<code>anchor_mode</code> 已存在并持久化</td><td>没有字段区分元素是&quot;锚点 / 子元素 / 普通元素&quot;</td></tr><tr><td>后端</td><td><code>elements_service.py</code> 已解析相对字段</td><td>未对 child 元素强制校验 <code>anchor_element_name</code></td></tr><tr><td>扩展脚本</td><td><code>content_capture.js</code> 已维护 <code>activeAnchor</code>，支持 <code>setActiveAnchor</code>、<code>computeRelativeFromAnchor</code></td><td><code>performCapture</code> 只在命中锚点实例时才生成相对选择器，未与 sidepanel 的 child 模式强绑定</td></tr><tr><td>侧板</td><td><code>sidepanel.js</code> 已有 `captureMode = &#39;new&#39; \</td><td>&#39;child&#39;<code>、</code>activeAnchorSelect`、手动编辑标志</td><td>推荐方案切换时不会自动重算相对选择器；锚点行与 anchorCard 职责重叠</td></tr><tr><td>类型层</td><td><code>WorkflowElementIn/Out</code> 已有相对字段</td><td>缺少 <code>element_kind</code> 与 child 锚点关系约束</td></tr></tbody></table>
+<p>当前流程已能完成&quot;先选锚点再捕获&quot;的 happy path，但数据模型把 child 元素当成&quot;带相对字段的普通元素&quot;，导致导出器和执行器无法仅凭数据判断解析策略。</p>
+<hr />
+<h2 id="2">2. 核心问题</h2>
+<div class="card bad">
+<span class="pill bad">P1</span>
+<b>子元素身份不明确</b><br>
+数据库中没有字段表明某元素是子元素。导出/执行时只能通过 `anchor_element_name` 是否为空推断，容易与历史手动填写的相对选择器混淆。
+</div>
+<div class="card bad">
+<span class="pill bad">P1</span>
+<b>推荐方案与相对选择器脱节</b><br>
+在 child 模式下切换全局 candidate 或 family 时，`relativeSelectorInput` 不会随之重新计算，用户必须手动点"重新计算"。
+</div>
+<div class="card warn">
+<span class="pill warn">P2</span>
+<b>手动编辑状态无法回到推荐状态</b><br>
+一旦 `relativeSelectorInput` 被编辑过，`anchorMode` 永远为 `manual`；切回"推荐方案"标签后没有机制重置为 `anchor-first`。
+</div>
+<div class="card warn">
+<span class="pill warn">P2</span>
+<b>activeAnchorSelect 与 anchorCard 双头管理</b><br>
+顶部下拉负责页面高亮和捕获上下文，anchorCard 负责已捕获元素的相对选择器编辑，二者在 child 模式下需要保持双向同步，容易漂移。
+</div>
+<div class="card warn">
+<span class="pill warn">P2</span>
+<b>anchor_mode 语义过多</b><br>
+当前有 `'auto'、'manual'、'none'、'backfill'、'anchor-first'`，其中 `auto` 与 `anchor-first`、`backfill` 与 `manual` 边界不清。
+</div>
+<hr />
+<h2 id="3">3. 设计目标</h2>
+<ol>
+<li><strong>显式类型</strong>：后端用 <code>element_kind</code> 区分 <code>plain</code> / <code>anchor</code> / <code>child</code>。  </li>
+<li><strong>锚点优先</strong>：child 模式下必须先选择 <code>activeAnchor</code>，否则禁用捕获与保存。  </li>
+<li><strong>相对选择器为主</strong>：child 元素的主选择器是相对选择器；全局选择器仅作为后备与校验。  </li>
+<li><strong>动态联动</strong>：推荐方案变更时自动重算相对选择器；手动编辑时标记为 manual。  </li>
+<li><strong>来源可回退</strong>：从手动编辑切回推荐方案时，恢复 <code>anchor_mode=&#39;anchor-first&#39;</code>。  </li>
+<li><strong>后端强校验</strong>：保存 child 元素时强制要求 <code>anchor_element_name</code> 且能在同流程找到对应 anchor。  </li>
+<li><strong>导出语义清晰</strong>：运行时按 <code>element_kind</code> 路由，child 元素通过锚点元素名称解析到锚点选择器。</li>
+</ol>
+<hr />
+<h2 id="4">4. 数据模型变更</h2>
+<h3 id="4-1-src-repo-models-py">4.1 数据库层 <code>src/repo/models.py</code></h3>
+<pre><code class="language-python">class WorkflowElement(Base):
+    __tablename__ = &quot;workflow_elements&quot;
+
+    id = Column(Integer, primary_key=True)
+    workflow_id = Column(Integer, ForeignKey(&quot;workflows.id&quot;), nullable=False)
+    name = Column(String(128), nullable=False)
+
+    # 元素语义类型：plain / anchor / child
+    element_kind = Column(String(16), default=&quot;plain&quot;, nullable=False)
+
+    # 全局选择器（anchor / plain 的主要选择器；child 的后备选择器）
+    selector = Column(Text, default=&quot;&quot;)
+    selector_family = Column(String(16), default=&quot;css&quot;)
+
+    # 仅 child 元素使用
+    relative_selector = Column(Text, default=&quot;&quot;)
+    anchor_selector = Column(Text, default=&quot;&quot;)
+    anchor_element_name = Column(String(128), nullable=True)
+    anchor_mode = Column(String(16), default=&quot;none&quot;)  # none / anchor-first / manual</code></pre>
+<h3 id="4-2-src-dtypes-schemas-py">4.2 类型层 <code>src/dtypes/schemas.py</code></h3>
+<pre><code class="language-python">class WorkflowElementIn(BaseModel):
+    name: str
+    element_kind: Literal[&quot;plain&quot;, &quot;anchor&quot;, &quot;child&quot;] = &quot;plain&quot;
+    selector: str = &quot;&quot;
+    selector_family: str = &quot;css&quot;
+    relative_selector: str = &quot;&quot;
+    anchor_selector: str = &quot;&quot;
+    anchor_element_name: Optional[str] = None
+    anchor_mode: Literal[&quot;none&quot;, &quot;anchor-first&quot;, &quot;manual&quot;] = &quot;none&quot;
+    # ... 其他字段</code></pre>
+<h3 id="4-3-anchor-mode">4.3 anchor_mode 语义精简</h3>
+<table><thead><tr><th>旧值</th><th>新值</th><th>含义</th></tr></thead><tbody><tr><td><code>none</code></td><td><code>none</code></td><td>普通元素，不使用相对解析</td></tr><tr><td><code>auto</code></td><td><code>anchor-first</code></td><td>由系统根据 activeAnchor 自动生成的相对选择器</td></tr><tr><td><code>anchor-first</code></td><td><code>anchor-first</code></td><td>同上（保留当前新值）</td></tr><tr><td><code>manual</code></td><td><code>manual</code></td><td>用户手动编辑过相对选择器</td></tr><tr><td><code>backfill</code></td><td><code>manual</code></td><td>历史回填场景归并到手动</td></tr></tbody></table>
+<p>迁移脚本需把存量 <code>anchor_mode=&#39;auto&#39;</code> 映射为 <code>&#39;anchor-first&#39;</code>，<code>backfill</code> 映射为 <code>&#39;manual&#39;</code>。</p>
+<hr />
+<h2 id="5">5. 前端模块设计</h2>
+<h3 id="5-1-capturemode-new">5.1 捕获新元素（<code>captureMode=&#39;new&#39;</code>）</h3>
+<ul>
+<li>仅生成全局候选列表（CSS / XPath）。</li>
+<li>隐藏 <code>activeAnchorRow</code> 与 <code>anchorCard</code>。</li>
+<li>保存时：</li>
+<ul>
+<li>默认 <code>element_kind=&#39;plain&#39;</code>。</li>
+<li>用户可勾选&quot;此元素可作为循环锚点&quot;，则 <code>element_kind=&#39;anchor&#39;</code>。</li>
+</ul>
+<li>离开 child 模式进入 new 模式时，清除 <code>activeAnchor</code> 与页面高亮。</li>
+</ul>
+<h3 id="5-2-capturemode-child">5.2 捕获子元素（<code>captureMode=&#39;child&#39;</code>）</h3>
+<div class="card info">
+<b>模块边界：</b>child 模式 = 选择锚点 + 捕获子元素 + 相对选择器管理 + 校验。所有推荐/手动编辑都围绕 activeAnchor 展开。
+</div>
+<h4 id="5-2-1">5.2.1 锚点选择</h4>
+<ul>
+<li>强制显示 <code>activeAnchorRow</code>。</li>
+<li>下拉选项仅包含当前流程中 <code>element_kind=&#39;anchor&#39;</code> 的元素；若流程内无 anchor 元素，显示提示&quot;请先捕获一个循环锚点元素&quot;。</li>
+<li>未选择锚点时：禁用&quot;捕获&quot;快捷键提示、禁用&quot;保存&quot;按钮。</li>
+<li>选择锚点后：向 <code>content_capture.js</code> 发送 <code>setActiveAnchor</code>，页面持续高亮所有锚点实例。</li>
+</ul>
+<h4 id="5-2-2">5.2.2 捕获行为</h4>
+<p><code>performCapture</code> 在 child 模式下：</p>
+<ol>
+<li>检查 <code>activeAnchor</code> 是否存在，不存在则提示并拒绝捕获。</li>
+<li>找到包含被点击元素的锚点实例 <code>host</code>。</li>
+<li>调用 <code>buildRelativeCss(host, el)</code>，失败再试 <code>buildRelativeXPath</code>。</li>
+<li>生成的 payload 中：</li>
+<ul>
+<li><code>relativeSelector</code> = 相对选择器（必填）</li>
+<li><code>anchorSelector</code> = 锚点全局选择器</li>
+<li><code>anchorElementName</code> = 锚点元素名称</li>
+<li><code>anchorMode</code> = <code>&#39;anchor-first&#39;</code></li>
+<li><code>elementKind</code> = <code>&#39;child&#39;</code></li>
+</ul>
+<li>候选列表排序：优先展示以该锚点为根的相对路径候选；全局候选折叠在&quot;全局后备&quot;分组中。</li>
+</ol>
+<h4 id="5-2-3">5.2.3 推荐方案联动</h4>
+<ul>
+<li>选择不同 candidate 或切换 CSS/XPath family 时，自动调用 <code>computeRelativeFromAnchor</code> 更新 <code>relativeSelectorInput</code>。</li>
+<li>更新后重置 <code>relativeManuallyEdited = false</code>，<code>anchorModeLabel</code> 显示&quot;锚定&quot;（对应 <code>anchor-first</code>）。</li>
+</ul>
+<h4 id="5-2-4">5.2.4 手动编辑</h4>
+<ul>
+<li>&quot;手动编辑&quot;模式下 <code>relativeSelectorInput</code> 可编辑。</li>
+<li>输入任意字符即设置 <code>relativeManuallyEdited = true</code>，<code>anchorModeLabel</code> 显示&quot;手动&quot;。</li>
+<li>校验按钮调用 <code>verifyRelative</code>，统计每个锚点实例内的匹配数。</li>
+<li>切回&quot;推荐方案&quot;时：</li>
+<ul>
+<li>如果当前 relative selector 与推荐生成的相同，保持 manual 不降级？<strong>否</strong>：只要回到 recommend，就按推荐来源重算并恢复 <code>anchor-first</code>，除非用户明确点&quot;锁定手动值&quot;。</li>
+</ul>
+</ul>
+<h4 id="5-2-5-activeanchorselect-anchorcard">5.2.5 activeAnchorSelect 与 anchorCard 同步规则</h4>
+<table><thead><tr><th>场景</th><th>activeAnchorSelect（顶部）</th><th>anchorCard（相对选择器卡片）</th></tr></thead><tbody><tr><td>用户选择锚点</td><td>更新选中项，推送页面高亮</td><td><code>anchorSelectorInput</code> 同步为锚点全局选择器，<code>relativeSelectorInput</code> 清空或重算</td></tr><tr><td>捕获完成回显</td><td>保持选中（如果 payload 的 anchorElementName 一致）</td><td>填充相对/锚点字段</td></tr><tr><td>用户编辑 anchorSelectorInput</td><td>不反向修改 activeAnchorSelect；保存时以 anchorCard 为准</td><td>允许编辑，但校验失败时禁止保存</td></tr><tr><td>切换 captureMode 到 new</td><td>清空并发送 <code>setActiveAnchor(null)</code></td><td>隐藏</td></tr></tbody></table>
+<hr />
+<h2 id="6">6. 后端服务变更</h2>
+<h3 id="6-1-src-service-elements-service-py">6.1 <code>src/service/elements_service.py</code></h3>
+<pre><code class="language-python">def save_captured_element(payload: dict, workflow_id: int) -&gt; WorkflowElement:
+    kind = payload.get(&quot;elementKind&quot;, &quot;plain&quot;)
+    if kind not in {&quot;plain&quot;, &quot;anchor&quot;, &quot;child&quot;}:
+        raise ValueError(&quot;invalid element_kind&quot;)
+
+    if kind == &quot;child&quot;:
+        anchor_name = payload.get(&quot;anchorElementName&quot;) or payload.get(&quot;anchor_element_name&quot;)
+        if not anchor_name:
+            raise ValueError(&quot;child element requires anchor_element_name&quot;)
+        anchor_el = lookup_anchor_by_name(workflow_id, anchor_name)
+        if not anchor_el or anchor_el.element_kind != &quot;anchor&quot;:
+            raise ValueError(&quot;anchor not found or not an anchor element&quot;)
+
+    relative = (payload.get(&quot;relativeSelector&quot;) or &quot;&quot;).strip()
+    manually_edited = payload.get(&quot;relativeManuallyEdited&quot;, False)
+    anchor_mode = &quot;manual&quot; if manually_edited else (&quot;anchor-first&quot; if kind == &quot;child&quot; else &quot;none&quot;)
+
+    element = WorkflowElement(
+        workflow_id=workflow_id,
+        name=payload[&quot;name&quot;],
+        element_kind=kind,
+        selector=payload.get(&quot;selector&quot;, &quot;&quot;),
+        selector_family=payload.get(&quot;selectorFamily&quot;, &quot;css&quot;),
+        relative_selector=relative,
+        anchor_selector=payload.get(&quot;anchorSelector&quot;, &quot;&quot;),
+        anchor_element_name=anchor_name if kind == &quot;child&quot; else None,
+        anchor_mode=anchor_mode,
+        # ... 其他字段
+    )
+    # 如果 kind == &#39;anchor&#39; 且用户未提供全局选择器，可拒绝保存
+    return element</code></pre>
+<h3 id="6-2">6.2 导出器 / 运行时</h3>
+<ul>
+<li><code>element_kind=&#39;anchor&#39;</code>：按全局选择器执行，循环迭代时每个实例作为上下文根。</li>
+<li><code>element_kind=&#39;child&#39;</code>：在同流程查找 <code>anchor_element_name</code> 对应的 anchor 元素，使用其选择器作为上下文根，再用 <code>relative_selector</code> 解析目标。</li>
+<li><code>element_kind=&#39;plain&#39;</code>：保持现有全局执行逻辑。</li>
+</ul>
+<hr />
+<h2 id="7">7. 交互流程</h2>
+<pre><code>用户切到「捕获子元素」
+    │
+    ▼
+下拉选择循环锚点（仅 element_kind=&#39;anchor&#39; 的元素）
+    │
+    ▼
+页面高亮锚点实例；校验按钮与捕获快捷键启用
+    │
+    ▼
+Alt+点击子元素
+    │
+    ▼
+content_capture.js 基于 activeAnchor 生成 relativeSelector
+    │
+    ▼
+sidepanel 展示相对候选；relativeSelectorInput 自动填充
+    │
+    ▼
+用户切换 candidate / family → 自动重算 relativeSelector（anchor-first）
+    │
+    ▼
+用户切到「手动编辑」修改 relativeSelector → anchor_mode=&#39;manual&#39;
+    │
+    ▼
+点击保存 → 后端校验 child 必须有 anchor_element_name
+    │
+    ▼
+数据库 element_kind=&#39;child&#39;，relative_selector / anchor_element_name 写入</code></pre>
+<hr />
+<h2 id="8">8. 校验与测试</h2>
+<table><thead><tr><th>层级</th><th>测试项</th><th>期望</th></tr></thead><tbody><tr><td>单元</td><td><code>elements_service.save_captured_element</code> 拒绝无锚点名称的 child</td><td>抛出 <code>ValueError</code></td></tr><tr><td>单元</td><td><code>anchor_mode</code> 映射：手动编辑 → <code>manual</code>，推荐生成 → <code>anchor-first</code></td><td>字段正确</td></tr><tr><td>端到端</td><td>选择锚点 → Alt+捕获子元素 → 保存 → 数据库 <code>element_kind=&#39;child&#39;</code></td><td>测试通过</td></tr><tr><td>端到端</td><td>child 元素运行时通过 <code>anchor_element_name</code> 解析到 anchor 选择器</td><td>目标正确解析</td></tr><tr><td>结构</td><td>运行 <code>python -m harness.check</code> 通过</td><td>无新增依赖违规</td></tr><tr><td>代码风格</td><td><code>ruff check src</code> 通过</td><td>无 lint 错误</td></tr></tbody></table>
+<hr />
+<h2 id="9">9. 影响范围</h2>
+<ul>
+<li><strong>新增/修改文件</strong>：</li>
+<ul>
+<li><code>src/repo/models.py</code>（迁移）</li>
+<li><code>src/dtypes/schemas.py</code></li>
+<li><code>src/service/elements_service.py</code></li>
+<li><code>src/runtime/routers/extension_router.py</code>（返回 <code>elementKind</code>）</li>
+<li><code>extension/content_capture.js</code>（child 模式强制锚点）</li>
+<li><code>extension/sidepanel.js</code>（自动重算、模式联动、保存字段）</li>
+<li><code>extension/sidepanel.html</code>（可能增加&quot;可作为锚点&quot;勾选）</li>
+<li>导出器/运行时使用 <code>element_kind</code></li>
+</ul>
+</ul>
+<ul>
+<li><strong>数据迁移</strong>：</li>
+<ul>
+<li>新增 <code>element_kind</code> 列，默认 <code>&#39;plain&#39;</code>。</li>
+<li>对已有 <code>anchor_element_name</code> 非空的行，推断为 <code>&#39;child&#39;</code>。</li>
+<li>对历史 <code>anchor_mode</code> 做归并映射。</li>
+</ul>
+</ul>
+<ul>
+<li><strong>不引入</strong>：新的外部依赖、新的网络协议、新的存储服务。</li>
+</ul>
+<hr />
+<h2 id="10">10. 下一步决策</h2>
+<div class="grid2">
+<div class="card next">
+<b>方案 A（推荐）：完整落地</b><br>
+新增 <code>element_kind</code>，明确 anchor/child/plain 语义，同时修复推荐/手动联动。一次性解决身份识别与交互问题，但改动面较大。
+</div>
+<div class="card next">
+<b>方案 B：最小改动</b><br>
+不新增 <code>element_kind</code>，仅通过 <code>anchor_mode</code> 区分（如 child 强制 <code>anchor-first/manual</code>）。改动小，但语义仍不清晰，未来重构成本更高。
+</div>
+</div>
+<p><strong>推荐先实施方案 A 的数据模型层与保存校验</strong>，再逐步迁移前端自动重算逻辑，可以降低一次性改动风险。</p>
+
+<footer>
+  <p>Generated by agent-harness-kit / <code>/deliver-html</code> — HTML for humans, MD for agents.</p>
+</footer>
+</div>
+</body>
+</html>

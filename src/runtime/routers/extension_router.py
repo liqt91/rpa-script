@@ -150,6 +150,7 @@ def list_extension_elements(workflow_id: int):
             result.append({
                 "id": item.id,
                 "name": item.name,
+                "elementKind": item.element_kind,
                 "webSelector": item.web_selector,
                 "drissionSelector": item.drission_selector,
                 "relativeSelector": item.relative_selector,

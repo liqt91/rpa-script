@@ -179,6 +179,7 @@ def _loc_call_by_name(
         item_var = _resolve_loop_anchor(extra)
 
     el = element_map.get(element_name) if element_map and element_name else None
+    element_kind = getattr(el, "element_kind", "plain") if el else "plain"
 
     # Reference the loop item itself (e.g. item.click(), item.text).
     if item_var and extra.get("referenceItemItself"):
@@ -200,6 +201,14 @@ def _loc_call_by_name(
         # Legacy: element has a relative selector but no named anchor; use the
         # innermost loop for backward compatibility.
         matched_anchor = True
+
+    # Enforce element_kind semantics: child elements must resolve relative to
+    # their named anchor loop. Otherwise the workflow is invalid.
+    if element_kind == "child" and (not anchor_name or not matched_anchor):
+        raise ValueError(
+            f"Element '{element_name}' is a child element and must be used inside "
+            f"a forEachElement loop for anchor '{anchor_name or '?'}'"
+        )
 
     use_relative = bool(
         item_var

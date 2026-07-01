@@ -2316,6 +2316,8 @@
               anchorMeta.anchorSelector = activeAnchor.selector;
               anchorMeta.anchorElementName = activeAnchor.name;
               anchorMeta.anchorMode = 'anchor-first';
+              anchorMeta.elementKind = 'child';
+              anchorMeta.relativeManuallyEdited = false;
             } else {
               showToast('无法在锚点内生成稳定相对选择器，已按普通捕获');
             }

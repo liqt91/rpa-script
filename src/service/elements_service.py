@@ -90,13 +90,55 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
         # target_mode is deprecated in the UI; keep column default for backward compat.
         target_mode = "single"
 
-        # Relative-anchor metadata (capture-time anchoring). Empty relative_selector
-        # means the element was not anchored to a repeating ancestor → runtime falls
-        # back to global resolution, preserving legacy behavior.
+        # Element kind: plain | anchor | child
+        element_kind = payload.get("elementKind") or payload.get("element_kind") or "plain"
+        if element_kind not in {"plain", "anchor", "child"}:
+            element_kind = "plain"
+
+        # Normalize legacy anchor_mode values to the new constrained set.
+        anchor_mode = payload.get("anchorMode") or payload.get("anchor_mode") or "none"
+        if anchor_mode in ("auto", "anchor-first"):
+            anchor_mode = "anchor-first"
+        elif anchor_mode == "backfill":
+            anchor_mode = "manual"
+        elif anchor_mode not in {"none", "manual"}:
+            anchor_mode = "none"
+
+        # If the user manually edited the relative selector, record it as manual.
+        if payload.get("relativeManuallyEdited"):
+            anchor_mode = "manual"
+
         relative_selector = payload.get("relativeSelector", "") or ""
         anchor_selector = payload.get("anchorSelector", "") or ""
         anchor_element_name = payload.get("anchorElementName") or payload.get("anchor_element_name") or None
-        anchor_mode = payload.get("anchorMode", "auto") or "auto"
+
+        # Child elements must reference an existing anchor element in the same workflow.
+        if element_kind == "child":
+            if not anchor_element_name:
+                print("[elements_service] child element requires anchor_element_name")
+                return None
+            anchor_el = (
+                db.query(models.WorkflowElement)
+                .filter(
+                    models.WorkflowElement.workflow_id == workflow_id,
+                    models.WorkflowElement.name == anchor_element_name,
+                )
+                .first()
+            )
+            if not anchor_el:
+                print(f"[elements_service] child element references unknown anchor '{anchor_element_name}'")
+                return None
+            if anchor_el.element_kind != "anchor":
+                print(f"[elements_service] referenced element '{anchor_element_name}' is not an anchor")
+                return None
+            if not anchor_selector and anchor_el.web_selector:
+                anchor_selector = anchor_el.web_selector
+            if not relative_selector:
+                print("[elements_service] child element requires relative_selector")
+                return None
+            # Force anchor_mode to anchor-first when not manually edited.
+            if anchor_mode != "manual":
+                anchor_mode = "anchor-first"
 
         # If an explicit anchor element name is provided, also store its selector
         # in anchor_selector for content-script/runtime fallback.
@@ -124,6 +166,7 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
 
         if existing:
             # Update existing element
+            existing.element_kind = element_kind
             existing.target_mode = target_mode
             existing.css_candidates = json.dumps(css_cands)
             existing.xpath_candidates = json.dumps(xpath_cands)
@@ -147,6 +190,7 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
         el = models.WorkflowElement(
             workflow_id=workflow_id,
             name=name,
+            element_kind=element_kind,
             target_mode=target_mode,
             css_candidates=json.dumps(css_cands),
             xpath_candidates=json.dumps(xpath_cands),

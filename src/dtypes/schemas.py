@@ -3,7 +3,7 @@ Pydantic schemas
 """
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 from datetime import datetime
 import json
 
@@ -237,6 +237,7 @@ class WorkflowListOut(BaseModel):
 # ====== Workflow Elements ======
 class WorkflowElementIn(BaseModel):
     name: str
+    element_kind: Literal["plain", "anchor", "child"] = "plain"
     target_mode: str = "single"
     css_candidates: list = Field(default_factory=list)
     xpath_candidates: list = Field(default_factory=list)
@@ -246,7 +247,7 @@ class WorkflowElementIn(BaseModel):
     relative_selector: str = ""
     anchor_selector: str = ""
     anchor_element_name: Optional[str] = None
-    anchor_mode: str = "auto"
+    anchor_mode: Literal["none", "anchor-first", "manual"] = "none"
     dom_path: list = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
     screenshot: Optional[str] = None
@@ -259,6 +260,7 @@ class WorkflowElementOut(BaseModel):
     id: int
     workflow_id: int
     name: str
+    element_kind: str = "plain"
     target_mode: str = "single"
     css_candidates: Optional[list] = None
     xpath_candidates: Optional[list] = None
@@ -268,7 +270,7 @@ class WorkflowElementOut(BaseModel):
     relative_selector: str = ""
     anchor_selector: str = ""
     anchor_element_name: Optional[str] = None
-    anchor_mode: str = "auto"
+    anchor_mode: str = "none"
     dom_path: Optional[list] = None
     attributes: Optional[dict] = None
     screenshot: Optional[str] = None

@@ -45,6 +45,8 @@
   const anchorSelectorInput = $('anchorSelectorInput');
   const relativeSelectorInput = $('relativeSelectorInput');
   const anchorModeLabel = $('anchorMode');
+  const anchorOptionSection = $('anchorOptionSection');
+  const isAnchorChk = $('isAnchorChk');
   // Merged loop-anchor control (top row) — drives both pre-capture highlight
   // and the captured element's anchor selection.
   const activeAnchorSelect = $('activeAnchorSelect');
@@ -73,7 +75,11 @@
       activeAnchorSelect.value = anchorElName;
     }
     const mode = data?.anchorMode || '';
-    anchorModeLabel.textContent = mode === 'manual' ? '手动' : (mode === 'backfill' ? '回填' : '锚定');
+    anchorModeLabel.textContent = mode === 'manual' ? '手动' : (mode === 'anchor-first' ? '锚定' : '无');
+    // Restore anchor checkbox for previously saved anchor elements.
+    if (isAnchorChk && data?.elementKind === 'anchor') {
+      isAnchorChk.checked = true;
+    }
   }
 
   // Capture mode, driven by the top tabs:
@@ -99,6 +105,7 @@
     if (anchorCard) anchorCard.style.display = child ? 'block' : 'none';
     const header = $('globalSelectorHeader');
     if (header) header.style.display = child ? '' : 'none';
+    if (anchorOptionSection) anchorOptionSection.style.display = child ? 'none' : '';
     // 新元素: global selector is the primary output (open, no header).
     // 子元素: global selector is the fallback (collapsed under the header).
     setCollapsibleOpen('globalSelectorHeader', 'globalSelectorBody', !child);
@@ -210,6 +217,12 @@
     } else {
       setCollapsibleOpen('domCollapseHeader', 'domCollapseBody', false);
       setCollapsibleOpen('propCollapseHeader', 'propCollapseBody', false);
+      // Switching back to recommend regenerates the relative selector from the
+      // active anchor and current global candidate, discarding manual edits.
+      if (captureMode === 'child') {
+        relativeManuallyEdited = false;
+        computeRelativeForSelectedAnchor();
+      }
     }
   }
 
@@ -292,12 +305,21 @@
   // ─── Loop anchor (merged control) ────────────────────────────────
   // Populate the loop-anchor dropdown from the loaded workflow elements,
   // excluding the element currently being edited (it can't be its own anchor).
+  // Only elements explicitly saved as element_kind='anchor' are valid anchors.
   function renderActiveAnchorOptions() {
     if (!activeAnchorSelect) return;
     const current = activeAnchorName;
     const excludeName = (elName?.value || elementData?.name || '').trim();
+    const anchorEls = workflowElements.filter((el) => el?.elementKind === 'anchor');
     activeAnchorSelect.innerHTML = '<option value="">全局捕获（无锚点）</option>';
-    workflowElements.forEach((el) => {
+    if (anchorEls.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '无可用锚点（先捕获一个锚点元素）';
+      opt.disabled = true;
+      activeAnchorSelect.appendChild(opt);
+    }
+    anchorEls.forEach((el) => {
       if (!el?.name || el.name === excludeName) return;
       const opt = document.createElement('option');
       opt.value = el.name;
@@ -305,7 +327,7 @@
       activeAnchorSelect.appendChild(opt);
     });
     // Keep the selection only if the element still exists and isn't excluded.
-    if (current && current !== excludeName && workflowElements.some((el) => el.name === current)) {
+    if (current && current !== excludeName && anchorEls.some((el) => el.name === current)) {
       activeAnchorSelect.value = current;
     } else {
       activeAnchorSelect.value = '';
@@ -488,10 +510,10 @@
       updateSelector();
     }
 
-    // Loop-relative anchoring. An element with an anchor/relative selector opens
-    // in 捕获子元素 mode; otherwise the clean 捕获新元素 mode.
+    // Loop-relative anchoring. An element with element_kind='child' or explicit
+    // relative/anchor metadata opens in 捕获子元素 mode; otherwise clean mode.
     loadAnchorData(data);
-    const anchored = !!(data?.relativeSelector || data?.anchorElementName);
+    const anchored = (data?.elementKind === 'child') || !!(data?.relativeSelector || data?.anchorElementName);
     applyCaptureMode(anchored ? 'child' : 'new');
   }
 
@@ -1419,9 +1441,17 @@
       $('workflowSelect').focus();
       return;
     }
+    if (captureMode === 'child' && !activeAnchorSelect?.value) {
+      verifyResult.textContent = '子元素捕获需要先选择循环锚点';
+      verifyResult.className = 'verify-meta err';
+      if (activeAnchorSelect) activeAnchorSelect.focus();
+      return;
+    }
+    const elementKind = captureMode === 'child' ? 'child' : (isAnchorChk?.checked ? 'anchor' : 'plain');
     const payload = {
       workflowId: parseInt(selectedWorkflowId, 10),
       name: elName.value.trim(),
+      elementKind,
       selector: selectorPreview.value,
       selectorFamily: choiceFamily(activeChoice),
       tag: elementData?.tag,
@@ -1440,18 +1470,18 @@
     // Loop-relative anchoring. When the user unchecks "相对解析" we persist an
     // empty relative selector so the runtime falls back to global resolution.
     const relValue = (relativeSelectorInput.value || '').trim();
-    if (useRelativeChk.checked && relValue) {
+    if (captureMode === 'child' && useRelativeChk.checked && relValue) {
       payload.relativeSelector = relValue;
       payload.anchorSelector = (anchorSelectorInput.value || '').trim();
       payload.anchorElementName = activeAnchorSelect?.value || '';
-      payload.anchorMode = relativeManuallyEdited
-        ? 'manual'
-        : (elementData?.anchorMode || 'anchor-first');
+      payload.anchorMode = relativeManuallyEdited ? 'manual' : 'anchor-first';
+      payload.relativeManuallyEdited = relativeManuallyEdited;
     } else {
       payload.relativeSelector = '';
       payload.anchorSelector = '';
       payload.anchorElementName = '';
       payload.anchorMode = 'none';
+      payload.relativeManuallyEdited = false;
     }
     send('saveElement', payload)
       .then(() => {
@@ -1478,6 +1508,7 @@
     if (anchorCard) anchorCard.style.display = 'none';
     if (relativeSelectorInput) relativeSelectorInput.value = '';
     if (anchorSelectorInput) anchorSelectorInput.value = '';
+    if (isAnchorChk) isAnchorChk.checked = false;
     relativeManuallyEdited = false;
     verifyResult.textContent = '点击"校验元素"查看匹配结果';
     verifyResult.className = 'verify-meta';

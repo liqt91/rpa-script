@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine
 
-_SCHEMA_VERSION = 9  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 10  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -379,6 +379,40 @@ def _migrate_009():
         conn.commit()
 
 
+# ── Migration 010: add element_kind and normalize anchor_mode ─────────────────
+
+def _migrate_010():
+    """Add element_kind to workflow_elements and normalize anchor_mode values.
+
+    - element_kind defaults to 'plain' and accepts {plain, anchor, child}.
+    - Legacy anchor_mode 'auto' becomes 'anchor-first'.
+    - Legacy anchor_mode 'backfill' becomes 'manual'.
+    - Rows with a non-empty anchor_element_name are classified as 'child'.
+    """
+    inspector = inspect(engine)
+    if "workflow_elements" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("workflow_elements")}
+    with engine.connect() as conn:
+        if "element_kind" not in cols:
+            conn.execute(text("ALTER TABLE workflow_elements ADD COLUMN element_kind VARCHAR(16) DEFAULT 'plain'"))
+        conn.execute(text("""
+            UPDATE workflow_elements
+            SET anchor_mode = CASE anchor_mode
+                WHEN 'auto' THEN 'anchor-first'
+                WHEN 'backfill' THEN 'manual'
+                ELSE anchor_mode
+            END
+            WHERE anchor_mode IN ('auto', 'backfill')
+        """))
+        conn.execute(text("""
+            UPDATE workflow_elements
+            SET element_kind = 'child'
+            WHERE anchor_element_name IS NOT NULL AND anchor_element_name != ''
+        """))
+        conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
@@ -391,6 +425,7 @@ _MIGRATIONS = {
     7: _migrate_007,
     8: _migrate_008,
     9: _migrate_009,
+    10: _migrate_010,
 }
 
 

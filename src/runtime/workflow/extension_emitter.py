@@ -182,6 +182,9 @@ def _inject_relative_fields(extra: dict, el) -> dict:
     """
     if not el:
         return extra
+    element_kind = getattr(el, "element_kind", "plain")
+    if element_kind == "plain":
+        return extra
     if extra.get("scope", "local") == "global":
         return extra
     if extra.get("useRelative") is False:
@@ -194,11 +197,23 @@ def _inject_relative_fields(extra: dict, el) -> dict:
         return extra
 
     anchor_name = (getattr(el, "anchor_element_name", "") or "").strip()
+    stack = _LOOP_STACK.get()
     if anchor_name:
-        stack = _LOOP_STACK.get()
         matched = any(loop_name == anchor_name for loop_name in reversed(stack))
         if not matched:
+            if element_kind == "child":
+                raise ValueError(
+                    f"Element '{getattr(el, 'name', '')}' is a child element and must be used "
+                    f"inside a forEachElement loop for anchor '{anchor_name}'"
+                )
             return extra
+    else:
+        # Legacy fallback: only allowed for non-child elements.
+        if element_kind == "child":
+            raise ValueError(
+                f"Child element '{getattr(el, 'name', '')}' must have anchor_element_name"
+            )
+        return extra
 
     anchor = (getattr(el, "anchor_selector", "") or "").strip()
     anchor_selector, anchor_family = _split_prefixed_selector(anchor) if anchor else ("", "css")
