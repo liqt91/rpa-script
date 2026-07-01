@@ -1217,6 +1217,100 @@
   }
 
   /**
+   * Generate a ranked list of relative selectors from an anchor element down to a
+   * target descendant. Each candidate is validated against every resolved anchor
+   * instance; candidates that match exactly one element per anchor score highest.
+   */
+  function generateRelativeCandidates(activeAnchor, host, el) {
+    if (!activeAnchor || !host || !el || !host.contains(el)) return [];
+    const anchorSelector = activeAnchor.selector;
+    const anchorFamily = activeAnchor.family || splitSelectorPrefix(anchorSelector).family;
+    let anchors = activeAnchor.elements;
+    if (!anchors || !anchors.length) {
+      anchors = resolveAllForVerify(anchorSelector, anchorFamily);
+    }
+    if (!anchors || !anchors.length) return [];
+
+    const tag = el.tagName.toLowerCase();
+    const candidates = [];
+    const seen = new Set();
+
+    function addCandidate(syntax, family) {
+      if (!syntax || seen.has(syntax)) return;
+      seen.add(syntax);
+      let total = 0;
+      let exact = 0;
+      let zero = 0;
+      for (const a of anchors) {
+        const matches = queryRelativeInItem(a, syntax);
+        total += matches.length;
+        if (matches.length === 1) exact++;
+        else if (matches.length === 0) zero++;
+      }
+      if (total === 0) return;
+      const n = anchors.length;
+      let score = 100;
+      score -= (n - exact) * 15;
+      score -= (total - exact) * 10;
+      if (zero > 0) score -= 10;
+      score = Math.max(0, Math.min(100, Math.round(score)));
+      candidates.push({
+        syntax,
+        family,
+        score,
+        matchCount: total,
+        isList: false,
+        label: syntax.replace(/^(css|xpath):/, ''),
+      });
+    }
+
+    // CSS strategies
+    if (el.id && isStableId(el.id)) addCandidate('css:#' + cssEscape(el.id), 'css');
+    const stableClasses = el.classList ? Array.from(el.classList).filter(isStableClass) : [];
+    if (stableClasses.length) {
+      addCandidate('css:' + tag + '.' + stableClasses.map(cssEscape).join('.'), 'css');
+      addCandidate('css:' + stableClasses.map(c => '.' + cssEscape(c)).join(''), 'css');
+    }
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
+    for (const attr of dataAttrs) {
+      const v = el.getAttribute(attr);
+      if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
+        addCandidate(`css:${tag}[${attr}="${attrValueEscape(v)}"]`, 'css');
+        addCandidate(`css:[${attr}="${attrValueEscape(v)}"]`, 'css');
+      }
+    }
+    addCandidate('css:' + tag, 'css');
+    const parent = el.parentElement;
+    if (parent) {
+      const sameTag = Array.from(parent.children).filter(c => c.tagName === el.tagName);
+      if (sameTag.length > 1) {
+        const idx = sameTag.indexOf(el) + 1;
+        addCandidate(`css:${tag}:nth-of-type(${idx})`, 'css');
+      }
+    }
+
+    // XPath strategies
+    const relXp = buildRelativeXPath(host, el);
+    if (relXp) addCandidate('xpath:' + relXp, 'xpath');
+    if (el.id && isStableId(el.id)) addCandidate(`xpath:.//*[@id=${xpathLiteral(el.id)}]`, 'xpath');
+    for (const attr of dataAttrs) {
+      const v = el.getAttribute(attr);
+      if (v && v.length < 80) {
+        addCandidate(`xpath:.//${tag}[@${attr}=${xpathLiteral(v)}]`, 'xpath');
+      }
+    }
+    if (stableClasses.length) {
+      addCandidate(`xpath:.//${tag}[contains(@class,${xpathLiteral(stableClasses[0])})]`, 'xpath');
+    }
+    const directText = getDirectText(el);
+    if (directText && directText.length > 0 && directText.length < 50) {
+      addCandidate(`xpath:.//${tag}[contains(text(),${xpathLiteral(directText)})]`, 'xpath');
+    }
+
+    return candidates.sort((a, b) => b.score - a.score);
+  }
+
+  /**
    * Capture-time anchoring (plan B). Given a detected list family, compute the
    * captured element's selector RELATIVE to its repeating ancestor (the future
    * loop item), plus the anchor (item) selector itself. Returns:
@@ -2311,8 +2405,10 @@
               const relXp = buildRelativeXPath(host, el);
               if (relXp) relative = 'xpath:' + relXp;
             }
-            if (relative) {
-              anchorMeta.relativeSelector = relative;
+            const relativeCandidates = generateRelativeCandidates(activeAnchor, host, el);
+            if (relative || relativeCandidates.length) {
+              anchorMeta.relativeSelector = relative || relativeCandidates[0]?.syntax || '';
+              anchorMeta.relativeCandidates = relativeCandidates;
               anchorMeta.anchorSelector = activeAnchor.selector;
               anchorMeta.anchorElementName = activeAnchor.name;
               anchorMeta.anchorMode = 'anchor-first';

@@ -211,11 +211,23 @@
     } else {
       setCollapsibleOpen('domCollapseHeader', 'domCollapseBody', false);
       setCollapsibleOpen('propCollapseHeader', 'propCollapseBody', false);
-      // Switching back to recommend regenerates the relative selector from the
-      // active anchor and current global candidate, discarding manual edits.
+      // Switching back to recommend discards manual edits. Prefer the pre-generated
+      // relative candidates; fall back to recomputing from the global selector.
       if (captureMode === 'child') {
         relativeManuallyEdited = false;
-        computeRelativeForSelectedAnchor();
+        if (elementData?.relativeCandidates?.length) {
+          const relFirst = elementData.relativeCandidates[0];
+          if (relFirst) {
+            activeChoice = relFirst.family || 'css';
+            syncChoiceButtons();
+            relativeSelectorInput.value = relFirst.syntax;
+            anchorModeLabel.textContent = '锚定';
+            verifyResult.textContent = `${relFirst.matchCount === 1 ? '唯一匹配' : relFirst.matchCount + ' 匹配'} | score:${relFirst.score}`;
+            verifyResult.className = 'verify-meta ' + (relFirst.matchCount === 1 ? 'ok' : '');
+          }
+        } else {
+          computeRelativeForSelectedAnchor();
+        }
       }
     }
   }
@@ -508,6 +520,22 @@
     loadAnchorData(data);
     const anchored = (data?.elementKind === 'child') || !!(data?.relativeSelector || data?.anchorElementName);
     applyCaptureMode(anchored ? 'child' : 'new');
+
+    // In associated-element mode, switch the recommendation list to relative
+    // candidates and pre-select the best one.
+    if (captureMode === 'child' && elementData?.relativeCandidates?.length) {
+      renderCandidates();
+      const relFirst = elementData.relativeCandidates[0];
+      if (relFirst) {
+        activeChoice = relFirst.family || 'css';
+        syncChoiceButtons();
+        relativeSelectorInput.value = relFirst.syntax;
+        relativeManuallyEdited = false;
+        anchorModeLabel.textContent = '锚定';
+        verifyResult.textContent = `${relFirst.matchCount === 1 ? '唯一匹配' : relFirst.matchCount + ' 匹配'} | score:${relFirst.score}`;
+        verifyResult.className = 'verify-meta ' + (relFirst.matchCount === 1 ? 'ok' : '');
+      }
+    }
   }
 
   // ─── DOM Tree rendering ──────────────────────────────────────────
@@ -820,6 +848,11 @@
   function renderCandidates() {
     const list = $('candidatesList');
     list.innerHTML = '';
+    // In associated-element mode, show relative-to-anchor candidates directly.
+    if (captureMode === 'child' && elementData?.relativeCandidates?.length) {
+      renderRelativeCandidates(elementData.relativeCandidates);
+      return;
+    }
     const cands = (elementData?.candidates || []).filter((c) => {
       const f = c.family || c.type || 'css';
       return f === 'css' || f === 'xpath';
@@ -867,7 +900,51 @@
         verifyResult.textContent = `${statusText} | score:${c.score}`;
         verifyResult.className = 'verify-meta ' + (c.matchCount === 1 ? 'ok' : '');
         broadcastSelectedCandidate();
-        maybeRecomputeRelative();
+      });
+
+      list.appendChild(row);
+    });
+  }
+
+  function renderRelativeCandidates(cands) {
+    const list = $('candidatesList');
+    list.innerHTML = '';
+    const uniqueCands = [];
+    const seen = new Set();
+    for (const c of cands) {
+      if (seen.has(c.syntax)) continue;
+      seen.add(c.syntax);
+      uniqueCands.push(c);
+    }
+    if (uniqueCands.length === 0) {
+      list.innerHTML = '<div class="candidates-empty">暂无相对推荐方案</div>';
+      return;
+    }
+    uniqueCands.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'prop-row';
+      row.style.cursor = 'pointer';
+      row.title = c.syntax;
+
+      const family = c.family || 'css';
+      const familyPill = `<span style="background:${family === 'css' ? '#fff2e8' : '#f6ffed'};color:${family === 'css' ? '#fa8c16' : '#52c41a'};font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;border:1px solid ${family === 'css' ? '#ffbb96' : '#b7eb8f'};">${family.toUpperCase()}</span>`;
+      const matchPill = c.matchCount === 1
+        ? '<span style="background:#52c41a;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;">唯一</span>'
+        : `<span style="background:#f0f0f0;color:#666;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;">${c.matchCount} 匹配</span>`;
+
+      row.innerHTML = `
+        <span style="flex:1;min-width:0;font-family:monospace;font-size:11px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.syntax)}</span>
+        <span style="display:flex;gap:4px;flex-shrink:0;">${familyPill}${matchPill}</span>
+      `;
+
+      row.addEventListener('click', () => {
+        activeChoice = family;
+        syncChoiceButtons();
+        relativeSelectorInput.value = c.syntax;
+        relativeManuallyEdited = false;
+        anchorModeLabel.textContent = '锚定';
+        verifyResult.textContent = `${c.matchCount === 1 ? '唯一匹配' : c.matchCount + ' 匹配'} | score:${c.score}`;
+        verifyResult.className = 'verify-meta ' + (c.matchCount === 1 ? 'ok' : '');
       });
 
       list.appendChild(row);
@@ -1308,7 +1385,6 @@
     verifyResult.textContent = '点击"校验元素"查看匹配结果';
     verifyResult.className = 'verify-meta';
     broadcastSelectedCandidate();
-    maybeRecomputeRelative();
   }
 
   // ─── Verify ──────────────────────────────────────────────────────
