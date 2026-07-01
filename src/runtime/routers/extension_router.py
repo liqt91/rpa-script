@@ -15,6 +15,17 @@ from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
 import json
 
+
+def _safe_json_loads(value, default=None):
+    """Safely parse a JSON column string; return default on any failure."""
+    if not value:
+        return default if default is not None else []
+    try:
+        return json.loads(value)
+    except Exception:
+        return default if default is not None else []
+
+
 router = APIRouter(prefix="/api/extension", tags=["extension"])
 
 
@@ -157,11 +168,11 @@ def list_extension_elements(workflow_id: int):
                 "anchorSelector": item.anchor_selector,
                 "anchorElementName": item.anchor_element_name,
                 "anchorMode": item.anchor_mode,
-                "cssCandidates": json.loads(item.css_candidates) if item.css_candidates else [],
-                "xpathCandidates": json.loads(item.xpath_candidates) if item.xpath_candidates else [],
-                "drissionCandidates": json.loads(item.drission_candidates) if item.drission_candidates else [],
-                "domPath": json.loads(item.dom_path) if item.dom_path else [],
-                "attributes": json.loads(item.attributes) if item.attributes else {},
+                "cssCandidates": _safe_json_loads(item.css_candidates),
+                "xpathCandidates": _safe_json_loads(item.xpath_candidates),
+                "drissionCandidates": _safe_json_loads(item.drission_candidates),
+                "domPath": _safe_json_loads(item.dom_path),
+                "attributes": _safe_json_loads(item.attributes, {}),
                 "screenshot": item.screenshot,
                 "pageUrl": item.page_url,
             })

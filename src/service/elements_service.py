@@ -36,16 +36,20 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
     db = SessionLocal()
     try:
         workflow_id = payload.get("workflowId")
-        if not workflow_id:
-            print("[elements_service] missing workflowId in capture payload")
+        if not isinstance(workflow_id, int) or not workflow_id:
+            print("[elements_service] invalid workflowId in capture payload")
+            return None
+        workflow_exists = db.query(models.Workflow).filter(models.Workflow.id == workflow_id).first()
+        if not workflow_exists:
+            print(f"[elements_service] workflow {workflow_id} not found")
             return None
 
-        page_url = payload.get("pageUrl", "")
+        page_url = payload.get("pageUrl", "")[:2048]
         raw_name = payload.get("name", "").strip()
         tag = payload.get("tag", "element")
         text_preview = (payload.get("text", "") or "").strip()
 
-        name = raw_name
+        name = raw_name[:128]
         if not name:
             if text_preview:
                 name = f"{tag}_{text_preview[:20]}"
@@ -73,19 +77,19 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             attributes["__rpa_list_size"] = list_size
 
         # Determine selectors
-        web_selector = payload.get("webSelector", "") or payload.get("selector", "") or payload.get("locator", "")
-        drission_selector = payload.get("drissionSelector", "") or ""
+        web_selector = (payload.get("webSelector", "") or payload.get("selector", "") or payload.get("locator", ""))[:4000]
+        drission_selector = (payload.get("drissionSelector", "") or "")[:4000]
 
         # If no explicit drission_selector, try to find a drission candidate
         if not drission_selector and drission_cands:
-            drission_selector = drission_cands[0].get("syntax", "")
+            drission_selector = drission_cands[0].get("syntax", "")[:4000]
 
         # If no explicit web_selector, try css then xpath candidates
         if not web_selector:
             if css_cands:
-                web_selector = css_cands[0].get("syntax", "")
+                web_selector = css_cands[0].get("syntax", "")[:4000]
             elif xpath_cands:
-                web_selector = xpath_cands[0].get("syntax", "")
+                web_selector = xpath_cands[0].get("syntax", "")[:4000]
 
         # target_mode is deprecated in the UI; keep column default for backward compat.
         target_mode = "single"
@@ -108,9 +112,16 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
         if payload.get("relativeManuallyEdited"):
             anchor_mode = "manual"
 
-        relative_selector = payload.get("relativeSelector", "") or ""
-        anchor_selector = payload.get("anchorSelector", "") or ""
-        anchor_element_name = payload.get("anchorElementName") or payload.get("anchor_element_name") or None
+        relative_selector = (payload.get("relativeSelector", "") or "")[:4000]
+        anchor_selector = (payload.get("anchorSelector", "") or "")[:4000]
+        anchor_element_name = (payload.get("anchorElementName") or payload.get("anchor_element_name") or None)
+        if anchor_element_name:
+            anchor_element_name = anchor_element_name[:128]
+
+        screenshot = payload.get("screenshot")
+        if isinstance(screenshot, str) and len(screenshot) > 5_000_000:
+            print("[elements_service] screenshot too large, dropping")
+            screenshot = None
 
         # Child elements must reference an existing anchor element in the same workflow.
         if element_kind == "child":
