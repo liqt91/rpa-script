@@ -147,10 +147,15 @@ def _inject_relative_fields(extra: dict, el) -> dict:
     """Inject capture-time relative-anchor fields into an instruction's extra.
 
     Only writes the fields when the element carries a non-empty relative
-    selector. Old/unanchored elements leave `extra` untouched so the runtime
-    falls back to legacy global resolution unchanged.
+    selector, relative resolution is enabled, and scope is not global.
+    Old/unanchored elements leave `extra` untouched so the runtime falls
+    back to legacy global resolution unchanged.
     """
     if not el:
+        return extra
+    if extra.get("scope", "local") == "global":
+        return extra
+    if extra.get("useRelative") is False:
         return extra
     rel = (getattr(el, "relative_selector", "") or "").strip()
     if not rel:
@@ -183,7 +188,6 @@ def _emit_instruction(
     el = element_map.get(node.element_name) if element_map and node.element_name else None
     locator = _normalize_locator(el.web_selector) if el else ""
     selector_family = _infer_selector_family(el.web_selector) if el else "css"
-    target_mode = el.target_mode if el else "single"
 
     # Inject capture-time relative-anchor fields (no-op for unanchored elements).
     extra = _inject_relative_fields(extra, el)
@@ -196,7 +200,6 @@ def _emit_instruction(
         "type": handler,
         "locator": locator,
         "selectorFamily": selector_family,
-        "targetMode": target_mode,
         "action": node.action,
         "extra": extra,
     }
@@ -239,16 +242,15 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
         step_counter[0] += 1
         return f"step_{step_counter[0]}"
 
-    def _resolve_locator(element_name: str | None) -> tuple[str, str, str]:
-        """Resolve an element_name to (locator, selector_family, target_mode)."""
+    def _resolve_locator(element_name: str | None) -> tuple[str, str]:
+        """Resolve an element_name to (locator, selector_family)."""
         el = element_map.get(element_name) if element_map and element_name else None
         if el:
             return (
                 _normalize_locator(el.web_selector),
                 _infer_selector_family(el.web_selector),
-                el.target_mode or "single",
             )
-        return "", "css", "single"
+        return "", "css"
 
     def _build_body(parent_id) -> list[dict]:
         """Recursively build instructions for all children of a parent."""
@@ -273,7 +275,7 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
 
         is_container, _, _ = _node_meta(node)
         extra = _parse_extra(node)
-        locator, selector_family, target_mode = _resolve_locator(node.element_name)
+        locator, selector_family = _resolve_locator(node.element_name)
 
         if is_container:
             # Build compound instruction
@@ -291,7 +293,6 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
                 "elementName": node.element_name,
                 "locator": locator,
                 "selectorFamily": selector_family,
-                "targetMode": target_mode,
                 "action": node.action,
                 "extra": extra,
                 "body": body,
@@ -301,8 +302,7 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
             if alt_names:
                 compound["altLocators"] = [
                     {"locator": _resolve_locator(name)[0],
-                     "selectorFamily": _resolve_locator(name)[1],
-                     "targetMode": _resolve_locator(name)[2]}
+                     "selectorFamily": _resolve_locator(name)[1]}
                     for name in alt_names if name
                 ]
             if else_body:

@@ -50,7 +50,7 @@ function findPrimaryElementField(fields) {
 }
 
 export default function NodeForm() {
-  const { selectedNode, updateNode, elements, NODE_TYPE_MAP, containerNodes, nodes, workflow } = useWorkflow();
+  const { selectedNode, updateNode, elements, NODE_TYPE_MAP, containerNodes, nodes, workflow, findAncestorNodes } = useWorkflow();
   const [form, setForm] = useState({});
   const [extra, setExtra] = useState({});
   const [activeTab, setActiveTab] = useState('params');
@@ -61,6 +61,14 @@ export default function NodeForm() {
   // Schema-driven field buckets
   const primaryElementField = useMemo(() => findPrimaryElementField(command?.fields), [command]);
   const hasElementName = !!primaryElementField;
+  const selectedElement = useMemo(() => {
+    const name = primaryElementField ? form[primaryElementField.name] : null;
+    return name ? elements.find(e => e.name === name) || null : null;
+  }, [primaryElementField, form, elements]);
+  const ancestorLoops = useMemo(() => {
+    if (!selectedNode) return [];
+    return findAncestorNodes(nodes, selectedNode.id, ['forEachElement']);
+  }, [selectedNode, nodes, findAncestorNodes]);
   const elementExtraFields = useMemo(
     () => (command?.fields || []).filter(f => (f.type === 'elementName' || f.type === 'elementNameList') && !f.isPrimaryElement),
     [command]
@@ -74,7 +82,7 @@ export default function NodeForm() {
     [elementExtraFields]
   );
   const nonElementExtraFields = useMemo(
-    () => (command?.fields || []).filter(f => f.type !== 'elementName' && f.type !== 'elementNameList'),
+    () => (command?.fields || []).filter(f => f.type !== 'elementName' && f.type !== 'elementNameList' && f.group !== 'anchor'),
     [command]
   );
 
@@ -103,33 +111,39 @@ export default function NodeForm() {
   const prevNodeIdRef = useRef(null);
 
   useEffect(() => {
-    if (selectedNode) {
-      queueMicrotask(() => {
-        const initialForm = {
-          type: selectedNode.type || '',
-          parent_id: selectedNode.parent_id || '',
-        };
-        if (primaryElementField) {
-          initialForm[primaryElementField.name] = selectedNode.element_name || '';
-        }
-        setForm(initialForm);
-        setExtra(selectedNode.extra && typeof selectedNode.extra === 'object'
-          ? selectedNode.extra
-          : (selectedNode.extra ? JSON.parse(selectedNode.extra) : {}));
-      });
-      // 仅在真正切换节点时重置标签页，避免元素库刷新或节点更新导致当前标签丢失
-      if (selectedNode.id !== prevNodeIdRef.current) {
-        queueMicrotask(() => setActiveTab('params'));
-        prevNodeIdRef.current = selectedNode.id;
-      }
-    } else {
+    if (!selectedNode) {
       queueMicrotask(() => {
         setForm({});
         setExtra({});
       });
       prevNodeIdRef.current = null;
+      return;
     }
-  }, [selectedNode]);
+    queueMicrotask(() => {
+      const initialForm = {
+        type: selectedNode.type || '',
+        parent_id: selectedNode.parent_id || '',
+      };
+      if (primaryElementField) {
+        initialForm[primaryElementField.name] = selectedNode.element_name || '';
+      }
+      setForm(initialForm);
+      setExtra(selectedNode.extra && typeof selectedNode.extra === 'object'
+        ? selectedNode.extra
+        : (selectedNode.extra ? JSON.parse(selectedNode.extra) : {}));
+    });
+    // 仅在真正切换节点时重置标签页，避免元素库刷新或节点更新导致当前标签丢失
+    if (selectedNode.id !== prevNodeIdRef.current) {
+      queueMicrotask(() => setActiveTab('params'));
+      prevNodeIdRef.current = selectedNode.id;
+    }
+  }, [selectedNode, primaryElementField]);
+
+  // Default relative resolution ON when the selected element is anchored.
+  useEffect(() => {
+    if (!selectedElement?.relative_selector || extra.useRelative !== undefined) return;
+    handleExtraChange('useRelative', true);
+  }, [selectedElement, extra.useRelative]);
 
   const handleChange = (field, value) => {
     const newForm = { ...form, [field]: value };
@@ -203,18 +217,69 @@ export default function NodeForm() {
                         </option>
                       ))}
                     </select>
-                    {form[primaryElementField?.name] && (
+                    {selectedElement && (
                       <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 rounded px-2 py-1.5 space-y-0.5">
-                        <div>目标模式: {elements.find(e => e.name === form[primaryElementField?.name])?.target_mode || 'single'}</div>
-                        <div className="font-mono truncate">
-                          Web: {elements.find(e => e.name === form[primaryElementField?.name])?.web_selector || '-'}
+                        <div className="flex items-center gap-2">
+                          {selectedElement.relative_selector && (
+                            <span className="px-1.5 py-0.5 bg-[#1677ff]/10 text-[#1677ff] rounded text-[10px]">相对定位</span>
+                          )}
                         </div>
-                        <div className="font-mono truncate">
-                          Drission: {elements.find(e => e.name === form[primaryElementField?.name])?.drission_selector || '-'}
-                        </div>
+                        <div className="font-mono truncate">Web: {selectedElement.web_selector || '-'}</div>
+                        <div className="font-mono truncate">Drission: {selectedElement.drission_selector || '-'}</div>
+                        {selectedElement.relative_selector && (
+                          <>
+                            <div className="font-mono truncate">锚点: {selectedElement.anchor_selector || '-'}</div>
+                            <div className="font-mono truncate">相对: {selectedElement.relative_selector}</div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
+
+                  {selectedElement?.relative_selector && (
+                    <div className="space-y-2 border border-[#e8e8e8] rounded p-3 bg-[#fafafa]">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!extra.useRelative}
+                          onChange={(e) => handleExtraChange('useRelative', e.target.checked)}
+                          className="w-4 h-4 accent-[#1677ff]"
+                        />
+                        <span className="text-xs text-gray-700">使用相对解析</span>
+                      </label>
+
+                      {extra.useRelative !== false && (
+                        <>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-1">循环锚点</label>
+                            <select
+                              value={extra.loopAnchor || ''}
+                              onChange={(e) => handleExtraChange('loopAnchor', e.target.value || null)}
+                              className="w-full px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
+                            >
+                              <option value="">最近外层循环</option>
+                              {ancestorLoops.map(n => (
+                                <option key={n.id} value={n.element_name || ''}>
+                                  #{n.order} {n.element_name || n.type}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={!!extra.referenceItemItself}
+                              onChange={(e) => handleExtraChange('referenceItemItself', e.target.checked)}
+                              className="w-4 h-4 accent-[#1677ff]"
+                            />
+                            <span className="text-xs text-gray-700">引用循环项本身</span>
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   {singleElementExtraFields.map(field => (
                     <div key={field.name}>
                       <label className="block text-[10px] text-gray-400 mb-1">{field.label || field.name}</label>

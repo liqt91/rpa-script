@@ -45,7 +45,7 @@
     flex: 1; padding: 5px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; background: #fff;
   }
 
-  /* Name input */
+  /* Name input + screenshot toggle */
   .name-row {
     display: flex; align-items: center; gap: 8px; padding: 10px 14px;
     border-bottom: 1px solid #e8e8e8;
@@ -54,31 +54,130 @@
   .name-row input {
     flex: 1; padding: 5px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px;
   }
+  .screenshot-toggle {
+    width: 28px; height: 28px; border: 1px solid #d9d9d9; border-radius: 4px;
+    background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; padding: 0;
+  }
+  .screenshot-toggle:hover:not(:disabled) { border-color: #1677ff; color: #1677ff; }
+  .screenshot-toggle:disabled { opacity: 0.5; cursor: not-allowed; background: #f5f5f5; }
+  .screenshot-toggle svg { width: 16px; height: 16px; }
+  .screenshot-toggle.has-thumb { border-color: #1677ff; }
+  .screenshot-toggle .thumb {
+    width: 22px; height: 22px; object-fit: cover; border-radius: 2px;
+  }
 
-  /* Screenshot */
-  .screenshot-box {
-    max-height: 140px; overflow: hidden; border-radius: 4px; border: 1px solid #e8e8e8;
-    display: flex; align-items: center; justify-content: center; background: #f5f5f5;
-    margin: 0 14px 10px;
+  /* Collapsible screenshot panel */
+  .screenshot-panel {
+    margin: 0 14px 10px; border: 1px solid #e8e8e8; border-radius: 4px;
+    background: #f5f5f5; overflow: hidden; display: none;
   }
-  .screenshot-box img { max-width: 100%; max-height: 140px; display: block; }
+  .screenshot-panel.open { display: block; }
+  .screenshot-panel img { max-width: 100%; display: block; }
+  .screenshot-empty {
+    padding: 20px; text-align: center; color: #999; font-size: 12px;
+  }
 
-  /* Tabs */
-  .tabs {
-    display: flex; gap: 4px; padding: 8px 14px 0; border-bottom: 1px solid #e8e8e8;
-    background: #fafafa;
+  /* Family + mode choice row */
+  .choice-row {
+    display: flex; gap: 0; padding: 8px 14px; border-bottom: 1px solid #e8e8e8; background: #fafafa;
   }
-  .tab {
-    padding: 6px 12px; border: none; background: transparent; cursor: pointer;
-    font-size: 13px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  .choice-btn {
+    flex: 1; padding: 7px 0; border: 1px solid #d9d9d9; background: #fff; cursor: pointer;
+    font-size: 12px; color: #666; text-align: center; margin-left: -1px;
   }
-  .tab.active { color: #1677ff; border-bottom-color: #1677ff; font-weight: 500; }
+  .choice-btn:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+  .choice-btn:last-child { border-radius: 0 4px 4px 0; }
+  .choice-btn.active { background: #1677ff; border-color: #1677ff; color: #fff; position: relative; z-index: 1; }
+  .choice-btn:hover:not(.active) { color: #1677ff; }
+
+  /* Mode toggle: Recommend / Manual */
+  .mode-row {
+    display: flex; gap: 0; padding: 8px 14px; border-bottom: 1px solid #e8e8e8; background: #fafafa;
+  }
+  .mode-btn {
+    flex: 1; padding: 7px 0; border: 1px solid #d9d9d9; background: #fff; cursor: pointer;
+    font-size: 12px; color: #666; text-align: center; margin-left: -1px;
+  }
+  .mode-btn:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+  .mode-btn:last-child { border-radius: 0 4px 4px 0; }
+  .mode-btn.active { background: #1677ff; border-color: #1677ff; color: #fff; position: relative; z-index: 1; }
+  .mode-btn:hover:not(.active) { color: #1677ff; }
+  .mode-panel { display: none; }
+  .mode-panel.active { display: flex; flex-direction: column; }
 
   /* Candidates */
   .candidates-list {
     display: flex; flex-direction: column; gap: 2px;
-    max-height: 78px; overflow-y: auto;
+    flex: 1; overflow-y: auto;
+    padding: 10px 14px;
   }
+  .candidates-empty {
+    padding: 16px 14px; color: #999; font-size: 12px;
+  }
+
+  /* Manual editor sections */
+  .manual-empty {
+    padding: 16px 14px; color: #999; font-size: 12px;
+  }
+
+  /* Selector preview */
+  .selector-section {
+    padding: 10px 14px; border-top: 1px solid #e8e8e8; background: #fafafa;
+  }
+  .selector-row { display: flex; align-items: flex-start; }
+  .selector-input {
+    width: 100%; padding: 5px 8px; border: 1px solid #d9d9d9; border-radius: 4px;
+    font-size: 12px; font-family: monospace; background: #fff;
+    resize: vertical; min-height: 60px;
+  }
+  .verify-meta { font-size: 11px; color: #888; margin-top: 6px; }
+  .verify-meta.ok { color: #52c41a; }
+  .verify-meta.err { color: #ff4d4f; }
+
+  /* Anchor card */
+  .anchor-card {
+    margin: 10px 14px; border-radius: 4px; border-left: 3px solid #1677ff;
+    background: #f0f7ff; padding: 10px 12px;
+  }
+  .anchor-card.disabled { opacity: 0.6; background: #f5f5f5; border-left-color: #999; }
+  .anchor-card-title {
+    font-size: 12px; font-weight: 600; color: #333; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .anchor-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    font-size: 12px; color: #555;
+  }
+  .anchor-row label { color: #666; width: 64px; flex-shrink: 0; }
+  .anchor-row input[type="text"] {
+    flex: 1; padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px;
+    font-size: 11px; font-family: monospace; background: #fff;
+  }
+  .anchor-row input[type="text"]:read-only { background: #fafafa; color: #666; }
+  .anchor-pill {
+    display: inline-block; padding: 1px 6px; border-radius: 10px;
+    font-size: 11px; background: #e6f7ff; color: #1677ff; border: 1px solid #91d5ff;
+  }
+  .anchor-actions {
+    display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .anchor-actions label {
+    display: flex; align-items: center; gap: 4px; font-size: 12px; color: #555; cursor: pointer;
+  }
+
+  /* Collapsible sections */
+  .collapse-header {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+  }
+  .collapse-header .collapse-icon {
+    width: 16px; height: 16px; transition: transform 0.2s;
+    color: #999;
+  }
+  .collapse-header.open .collapse-icon { transform: rotate(180deg); }
+  .collapse-body { display: none; margin-top: 8px; }
+  .collapse-body.open { display: block; }
 
   /* DOM tree */
   .dom-panel {
@@ -128,22 +227,6 @@
   }
   .prop-value:disabled { background: #f5f5f5; color: #999; }
 
-  /* Selector preview */
-  .preview-bar {
-    padding: 10px 14px; border-top: 1px solid #e8e8e8; background: #fafafa;
-    flex-shrink: 0;
-  }
-  .preview-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
-  .preview-label { font-size: 12px; color: #666; width: 60px; flex-shrink: 0; margin-top: 6px; }
-  .preview-input {
-    flex: 1; padding: 5px 8px; border: 1px solid #d9d9d9; border-radius: 4px;
-    font-size: 12px; font-family: monospace; background: #fff;
-    resize: vertical; min-height: 60px;
-  }
-  .preview-meta { font-size: 11px; color: #888; margin-left: 68px; }
-  .preview-meta.ok { color: #52c41a; }
-  .preview-meta.err { color: #ff4d4f; }
-
   /* Footer */
   .footer {
     display: flex; align-items: center; justify-content: space-between;
@@ -162,6 +245,7 @@
   }
   .btn-primary:hover { background: #4096ff; border-color: #4096ff; }
   .btn-ghost { border: none; background: transparent; }
+  .btn-sm { padding: 3px 8px; font-size: 12px; }
 
   /* Loading overlay */
   .loading-overlay {
@@ -207,74 +291,101 @@
     </select>
   </div>
 
-  <!-- Element name -->
+  <!-- Element name + screenshot toggle -->
   <div class="name-row">
     <label>元素名称</label>
     <input type="text" id="elName" placeholder="输入元素名称">
+    <button class="screenshot-toggle" id="screenshotToggle" title="查看截图" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+        <polyline points="21 15 16 10 5 21"></polyline>
+      </svg>
+    </button>
   </div>
 
-  <!-- Screenshot -->
-  <div class="screenshot-box" id="screenshotBox">
-    <span style="color:#999;font-size:12px;">暂无截图</span>
+  <!-- Collapsible screenshot panel -->
+  <div class="screenshot-panel" id="screenshotPanel">
+    <div class="screenshot-empty">暂无截图</div>
   </div>
 
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab active" data-tab="xpath-single">XPath-单个</button>
-    <button class="tab" data-tab="xpath-list">XPath-列表</button>
-    <button class="tab" data-tab="css-single">CSS-单个</button>
-    <button class="tab" data-tab="css-list">CSS-列表</button>
-    <button class="tab" data-tab="drission">Drission</button>
+  <!-- Mode toggle -->
+  <div class="mode-row">
+    <button class="mode-btn active" id="modeRecommend">推荐方案</button>
+    <button class="mode-btn" id="modeManual">手动编辑</button>
   </div>
 
-  <!-- Candidates -->
-  <div class="section">
-    <div class="section-title">推荐方案</div>
+  <!-- Recommend panel -->
+  <div class="mode-panel active" id="recommendPanel">
     <div class="candidates-list" id="candidatesList"></div>
   </div>
 
-  <!-- DOM tree -->
-  <div class="section">
-    <div class="section-title">页面层级</div>
-    <div class="dom-panel" id="domPanel"></div>
+  <!-- Manual edit panel -->
+  <div class="mode-panel" id="manualPanel">
+    <!-- DOM tree -->
+    <div class="section">
+      <div class="section-title collapse-header open" id="domCollapseHeader">
+        <span>页面层级</span>
+        <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+      <div class="collapse-body open" id="domCollapseBody">
+        <div class="dom-panel" id="domPanel"></div>
+      </div>
+    </div>
+
+    <!-- Properties -->
+    <div class="section">
+      <div class="section-title collapse-header open" id="propCollapseHeader">
+        <span>元素属性</span>
+        <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+      <div class="collapse-body open" id="propCollapseBody">
+        <div class="prop-panel" id="propPanel"></div>
+      </div>
+    </div>
   </div>
 
-  <!-- Properties -->
-  <div class="section">
-    <div class="section-title">元素属性</div>
-    <div class="prop-panel" id="propPanel"></div>
   </div>
 </div>
 
-<!-- Selector preview -->
-<div class="preview-bar">
-  <div class="preview-row" style="gap:8px;flex-wrap:wrap;">
-    <span class="preview-label">选择器</span>
-    <textarea class="preview-input" id="selectorPreview" rows="3" readonly style="flex:1 1 100%;"></textarea>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <span class="preview-label" style="white-space:nowrap;">目标模式</span>
-      <select id="targetMode" style="flex:1;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;font-size:12px;">
-        <option value="single">单个元素</option>
-        <option value="list">元素列表</option>
-      </select>
-    </div>
+<!-- Selector + anchor card -->
+<div class="selector-section">
+  <!-- Selector family choice -->
+  <div class="choice-row" style="border-bottom:none; padding:0 0 8px; background:transparent;">
+    <button class="choice-btn active" data-choice="css">CSS</button>
+    <button class="choice-btn" data-choice="xpath">XPath</button>
   </div>
-  <div class="preview-meta" id="verifyResult">点击"校验元素"查看匹配结果</div>
+
+  <div class="selector-row">
+    <textarea class="selector-input" id="selectorPreview" rows="3"></textarea>
+  </div>
+  <div class="verify-meta" id="verifyResult">点击"校验元素"查看匹配结果</div>
 
   <!-- Loop-relative anchoring (capture-time). Hidden unless the element was anchored. -->
-  <div class="preview-row" id="anchorBox" style="display:none;flex-direction:column;gap:6px;margin-top:8px;border-top:1px dashed #e0e0e0;padding-top:8px;">
-    <div style="display:flex;align-items:center;gap:6px;">
-      <input type="checkbox" id="useRelativeChk" checked style="margin:0;">
-      <label for="useRelativeChk" class="preview-label" style="cursor:pointer;white-space:nowrap;">循环内相对解析</label>
-      <span class="preview-meta" id="anchorMode" style="margin-left:auto;">自动</span>
+  <div class="anchor-card" id="anchorCard" style="display:none;">
+    <div class="anchor-card-title">
+      <span>循环锚点</span>
+      <span class="anchor-pill" id="anchorMode">自动</span>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span class="preview-label" style="white-space:nowrap;">循环项锚点</span>
-      <input type="text" id="anchorSelectorInput" readonly style="flex:1;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:11px;background:#fafafa;color:#666;">
+    <div class="anchor-row">
+      <label>锚点元素</label>
+      <input type="text" id="anchorSelectorInput" readonly>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span class="preview-label" style="white-space:nowrap;">相对选择器</span>
-      <input type="text" id="relativeSelectorInput" placeholder="如 css:.author 或 xpath:./div/span" style="flex:1;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;font-size:11px;">
+    <div class="anchor-row">
+      <label>相对选择器</label>
+      <input type="text" id="relativeSelectorInput" placeholder="如 css:.author 或 xpath:./div/span">
+    </div>
+    <div class="anchor-actions">
+      <label>
+        <input type="checkbox" id="useRelativeChk" checked>
+        <span>使用相对解析</span>
+      </label>
+      <button class="btn btn-sm" id="btnVerifyRelative">校验相对</button>
+      <button class="btn btn-sm" id="btnRecomputeAnchor">重新捕获锚点</button>
     </div>
   </div>
 </div>

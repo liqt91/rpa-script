@@ -341,7 +341,6 @@ export default function ElementLibraryTab() {
                           </button>
                         </div>
                       )}
-                      <span className="text-[10px] text-gray-400">{el.target_mode || 'single'}</span>
                     </div>
                   ))}
                 </div>
@@ -428,23 +427,10 @@ export default function ElementLibraryTab() {
                   {/* 定位信息 */}
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     <div>
-                      <div className="text-[10px] text-gray-400 mb-0.5">目标模式</div>
-                      <select
-                        value={selectedElement.target_mode || 'single'}
-                        onChange={async (e) => {
-                          const val = e.target.value;
-                          try {
-                            await api.updateWorkflowElement(wfId, selectedElement.id, { ...selectedElement, target_mode: val });
-                            await refresh();
-                          } catch (err) {
-                            showToast('更新失败: ' + err.message, 'error');
-                          }
-                        }}
-                        className="w-full text-xs text-gray-700 bg-white border border-gray-200 rounded px-2 py-1 outline-none focus:border-blue-400"
-                      >
-                        <option value="single">single</option>
-                        <option value="list">list</option>
-                      </select>
+                      <div className="text-[10px] text-gray-400 mb-0.5">选择器类型</div>
+                      <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded truncate">
+                        {(selectedElement.web_selector || '').toLowerCase().startsWith('xpath:') ? 'XPath' : 'CSS'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[10px] text-gray-400 mb-0.5">页面 URL</div>

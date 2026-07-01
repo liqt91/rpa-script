@@ -1,7 +1,9 @@
 """Shared emit helpers and dispatch registry."""
 
+import contextvars
 import json
 import re
+from contextlib import contextmanager
 from typing import Any
 
 from src.repo import runtime_models as models
@@ -16,6 +18,82 @@ def _py_str(val: Any) -> str:
     if val is None:
         return "''"
     return repr(str(val))
+
+
+# ─── Loop-context stack for relative element resolution ─────────────
+# A ContextVar isolates nested-loop state per export/coroutine so concurrent
+# emissions do not interleave. _emit_forEachElement pushes the loop it emits.
+
+_LOOP_STACK: contextvars.ContextVar[tuple[tuple[str, str], ...]] = contextvars.ContextVar(
+    "_loop_stack", default=()
+)
+
+
+def _push_loop(element_name: str, item_var: str) -> contextvars.Token:
+    """Push a forEachElement loop onto the stack."""
+    current = _LOOP_STACK.get()
+    return _LOOP_STACK.set(current + ((element_name, item_var),))
+
+
+def _pop_loop(token: contextvars.Token) -> None:
+    """Pop the innermost forEachElement loop from the stack."""
+    _LOOP_STACK.reset(token)
+
+
+@contextmanager
+def _loop_context(element_name: str, item_var: str):
+    """Context manager that pushes/pops a loop around a block."""
+    token = _push_loop(element_name, item_var)
+    try:
+        yield
+    finally:
+        _pop_loop(token)
+
+
+def _resolve_loop_anchor(extra: dict) -> str | None:
+    """Return the loop item variable that should anchor this element call.
+
+    - Empty loopAnchor -> innermost loop item.
+    - Non-empty loopAnchor -> nearest loop whose element_name matches.
+    - No loop stack -> None (global fallback).
+    """
+    stack = _LOOP_STACK.get()
+    if not stack:
+        return None
+    anchor = (extra.get("loopAnchor") or "").strip()
+    if not anchor:
+        return stack[-1][1]
+    for element_name, item_var in reversed(stack):
+        if element_name == anchor:
+            return item_var
+    # Anchor not found: fall back to innermost loop and let caller log/warn.
+    return stack[-1][1]
+
+
+def _split_selector_prefix(text: str) -> tuple[str, str]:
+    """Split a prefixed selector into (bare, family).
+
+    Supports css:, xpath:, drission:. Falls back to css inference.
+    """
+    if not text:
+        return "", "css"
+    lowered = text.lower()
+    for prefix, family in (("css:", "css"), ("xpath:", "xpath"), ("drission:", "drission")):
+        if lowered.startswith(prefix):
+            return text[len(prefix):].strip(), family
+    # Heuristic: leading // or .// implies xpath, otherwise css.
+    bare = text.strip()
+    if bare.startswith("//") or bare.startswith(".//"):
+        return bare, "xpath"
+    return bare, "css"
+
+
+def _build_relative_locator(el_relative_selector: str) -> str:
+    """Build a DrissionPage-compatible locator string from a web relative selector."""
+    bare, family = _split_selector_prefix(el_relative_selector)
+    if family == "xpath":
+        return f"xpath:{bare}"
+    return bare
 
 
 _LOCATOR_KEYS = {"locator", "selectorFamily", "type", "selector", "syntax"}
@@ -70,41 +148,74 @@ def _loc_str_by_name(element_name: str | None, element_map: dict | None = None) 
     return ""
 
 
-def _loc_call(node: models.WorkflowNode, extra: dict, element_map: dict | None = None) -> str:
+def _loc_call(
+    node: models.WorkflowNode,
+    extra: dict,
+    element_map: dict | None = None,
+    method: str | None = None,
+) -> str:
     """Build tab.ele('...') style locator call."""
-    return _loc_call_by_name(node.element_name, extra, element_map)
+    return _loc_call_by_name(node.element_name, extra, element_map, method=method)
 
 
-def _loc_call_by_name(element_name: str | None, extra: dict, element_map: dict | None = None) -> str:
-    """Build tab.ele('...') style locator call for a named element."""
-    # Resolve from element_map first (per-workflow element library)
-    if element_map and element_name:
-        el = element_map.get(element_name)
-        if el and el.drission_selector:
-            loc = el.drission_selector
-            target_mode = el.target_mode or "single"
-            method = "eles" if target_mode == "list" else "ele"
-            visibility_mode = extra.get("visibilityMode")
-            visible_only = visibility_mode != "any" if visibility_mode else extra.get("visibleOnly", True)
-            if visible_only and method == "ele":
-                return f"_ele_visible(tab, {_py_str(loc)})"
-            return f"tab.{method}({_py_str(loc)})"
+def _loc_call_by_name(
+    element_name: str | None,
+    extra: dict,
+    element_map: dict | None = None,
+    method: str | None = None,
+) -> str:
+    """Build tab.ele('...') style locator call for a named element.
 
-    # Fallback: legacy direct locator storage (should not happen after migration)
+    When the call is inside a forEachElement loop and the element or extra
+    asks for relative resolution, emits item.ele('...') or just the loop item.
+    Pass method='eles' to force list resolution (used by forEachElement itself).
+    """
+    # Scope=global forces legacy global resolution regardless of loop context.
+    if extra.get("scope", "local") == "global":
+        item_var = None
+    else:
+        item_var = _resolve_loop_anchor(extra)
+
+    el = element_map.get(element_name) if element_map and element_name else None
+
+    # Reference the loop item itself (e.g. item.click(), item.text).
+    if item_var and extra.get("referenceItemItself"):
+        return item_var
+
+    use_relative = bool(
+        item_var and extra.get("useRelative", True) and el and (getattr(el, "relative_selector", "") or "").strip()
+    )
+
+    # Resolve from element_map first (per-workflow element library).
+    if el and el.drission_selector:
+        if method is None:
+            method = "ele"
+        visibility_mode = extra.get("visibilityMode")
+        visible_only = visibility_mode != "any" if visibility_mode else extra.get("visibleOnly", True)
+
+        rel = (getattr(el, "relative_selector", "") or "").strip()
+        loc = _build_relative_locator(rel) if use_relative else el.drission_selector
+        base_var = item_var if use_relative else "tab"
+        if visible_only and method == "ele":
+            return f"_ele_visible({base_var}, {_py_str(loc)})"
+        return f"{base_var}.{method}({_py_str(loc)})"
+
+    # Fallback: legacy direct locator storage (should not happen after migration).
     loc = ""
-    target_mode = "single"
-    method = "eles" if target_mode == "list" else "ele"
+    if method is None:
+        method = "ele"
     visibility_mode = extra.get("visibilityMode")
     visible_only = visibility_mode != "any" if visibility_mode else extra.get("visibleOnly", True)
+    base_var = item_var if use_relative else "tab"
     if not loc:
-        return "tab"
+        return base_var
     if isinstance(loc, list):
         if visible_only and method == "ele":
-            return f"_try_locators(tab, {repr(loc)}, method={repr(method)}, visible_only=True)"
-        return f"_try_locators(tab, {repr(loc)}, method={repr(method)})"
+            return f"_try_locators({base_var}, {repr(loc)}, method={repr(method)}, visible_only=True)"
+        return f"_try_locators({base_var}, {repr(loc)}, method={repr(method)})"
     if visible_only and method == "ele":
-        return f"_ele_visible(tab, {_py_str(loc)})"
-    return f"tab.{method}({_py_str(loc)})"
+        return f"_ele_visible({base_var}, {_py_str(loc)})"
+    return f"{base_var}.{method}({_py_str(loc)})"
 
 
 def _loc_calls(node: models.WorkflowNode, extra: dict, element_map: dict | None = None) -> list[str]:

@@ -1,14 +1,18 @@
 import json
-from ._registry import _handler, _loc_call, _loc_str, _var_ref, _py_str, _emit_children, _emit_dispatch
+from ._registry import (
+    _handler, _loc_call, _loc_str, _var_ref, _py_str,
+    _emit_children, _emit_dispatch, _loop_context,
+)
 
 
 @_handler("forEachElement")
 def _emit_forEachElement(node, extra, depth, prefix, by_parent, lines, element_map=None):
-    call = _loc_call(node, extra, element_map)
+    call = _loc_call(node, extra, element_map, method="eles")
     item_var = _var_ref(extra.get("itemVar", "item"))
     idx_var = _var_ref(extra.get("indexVar", "index"))
     lines.append(f"{prefix}for {idx_var}, {item_var} in enumerate({call}):")
-    _emit_children(node, depth, by_parent, lines, element_map)
+    with _loop_context(node.element_name, item_var):
+        _emit_children(node, depth, by_parent, lines, element_map)
 
 
 @_handler("forRange")

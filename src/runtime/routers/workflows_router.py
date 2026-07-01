@@ -519,6 +519,9 @@ def create_workflow_element(
         drission_candidates=json.dumps(payload.drission_candidates),
         web_selector=payload.web_selector,
         drission_selector=payload.drission_selector,
+        relative_selector=payload.relative_selector,
+        anchor_selector=payload.anchor_selector,
+        anchor_mode=payload.anchor_mode,
         dom_path=json.dumps(payload.dom_path),
         attributes=json.dumps(payload.attributes),
         screenshot=payload.screenshot,
@@ -569,6 +572,9 @@ def update_workflow_element(
     el.drission_candidates = json.dumps(payload.drission_candidates)
     el.web_selector = payload.web_selector
     el.drission_selector = payload.drission_selector
+    el.relative_selector = payload.relative_selector
+    el.anchor_selector = payload.anchor_selector
+    el.anchor_mode = payload.anchor_mode
     el.dom_path = json.dumps(payload.dom_path)
     el.attributes = json.dumps(payload.attributes)
     if payload.screenshot is not None:

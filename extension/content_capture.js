@@ -2528,6 +2528,65 @@
     }
   }
 
+  function resolveLocatorForVerify(selector, type) {
+    const all = resolveAllForVerify(selector, type);
+    return all[0] || null;
+  }
+
+  function splitSelectorPrefix(sel) {
+    if (!sel) return { bare: '', family: 'css' };
+    const lowered = sel.toLowerCase();
+    if (lowered.startsWith('css:')) return { bare: sel.slice(4).trim(), family: 'css' };
+    if (lowered.startsWith('xpath:')) return { bare: sel.slice(6).trim(), family: 'xpath' };
+    if (lowered.startsWith('drission:')) return { bare: sel.slice(9).trim(), family: 'css' };
+    const bare = sel.trim();
+    if (bare.startsWith('//') || bare.startsWith('.//')) return { bare, family: 'xpath' };
+    return { bare, family: 'css' };
+  }
+
+  function queryRelativeInItem(item, relativeSelector) {
+    const { bare, family } = splitSelectorPrefix(relativeSelector);
+    if (family === 'xpath') {
+      const r = document.evaluate(bare, item, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      const arr = [];
+      for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+      return arr;
+    }
+    return Array.from(item.querySelectorAll(bare));
+  }
+
+  function verifyRelativeSelector(anchorSelector, relativeSelector) {
+    if (!anchorSelector || !relativeSelector) return { total: 0, perItem: [], error: '锚点或相对选择器为空' };
+    const { bare: anchorBare, family: anchorFamily } = splitSelectorPrefix(anchorSelector);
+    const anchors = anchorFamily === 'xpath'
+      ? (() => {
+          const r = document.evaluate(anchorBare, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          const arr = [];
+          for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+          return arr;
+        })()
+      : Array.from(document.querySelectorAll(anchorBare));
+
+    let total = 0;
+    let uniqueItems = 0;
+    let emptyItems = 0;
+    const perItem = [];
+    for (const item of anchors) {
+      const found = queryRelativeInItem(item, relativeSelector);
+      total += found.length;
+      if (found.length === 1) uniqueItems++;
+      if (found.length === 0) emptyItems++;
+      perItem.push(found.length);
+    }
+    return {
+      total,
+      anchorCount: anchors.length,
+      uniqueItems,
+      emptyItems,
+      perItem,
+    };
+  }
+
   function highlightSelectorMatches(selector, type) {
     removeEditorHighlights();
     const nodes = resolveAllForVerify(selector, type);
@@ -2685,17 +2744,21 @@
       return false;
     }
     if (message.action === 'verifyElement') {
-      const { selector, type } = message.payload || {};
+      let { selector, type } = message.payload || {};
+      // 若选择器带显式前缀，以后缀推断 family，覆盖侧板可能传错的 type
+      const inferred = splitSelectorPrefix(selector).family;
+      if (inferred === 'css' || inferred === 'xpath') type = inferred;
       let stats = { total: 0, visible: 0, invisible: 0 };
       let matchedSelector = selector;
       // 支持多选择器数组：逐个试，命中即停
       if (Array.isArray(selector) && selector.length > 0) {
         for (const sel of selector) {
-          const s = resolveAllForVerifyStats(sel, type);
+          const selType = splitSelectorPrefix(sel).family || type;
+          const s = resolveAllForVerifyStats(sel, selType);
           if (s.total > 0) {
             stats = s;
             matchedSelector = sel;
-            highlightSelectorMatches(sel, type);
+            highlightSelectorMatches(sel, selType);
             break;
           }
         }
@@ -2706,6 +2769,38 @@
       sendResponse({ ...stats, matchedSelector });
       // Also broadcast result so side panel can pick it up
       chrome.runtime.sendMessage({ action: 'verifyResult', payload: { ...stats, matchedSelector } }).catch(() => {});
+      return false;
+    }
+
+    if (message.action === 'recomputeAnchor') {
+      const { selector, selectorFamily } = message.payload || {};
+      try {
+        const el = resolveLocatorForVerify(selector, selectorFamily);
+        if (!el) {
+          sendResponse({ error: '当前选择器未匹配到元素' });
+          return false;
+        }
+        const listFamily = detectListFamily(el, { maxDepth: 6, minItems: 2, similarityThreshold: 0.55 });
+        const rel = computeRelativeSelector(el, listFamily);
+        if (!rel) {
+          sendResponse({ error: '未找到稳定的循环锚点' });
+          return false;
+        }
+        sendResponse({ relativeSelector: rel.relative, anchorSelector: rel.anchor, family: rel.family });
+      } catch (e) {
+        sendResponse({ error: e?.message || String(e) });
+      }
+      return false;
+    }
+
+    if (message.action === 'verifyRelative') {
+      const { anchorSelector, relativeSelector } = message.payload || {};
+      try {
+        const result = verifyRelativeSelector(anchorSelector, relativeSelector);
+        sendResponse(result);
+      } catch (e) {
+        sendResponse({ error: e?.message || String(e), total: 0 });
+      }
       return false;
     }
   });

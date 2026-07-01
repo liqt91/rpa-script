@@ -610,7 +610,7 @@ function getNodeDesc(node, NODE_TYPE_MAP, elements) {
   const isCondition = node.type.startsWith('if');
   const hiddenDescFields = new Set(
     (typeInfo?.fields || [])
-      .filter(f => f.group === 'advanced' || f.hidden)
+      .filter(f => f.group === 'advanced' || f.group === 'anchor' || f.hidden)
       .map(f => f.name)
   );
 

@@ -87,7 +87,8 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             elif xpath_cands:
                 web_selector = xpath_cands[0].get("syntax", "")
 
-        target_mode = payload.get("targetMode", "single")
+        # target_mode is deprecated in the UI; keep column default for backward compat.
+        target_mode = "single"
 
         # Relative-anchor metadata (capture-time anchoring). Empty relative_selector
         # means the element was not anchored to a repeating ancestor → runtime falls

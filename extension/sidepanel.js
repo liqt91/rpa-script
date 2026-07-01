@@ -9,26 +9,27 @@
   // ─── State ───────────────────────────────────────────────────────
   let elementData = null;
   let selectedPathIndex = -1;
-  let activeTab = 'xpath-single';
+  let activeChoice = 'css';
 
-  function tabFamily(tab) {
-    if (tab === 'css-single' || tab === 'css-list') return 'css';
-    return tab;
+  function choiceFamily(choice) {
+    return choice === 'xpath' ? 'xpath' : 'css';
   }
 
-  function tabLabel(tab) {
-    if (tab === 'css-single') return 'CSS-单个';
-    if (tab === 'css-list') return 'CSS-列表';
-    if (tab === 'xpath-single') return 'XPath-单个';
-    if (tab === 'xpath-list') return 'XPath-列表';
-    return 'Drission';
+  function inferFamilyFromSelector(selector) {
+    if (!selector) return 'css';
+    const lowered = selector.trim().toLowerCase();
+    if (lowered.startsWith('xpath:')) return 'xpath';
+    if (lowered.startsWith('//') || lowered.startsWith('.//')) return 'xpath';
+    return 'css';
   }
+
   let selectedCandidateType = null;
   let currentTabId = null;
   let pathEnabled = [];   // bool[]: whether each path level is enabled
   let attrEnabled = {};   // { levelIndex: { attrName: bool } }
   let workflows = [];
   let selectedWorkflowId = localStorage.getItem('rpa_selected_workflow_id') || '';
+  let screenshotOpen = false;
 
   // ─── DOM refs ────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -36,10 +37,10 @@
   const propList = $('propPanel');
   const selectorPreview = $('selectorPreview');
   const verifyResult = $('verifyResult');
-  const screenshotBox = $('screenshotBox');
+  const screenshotPanel = $('screenshotPanel');
+  const screenshotToggle = $('screenshotToggle');
   const elName = $('elName');
-  const targetModeSel = $('targetMode');
-  const anchorBox = $('anchorBox');
+  const anchorCard = $('anchorCard');
   const useRelativeChk = $('useRelativeChk');
   const anchorSelectorInput = $('anchorSelectorInput');
   const relativeSelectorInput = $('relativeSelectorInput');
@@ -47,21 +48,21 @@
   // Tracks whether the user manually edited the relative selector this capture.
   let relativeManuallyEdited = false;
 
-  // Populate the loop-relative anchor panel from a capture payload. Hidden when
-  // the element was not anchored to a repeating ancestor (legacy / non-list).
+  // Populate the loop-relative anchor card from a capture payload.
   function loadAnchorData(data) {
     relativeManuallyEdited = false;
     const rel = data?.relativeSelector || '';
     if (!rel) {
-      anchorBox.style.display = 'none';
+      anchorCard.style.display = 'none';
       relativeSelectorInput.value = '';
       anchorSelectorInput.value = '';
       return;
     }
-    anchorBox.style.display = 'flex';
+    anchorCard.style.display = 'block';
     relativeSelectorInput.value = rel;
     anchorSelectorInput.value = data.anchorSelector || '';
     useRelativeChk.checked = true;
+    anchorCard.classList.remove('disabled');
     const mode = data.anchorMode || 'auto';
     anchorModeLabel.textContent = mode === 'manual' ? '手动' : (mode === 'backfill' ? '回填' : '自动');
   }
@@ -73,6 +74,85 @@
     });
   }
 
+  // ─── Screenshot toggle ───────────────────────────────────────────
+
+  function updateScreenshotToggle(dataUrl) {
+    if (dataUrl) {
+      screenshotToggle.disabled = false;
+      screenshotToggle.classList.add('has-thumb');
+      screenshotToggle.innerHTML = `<img class="thumb" src="${dataUrl}" alt="screenshot">`;
+      screenshotToggle.title = '查看截图';
+    } else {
+      screenshotToggle.disabled = true;
+      screenshotToggle.classList.remove('has-thumb');
+      screenshotToggle.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>`;
+      screenshotToggle.title = '暂无截图';
+    }
+  }
+
+  function setScreenshotOpen(open) {
+    screenshotOpen = open;
+    screenshotPanel.classList.toggle('open', open);
+  }
+
+  if (screenshotToggle) {
+    screenshotToggle.addEventListener('click', () => {
+      setScreenshotOpen(!screenshotOpen);
+    });
+  }
+
+  // ─── Collapsible sections ────────────────────────────────────────
+
+  function initCollapsible(headerId, bodyId, defaultOpen) {
+    const header = $(headerId);
+    const body = $(bodyId);
+    if (!header || !body) return;
+    header.classList.toggle('open', defaultOpen);
+    body.classList.toggle('open', defaultOpen);
+    header.addEventListener('click', () => {
+      const open = body.classList.toggle('open');
+      header.classList.toggle('open', open);
+    });
+  }
+
+  function setCollapsibleOpen(headerId, bodyId, open) {
+    const header = $(headerId);
+    const body = $(bodyId);
+    if (!header || !body) return;
+    header.classList.toggle('open', open);
+    body.classList.toggle('open', open);
+  }
+
+  initCollapsible('domCollapseHeader', 'domCollapseBody', false);
+  initCollapsible('propCollapseHeader', 'propCollapseBody', false);
+
+  // ─── Mode toggle (Recommend / Manual) ─────────────────────────────
+
+  let editMode = 'recommend';
+
+  function setEditMode(mode) {
+    editMode = mode;
+    $('modeRecommend').classList.toggle('active', mode === 'recommend');
+    $('modeManual').classList.toggle('active', mode === 'manual');
+    $('recommendPanel').classList.toggle('active', mode === 'recommend');
+    $('manualPanel').classList.toggle('active', mode === 'manual');
+    if (mode === 'manual') {
+      setCollapsibleOpen('domCollapseHeader', 'domCollapseBody', true);
+      setCollapsibleOpen('propCollapseHeader', 'propCollapseBody', true);
+    } else {
+      setCollapsibleOpen('domCollapseHeader', 'domCollapseBody', false);
+      setCollapsibleOpen('propCollapseHeader', 'propCollapseBody', false);
+    }
+  }
+
+  $('modeRecommend').addEventListener('click', () => setEditMode('recommend'));
+  $('modeManual').addEventListener('click', () => setEditMode('manual'));
+
   // ─── Runtime Message API ─────────────────────────────────────────
 
   function send(action, payload) {
@@ -81,7 +161,7 @@
 
   function broadcastSelectedCandidate() {
     const selector = selectorPreview.value;
-    const type = selectedCandidateType || tabFamily(activeTab);
+    const type = selectedCandidateType || inferFamilyFromSelector(selector) || choiceFamily(activeChoice);
     if (!selector) return;
     chrome.runtime.sendMessage({ action: 'selectCandidate', payload: { selector, type } }).catch(() => {});
   }
@@ -150,9 +230,13 @@
 
     // Screenshot
     if (data.screenshot) {
-      screenshotBox.innerHTML = `<img src="${data.screenshot}" alt="screenshot">`;
+      screenshotPanel.innerHTML = `<img src="${data.screenshot}" alt="screenshot">`;
+      updateScreenshotToggle(data.screenshot);
+      setScreenshotOpen(false);
     } else {
-      screenshotBox.innerHTML = '<span style="color:#999;font-size:12px;">暂无截图</span>';
+      screenshotPanel.innerHTML = '<div class="screenshot-empty">暂无截图</div>';
+      updateScreenshotToggle(null);
+      setScreenshotOpen(false);
     }
 
     // Initialize path: all enabled by default
@@ -164,36 +248,36 @@
     // Default: select the deepest (target) level
     selectedPathIndex = path.length - 1;
 
+    // Restore active choice from selector prefix or payload family.
+    activeChoice = inferFamilyFromSelector(data.selector) || data.selectorFamily || 'css';
+    document.querySelectorAll('.choice-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.choice === activeChoice);
+    });
+
     renderDomTree();
     renderCandidates();
     renderProperties();
 
-    // 默认选中当前 tab 下排名第一的推荐方案
-    const tabCands = (data.candidates || []).filter(c => {
-      const family = c.family || c.type || 'css';
-      if (activeTab === 'css-single') return family === 'css' && !c.isList;
-      if (activeTab === 'css-list') return family === 'css' && c.isList;
-      if (activeTab === 'xpath-single') return family === 'xpath' && !c.isList;
-      if (activeTab === 'xpath-list') return family === 'xpath' && c.isList;
-      return family === activeTab;
+    // Default: select the first usable (css/xpath) candidate and sync output format.
+    const first = (data.candidates || []).find((c) => {
+      const f = c.family || c.type || 'css';
+      return f === 'css' || f === 'xpath';
     });
-    const first = tabCands[0] || data.candidates?.[0];
     if (first) {
+      activeChoice = first.family || first.type || 'css';
+      syncChoiceButtons();
       selectorPreview.value = first.syntax;
-      selectedCandidateType = first.family || first.type || 'css';
+      selectedCandidateType = first.family || first.type || choiceFamily(activeChoice);
       applyCandidateToUI(first);
       const statusText = first.matchCount === 1 ? '唯一匹配' : (first.isList ? `列表 (${first.matchCount}个)` : first.matchCount + ' 匹配');
       verifyResult.textContent = `${statusText} | score:${first.score}`;
-      verifyResult.className = 'preview-meta ' + (first.matchCount === 1 ? 'ok' : '');
+      verifyResult.className = 'verify-meta ' + (first.matchCount === 1 ? 'ok' : '');
       broadcastSelectedCandidate();
     } else {
       updateSelector();
     }
 
-    // 初始化 targetMode 下拉框
-    targetModeSel.value = data.targetMode || 'single';
-
-    // 循环内相对解析锚点
+    // Loop-relative anchoring
     loadAnchorData(data);
   }
 
@@ -259,7 +343,7 @@
     path.forEach((_, i) => { attrEnabled[i] = {}; });
 
     let syntax = c.syntax;
-    const family = c.family || c.type || 'css';
+    const family = c.family || c.type || choiceFamily(activeChoice);
 
     // Strip prefix
     if (syntax.startsWith('css:')) syntax = syntax.slice(4);
@@ -317,8 +401,6 @@
             });
           }
         }
-      } else if (family === 'drission' || syntax.startsWith('text=')) {
-        attrEnabled[path.length - 1]['innerText'] = true;
       }
 
       renderDomTree();
@@ -500,9 +582,6 @@
     // Fallback: check target element only
     pathEnabled[path.length - 1] = true;
     selectedPathIndex = path.length - 1;
-    if (family === 'drission') {
-      attrEnabled[path.length - 1]['innerText'] = true;
-    }
     renderDomTree();
     renderProperties();
   }
@@ -512,43 +591,52 @@
   function renderCandidates() {
     const list = $('candidatesList');
     list.innerHTML = '';
-    const cands = (elementData?.candidates || []).filter(c => {
-      const family = c.family || c.type || 'css';
-      if (activeTab === 'css-single') return family === 'css' && !c.isList;
-      if (activeTab === 'css-list') return family === 'css' && c.isList;
-      if (activeTab === 'xpath-single') return family === 'xpath' && !c.isList;
-      if (activeTab === 'xpath-list') return family === 'xpath' && c.isList;
-      return family === activeTab;
+    const cands = (elementData?.candidates || []).filter((c) => {
+      const f = c.family || c.type || 'css';
+      return f === 'css' || f === 'xpath';
     });
-    if (cands.length === 0) {
-      list.innerHTML = `<div style="padding:6px 8px;color:#999;font-size:12px;">暂无${tabLabel(activeTab)}推荐方案</div>`;
+    // Deduplicate by syntax; generation phases may emit identical selectors.
+    const seen = new Set();
+    const uniqueCands = [];
+    for (const c of cands) {
+      if (seen.has(c.syntax)) continue;
+      seen.add(c.syntax);
+      uniqueCands.push(c);
+    }
+    if (uniqueCands.length === 0) {
+      list.innerHTML = '<div class="candidates-empty">暂无推荐方案</div>';
       return;
     }
-    cands.forEach((c) => {
+    uniqueCands.forEach((c) => {
       const row = document.createElement('div');
       row.className = 'prop-row';
       row.style.cursor = 'pointer';
       row.title = c.syntax;
 
-      const badge = c.matchCount === 1
+      const family = c.family || c.type || 'css';
+      const mode = c.isList ? 'list' : 'single';
+      const familyPill = `<span style="background:${family === 'css' ? '#fff2e8' : '#f6ffed'};color:${family === 'css' ? '#fa8c16' : '#52c41a'};font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;border:1px solid ${family === 'css' ? '#ffbb96' : '#b7eb8f'};">${family.toUpperCase()}</span>`;
+      const modePill = c.isList
+        ? '<span style="background:#f9f0ff;color:#722ed1;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;border:1px solid #d3adf7;">列表</span>'
+        : '<span style="background:#f0f0f0;color:#666;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;">单个</span>';
+      const matchPill = c.matchCount === 1
         ? '<span style="background:#52c41a;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;">唯一</span>'
-        : c.isList
-        ? `<span style="background:#722ed1;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;">列表 ${c.matchCount}个</span>`
         : `<span style="background:#f0f0f0;color:#666;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;">${c.matchCount} 匹配</span>`;
 
       row.innerHTML = `
         <span style="flex:1;min-width:0;font-family:monospace;font-size:11px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.syntax)}</span>
-        ${badge}
+        <span style="display:flex;gap:4px;flex-shrink:0;">${familyPill}${modePill}${matchPill}</span>
       `;
 
       row.addEventListener('click', () => {
+        activeChoice = family;
+        syncChoiceButtons();
         selectorPreview.value = c.syntax;
-        selectedCandidateType = tabFamily(activeTab);
-        targetModeSel.value = c.isList ? 'list' : 'single';
+        selectedCandidateType = family;
         applyCandidateToUI(c);
         const statusText = c.matchCount === 1 ? '唯一匹配' : (c.isList ? `列表 (${c.matchCount}个)` : c.matchCount + ' 匹配');
         verifyResult.textContent = `${statusText} | score:${c.score}`;
-        verifyResult.className = 'preview-meta ' + (c.matchCount === 1 ? 'ok' : '');
+        verifyResult.className = 'verify-meta ' + (c.matchCount === 1 ? 'ok' : '');
         broadcastSelectedCandidate();
       });
 
@@ -558,6 +646,12 @@
 
   function escapeHtml(str) {
     return str.replace(/[<>"&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', '&': '&amp;' }[c]));
+  }
+
+  function syncChoiceButtons() {
+    document.querySelectorAll('.choice-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.choice === activeChoice);
+    });
   }
 
   // ─── Properties rendering ────────────────────────────────────────
@@ -771,7 +865,7 @@
   }
 
   function buildAttrPredicate(key, value, operator) {
-    if (activeTab === 'css-single' || activeTab === 'css-list') {
+    if (activeChoice === 'css') {
       switch (operator) {
         case 'contains': return `[${key}*="${cssEsc(value)}"]`;
         case 'starts_with': return `[${key}^="${cssEsc(value)}"]`;
@@ -854,7 +948,7 @@
     const segs = [];
     const segIndices = [];
 
-    if (activeTab === 'xpath-single' || activeTab === 'xpath-list') {
+    if (activeChoice === 'xpath') {
       for (let i = 0; i < path.length; i++) {
         const node = path[i];
         const attrMap = attrEnabled[i] || {};
@@ -929,7 +1023,7 @@
     }
 
     // Apply sibling anchor prefix to the last segment
-    if (activeTab === 'css-single' || activeTab === 'css-list') {
+    if (activeChoice === 'css') {
       const targetIdx = path.length - 1;
       const targetAttrMap = attrEnabled[targetIdx] || {};
       for (const key of Object.keys(targetAttrMap)) {
@@ -948,7 +1042,7 @@
           }
         }
       }
-    } else if (activeTab === 'xpath-single' || activeTab === 'xpath-list') {
+    } else if (activeChoice === 'xpath') {
       const targetIdx = path.length - 1;
       const targetAttrMap = attrEnabled[targetIdx] || {};
       for (const key of Object.keys(targetAttrMap)) {
@@ -973,24 +1067,16 @@
       }
     }
 
-    if (activeTab === 'css-single' || activeTab === 'css-list') {
+    if (activeChoice === 'css') {
       selectorPreview.value = 'css:' + joinSegs(segs, segIndices, 'css');
-    } else if (activeTab === 'xpath-single' || activeTab === 'xpath-list') {
+    } else if (activeChoice === 'xpath') {
       selectorPreview.value = 'xpath://' + joinSegs(segs, segIndices, 'xpath');
-    } else if (activeTab === 'drission') {
-      // Drission text selector takes precedence when innerText is checked
-      const targetIdx = path.length - 1;
-      if (attrEnabled[targetIdx]?.['innerText'] && elementData?.inner_text) {
-        selectorPreview.value = `text=${elementData.inner_text.slice(0, 80)}`;
-      } else {
-        selectorPreview.value = 'css:' + joinSegs(segs, segIndices, 'css');
-      }
     } else {
       selectorPreview.value = 'css:' + joinSegs(segs, segIndices, 'css');
     }
 
     verifyResult.textContent = '点击"校验元素"查看匹配结果';
-    verifyResult.className = 'preview-meta';
+    verifyResult.className = 'verify-meta';
     broadcastSelectedCandidate();
   }
 
@@ -1002,29 +1088,23 @@
     const total = result.total ?? (visible + invisible);
     if (total === 0) {
       verifyResult.textContent = '未匹配到元素';
-      verifyResult.className = 'preview-meta err';
+      verifyResult.className = 'verify-meta err';
     } else if (total === 1) {
       verifyResult.textContent = `匹配: 1 个元素 ✓${invisible > 0 ? ` (忽略 ${invisible} 个不可见)` : ''}`;
-      verifyResult.className = 'preview-meta ok';
+      verifyResult.className = 'verify-meta ok';
     } else {
       verifyResult.textContent = `匹配: ${visible} 个可见，${invisible} 个不可见（共 ${total} 个）`;
-      verifyResult.className = 'preview-meta err';
+      verifyResult.className = 'verify-meta err';
     }
   }
 
   // ─── Event handlers ──────────────────────────────────────────────
 
-  // Tabs
-  document.querySelectorAll('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
-      activeTab = tab.dataset.tab;
-      if (activeTab === 'css-list') targetModeSel.value = 'list';
-      else if (activeTab === 'css-single') targetModeSel.value = 'single';
-      else if (activeTab === 'xpath-list') targetModeSel.value = 'list';
-      else if (activeTab === 'xpath-single') targetModeSel.value = 'single';
-      renderCandidates();
+  // Choice buttons (output format)
+  document.querySelectorAll('.choice-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeChoice = btn.dataset.choice;
+      syncChoiceButtons();
       updateSelector();
     });
   });
@@ -1033,24 +1113,114 @@
   $('btnVerify').addEventListener('click', () => {
     if (!currentTabId) {
       verifyResult.textContent = '未关联页面';
-      verifyResult.className = 'preview-meta err';
+      verifyResult.className = 'verify-meta err';
       return;
     }
     verifyResult.textContent = '校验中...';
-    verifyResult.className = 'preview-meta';
+    verifyResult.className = 'verify-meta';
     send('verifyElement', {
       tabId: currentTabId,
-      payload: { selector: selectorPreview.value, type: selectedCandidateType || tabFamily(activeTab) },
+      payload: { selector: selectorPreview.value, type: inferFamilyFromSelector(selectorPreview.value) },
     }).then((res) => {
       if (res && res.error) {
         verifyResult.textContent = '校验失败: ' + res.error;
-        verifyResult.className = 'preview-meta err';
+        verifyResult.className = 'verify-meta err';
       }
     }).catch((err) => {
       verifyResult.textContent = '校验失败: ' + err.message;
-      verifyResult.className = 'preview-meta err';
+      verifyResult.className = 'verify-meta err';
     });
   });
+
+  // Verify relative selector within current anchor
+  if ($('btnVerifyRelative')) {
+    $('btnVerifyRelative').addEventListener('click', () => {
+      if (!currentTabId) {
+        verifyResult.textContent = '未关联页面';
+        verifyResult.className = 'verify-meta err';
+        return;
+      }
+      verifyResult.textContent = '校验相对选择器中...';
+      verifyResult.className = 'verify-meta';
+      send('verifyRelative', {
+        tabId: currentTabId,
+        payload: {
+          anchorSelector: anchorSelectorInput.value,
+          relativeSelector: relativeSelectorInput.value,
+        },
+      }).then((res) => {
+        if (res && res.error) {
+          verifyResult.textContent = '校验相对失败: ' + res.error;
+          verifyResult.className = 'verify-meta err';
+          return;
+        }
+        const total = res.total ?? res.count ?? 0;
+        const anchorCount = res.anchorCount ?? 0;
+        const uniqueItems = res.uniqueItems ?? 0;
+        if (anchorCount > 0 && uniqueItems === anchorCount) {
+          verifyResult.textContent = `相对选择器在每个锚点内唯一匹配 ✓（共 ${anchorCount} 项）`;
+          verifyResult.className = 'verify-meta ok';
+        } else if (total === 0) {
+          verifyResult.textContent = '相对选择器未匹配到元素';
+          verifyResult.className = 'verify-meta err';
+        } else {
+          verifyResult.textContent = `相对选择器匹配 ${total} 个元素，${uniqueItems}/${anchorCount} 项唯一`;
+          verifyResult.className = 'verify-meta err';
+        }
+      }).catch((err) => {
+        verifyResult.textContent = '校验相对失败: ' + err.message;
+        verifyResult.className = 'verify-meta err';
+      });
+    });
+  }
+
+  // Recompute anchor
+  if ($('btnRecomputeAnchor')) {
+    $('btnRecomputeAnchor').addEventListener('click', () => {
+      if (!currentTabId) {
+        verifyResult.textContent = '未关联页面';
+        verifyResult.className = 'verify-meta err';
+        return;
+      }
+      verifyResult.textContent = '重新捕获锚点中...';
+      verifyResult.className = 'verify-meta';
+      send('recomputeAnchor', {
+        tabId: currentTabId,
+        payload: {
+          selector: selectorPreview.value,
+          selectorFamily: choiceFamily(activeChoice),
+        },
+      }).then((res) => {
+        if (res && res.error) {
+          verifyResult.textContent = '重新捕获失败: ' + res.error;
+          verifyResult.className = 'verify-meta err';
+          return;
+        }
+        if (!res || !res.relativeSelector) {
+          verifyResult.textContent = '未找到更稳定的锚点';
+          verifyResult.className = 'verify-meta err';
+          return;
+        }
+        relativeManuallyEdited = false;
+        elementData.relativeSelector = res.relativeSelector;
+        elementData.anchorSelector = res.anchorSelector || '';
+        elementData.anchorMode = 'auto';
+        loadAnchorData(elementData);
+        verifyResult.textContent = '锚点已重新捕获';
+        verifyResult.className = 'verify-meta ok';
+      }).catch((err) => {
+        verifyResult.textContent = '重新捕获失败: ' + err.message;
+        verifyResult.className = 'verify-meta err';
+      });
+    });
+  }
+
+  // Toggle relative resolution
+  if (useRelativeChk) {
+    useRelativeChk.addEventListener('change', () => {
+      anchorCard.classList.toggle('disabled', !useRelativeChk.checked);
+    });
+  }
 
   function resetSaveButton() {
     const btn = $('btnSave');
@@ -1070,7 +1240,7 @@
     if (btn.disabled) return;
     if (!selectedWorkflowId) {
       verifyResult.textContent = '请先选择流程';
-      verifyResult.className = 'preview-meta err';
+      verifyResult.className = 'verify-meta err';
       $('workflowSelect').focus();
       return;
     }
@@ -1078,8 +1248,7 @@
       workflowId: parseInt(selectedWorkflowId, 10),
       name: elName.value.trim(),
       selector: selectorPreview.value,
-      selectorFamily: tabFamily(activeTab),
-      targetMode: targetModeSel.value || 'single',
+      selectorFamily: choiceFamily(activeChoice),
       tag: elementData?.tag,
       id: elementData?.id || '',
       classes: elementData?.classes || [],
@@ -1110,12 +1279,12 @@
     send('saveElement', payload)
       .then(() => {
         verifyResult.textContent = '已保存';
-        verifyResult.className = 'preview-meta ok';
+        verifyResult.className = 'verify-meta ok';
         markSavedButton();
       })
       .catch((err) => {
         verifyResult.textContent = '保存失败: ' + err.message;
-        verifyResult.className = 'preview-meta err';
+        verifyResult.className = 'verify-meta err';
       });
   });
 
@@ -1129,13 +1298,15 @@
     attrEnabled = {};
     elName.value = '';
     selectorPreview.value = '';
-    if (anchorBox) anchorBox.style.display = 'none';
+    if (anchorCard) anchorCard.style.display = 'none';
     if (relativeSelectorInput) relativeSelectorInput.value = '';
     if (anchorSelectorInput) anchorSelectorInput.value = '';
     relativeManuallyEdited = false;
     verifyResult.textContent = '点击"校验元素"查看匹配结果';
-    verifyResult.className = 'preview-meta';
-    screenshotBox.innerHTML = '<span style="color:#999;font-size:12px;">暂无截图</span>';
+    verifyResult.className = 'verify-meta';
+    screenshotPanel.innerHTML = '<div class="screenshot-empty">暂无截图</div>';
+    updateScreenshotToggle(null);
+    setScreenshotOpen(false);
     domPanel.innerHTML = '';
     $('candidatesList').innerHTML = '';
     propList.innerHTML = '';
@@ -1214,6 +1385,9 @@
   });
 
   // ─── Init ────────────────────────────────────────────────────────
+
+  // Default to recommend mode; state is kept in sync with HTML active classes.
+  setEditMode('recommend');
 
   // Load workflows and capture payload when panel opens
   initEnv();

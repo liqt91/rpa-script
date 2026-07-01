@@ -72,6 +72,37 @@ def _visibility_mode_field() -> dict:
         "description": "匹配可见元素=过滤display:none/visibility:hidden/opacity:0/aria-hidden等渲染不可见元素；匹配所有元素=任意DOM元素都参与匹配。",
     }
 
+def _use_relative_field() -> dict:
+    return {
+        "name": "useRelative",
+        "label": "使用相对解析",
+        "type": "bool",
+        "default": True,
+        "group": "anchor",
+        "description": "开启时优先使用捕获时记录的相对选择器（相对循环项解析）；关闭则回退到全局绝对选择器。",
+    }
+
+def _loop_anchor_field() -> dict:
+    return {
+        "name": "loopAnchor",
+        "label": "循环锚点",
+        "type": "select",
+        "options": [{"label": "最近外层循环", "value": ""}],
+        "default": "",
+        "group": "anchor",
+        "description": "空=使用最近外层 forEachElement 循环；选择某个循环则相对该循环项解析。",
+    }
+
+def _reference_item_field() -> dict:
+    return {
+        "name": "referenceItemItself",
+        "label": "引用循环项本身",
+        "type": "bool",
+        "default": False,
+        "group": "anchor",
+        "description": "开启后目标即为当前循环项本身，不再在其内部查找子元素。",
+    }
+
 def _attach_common_advanced(fields: list[dict]) -> list[dict]:
     """为指令字段列表附加通用高级参数（如果不存在）。"""
     result = copy.deepcopy(fields)
@@ -85,6 +116,12 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
         result.append(_timeout_field())
     if has_element and "visibilityMode" not in names:
         result.append(_visibility_mode_field())
+    if has_element and "useRelative" not in names:
+        result.append(_use_relative_field())
+    if has_element and "loopAnchor" not in names:
+        result.append(_loop_anchor_field())
+    if has_element and "referenceItemItself" not in names:
+        result.append(_reference_item_field())
     if "humanLike" not in names:
         result.append(
             {

@@ -55,6 +55,24 @@ function buildTree(flatNodes) {
   return result;
 }
 
+/**
+ * Walk upward from a node through parent_id and return ancestor nodes whose
+ * type matches one of the given types. Nearest ancestor first.
+ */
+export function findAncestorNodes(nodes, selectedNodeId, types) {
+  const idToNode = new Map(nodes.map(n => [n.id, n]));
+  const typeSet = new Set(types);
+  const result = [];
+  let node = idToNode.get(selectedNodeId);
+  while (node && node.parent_id != null) {
+    node = idToNode.get(node.parent_id);
+    if (node && typeSet.has(node.type)) {
+      result.push(node);
+    }
+  }
+  return result;
+}
+
 const isTempId = (id) => id && typeof id === 'string' && id.includes('-');
 
 function reducer(state, action) {
@@ -765,6 +783,7 @@ export function WorkflowProvider({ children, wfId }) {
     selectedNode,
     containerNodes,
     containerTypes,
+    findAncestorNodes,
     loadWorkflow,
     loadElements,
     saveNode,

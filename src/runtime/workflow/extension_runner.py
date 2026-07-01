@@ -421,6 +421,28 @@ class ExtensionRunner:
             return {k: ExtensionRunner._resolve_vars(v, vars_dict) for k, v in obj.items()}
         return obj
 
+    def _resolve_loop_context(self, extra: dict) -> dict | None:
+        """Return the loop context that should anchor this instruction.
+
+        - scope=global -> no context.
+        - loopAnchor set -> nearest matching loopElementName in the stack.
+        - otherwise -> top of the stack (nearest outer loop).
+        """
+        if extra.get("scope", "local") == "global":
+            return None
+        stack = self.vars.get("__loop_ctx")
+        if not isinstance(stack, list) or not stack:
+            return None
+        anchor = (extra.get("loopAnchor") or "").strip()
+        if not anchor:
+            return stack[-1]
+        for ctx in reversed(stack):
+            if ctx.get("loopElementName") == anchor:
+                return ctx
+        # Anchor not found: fall back to nearest loop and warn.
+        logger.warning(f"[ExtensionRunner] loopAnchor '{anchor}' not found in active loops; using nearest")
+        return stack[-1]
+
     async def _call_extension_handler(self, handler: str, payload: dict, timeout: float = DEFAULT_STEP_TIMEOUT) -> Any:
         """Call a specific extension handler and return the result."""
         await self._ensure_connected()
@@ -429,25 +451,24 @@ class ExtensionRunner:
             raise RuntimeError(f"Extension {self.client_id} is not connected")
 
         # Inject loop context into extra so content.js resolves locators by index alignment
-        ctx = self.vars.get("__loop_ctx")
+        extra = dict(payload.get("extra") or {})
+        ctx = self._resolve_loop_context(extra)
         if ctx:
-            extra = dict(payload.get("extra") or {})
-            if extra.get("scope", "local") != "global":
-                extra["contextLocator"] = ctx["locator"]
-                extra["contextLocatorType"] = ctx["selectorFamily"]
-                extra["contextIndex"] = ctx["index"]
-                extra["contextTotal"] = ctx.get("total")
-                # Prefer the capture-time relative selector when the element carries
-                # one (injected into extra by the emitter). content.js then queries
-                # the child relative to the resolved loop-item parent rather than
-                # globally + contains-filtering.
-                if extra.get("relativeLocator"):
-                    extra["useRelative"] = True
-                logger.info(
-                    f"[ExtensionRunner] loop context index={ctx['index'] + 1}/{ctx.get('total', '?')} "
-                    f"locator={ctx['locator'][:60]}..."
-                )
-                payload = {**payload, "extra": extra}
+            extra["contextLocator"] = ctx["locator"]
+            extra["contextLocatorType"] = ctx["selectorFamily"]
+            extra["contextIndex"] = ctx["index"]
+            extra["contextTotal"] = ctx.get("total")
+            # Prefer the capture-time relative selector when the element carries
+            # one (injected into extra by the emitter). content.js then queries
+            # the child relative to the resolved loop-item parent rather than
+            # globally + contains-filtering.
+            if extra.get("relativeLocator") and extra.get("useRelative", True):
+                extra["useRelative"] = True
+            logger.info(
+                f"[ExtensionRunner] loop context index={ctx['index'] + 1}/{ctx.get('total', '?')} "
+                f"locator={ctx['locator'][:60]}..."
+            )
+            payload = {**payload, "extra": extra}
 
         step_id = self._next_step_id()
         node_id = payload.get("nodeId") or (self._current_step.get("nodeId") if self._current_step else None)
@@ -837,45 +858,46 @@ class ExtensionRunner:
             )
             elements = await self._find_elements(locator, selector_family, timeout=timeout, extra=extra)
             logger.info(f"[ExtensionRunner] forEachElement found {len(elements)} elements")
-            prev_ctx = self.vars.get("__loop_ctx")
-            for idx, item in enumerate(elements):
-                if self._stopped:
-                    break
-                self.vars[idx_var] = idx
-                self.vars[item_var] = item.get("text", "") if isinstance(item, dict) else str(item)
-                # Set loop context so child instructions resolve locators relative to current element.
-                # When the extension gives us a unique element selector, use it directly so nested
-                # loops don't rely on a global list index (which would resolve to the wrong item).
-                if isinstance(item, dict) and item.get("contextLocator"):
-                    self.vars["__loop_ctx"] = {
-                        "locator": item["contextLocator"],
-                        "selectorFamily": item.get("contextLocatorType", selector_family),
-                        "index": 0,
-                        "total": 1,
-                        "loopElementName": instr.get("elementName"),
-                    }
-                else:
-                    self.vars["__loop_ctx"] = {
-                        "locator": locator,
-                        "selectorFamily": selector_family,
-                        "index": idx,
-                        "total": len(elements),
-                        "loopElementName": instr.get("elementName"),
-                    }
-                logger.info(f"[ExtensionRunner] forEachElement [{idx}] {item_var}={self.vars[item_var]!r}")
-                try:
-                    if not await self._run_body(body):
-                        return False
-                except LoopBreak:
-                    logger.info("[ExtensionRunner] forEachElement break")
-                    break
-                except LoopContinue:
-                    logger.info("[ExtensionRunner] forEachElement continue")
-                    continue
-            if prev_ctx is not None:
-                self.vars["__loop_ctx"] = prev_ctx
-            else:
-                self.vars.pop("__loop_ctx", None)
+            self.vars.setdefault("__loop_ctx", []).append(None)  # reserve slot, will overwrite each iteration
+            try:
+                for idx, item in enumerate(elements):
+                    if self._stopped:
+                        break
+                    self.vars[idx_var] = idx
+                    self.vars[item_var] = item.get("text", "") if isinstance(item, dict) else str(item)
+                    # Set loop context so child instructions resolve locators relative to current element.
+                    # When the extension gives us a unique element selector, use it directly so nested
+                    # loops don't rely on a global list index (which would resolve to the wrong item).
+                    if isinstance(item, dict) and item.get("contextLocator"):
+                        self.vars["__loop_ctx"][-1] = {
+                            "locator": item["contextLocator"],
+                            "selectorFamily": item.get("contextLocatorType", selector_family),
+                            "index": 0,
+                            "total": 1,
+                            "loopElementName": instr.get("elementName"),
+                        }
+                    else:
+                        self.vars["__loop_ctx"][-1] = {
+                            "locator": locator,
+                            "selectorFamily": selector_family,
+                            "index": idx,
+                            "total": len(elements),
+                            "loopElementName": instr.get("elementName"),
+                        }
+                    logger.info(f"[ExtensionRunner] forEachElement [{idx}] {item_var}={self.vars[item_var]!r}")
+                    try:
+                        if not await self._run_body(body):
+                            return False
+                    except LoopBreak:
+                        logger.info("[ExtensionRunner] forEachElement break")
+                        break
+                    except LoopContinue:
+                        logger.info("[ExtensionRunner] forEachElement continue")
+                        continue
+            finally:
+                self.vars["__loop_ctx"].pop()
+                if not self.vars["__loop_ctx"]:
+                    self.vars.pop("__loop_ctx", None)
             self.completed += 1
             await self._emit({
                 "type": "stepComplete",
@@ -1561,21 +1583,20 @@ class ExtensionRunner:
             instr = {**instr, "extra": extra}
 
         # Inject loop context into extra so content.js resolves locators by index alignment
-        ctx = self.vars.get("__loop_ctx")
+        ctx = self._resolve_loop_context(extra)
         if ctx:
-            if extra.get("scope", "local") != "global":
-                extra["contextLocator"] = ctx["locator"]
-                extra["contextLocatorType"] = ctx["selectorFamily"]
-                extra["contextIndex"] = ctx["index"]
-                extra["contextTotal"] = ctx.get("total")
-                # Prefer the capture-time relative selector when present (see
-                # _call_extension_handler for the rationale).
-                if extra.get("relativeLocator"):
-                    extra["useRelative"] = True
-                logger.info(
-                    f"[ExtensionRunner] loop context index={ctx['index'] + 1}/{ctx.get('total', '?')} "
-                    f"locator={ctx['locator'][:60]}..."
-                )
+            extra["contextLocator"] = ctx["locator"]
+            extra["contextLocatorType"] = ctx["selectorFamily"]
+            extra["contextIndex"] = ctx["index"]
+            extra["contextTotal"] = ctx.get("total")
+            # Prefer the capture-time relative selector when present (see
+            # _call_extension_handler for the rationale).
+            if extra.get("relativeLocator") and extra.get("useRelative", True):
+                extra["useRelative"] = True
+            logger.info(
+                f"[ExtensionRunner] loop context index={ctx['index'] + 1}/{ctx.get('total', '?')} "
+                f"locator={ctx['locator'][:60]}..."
+            )
             instr = {**instr, "extra": extra}
 
         # Register future BEFORE sending to avoid race with fast responses (e.g. navigate)

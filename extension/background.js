@@ -519,6 +519,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // async
   }
 
+  // 2a) Side panel 请求重新计算循环锚点 → 转发给捕获标签页
+  if (message.action === 'recomputeAnchor') {
+    const tabId = message.tabId ?? message.payload?.tabId;
+    const payload = message.payload?.payload ?? message.payload;
+    if (!tabId) {
+      sendResponse({ error: 'tabId required' });
+      return false;
+    }
+    chrome.tabs.sendMessage(tabId, { action: 'recomputeAnchor', payload })
+      .then(result => sendResponse(result))
+      .catch(err => sendResponse({ error: err.message }));
+    return true;
+  }
+
+  // 2b) Side panel 请求校验相对选择器 → 转发给捕获标签页
+  if (message.action === 'verifyRelative') {
+    const tabId = message.tabId ?? message.payload?.tabId;
+    const payload = message.payload?.payload ?? message.payload;
+    if (!tabId) {
+      sendResponse({ error: 'tabId required' });
+      return false;
+    }
+    chrome.tabs.sendMessage(tabId, { action: 'verifyRelative', payload })
+      .then(result => sendResponse(result))
+      .catch(err => sendResponse({ error: err.message }));
+    return true;
+  }
+
   // 3) Content script 返回校验结果 → 广播给 side panel
   if (message.action === 'verifyResult') {
     // Broadcast to side panel (and anyone listening)

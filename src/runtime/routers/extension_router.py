@@ -150,7 +150,6 @@ def list_extension_elements(workflow_id: int):
             result.append({
                 "id": item.id,
                 "name": item.name,
-                "targetMode": item.target_mode,
                 "webSelector": item.web_selector,
                 "drissionSelector": item.drission_selector,
                 "cssCandidates": json.loads(item.css_candidates) if item.css_candidates else [],
