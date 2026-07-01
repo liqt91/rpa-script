@@ -98,10 +98,11 @@
     if (anchorRow) anchorRow.style.display = child ? '' : 'none';
     if (anchorCard) anchorCard.style.display = child ? 'block' : 'none';
     const header = $('globalSelectorHeader');
-    if (header) header.style.display = child ? '' : 'none';
+    const body = $('globalSelectorBody');
+    if (header) header.style.display = 'none';
+    if (body) body.style.display = child ? 'none' : 'block';
     // 新元素: global selector is the primary output (open, no header).
-    // 关联元素: global selector is the fallback (collapsed under the header).
-    setCollapsibleOpen('globalSelectorHeader', 'globalSelectorBody', !child);
+    // 关联元素: global selector is hidden; relative selector is the only output.
     if (!child && activeAnchorSelect && activeAnchorSelect.value) {
       // Leaving anchored mode drops any active anchor + page highlight.
       activeAnchorSelect.value = '';
