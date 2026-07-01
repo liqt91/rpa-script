@@ -1148,6 +1148,117 @@
     return `//${tag}`;
   }
 
+  /**
+   * Build a position-based relative XPath from `item` down to descendant `el`.
+   * Result is prefixed with `./` so it evaluates strictly within the item.
+   * Returns null if `el` is not a descendant of `item` or the path is too deep.
+   */
+  function buildRelativeXPath(item, el) {
+    const segs = [];
+    let cur = el;
+    while (cur && cur !== item) {
+      const parent = cur.parentElement;
+      if (!parent) return null;
+      const sameTag = Array.from(parent.children).filter(c => c.tagName === cur.tagName);
+      const pos = sameTag.indexOf(cur);
+      // Shadow-DOM / slot boundaries can make parentElement.children not contain
+      // cur. Bail rather than emit an invalid 1-indexed position (e.g. tag[0]).
+      if (pos === -1) return null;
+      const idx = pos + 1;
+      const tag = cur.tagName.toLowerCase();
+      segs.unshift(sameTag.length === 1 ? tag : `${tag}[${idx}]`);
+      cur = parent;
+      if (segs.length > 8) return null;
+    }
+    if (cur !== item) return null;
+    if (segs.length === 0) return null;
+    const xp = './' + segs.join('/');
+    // Self-validate: the relative xpath must resolve to exactly one node === el
+    // within the item, mirroring buildRelativeCss's uniqueness check.
+    try {
+      const r = document.evaluate(xp, item, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      if (r.snapshotLength !== 1 || r.snapshotItem(0) !== el) return null;
+    } catch (e) {
+      return null;
+    }
+    return xp;
+  }
+
+  /**
+   * Build a relative CSS selector that, queried within `item`, uniquely resolves
+   * to `el`. Tries stable id/class/data-* first, then bare tag. Each candidate is
+   * validated to match exactly one element === el inside the item. Returns null
+   * if no unique stable CSS selector is found.
+   */
+  function buildRelativeCss(item, el) {
+    const tag = el.tagName.toLowerCase();
+    const tryers = [];
+    if (el.id && isStableId(el.id)) tryers.push('#' + cssEscape(el.id));
+    const stable = el.classList ? Array.from(el.classList).filter(isStableClass) : [];
+    if (stable.length) tryers.push(tag + '.' + stable.map(cssEscape).join('.'));
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
+    for (const attr of dataAttrs) {
+      const v = el.getAttribute(attr);
+      if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
+        tryers.push(`${tag}[${attr}="${attrValueEscape(v)}"]`);
+      }
+    }
+    tryers.push(tag);
+    for (const sel of tryers) {
+      try {
+        const found = item.querySelectorAll(sel);
+        if (found.length === 1 && found[0] === el) return sel;
+      } catch (e) { /* invalid selector, skip */ }
+    }
+    return null;
+  }
+
+  /**
+   * Capture-time anchoring (plan B). Given a detected list family, compute the
+   * captured element's selector RELATIVE to its repeating ancestor (the future
+   * loop item), plus the anchor (item) selector itself. Returns:
+   *   { relative: 'css:...'|'xpath:...', anchor: 'css:...'|'xpath:...', family }
+   * or null when:
+   *   - no list family / item could be resolved, or
+   *   - the captured element IS the list item itself (no child relative needed).
+   * The relative selector is self-validated to resolve to exactly one element
+   * (=== the captured element) within a single item.
+   */
+  function computeRelativeSelector(el, listFamily) {
+    if (!el || !listFamily || !listFamily.container || !Array.isArray(listFamily.items)) return null;
+    const item = listFamily.items.find(it => it && it.nodeType === 1 && (it === el || it.contains(el)));
+    if (!item) return null;
+    // The element is the repeating item itself — used as a loop target, not a
+    // child reference. No relative selector to compute.
+    if (item === el) return null;
+
+    let relative = null;
+    let family = null;
+    const relCss = buildRelativeCss(item, el);
+    if (relCss) {
+      relative = 'css:' + relCss;
+      family = 'css';
+    } else {
+      const relXp = buildRelativeXPath(item, el);
+      if (relXp) {
+        relative = 'xpath:' + relXp;
+        family = 'xpath';
+      }
+    }
+    if (!relative) return null;
+
+    // Anchor selector for the repeating item. Prefer the stable CSS item selector;
+    // fall back to an XPath built for the item.
+    const itemSel = buildListItemSelector(item);
+    let anchor = itemSel ? 'css:' + itemSel : '';
+    if (!anchor) {
+      const itemXp = buildXPathForElement(item);
+      if (itemXp) anchor = 'xpath:' + itemXp;
+    }
+
+    return { relative, anchor, family };
+  }
+
   function generateListCandidates(element) {
     const candidates = [];
     if (!element || element === document.body) return candidates;
@@ -2180,6 +2291,22 @@
         listMeta.listSimilarity = Math.round(listFamily.similarity * 100) / 100;
       }
 
+      // Capture-time anchoring: compute selector relative to the repeating
+      // ancestor (loop item), so loop-context resolution is exact at run time.
+      // Empty when the element is not inside a list or is the item itself.
+      const anchorMeta = {};
+      try {
+        const rel = computeRelativeSelector(el, listFamily);
+        if (rel) {
+          anchorMeta.relativeSelector = rel.relative;
+          anchorMeta.anchorSelector = rel.anchor;
+          anchorMeta.anchorMode = 'auto';
+        }
+      } catch (e) {
+        // Anchoring is an optional enrichment — never let it break capture.
+        console.warn('[RPA capture] computeRelativeSelector failed, skipping anchor', e);
+      }
+
       const payload = {
         name: defaultName,
         tag: features.tag,
@@ -2200,6 +2327,7 @@
         inner_text: features.inner_text,
         verse_fp: verseFp,
         ...listMeta,
+        ...anchorMeta,
       };
 
       lastCapturePayload = payload;

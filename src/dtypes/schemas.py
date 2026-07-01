@@ -243,6 +243,9 @@ class WorkflowElementIn(BaseModel):
     drission_candidates: list = Field(default_factory=list)
     web_selector: str = ""
     drission_selector: str = ""
+    relative_selector: str = ""
+    anchor_selector: str = ""
+    anchor_mode: str = "auto"
     dom_path: list = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
     screenshot: Optional[str] = None
@@ -261,6 +264,9 @@ class WorkflowElementOut(BaseModel):
     drission_candidates: Optional[list] = None
     web_selector: str = ""
     drission_selector: str = ""
+    relative_selector: str = ""
+    anchor_selector: str = ""
+    anchor_mode: str = "auto"
     dom_path: Optional[list] = None
     attributes: Optional[dict] = None
     screenshot: Optional[str] = None

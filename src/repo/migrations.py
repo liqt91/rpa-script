@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine
 
-_SCHEMA_VERSION = 7  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 8  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -342,6 +342,29 @@ def _migrate_007():
         conn.commit()
 
 
+# ── Migration 008: add relative selector + anchor fields to workflow_elements ──
+
+def _migrate_008():
+    """Add relative_selector, anchor_selector, anchor_mode to workflow_elements.
+
+    Lets a child element store its selector relative to the nearest repeating
+    ancestor (the loop item) so loop-context resolution is exact rather than
+    reconstructed by a global-evaluate + contains heuristic.
+    """
+    inspector = inspect(engine)
+    if "workflow_elements" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("workflow_elements")}
+    with engine.connect() as conn:
+        if "relative_selector" not in cols:
+            conn.execute(text("ALTER TABLE workflow_elements ADD COLUMN relative_selector TEXT DEFAULT ''"))
+        if "anchor_selector" not in cols:
+            conn.execute(text("ALTER TABLE workflow_elements ADD COLUMN anchor_selector TEXT DEFAULT ''"))
+        if "anchor_mode" not in cols:
+            conn.execute(text("ALTER TABLE workflow_elements ADD COLUMN anchor_mode VARCHAR(16) DEFAULT 'auto'"))
+        conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
@@ -352,6 +375,7 @@ _MIGRATIONS = {
     5: _migrate_005,
     6: _migrate_006,
     7: _migrate_007,
+    8: _migrate_008,
 }
 
 

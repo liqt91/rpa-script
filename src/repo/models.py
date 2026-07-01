@@ -141,6 +141,9 @@ class WorkflowElement(Base):
     drission_candidates = Column(Text, default="[]")     # JSON
     web_selector = Column(Text, default="")              # css/xpath，供扩展执行用
     drission_selector = Column(Text, default="")         # 供 Python 导出用
+    relative_selector = Column(Text, default="")         # 相对最近重复祖先(循环项)的选择器，带 css:/xpath:/drission: 前缀；空=未锚定
+    anchor_selector = Column(Text, default="")           # 该重复祖先(循环项)自身的选择器
+    anchor_mode = Column(String(16), default="auto")     # auto=捕获算的 / manual=用户改过 / none=显式无锚点 / backfill=回填
     dom_path = Column(Text, default="[]")                # JSON: DOM path hierarchy
     attributes = Column(Text, default="{}")              # JSON: 元素属性
     screenshot = Column(Text)                              # base64 dataURL

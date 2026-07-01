@@ -437,6 +437,12 @@ class ExtensionRunner:
                 extra["contextLocatorType"] = ctx["selectorFamily"]
                 extra["contextIndex"] = ctx["index"]
                 extra["contextTotal"] = ctx.get("total")
+                # Prefer the capture-time relative selector when the element carries
+                # one (injected into extra by the emitter). content.js then queries
+                # the child relative to the resolved loop-item parent rather than
+                # globally + contains-filtering.
+                if extra.get("relativeLocator"):
+                    extra["useRelative"] = True
                 logger.info(
                     f"[ExtensionRunner] loop context index={ctx['index'] + 1}/{ctx.get('total', '?')} "
                     f"locator={ctx['locator'][:60]}..."
@@ -846,6 +852,7 @@ class ExtensionRunner:
                         "selectorFamily": item.get("contextLocatorType", selector_family),
                         "index": 0,
                         "total": 1,
+                        "loopElementName": instr.get("elementName"),
                     }
                 else:
                     self.vars["__loop_ctx"] = {
@@ -853,6 +860,7 @@ class ExtensionRunner:
                         "selectorFamily": selector_family,
                         "index": idx,
                         "total": len(elements),
+                        "loopElementName": instr.get("elementName"),
                     }
                 logger.info(f"[ExtensionRunner] forEachElement [{idx}] {item_var}={self.vars[item_var]!r}")
                 try:
@@ -1426,6 +1434,21 @@ class ExtensionRunner:
                 })
                 self.completed += 1
 
+                # Surface soft warnings (e.g. a child element was absent inside the
+                # current loop item → empty value + continue). These are not errors:
+                # the run proceeds, but the user must see them rather than silently
+                # collecting blanks.
+                if isinstance(result, dict) and result.get("warning"):
+                    warning_msg = result["warning"]
+                    logger.warning(f"[ExtensionRunner] {step_id} {cmd_type} warning: {warning_msg}")
+                    await self._emit({
+                        "type": "stepWarning",
+                        "stepId": step_id,
+                        "nodeId": instr.get("nodeId"),
+                        "cmdType": cmd_type,
+                        "warning": warning_msg,
+                    })
+
                 if isinstance(result, dict) and "matchedCount" in result:
                     logger.info(
                         f"[ExtensionRunner] {step_id} {cmd_type} matched "
@@ -1545,6 +1568,10 @@ class ExtensionRunner:
                 extra["contextLocatorType"] = ctx["selectorFamily"]
                 extra["contextIndex"] = ctx["index"]
                 extra["contextTotal"] = ctx.get("total")
+                # Prefer the capture-time relative selector when present (see
+                # _call_extension_handler for the rationale).
+                if extra.get("relativeLocator"):
+                    extra["useRelative"] = True
                 logger.info(
                     f"[ExtensionRunner] loop context index={ctx['index'] + 1}/{ctx.get('total', '?')} "
                     f"locator={ctx['locator'][:60]}..."

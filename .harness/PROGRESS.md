@@ -41,3 +41,4 @@ _Append a one-line entry per completed feature. Format: `YYYY-MM-DD HH:MM | <fea
 2026-06-29 14:10 | admin-spa-phase7 | done | admin_router reduced to login/logout, templates removed2026-06-29 18:20 | session_end | prompt_input_exit | master | b536905 | 9c3d1ec1-eded-46a9-a566-6aff0d4bc36b
 2026-06-29 22:53 | session_end | prompt_input_exit | master | 44b4fcc | 9c3d1ec1-eded-46a9-a566-6aff0d4bc36b
 2026-06-30 04:05 | workflow-parameters | done | backend CRUD + runner injection + React editor/run dialog
+2026-07-01 | loop-relative-anchoring-phase1-3 | done | Phase 1-3 complete (data layer + runtime relative resolve + capture/editor anchoring); Phase 4-5 pending; see HANDOFF-loop-relative-anchoring.md

@@ -89,6 +89,13 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
 
         target_mode = payload.get("targetMode", "single")
 
+        # Relative-anchor metadata (capture-time anchoring). Empty relative_selector
+        # means the element was not anchored to a repeating ancestor → runtime falls
+        # back to global resolution, preserving legacy behavior.
+        relative_selector = payload.get("relativeSelector", "") or ""
+        anchor_selector = payload.get("anchorSelector", "") or ""
+        anchor_mode = payload.get("anchorMode", "auto") or "auto"
+
         # Check for existing element with same name in this workflow
         existing = (
             db.query(models.WorkflowElement)
@@ -107,6 +114,9 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             existing.drission_candidates = json.dumps(drission_cands)
             existing.web_selector = web_selector
             existing.drission_selector = drission_selector
+            existing.relative_selector = relative_selector
+            existing.anchor_selector = anchor_selector
+            existing.anchor_mode = anchor_mode
             existing.dom_path = json.dumps(payload.get("path", []))
             existing.attributes = json.dumps(attributes)
             existing.screenshot = payload.get("screenshot")
@@ -126,6 +136,9 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             drission_candidates=json.dumps(drission_cands),
             web_selector=web_selector,
             drission_selector=drission_selector,
+            relative_selector=relative_selector,
+            anchor_selector=anchor_selector,
+            anchor_mode=anchor_mode,
             dom_path=json.dumps(payload.get("path", [])),
             attributes=json.dumps(attributes),
             screenshot=payload.get("screenshot"),

@@ -260,6 +260,23 @@
     </div>
   </div>
   <div class="preview-meta" id="verifyResult">点击"校验元素"查看匹配结果</div>
+
+  <!-- Loop-relative anchoring (capture-time). Hidden unless the element was anchored. -->
+  <div class="preview-row" id="anchorBox" style="display:none;flex-direction:column;gap:6px;margin-top:8px;border-top:1px dashed #e0e0e0;padding-top:8px;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" id="useRelativeChk" checked style="margin:0;">
+      <label for="useRelativeChk" class="preview-label" style="cursor:pointer;white-space:nowrap;">循环内相对解析</label>
+      <span class="preview-meta" id="anchorMode" style="margin-left:auto;">自动</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="preview-label" style="white-space:nowrap;">循环项锚点</span>
+      <input type="text" id="anchorSelectorInput" readonly style="flex:1;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:11px;background:#fafafa;color:#666;">
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="preview-label" style="white-space:nowrap;">相对选择器</span>
+      <input type="text" id="relativeSelectorInput" placeholder="如 css:.author 或 xpath:./div/span" style="flex:1;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;font-size:11px;">
+    </div>
+  </div>
 </div>
 
 <!-- Footer -->

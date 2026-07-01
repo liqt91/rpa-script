@@ -126,6 +126,49 @@ def _normalize_locator(val):
     return val
 
 
+def _split_prefixed_selector(value: str) -> tuple[str, str]:
+    """Split a `family:selector` string into (selector, family).
+
+    relative_selector is stored with an explicit `css:`/`xpath:`/`drission:`
+    prefix. If no recognized prefix is present, the family is inferred from the
+    bare selector pattern.
+    """
+    text = (value or "").strip()
+    if not text:
+        return "", "css"
+    for prefix in ("css:", "xpath:", "drission:"):
+        if text.startswith(prefix):
+            bare = text[len(prefix):].strip()
+            return bare, prefix[:-1]
+    return text, _infer_selector_family(text)
+
+
+def _inject_relative_fields(extra: dict, el) -> dict:
+    """Inject capture-time relative-anchor fields into an instruction's extra.
+
+    Only writes the fields when the element carries a non-empty relative
+    selector. Old/unanchored elements leave `extra` untouched so the runtime
+    falls back to legacy global resolution unchanged.
+    """
+    if not el:
+        return extra
+    rel = (getattr(el, "relative_selector", "") or "").strip()
+    if not rel:
+        return extra
+    rel_selector, rel_family = _split_prefixed_selector(rel)
+    if not rel_selector:
+        return extra
+    anchor = (getattr(el, "anchor_selector", "") or "").strip()
+    anchor_selector, anchor_family = _split_prefixed_selector(anchor) if anchor else ("", "css")
+    enriched = dict(extra)
+    enriched["relativeLocator"] = rel_selector
+    enriched["relativeSelectorFamily"] = rel_family
+    if anchor_selector:
+        enriched["anchorSelector"] = anchor_selector
+        enriched["anchorSelectorFamily"] = anchor_family
+    return enriched
+
+
 def _emit_instruction(
     node: models.WorkflowNode, step_index: int, handler: str,
     element_map: dict | None = None,
@@ -141,6 +184,9 @@ def _emit_instruction(
     locator = _normalize_locator(el.web_selector) if el else ""
     selector_family = _infer_selector_family(el.web_selector) if el else "css"
     target_mode = el.target_mode if el else "single"
+
+    # Inject capture-time relative-anchor fields (no-op for unanchored elements).
+    extra = _inject_relative_fields(extra, el)
 
     return {
         "stepId": f"step_{step_index}",
@@ -242,6 +288,7 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
                 "cmdType": node.type,
                 "type": node.type,
                 "compound": True,
+                "elementName": node.element_name,
                 "locator": locator,
                 "selectorFamily": selector_family,
                 "targetMode": target_mode,

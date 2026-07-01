@@ -39,6 +39,39 @@
   const screenshotBox = $('screenshotBox');
   const elName = $('elName');
   const targetModeSel = $('targetMode');
+  const anchorBox = $('anchorBox');
+  const useRelativeChk = $('useRelativeChk');
+  const anchorSelectorInput = $('anchorSelectorInput');
+  const relativeSelectorInput = $('relativeSelectorInput');
+  const anchorModeLabel = $('anchorMode');
+  // Tracks whether the user manually edited the relative selector this capture.
+  let relativeManuallyEdited = false;
+
+  // Populate the loop-relative anchor panel from a capture payload. Hidden when
+  // the element was not anchored to a repeating ancestor (legacy / non-list).
+  function loadAnchorData(data) {
+    relativeManuallyEdited = false;
+    const rel = data?.relativeSelector || '';
+    if (!rel) {
+      anchorBox.style.display = 'none';
+      relativeSelectorInput.value = '';
+      anchorSelectorInput.value = '';
+      return;
+    }
+    anchorBox.style.display = 'flex';
+    relativeSelectorInput.value = rel;
+    anchorSelectorInput.value = data.anchorSelector || '';
+    useRelativeChk.checked = true;
+    const mode = data.anchorMode || 'auto';
+    anchorModeLabel.textContent = mode === 'manual' ? '手动' : (mode === 'backfill' ? '回填' : '自动');
+  }
+
+  if (relativeSelectorInput) {
+    relativeSelectorInput.addEventListener('input', () => {
+      relativeManuallyEdited = true;
+      anchorModeLabel.textContent = '手动';
+    });
+  }
 
   // ─── Runtime Message API ─────────────────────────────────────────
 
@@ -159,6 +192,9 @@
 
     // 初始化 targetMode 下拉框
     targetModeSel.value = data.targetMode || 'single';
+
+    // 循环内相对解析锚点
+    loadAnchorData(data);
   }
 
   // ─── DOM Tree rendering ──────────────────────────────────────────
@@ -1057,6 +1093,20 @@
       listItem: elementData?.listItem || '',
       listSize: elementData?.listSize || 0,
     };
+    // Loop-relative anchoring. When the user unchecks "相对解析" we persist an
+    // empty relative selector so the runtime falls back to global resolution.
+    const relValue = (relativeSelectorInput.value || '').trim();
+    if (useRelativeChk.checked && relValue) {
+      payload.relativeSelector = relValue;
+      payload.anchorSelector = (anchorSelectorInput.value || '').trim();
+      payload.anchorMode = relativeManuallyEdited
+        ? 'manual'
+        : (elementData?.anchorMode || 'auto');
+    } else {
+      payload.relativeSelector = '';
+      payload.anchorSelector = '';
+      payload.anchorMode = useRelativeChk.checked ? 'auto' : 'none';
+    }
     send('saveElement', payload)
       .then(() => {
         verifyResult.textContent = '已保存';
@@ -1079,6 +1129,10 @@
     attrEnabled = {};
     elName.value = '';
     selectorPreview.value = '';
+    if (anchorBox) anchorBox.style.display = 'none';
+    if (relativeSelectorInput) relativeSelectorInput.value = '';
+    if (anchorSelectorInput) anchorSelectorInput.value = '';
+    relativeManuallyEdited = false;
     verifyResult.textContent = '点击"校验元素"查看匹配结果';
     verifyResult.className = 'preview-meta';
     screenshotBox.innerHTML = '<span style="color:#999;font-size:12px;">暂无截图</span>';

@@ -488,6 +488,50 @@
     return [];
   }
 
+  // True relative query: evaluate a capture-time relative selector strictly
+  // *within* the loop-item parent, rather than the legacy global-evaluate +
+  // parent.contains() filter. Unifies xpath/css/drission scope semantics so a
+  // child selector cannot leak across sibling loop items.
+  function resolveAllRelativeInContext(relLocator, relFamily, rootElement) {
+    if (!rootElement || !relLocator) return [];
+    let l = String(relLocator).trim();
+    let lt = relFamily || '';
+    if (l.startsWith('css:')) { l = l.slice(4); lt = 'css'; }
+    else if (l.startsWith('xpath:')) { l = l.slice(6); lt = 'xpath'; }
+    else if (l.startsWith('drission:')) { l = l.slice(9); lt = 'drission'; }
+    if (!lt) lt = inferSelectorFamily(l) || 'css';
+
+    if (lt === 'xpath') {
+      // Force the path to evaluate relative to the context node.
+      let xl = l;
+      if (xl.startsWith('.//') || xl.startsWith('./')) {
+        // already relative
+      } else if (xl.startsWith('//')) {
+        xl = '.' + xl;            // //div -> .//div
+      } else if (xl.startsWith('/')) {
+        xl = '.' + xl;            // /div  -> ./div
+      } else {
+        xl = './/' + xl;          // div/span -> .//div/span
+      }
+      try {
+        const r = document.evaluate(xl, rootElement, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        const arr = [];
+        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        return arr;
+      } catch (e) { return []; }
+    }
+
+    if (lt === 'drission') {
+      // Reuse the drission→css/walker logic by delegating to the contains-based
+      // resolver; for drission, relative is best-effort (still scoped to parent).
+      return resolveAllLocatorsInContext(l, 'drission', rootElement);
+    }
+
+    // css family
+    try { return Array.from(rootElement.querySelectorAll(l)); } catch (e) {}
+    return [];
+  }
+
   function waitForElementInContext(locator, selectorFamily, rootElement, mode = 'visible', timeoutMs = 10000, pollMs = 200) {
     locator = normalizeLocator(locator);
     selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
@@ -527,11 +571,40 @@
           return setTimeout(tick, pollMs);
         }
 
+        // "Reference the loop item itself": the target IS the current loop item,
+        // not a descendant. First-class replacement for the old "child selector
+        // == loop selector" heuristic.
+        if (extra?.referenceItemItself) {
+          if (mode === 'any' || checkVisibility(parent, mode)) {
+            window.__rpaLastContextDebugInfo = getElementDebugInfo(locator, selectorFamily, extra, parent);
+            return resolve(parent);
+          }
+          const err = new Error(`循环项本身不可见: ${ctxLocator}`);
+          err.contextNotFound = true;
+          return reject(err);
+        }
+
+        // Prefer the capture-time relative selector when present: query strictly
+        // within the loop item, unifying xpath/css scope semantics.
+        let el = null;
+        if (extra?.useRelative && extra?.relativeLocator) {
+          const relMatches = resolveAllRelativeInContext(
+            extra.relativeLocator, extra.relativeSelectorFamily, parent);
+          el = mode === 'any'
+            ? relMatches[0] || null
+            : relMatches.find(e => checkVisibility(e, mode)) || null;
+          if (!el && relMatches.length === 0) {
+            addRunLog(`相对选择器在循环项内未命中，回退全局解析: ${extra.relativeLocator}`);
+          }
+        }
+
         // Local/descendant scope: only search within the current outer element.
-        const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-        let el = mode === 'any'
-          ? allDescendants[0] || null
-          : allDescendants.find(e => checkVisibility(e, mode)) || null;
+        if (!el) {
+          const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          el = mode === 'any'
+            ? allDescendants[0] || null
+            : allDescendants.find(e => checkVisibility(e, mode)) || null;
+        }
 
         // Fallback: when the child selector is the same as the loop selector,
         // the intended target is the current loop item itself (not a descendant).
@@ -573,10 +646,24 @@
       const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
       const parent = parents[ctxIndex];
       if (parent) {
-        const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-        el = mode === 'any'
-          ? allDescendants[0] || null
-          : allDescendants.find(e => checkVisibility(e, mode)) || null;
+        // Reference the loop item itself.
+        if (extra?.referenceItemItself) {
+          if (mode === 'any' || checkVisibility(parent, mode)) el = parent;
+        }
+        // Prefer the capture-time relative selector.
+        if (!el && extra?.useRelative && extra?.relativeLocator) {
+          const relMatches = resolveAllRelativeInContext(
+            extra.relativeLocator, extra.relativeSelectorFamily, parent);
+          el = mode === 'any'
+            ? relMatches[0] || null
+            : relMatches.find(e => checkVisibility(e, mode)) || null;
+        }
+        if (!el) {
+          const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          el = mode === 'any'
+            ? allDescendants[0] || null
+            : allDescendants.find(e => checkVisibility(e, mode)) || null;
+        }
 
         // Fallback: loop item itself matches the child selector.
         if (!el) {
@@ -1112,6 +1199,15 @@ console.log({
   }
 
   // Generic element-action implementations used by both legacy handlers and elementAction.
+
+  // A "soft not found" is a loop-context miss where the loop-item parent exists
+  // but this child is genuinely absent inside it (heterogeneous lists are normal).
+  // Such cases warn + skip + continue; they are NOT subject to the node's onError
+  // policy. A missing anchor/parent (broken selector) is a HARD failure and throws.
+  function isSoftNotFound(e) {
+    return !!(e?.contextNotFound || e?.message?.includes('按循环序号对齐失败'));
+  }
+
   async function doClick({ locator, selectorFamily, extra }) {
     const mode = getVisibilityMode(extra);
     const humanLike = extra?.humanLike ?? true;
@@ -1119,7 +1215,21 @@ console.log({
     const clickType = extra?.clickType || extra?.action || 'click';
     const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-    let el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      // Soft "not found" inside a loop item → warn + skip this iteration's click,
+      // mirroring doExtract. Hard failures (broken selector / missing context)
+      // still propagate to the node's onError policy.
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过点击并继续: ${locator}`;
+        console.log(`[RPA click] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { clicked: false, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
 
     await visualConfirmDelay();
 
@@ -1175,7 +1285,18 @@ console.log({
     const humanLike = extra?.humanLike ?? true;
     const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-    const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过输入并继续: ${locator}`;
+        console.log(`[RPA input] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { input: false, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
 
     const text = extra?.text ?? '';
     const clearFirst = extra?.clearFirst !== false;
@@ -1215,10 +1336,18 @@ console.log({
       }
       return { extracted: value };
     } catch (e) {
-      if (e?.contextNotFound || e?.message?.includes('按循环序号对齐失败')) {
-        console.log(`[RPA extract] element not found in loop context, returning empty: ${e.message}`);
-        return { extracted: '' };
+      // Soft "not found": the loop-item parent exists but this child is genuinely
+      // absent inside it (heterogeneous lists are normal — e.g. some comment cards
+      // have no reply). Return empty + a warning and let the run continue, instead
+      // of either silently collecting blanks or hard-failing the whole loop.
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，返回空值并继续: ${locator}`;
+        console.log(`[RPA extract] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { extracted: '', warning, contextNotFound: true };
       }
+      // Hard failure (anchor/context element itself missing → selector is broken):
+      // propagate so the node's onError policy (default stop) applies.
       throw e;
     }
   }
@@ -1383,7 +1512,18 @@ console.log({
     const humanLike = extra?.humanLike ?? true;
     const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-    const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过悬停并继续: ${locator}`;
+        console.log(`[RPA hover] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { hovered: false, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
 
     const point = getClickPoint(el, humanLike);
     const rect = el.getBoundingClientRect();
@@ -1405,7 +1545,17 @@ console.log({
 
     let el;
     if (locator) {
-      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+      try {
+        el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+      } catch (e) {
+        if (isSoftNotFound(e)) {
+          const warning = `元素在当前循环项中未找到，跳过取消悬停并继续: ${locator}`;
+          console.log(`[RPA unhover] ${warning} (${e.message})`);
+          addRunLog(`警告: ${warning}`);
+          return { unhovered: false, skipped: true, warning, contextNotFound: true };
+        }
+        throw e;
+      }
     } else {
       el = _lastHoveredElement;
     }
@@ -1425,7 +1575,18 @@ console.log({
     const humanLike = extra?.humanLike ?? true;
     const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-    const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过清空并继续: ${locator}`;
+        console.log(`[RPA clearInput] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { cleared: false, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
 
     if (humanLike) await visualConfirmDelay();
     setInputValue(el, '');
@@ -1437,7 +1598,18 @@ console.log({
     const humanLike = extra?.humanLike ?? true;
     const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-    const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过下拉选择并继续: ${locator}`;
+        console.log(`[RPA selectOption] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { selected: null, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
 
     const value = extra?.value;
     if (!value) throw new Error('selectOption: value required');
