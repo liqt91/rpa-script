@@ -106,6 +106,19 @@
   .mode-panel { display: none; }
   .mode-panel.active { display: flex; flex-direction: column; }
 
+  /* Capture-mode tabs: new element (clean/global) vs child element (anchored) */
+  .capture-tabs {
+    display: flex; gap: 0; padding: 8px 14px 0; background: #fafafa;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .capture-tab {
+    flex: 1; padding: 8px 0; border: none; border-bottom: 2px solid transparent;
+    background: transparent; cursor: pointer; font-size: 13px; color: #666; font-weight: 500;
+    margin-bottom: -1px;
+  }
+  .capture-tab.active { color: #1677ff; border-bottom-color: #1677ff; }
+  .capture-tab:hover:not(.active) { color: #1677ff; }
+
   /* Candidates */
   .candidates-list {
     display: flex; flex-direction: column; gap: 2px;
@@ -141,10 +154,17 @@
     background: #f0f7ff; padding: 10px 12px;
   }
   .anchor-card.disabled { opacity: 0.6; background: #f5f5f5; border-left-color: #999; }
+  .selector-section .anchor-card { margin: 0 0 10px; }
   .anchor-card-title {
     font-size: 12px; font-weight: 600; color: #333; margin-bottom: 8px;
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; gap: 8px;
   }
+  .anchor-card-title .anchor-pill { margin-left: auto; }
+  .anchor-badge {
+    font-size: 11px; font-weight: 500; color: #1677ff;
+    background: #e6f4ff; border-radius: 3px; padding: 1px 6px;
+  }
+  .anchor-badge:empty { display: none; }
   .anchor-row {
     display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
     font-size: 12px; color: #555;
@@ -296,6 +316,26 @@
     </select>
   </div>
 
+  <!-- Capture-mode tabs. 捕获新元素 = clean global capture (no anchor). 捕获子元素
+       = anchored capture: pick a loop anchor, capture children relative to it. -->
+  <div class="capture-tabs">
+    <button class="capture-tab active" data-capmode="new">捕获新元素</button>
+    <button class="capture-tab" data-capmode="child">捕获子元素</button>
+  </div>
+
+  <!-- Loop anchor (single merged control). Only shown in 捕获子元素 mode. Pick an
+       existing element as the loop anchor BEFORE capturing its inner children —
+       the page highlights every anchor instance until cleared or the flow is
+       switched. Also reflects the anchor of an already-captured child element. -->
+  <div class="workflow-row" id="activeAnchorRow" style="background:#fffbe6; display:none;">
+    <label style="width:56px;">循环锚点</label>
+    <select id="activeAnchorSelect" style="flex:1;">
+      <option value="">全局捕获（无锚点）</option>
+    </select>
+    <span id="activeAnchorStatus" style="font-size:11px;color:#888;white-space:nowrap;"></span>
+    <button class="btn btn-sm" id="btnClearActiveAnchor" title="清除锚点" style="flex:0 0 auto;">清除</button>
+  </div>
+
   <!-- Element name + screenshot toggle -->
   <div class="name-row">
     <label>元素名称</label>
@@ -357,48 +397,49 @@
   </div>
 </div>
 
-<!-- Selector + anchor card -->
-<div class="selector-section">
-  <!-- Selector family choice -->
-  <div class="choice-row" style="border-bottom:none; padding:0 0 8px; background:transparent;">
-    <button class="choice-btn active" data-choice="css">CSS</button>
-    <button class="choice-btn" data-choice="xpath">XPath</button>
-  </div>
-
-  <div class="selector-row">
-    <textarea class="selector-input" id="selectorPreview" rows="3"></textarea>
-  </div>
-  <div class="verify-meta" id="verifyResult">点击"校验元素"查看匹配结果</div>
-
-  <!-- Loop-relative anchoring (capture-time). Hidden unless the element has an anchor relation. -->
+<!-- Selector + anchor card. Driven by the capture-mode tabs: 捕获新元素 → global
+     selector is the sole primary output, anchor card hidden; 捕获子元素 → relative
+     selector card is primary, global selector collapses to a fallback. -->
+<div class="selector-section" id="selectorSection">
+  <!-- Relative selector — primary output in 捕获子元素 mode. The loop anchor lives
+       in #activeAnchorSelect above. -->
   <div class="anchor-card" id="anchorCard" style="display:none;">
     <div class="anchor-card-title">
-      <span>循环锚点</span>
-      <span class="anchor-pill" id="anchorMode">自动</span>
+      <span>相对选择器</span>
+      <span class="anchor-badge" id="anchorBadge"></span>
+      <span class="anchor-pill" id="anchorMode">锚定</span>
     </div>
     <div class="anchor-row">
-      <label>相对锚点</label>
-      <select id="anchorElementSelect">
-        <option value="">不使用相对解析</option>
-      </select>
-    </div>
-    <div class="anchor-row">
-      <label>锚点选择器</label>
-      <input type="text" id="anchorSelectorInput" readonly>
-    </div>
-    <div class="anchor-row">
-      <label>相对选择器</label>
-      <input type="text" id="relativeSelectorInput" placeholder="如 css:.author 或 xpath:./div/span">
+      <input type="text" id="relativeSelectorInput" placeholder="如 css:.author 或 xpath:./div/span" style="flex:1;">
+      <button class="btn btn-sm" id="btnVerifyRelative">校验</button>
     </div>
     <div class="anchor-actions">
       <label>
         <input type="checkbox" id="useRelativeChk" checked>
         <span>使用相对解析</span>
       </label>
-      <button class="btn btn-sm" id="btnVerifyRelative">校验相对</button>
-      <button class="btn btn-sm" id="btnRecomputeAnchor">重新计算</button>
+    </div>
+    <input type="hidden" id="anchorSelectorInput">
+  </div>
+
+  <!-- Global selector. Primary (header hidden) in global mode; collapsible
+       fallback (header shown, body collapsed) in anchor mode. -->
+  <div class="section-title collapse-header" id="globalSelectorHeader" style="display:none;">
+    <span>全局选择器（后备）</span>
+    <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </div>
+  <div class="collapse-body open" id="globalSelectorBody">
+    <div class="choice-row" style="border-bottom:none; padding:0 0 8px; background:transparent;">
+      <button class="choice-btn active" data-choice="css">CSS</button>
+      <button class="choice-btn" data-choice="xpath">XPath</button>
+    </div>
+    <div class="selector-row">
+      <textarea class="selector-input" id="selectorPreview" rows="3"></textarea>
     </div>
   </div>
+  <div class="verify-meta" id="verifyResult">点击"校验元素"查看匹配结果</div>
 </div>
 
 <!-- Footer -->

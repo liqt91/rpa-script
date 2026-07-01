@@ -45,28 +45,80 @@
   const anchorSelectorInput = $('anchorSelectorInput');
   const relativeSelectorInput = $('relativeSelectorInput');
   const anchorModeLabel = $('anchorMode');
-  const anchorElementSelect = $('anchorElementSelect');
+  // Merged loop-anchor control (top row) — drives both pre-capture highlight
+  // and the captured element's anchor selection.
+  const activeAnchorSelect = $('activeAnchorSelect');
+  const btnClearActiveAnchor = $('btnClearActiveAnchor');
+  const activeAnchorStatus = $('activeAnchorStatus');
+  let activeAnchorName = '';
   // Tracks whether the user manually edited the relative selector this capture.
   let relativeManuallyEdited = false;
   // Existing elements of the selected workflow, loaded for anchor selection.
   let workflowElements = [];
 
-  // Populate the loop-relative anchor card from a capture payload.
+  // Populate the relative-selector detail from a capture payload. The loop
+  // anchor lives in the merged #activeAnchorSelect control above.
   function loadAnchorData(data) {
     relativeManuallyEdited = false;
     const rel = data?.relativeSelector || '';
     const anchorElName = data?.anchorElementName || '';
-    anchorCard.style.display = 'block';
     relativeSelectorInput.value = rel;
     anchorSelectorInput.value = data?.anchorSelector || '';
     useRelativeChk.checked = !!rel || !!anchorElName;
     anchorCard.classList.toggle('disabled', !useRelativeChk.checked);
-    // Select the anchor element in the dropdown if it exists.
-    if (anchorElementSelect) {
-      anchorElementSelect.value = anchorElName;
+    // Reflect the captured element's anchor in the merged loop-anchor control.
+    if (activeAnchorSelect && anchorElName) {
+      activeAnchorName = anchorElName;
+      renderActiveAnchorOptions();
+      activeAnchorSelect.value = anchorElName;
     }
-    const mode = data?.anchorMode || 'auto';
-    anchorModeLabel.textContent = mode === 'manual' ? '手动' : (mode === 'backfill' ? '回填' : '自动');
+    const mode = data?.anchorMode || '';
+    anchorModeLabel.textContent = mode === 'manual' ? '手动' : (mode === 'backfill' ? '回填' : '锚定');
+  }
+
+  // Capture mode, driven by the top tabs:
+  //  - 'new'   → clean global capture, no anchor (原方案);
+  //  - 'child' → anchored capture: loop-anchor row + relative card primary,
+  //              global selector demoted to a collapsible fallback.
+  let captureMode = 'new';
+
+  function refreshAnchorBadge() {
+    const badge = $('anchorBadge');
+    const name = activeAnchorSelect && activeAnchorSelect.value;
+    if (badge) badge.textContent = name ? `基于 ${name}` : '';
+  }
+
+  function applyCaptureMode(mode) {
+    captureMode = mode === 'child' ? 'child' : 'new';
+    const child = captureMode === 'child';
+    document.querySelectorAll('.capture-tab').forEach((b) => {
+      b.classList.toggle('active', b.dataset.capmode === captureMode);
+    });
+    const anchorRow = $('activeAnchorRow');
+    if (anchorRow) anchorRow.style.display = child ? '' : 'none';
+    if (anchorCard) anchorCard.style.display = child ? 'block' : 'none';
+    const header = $('globalSelectorHeader');
+    if (header) header.style.display = child ? '' : 'none';
+    // 新元素: global selector is the primary output (open, no header).
+    // 子元素: global selector is the fallback (collapsed under the header).
+    setCollapsibleOpen('globalSelectorHeader', 'globalSelectorBody', !child);
+    if (!child && activeAnchorSelect && activeAnchorSelect.value) {
+      // Leaving anchored mode drops any active loop anchor + page highlight.
+      activeAnchorSelect.value = '';
+      applyActiveAnchor('');
+    }
+    refreshAnchorBadge();
+  }
+
+  document.querySelectorAll('.capture-tab').forEach((btn) => {
+    btn.addEventListener('click', () => applyCaptureMode(btn.dataset.capmode));
+  });
+
+  // Recompute the relative selector when the global target changes while anchored.
+  function maybeRecomputeRelative() {
+    if (captureMode === 'child' && activeAnchorSelect && activeAnchorSelect.value) {
+      computeRelativeForSelectedAnchor();
+    }
   }
 
   if (relativeSelectorInput) {
@@ -76,15 +128,9 @@
     });
   }
 
-  if (anchorElementSelect) {
-    anchorElementSelect.addEventListener('change', () => {
-      computeRelativeForSelectedAnchor();
-    });
-  }
-
   if (elName) {
     elName.addEventListener('input', () => {
-      renderAnchorElementOptions();
+      renderActiveAnchorOptions();
     });
   }
 
@@ -144,6 +190,9 @@
 
   initCollapsible('domCollapseHeader', 'domCollapseBody', false);
   initCollapsible('propCollapseHeader', 'propCollapseBody', false);
+  initCollapsible('globalSelectorHeader', 'globalSelectorBody', true);
+  // Default to the clean 捕获新元素 mode until an element is loaded.
+  applyCaptureMode('new');
 
   // ─── Mode toggle (Recommend / Manual) ─────────────────────────────
 
@@ -220,43 +269,105 @@
   async function loadWorkflowElements(workflowId) {
     if (!workflowId) {
       workflowElements = [];
-      renderAnchorElementOptions();
+      renderActiveAnchorOptions();
       return;
     }
     try {
       const resp = await chrome.runtime.sendMessage({ action: 'getWorkflowElements', workflowId });
       workflowElements = resp?.elements || [];
-      renderAnchorElementOptions();
+      renderActiveAnchorOptions();
     } catch (e) {
       console.warn('[SidePanel] failed to load workflow elements:', e);
       workflowElements = [];
-      renderAnchorElementOptions();
+      renderActiveAnchorOptions();
     }
   }
 
-  function renderAnchorElementOptions() {
-    if (!anchorElementSelect) return;
-    const currentValue = anchorElementSelect.value;
+  function getCurrentAnchorElement() {
+    const name = activeAnchorSelect?.value;
+    if (!name) return null;
+    return workflowElements.find((el) => el.name === name) || null;
+  }
+
+  // ─── Loop anchor (merged control) ────────────────────────────────
+  // Populate the loop-anchor dropdown from the loaded workflow elements,
+  // excluding the element currently being edited (it can't be its own anchor).
+  function renderActiveAnchorOptions() {
+    if (!activeAnchorSelect) return;
+    const current = activeAnchorName;
     const excludeName = (elName?.value || elementData?.name || '').trim();
-    anchorElementSelect.innerHTML = '<option value="">不使用相对解析</option>';
+    activeAnchorSelect.innerHTML = '<option value="">全局捕获（无锚点）</option>';
     workflowElements.forEach((el) => {
       if (!el?.name || el.name === excludeName) return;
       const opt = document.createElement('option');
       opt.value = el.name;
       opt.textContent = el.name;
-      anchorElementSelect.appendChild(opt);
+      activeAnchorSelect.appendChild(opt);
     });
-    if (currentValue && currentValue !== excludeName) {
-      anchorElementSelect.value = currentValue;
-    } else if (currentValue === excludeName) {
-      anchorElementSelect.value = '';
+    // Keep the selection only if the element still exists and isn't excluded.
+    if (current && current !== excludeName && workflowElements.some((el) => el.name === current)) {
+      activeAnchorSelect.value = current;
+    } else {
+      activeAnchorSelect.value = '';
+      activeAnchorName = '';
     }
   }
 
-  function getCurrentAnchorElement() {
-    const name = anchorElementSelect?.value;
-    if (!name) return null;
-    return workflowElements.find((el) => el.name === name) || null;
+  // Push the chosen anchor to the page: persistent highlight + capture context.
+  async function applyActiveAnchor(name) {
+    activeAnchorName = name || '';
+    if (!activeAnchorName) {
+      if (activeAnchorStatus) activeAnchorStatus.textContent = '';
+      try { await send('setActiveAnchor', { anchorSelector: '', anchorElementName: '' }); } catch (_e) {}
+      return;
+    }
+    const el = workflowElements.find((e) => e.name === activeAnchorName);
+    const anchorSelector = el?.webSelector || '';
+    if (!anchorSelector) {
+      if (activeAnchorStatus) activeAnchorStatus.textContent = '无选择器';
+      return;
+    }
+    if (activeAnchorStatus) activeAnchorStatus.textContent = '定位中...';
+    try {
+      const res = await send('setActiveAnchor', { anchorSelector, anchorElementName: activeAnchorName });
+      if (res?.error) {
+        if (activeAnchorStatus) activeAnchorStatus.textContent = '失败';
+      } else {
+        const n = res?.count ?? 0;
+        if (activeAnchorStatus) activeAnchorStatus.textContent = n > 0 ? `${n} 个锚点` : '未匹配';
+      }
+    } catch (err) {
+      if (activeAnchorStatus) activeAnchorStatus.textContent = '失败';
+    }
+  }
+
+  function clearActiveAnchor() {
+    if (activeAnchorSelect) activeAnchorSelect.value = '';
+    applyActiveAnchor('');
+    refreshAnchorBadge();
+  }
+
+  if (activeAnchorSelect) {
+    activeAnchorSelect.addEventListener('change', () => {
+      const name = activeAnchorSelect.value;
+      applyActiveAnchor(name);
+      // In 捕获子元素 mode the anchor card is always visible. Recompute the
+      // relative selector against the newly chosen anchor, or clear it.
+      if (name) {
+        computeRelativeForSelectedAnchor();
+      } else {
+        relativeSelectorInput.value = '';
+        anchorSelectorInput.value = '';
+        useRelativeChk.checked = false;
+        anchorCard.classList.add('disabled');
+      }
+      refreshAnchorBadge();
+    });
+  }
+  if (btnClearActiveAnchor) {
+    btnClearActiveAnchor.addEventListener('click', () => {
+      clearActiveAnchor();
+    });
   }
 
   async function computeRelativeForSelectedAnchor() {
@@ -293,7 +404,7 @@
       }
       relativeSelectorInput.value = res.relativeSelector || '';
       relativeManuallyEdited = false;
-      anchorModeLabel.textContent = '自动';
+      anchorModeLabel.textContent = '锚定';
       verifyResult.textContent = '相对选择器已生成: ' + (res.relativeSelector || '');
       verifyResult.className = 'verify-meta ok';
     } catch (err) {
@@ -377,8 +488,11 @@
       updateSelector();
     }
 
-    // Loop-relative anchoring
+    // Loop-relative anchoring. An element with an anchor/relative selector opens
+    // in 捕获子元素 mode; otherwise the clean 捕获新元素 mode.
     loadAnchorData(data);
+    const anchored = !!(data?.relativeSelector || data?.anchorElementName);
+    applyCaptureMode(anchored ? 'child' : 'new');
   }
 
   // ─── DOM Tree rendering ──────────────────────────────────────────
@@ -738,6 +852,7 @@
         verifyResult.textContent = `${statusText} | score:${c.score}`;
         verifyResult.className = 'verify-meta ' + (c.matchCount === 1 ? 'ok' : '');
         broadcastSelectedCandidate();
+        maybeRecomputeRelative();
       });
 
       list.appendChild(row);
@@ -1206,6 +1321,7 @@
       activeChoice = btn.dataset.choice;
       syncChoiceButtons();
       updateSelector();
+      maybeRecomputeRelative();
     });
   });
 
@@ -1274,23 +1390,6 @@
     });
   }
 
-  // Recompute relative selector from the selected anchor element.
-  if ($('btnRecomputeAnchor')) {
-    $('btnRecomputeAnchor').addEventListener('click', () => {
-      if (!currentTabId) {
-        verifyResult.textContent = '未关联页面';
-        verifyResult.className = 'verify-meta err';
-        return;
-      }
-      if (!anchorElementSelect.value) {
-        verifyResult.textContent = '请先选择相对锚点元素';
-        verifyResult.className = 'verify-meta err';
-        return;
-      }
-      computeRelativeForSelectedAnchor();
-    });
-  }
-
   // Toggle relative resolution
   if (useRelativeChk) {
     useRelativeChk.addEventListener('change', () => {
@@ -1344,15 +1443,15 @@
     if (useRelativeChk.checked && relValue) {
       payload.relativeSelector = relValue;
       payload.anchorSelector = (anchorSelectorInput.value || '').trim();
-      payload.anchorElementName = anchorElementSelect?.value || '';
+      payload.anchorElementName = activeAnchorSelect?.value || '';
       payload.anchorMode = relativeManuallyEdited
         ? 'manual'
-        : (elementData?.anchorMode || 'auto');
+        : (elementData?.anchorMode || 'anchor-first');
     } else {
       payload.relativeSelector = '';
       payload.anchorSelector = '';
       payload.anchorElementName = '';
-      payload.anchorMode = useRelativeChk.checked ? 'auto' : 'none';
+      payload.anchorMode = 'none';
     }
     send('saveElement', payload)
       .then(() => {
@@ -1460,6 +1559,8 @@
     } else {
       localStorage.removeItem('rpa_selected_workflow_id');
     }
+    // Switching flows invalidates any active anchor (different element set).
+    clearActiveAnchor();
     loadWorkflowElements(selectedWorkflowId);
   });
 

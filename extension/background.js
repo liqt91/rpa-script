@@ -561,6 +561,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // 2d) Side panel 设置/清除“当前激活锚点”（锚点优先捕获）→ 转发给可见标签页
+  if (message.action === 'setActiveAnchor') {
+    const payload = message.payload?.payload ?? message.payload ?? {};
+    const explicitTab = message.tabId ?? message.payload?.tabId;
+    const forward = (tid) => {
+      if (!tid) { sendResponse({ error: 'no active tab' }); return; }
+      chrome.tabs.sendMessage(tid, { action: 'setActiveAnchor', payload })
+        .then((result) => sendResponse(result))
+        .catch((err) => sendResponse({ error: err.message }));
+    };
+    if (explicitTab) {
+      forward(explicitTab);
+    } else {
+      chrome.tabs.query({ active: true, lastFocusedWindow: true })
+        .then((tabs) => forward(tabs?.[0]?.id ?? agent.lastCaptureTabId))
+        .catch(() => forward(agent.lastCaptureTabId));
+    }
+    return true;
+  }
+
   // 3) Content script 返回校验结果 → 广播给 side panel
   if (message.action === 'verifyResult') {
     // Broadcast to side panel (and anyone listening)

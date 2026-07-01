@@ -28,6 +28,9 @@
   let activeCandidate = null;
   let lastMouseX = -1;
   let lastMouseY = -1;
+  // Anchor-first capture: an existing element chosen as the active loop anchor
+  // BEFORE capturing its inner children. Shape: { name, selector, family, elements }.
+  let activeAnchor = null;
 
   // ─── Helpers: stability scoring (inspired by @medv/finder) ───────
 
@@ -2291,20 +2294,37 @@
         listMeta.listSimilarity = Math.round(listFamily.similarity * 100) / 100;
       }
 
-      // Capture-time anchoring: compute selector relative to the repeating
-      // ancestor (loop item), so loop-context resolution is exact at run time.
-      // Empty when the element is not inside a list or is the item itself.
+      // Capture-time anchoring — anchor-first only (explicit-first policy).
+      // A relative selector is produced ONLY when the user pre-selected an
+      // active anchor and this element sits inside one of its instances.
+      // No anchor → plain global capture (no relative selector).
       const anchorMeta = {};
-      try {
-        const rel = computeRelativeSelector(el, listFamily);
-        if (rel) {
-          anchorMeta.relativeSelector = rel.relative;
-          anchorMeta.anchorSelector = rel.anchor;
-          anchorMeta.anchorMode = 'auto';
+      if (activeAnchor && activeAnchor.selector) {
+        try {
+          const anchorEls = resolveAllForVerify(activeAnchor.selector, activeAnchor.family);
+          const host = anchorEls.find((a) => a && a.nodeType === 1 && (a === el || a.contains(el)));
+          if (host && host !== el) {
+            let relative = null;
+            const relCss = buildRelativeCss(host, el);
+            if (relCss) relative = 'css:' + relCss;
+            else {
+              const relXp = buildRelativeXPath(host, el);
+              if (relXp) relative = 'xpath:' + relXp;
+            }
+            if (relative) {
+              anchorMeta.relativeSelector = relative;
+              anchorMeta.anchorSelector = activeAnchor.selector;
+              anchorMeta.anchorElementName = activeAnchor.name;
+              anchorMeta.anchorMode = 'anchor-first';
+            } else {
+              showToast('无法在锚点内生成稳定相对选择器，已按普通捕获');
+            }
+          } else {
+            showToast('捕获的元素不在所选锚点内，已按全局捕获');
+          }
+        } catch (e) {
+          console.warn('[RPA capture] anchor-first compute failed', e);
         }
-      } catch (e) {
-        // Anchoring is an optional enrichment — never let it break capture.
-        console.warn('[RPA capture] computeRelativeSelector failed, skipping anchor', e);
       }
 
       const payload = {
@@ -2391,6 +2411,56 @@
       active.push(h);
     }
     editorHighlights = active;
+  }
+
+  // ─── Active anchor persistent highlight (anchor-first capture) ───
+  // Distinct from the 3s verify highlight: stays until the anchor is cleared or
+  // the side panel closes, and follows layout via requestAnimationFrame.
+
+  let anchorHighlightEls = [];   // overlay divs, index-aligned with anchorHighlightNodes
+  let anchorHighlightNodes = []; // tracked anchor DOM instances
+  let anchorHighlightRAF = null;
+
+  function clearActiveAnchorHighlights() {
+    if (anchorHighlightRAF) { cancelAnimationFrame(anchorHighlightRAF); anchorHighlightRAF = null; }
+    anchorHighlightEls.forEach((el) => el.remove());
+    document.querySelectorAll('.rpa-anchor-highlight').forEach((el) => el.remove());
+    anchorHighlightEls = [];
+    anchorHighlightNodes = [];
+  }
+
+  function renderActiveAnchorHighlights(nodes) {
+    clearActiveAnchorHighlights();
+    anchorHighlightNodes = (nodes || []).filter((n) => n && n.getBoundingClientRect);
+    anchorHighlightNodes.forEach(() => {
+      const hl = document.createElement('div');
+      hl.className = 'rpa-anchor-highlight';
+      hl.style.cssText = `
+        position: fixed; pointer-events: none; z-index: 2147483645;
+        border: 2px solid #fa8c16; background: rgba(250,140,22,0.10);
+        box-sizing: border-box; border-radius: 2px;
+      `;
+      document.body.appendChild(hl);
+      anchorHighlightEls.push(hl);
+    });
+    if (!anchorHighlightNodes.length) return;
+    const tick = () => {
+      for (let i = 0; i < anchorHighlightNodes.length; i++) {
+        const node = anchorHighlightNodes[i];
+        const box = anchorHighlightEls[i];
+        if (!box) continue;
+        if (!node.isConnected) { box.style.display = 'none'; continue; }
+        const r = node.getBoundingClientRect();
+        box.style.display = 'block';
+        box.style.left = r.left + 'px';
+        box.style.top = r.top + 'px';
+        box.style.width = r.width + 'px';
+        box.style.height = r.height + 'px';
+      }
+      // Keep following layout only while an anchor is active.
+      anchorHighlightRAF = activeAnchor ? requestAnimationFrame(tick) : null;
+    };
+    anchorHighlightRAF = requestAnimationFrame(tick);
   }
 
   function resolveAllForVerify(selector, type) {
@@ -2716,7 +2786,24 @@
     if (message.action === 'setCaptureEnabled') {
       captureEnabled = message.enabled;
       if (!captureEnabled && captureMode) exitCaptureMode();
+      if (!captureEnabled) { activeAnchor = null; clearActiveAnchorHighlights(); }
       sendResponse({ ok: true });
+      return false;
+    }
+    if (message.action === 'setActiveAnchor') {
+      const { anchorSelector, anchorElementName } = message.payload || {};
+      if (!anchorSelector) {
+        activeAnchor = null;
+        clearActiveAnchorHighlights();
+        sendResponse({ ok: true, count: 0 });
+        return false;
+      }
+      const family = splitSelectorPrefix(anchorSelector).family;
+      let els = [];
+      try { els = resolveAllForVerify(anchorSelector, family); } catch (_e) { els = []; }
+      activeAnchor = { name: anchorElementName || '', selector: anchorSelector, family, elements: els };
+      renderActiveAnchorHighlights(els);
+      sendResponse({ ok: true, count: els.length });
       return false;
     }
     if (message.action === 'selectCandidate') {
@@ -2796,8 +2883,8 @@
     if (message.action === 'computeRelativeFromAnchor') {
       const { targetSelector, anchorSelector } = message.payload || {};
       try {
-        const targetEl = resolveLocatorForVerify(targetSelector);
-        const anchorEl = resolveLocatorForVerify(anchorSelector);
+        const targetEl = resolveLocatorForVerify(targetSelector, splitSelectorPrefix(targetSelector).family);
+        const anchorEl = resolveLocatorForVerify(anchorSelector, splitSelectorPrefix(anchorSelector).family);
         if (!targetEl || !anchorEl) {
           sendResponse({ error: '目标元素或锚点元素未匹配' });
           return false;
