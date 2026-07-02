@@ -37,3 +37,14 @@ open-source-readiness.html
 .harness/memory/ledger.jsonl
 .harness/project/state.json
 .harness/state/session-pill.stamp
+
+# Temporary directories
+temp/
+
+# Ad-hoc proposal / planning HTML and Markdown files at repo root
+zhi-ling-pei-zhi-jie-mian-zhong-gou.html
+element-capture-refactor-proposal.html
+css-xpath-selector-strategy.html
+command-consistency-proposal.html
+capture-module-redesign.html
+anchor-first-capture-plan.md
