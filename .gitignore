@@ -29,3 +29,11 @@ server.log
 src/data/run_logs/
 tmp/
 open-source-readiness.html
+
+# Harness session/runtime state (regenerated per session)
+.harness/PROGRESS.md
+.harness/compaction-snapshot.json
+.harness/memory/current-summary.md
+.harness/memory/ledger.jsonl
+.harness/project/state.json
+.harness/state/session-pill.stamp
