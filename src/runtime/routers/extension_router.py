@@ -9,7 +9,7 @@ from fastapi import APIRouter, WebSocket
 from typing import Optional
 
 from ..websocket_manager import ext_manager
-from src.service.elements_service import save_captured_element
+from src.service.elements_service import save_captured_element, compute_selector_chain
 from src.service.extension_scanner import scan_installed_extensions
 from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
@@ -176,6 +176,27 @@ def list_extension_elements(workflow_id: int):
                 "screenshot": item.screenshot,
                 "pageUrl": item.page_url,
             })
+        return result
+    finally:
+        db.close()
+
+
+@router.get("/elements/{name}/chain")
+def get_extension_element_chain(name: str, workflow_id: int):
+    """供扩展查询某个元素的有效选择器链（支持 child-as-anchor）。"""
+    db = SessionLocal()
+    try:
+        items = (
+            db.query(models.WorkflowElement)
+            .filter(models.WorkflowElement.workflow_id == workflow_id)
+            .all()
+        )
+        try:
+            result = compute_selector_chain(items, name)
+        except ValueError as e:
+            return {"error": str(e)}
+        if not result:
+            return {"error": f"元素 '{name}' 不存在"}
         return result
     finally:
         db.close()

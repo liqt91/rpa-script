@@ -174,8 +174,9 @@ def _split_prefixed_selector(value: str) -> tuple[str, str]:
 def _inject_relative_fields(extra: dict, el) -> dict:
     """Inject capture-time relative-anchor fields into an instruction's extra.
 
-    Only writes the fields when the element carries a non-empty relative
-    selector, relative resolution is enabled, and scope is not global.
+    Child elements with a relative_selector always resolve relatively.
+    For anchor/plain elements, relative resolution only happens when the user
+    has not explicitly disabled it (useRelative=False) and scope is not global.
     If the element has an explicit anchor_element_name, the relative fields
     are only injected when the named anchor matches an active forEachElement
     loop in the current stack.
@@ -187,13 +188,16 @@ def _inject_relative_fields(extra: dict, el) -> dict:
         return extra
     if extra.get("scope", "local") == "global":
         return extra
-    if extra.get("useRelative") is False:
-        return extra
+
     rel = (getattr(el, "relative_selector", "") or "").strip()
     if not rel:
         return extra
     rel_selector, rel_family = _split_prefixed_selector(rel)
     if not rel_selector:
+        return extra
+
+    # Child elements always use their verified relative selector.
+    if element_kind != "child" and extra.get("useRelative") is False:
         return extra
 
     anchor_name = (getattr(el, "anchor_element_name", "") or "").strip()
@@ -218,6 +222,7 @@ def _inject_relative_fields(extra: dict, el) -> dict:
     anchor = (getattr(el, "anchor_selector", "") or "").strip()
     anchor_selector, anchor_family = _split_prefixed_selector(anchor) if anchor else ("", "css")
     enriched = dict(extra)
+    enriched["useRelative"] = True
     enriched["relativeLocator"] = rel_selector
     enriched["relativeSelectorFamily"] = rel_family
     if anchor_selector:
@@ -332,7 +337,16 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
         if is_container:
             # Build compound instruction. forEachElement pushes its element_name
             # onto the loop stack so descendants can auto-resolve relatives.
+            # If the loop element itself is a child, resolve it relative to its
+            # parent loop so nested forEachElement loops work without a global chain.
             if node.type == "forEachElement" and node.element_name:
+                el = element_map.get(node.element_name) if element_map else None
+                if el and getattr(el, "element_kind", "plain") == "child":
+                    rel_extra = _inject_relative_fields(extra, el)
+                    if rel_extra.get("relativeLocator"):
+                        extra = rel_extra
+                        locator = rel_extra["relativeLocator"]
+                        selector_family = rel_extra.get("relativeSelectorFamily", "css")
                 with _loop_context(node.element_name):
                     body = _build_body(node.id)
                     branch_id = container_branch.get(node.id)

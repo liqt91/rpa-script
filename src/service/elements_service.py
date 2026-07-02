@@ -28,6 +28,180 @@ def _partition_candidates(candidates: list) -> tuple[list, list, list]:
     return css, xpath, drission
 
 
+def _strip_selector_prefix(value: str) -> str:
+    """Remove css:/xpath:/drission: prefix if present."""
+    if not value:
+        return ""
+    lowered = value.lower()
+    if lowered.startswith("css:"):
+        return value[4:].strip()
+    if lowered.startswith("xpath:"):
+        return value[6:].strip()
+    if lowered.startswith("drission:"):
+        return value[9:].strip()
+    return value.strip()
+
+
+def _selector_family(value: str) -> str:
+    """Infer selector family from prefix or leading characters."""
+    if not value:
+        return "css"
+    lowered = value.lower()
+    if lowered.startswith("xpath:") or lowered.startswith("//"):
+        return "xpath"
+    if lowered.startswith("drission:"):
+        return "drission"
+    return "css"
+
+
+def build_element_index(elements: list[models.WorkflowElement]) -> dict[str, models.WorkflowElement]:
+    """Return a name -> element lookup for a workflow's element library."""
+    return {el.name: el for el in elements}
+
+
+def build_element_tree(
+    elements: list[models.WorkflowElement],
+) -> tuple[list[dict], list[str]]:
+    """
+    Build a nested element tree from flat WorkflowElement rows.
+
+    Returns (tree_roots, orphan_names).
+    Roots are elements with no parent (anchor_element_name empty/missing or
+    points to a non-existent element). Orphans are roots whose declared parent
+    does not exist.
+    """
+    index = build_element_index(elements)
+    roots: list[models.WorkflowElement] = []
+    orphans: list[str] = []
+
+    for el in elements:
+        parent = el.anchor_element_name
+        if not parent or parent not in index:
+            roots.append(el)
+            if parent:
+                orphans.append(el.name)
+
+    def to_node(el: models.WorkflowElement, visited: set[str]) -> dict | None:
+        if el.name in visited:
+            # Cycle detected; treat this branch as an orphan leaf.
+            return {
+                "name": el.name,
+                "element_kind": el.element_kind,
+                "web_selector": el.web_selector or "",
+                "relative_selector": el.relative_selector or "",
+                "anchor_element_name": el.anchor_element_name,
+                "children": [],
+                "cycle": True,
+            }
+        visited.add(el.name)
+        children = [c for c in elements if c.anchor_element_name == el.name]
+        return {
+            "name": el.name,
+            "element_kind": el.element_kind,
+            "web_selector": el.web_selector or "",
+            "relative_selector": el.relative_selector or "",
+            "anchor_element_name": el.anchor_element_name,
+            "children": [to_node(c, set(visited)) for c in children],
+        }
+
+    tree = [to_node(r, set()) for r in roots]
+    return tree, orphans
+
+
+def _combine_css_chain(chain: list[dict]) -> str:
+    """Combine a selector chain into a single CSS descendant selector."""
+    parts: list[str] = []
+    for node in chain:
+        selector = _strip_selector_prefix(node.get("selector", ""))
+        if not selector:
+            continue
+        parts.append(selector)
+    return " ".join(parts)
+
+
+def _combine_xpath_chain(chain: list[dict]) -> str:
+    """Combine a selector chain into a single XPath expression."""
+    if not chain:
+        return ""
+    result = _strip_selector_prefix(chain[0].get("selector", ""))
+    if not result:
+        return ""
+    for node in chain[1:]:
+        rel = _strip_selector_prefix(node.get("selector", ""))
+        if not rel:
+            continue
+        if rel.startswith(".//"):
+            result += "//" + rel[3:]
+        elif rel.startswith("./"):
+            result += "/" + rel[2:]
+        elif rel.startswith("//"):
+            result += rel
+        else:
+            # Treat bare relative XPath as descendant.
+            result += "//" + rel
+    return result
+
+
+def compute_selector_chain(
+    elements: list[models.WorkflowElement],
+    target_name: str,
+) -> dict | None:
+    """
+    Compute the effective selector chain from the outermost root element down
+    to the target element.
+
+    Returns None if the target does not exist. Raises ValueError on cycles.
+    """
+    index = build_element_index(elements)
+    if target_name not in index:
+        return None
+
+    chain: list[dict] = []
+    visited: set[str] = set()
+    current_name: str | None = target_name
+
+    while current_name:
+        if current_name in visited:
+            raise ValueError(f"Cycle detected in anchor chain at '{current_name}'")
+        visited.add(current_name)
+        el = index.get(current_name)
+        if not el:
+            raise ValueError(f"Broken chain: element '{current_name}' not found")
+
+        if el.anchor_element_name:
+            selector = el.relative_selector or ""
+            kind = "child"
+        else:
+            selector = el.web_selector or ""
+            kind = el.element_kind or "plain"
+
+        chain.insert(0, {
+            "name": el.name,
+            "element_kind": el.element_kind,
+            "selector": selector,
+            "kind": kind,
+        })
+        current_name = el.anchor_element_name
+
+    if not chain:
+        return None
+
+    root_name = chain[0]["name"]
+    root_el = index.get(root_name)
+    if not root_el or root_el.anchor_element_name or not chain[0]["selector"]:
+        # The chain did not terminate at a root element with a global selector.
+        raise ValueError(
+            f"Selector chain for '{target_name}' does not terminate at a root element"
+        )
+
+    return {
+        "name": target_name,
+        "chain": chain,
+        "combined_css": _combine_css_chain(chain),
+        "combined_xpath": _combine_xpath_chain(chain),
+    }
+
+
 async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
     """
     Persist a captured element from the browser extension into a workflow's element library.
@@ -77,7 +251,9 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             attributes["__rpa_list_size"] = list_size
 
         # Determine selectors
-        web_selector = (payload.get("webSelector", "") or payload.get("selector", "") or payload.get("locator", ""))[:4000]
+        web_selector = (
+            payload.get("webSelector", "") or payload.get("selector", "") or payload.get("locator", "")
+        )[:4000]
         drission_selector = (payload.get("drissionSelector", "") or "")[:4000]
 
         # If no explicit drission_selector, try to find a drission candidate
@@ -117,6 +293,12 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
         anchor_element_name = (payload.get("anchorElementName") or payload.get("anchor_element_name") or None)
         if anchor_element_name:
             anchor_element_name = anchor_element_name[:128]
+
+        # Child elements are resolved relative to their anchor at runtime, so the
+        # global target selector captured from the full path is neither verified
+        # nor meaningful. Keep only the verified relative selector + anchor info.
+        if element_kind == "child":
+            web_selector = ""
 
         screenshot = payload.get("screenshot")
         if isinstance(screenshot, str) and len(screenshot) > 5_000_000:

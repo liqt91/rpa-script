@@ -20,6 +20,7 @@ from ..workflow.exporter import build_python
 from ..workflow.extension_runner import run_workflow_extension
 from src.providers import run_progress
 from src.repo.browser_utils import detect_browser_paths
+from src.service.elements_service import build_element_tree, compute_selector_chain
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -498,6 +499,15 @@ def list_workflow_elements(wf_id: int, db: Session = Depends(get_db), user=Depen
             item.attributes = json.loads(item.attributes) if item.attributes else {}
         except Exception:
             item.attributes = {}
+    # Enrich tree/chain derived fields for the flat list.
+    children_map: dict[str, list[str]] = {}
+    for item in items:
+        parent = item.anchor_element_name
+        if parent:
+            children_map.setdefault(parent, []).append(item.name)
+    for item in items:
+        item.parent_name = item.anchor_element_name or None
+        item.children = children_map.get(item.name, [])
     return items
 
 
@@ -658,6 +668,52 @@ def get_workflow_element_by_name(
     except Exception:
         el.attributes = {}
     return el
+
+
+@router.get("/{wf_id}/elements/tree")
+def get_workflow_element_tree(
+    wf_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user),
+):
+    """Return the workflow's element library as a nested tree."""
+    wf = db.get(models.Workflow, wf_id)
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    items = (
+        db.query(models.WorkflowElement)
+        .filter(models.WorkflowElement.workflow_id == wf_id)
+        .all()
+    )
+    tree, orphans = build_element_tree(items)
+    return {"roots": tree, "orphans": orphans}
+
+
+@router.get("/{wf_id}/elements/{name}/chain", response_model=schemas.WorkflowElementChainOut)
+def get_workflow_element_chain(
+    wf_id: int,
+    name: str,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user),
+):
+    """Compute the effective selector chain for an element."""
+    wf = db.get(models.Workflow, wf_id)
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    items = (
+        db.query(models.WorkflowElement)
+        .filter(models.WorkflowElement.workflow_id == wf_id)
+        .all()
+    )
+    try:
+        result = compute_selector_chain(items, name)
+    except ValueError as e:
+        return schemas.WorkflowElementChainOut(
+            name=name, chain=[], error=str(e)
+        )
+    if not result:
+        raise HTTPException(status_code=404, detail="Element not found")
+    return schemas.WorkflowElementChainOut(**result)
 
 
 # ---------- Export to Python ----------

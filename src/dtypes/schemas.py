@@ -277,6 +277,27 @@ class WorkflowElementOut(BaseModel):
     page_url: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # Tree / chain derived fields (populated by endpoints that need them)
+    parent_name: Optional[str] = None
+    children: Optional[list[str]] = None
+    anchor_chain: Optional[list[dict]] = None
+
+
+class WorkflowElementTreeNode(BaseModel):
+    name: str
+    element_kind: str
+    web_selector: str = ""
+    relative_selector: str = ""
+    anchor_element_name: Optional[str] = None
+    children: list = Field(default_factory=list)
+
+
+class WorkflowElementChainOut(BaseModel):
+    name: str
+    chain: list[dict]
+    combined_css: str = ""
+    combined_xpath: str = ""
+    error: Optional[str] = None
 
 
 # ====== Data Tables ======

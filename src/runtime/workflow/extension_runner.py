@@ -458,6 +458,9 @@ class ExtensionRunner:
             extra["contextLocatorType"] = ctx["selectorFamily"]
             extra["contextIndex"] = ctx["index"]
             extra["contextTotal"] = ctx.get("total")
+            for key in ("sourceLocator", "sourceSelectorFamily", "sourceIndex", "sourceTotal"):
+                if key in ctx:
+                    extra[key] = ctx[key]
             # Prefer the capture-time relative selector when the element carries
             # one (injected into extra by the emitter). content.js then queries
             # the child relative to the resolved loop-item parent rather than
@@ -619,6 +622,11 @@ class ExtensionRunner:
                     payload_extra["visibilityMode"] = extra["visibilityMode"]
                 else:
                     payload_extra["visibleOnly"] = extra.get("visibleOnly", True)
+                # Pass capture-time relative fields so child elements can serve as
+                # forEachElement loop anchors inside their parent loops.
+                for key in ("useRelative", "relativeLocator", "relativeSelectorFamily", "anchorChain", "loopAnchor"):
+                    if key in extra:
+                        payload_extra[key] = extra[key]
             result = await self._call_extension_handler(
                 "findElements",
                 {
@@ -868,21 +876,30 @@ class ExtensionRunner:
                     # Set loop context so child instructions resolve locators relative to current element.
                     # When the extension gives us a unique element selector, use it directly so nested
                     # loops don't rely on a global list index (which would resolve to the wrong item).
+                    # Always keep the original loop selector/index as a fallback in case the absolute
+                    # XPath context locator goes stale after DOM mutations.
+                    base_ctx = {
+                        "sourceLocator": locator,
+                        "sourceSelectorFamily": selector_family,
+                        "sourceIndex": idx,
+                        "sourceTotal": len(elements),
+                        "loopElementName": instr.get("elementName"),
+                    }
                     if isinstance(item, dict) and item.get("contextLocator"):
                         self.vars["__loop_ctx"][-1] = {
+                            **base_ctx,
                             "locator": item["contextLocator"],
                             "selectorFamily": item.get("contextLocatorType", selector_family),
                             "index": 0,
                             "total": 1,
-                            "loopElementName": instr.get("elementName"),
                         }
                     else:
                         self.vars["__loop_ctx"][-1] = {
+                            **base_ctx,
                             "locator": locator,
                             "selectorFamily": selector_family,
                             "index": idx,
                             "total": len(elements),
-                            "loopElementName": instr.get("elementName"),
                         }
                     logger.info(f"[ExtensionRunner] forEachElement [{idx}] {item_var}={self.vars[item_var]!r}")
                     try:
