@@ -35,7 +35,6 @@ export default function Toolbar() {
   const [paused, setPaused] = useState(false);
   const [currentRunId, setCurrentRunId] = useState(null);
   const [runResult, setRunResult] = useState(null);
-  const [runMode, setRunMode] = useState('extension'); // 'python' | 'extension'
   const [runParamsOpen, setRunParamsOpen] = useState(false);
   const [extStatus, setExtStatus] = useState(null);
   const [editingName, setEditingName] = useState(false);
@@ -43,12 +42,8 @@ export default function Toolbar() {
   const importInputRef = useRef(null);
   const stoppedRef = useRef(false);
 
-  // Poll extension status when in extension mode
+  // Poll extension online status.
   useEffect(() => {
-    if (runMode !== 'extension') {
-      setExtStatus(null);
-      return;
-    }
     let mounted = true;
     const poll = async () => {
       try {
@@ -61,17 +56,45 @@ export default function Toolbar() {
     poll();
     const timer = setInterval(poll, 5000);
     return () => { mounted = false; clearInterval(timer); };
-  }, [runMode]);
+  }, []);
 
   const handleExport = async () => {
     console.log(`[Toolbar] exportPython wfId=${wfId}`);
     try {
       const data = await api.exportPython(wfId);
-      console.log(`[Toolbar] exportPython success, ${data.python?.length || 0} chars`);
-      if (data.python) {
-        await navigator.clipboard.writeText(data.python);
-        alert('Python 脚本已复制到剪贴板');
+      const code = data.python || '';
+      console.log(`[Toolbar] exportPython success, ${code.length} chars`);
+      if (!code) {
+        alert('导出失败: 服务端未返回脚本');
+        return;
       }
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const filename = `${workflow?.name || 'workflow'}_${dateStr}.py`;
+
+      // 桌面应用（pywebview）通过桥接调用系统保存对话框
+      if (typeof window !== 'undefined' && window.pywebview?.api) {
+        try {
+          const res = await window.pywebview.api.saveFileDialog(code, filename);
+          if (res?.success) {
+            alert(`已保存到: ${res.path}`);
+          } else if (res?.cancelled) {
+            // 用户取消，不提示
+          } else {
+            alert('保存失败: ' + (res?.error || '未知错误'));
+          }
+        } catch (e) {
+          alert('保存失败: ' + e.message);
+        }
+        return;
+      }
+
+      const blob = new Blob([code], { type: 'text/x-python;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (e) {
       console.error(`[Toolbar] exportPython failed: ${e.message}`);
       alert('导出失败: ' + e.message);
@@ -255,7 +278,7 @@ export default function Toolbar() {
   };
 
   const doRun = async (parameters = null) => {
-    console.log(`[Toolbar] run clicked, mode=${runMode}, isDirty=${isDirty}`);
+    console.log(`[Toolbar] run clicked, isDirty=${isDirty}`);
     if (isDirty) {
       const ok = confirm('工作流有未保存的更改，先保存再运行？');
       if (!ok) return;
@@ -272,21 +295,15 @@ export default function Toolbar() {
     setRunResult(null);
     dispatch({ type: 'RUN_START' });
     dispatch({ type: 'CLEAR_RUN_LOGS' });
-
-    if (runMode === 'extension') {
-      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（扩展模式）' } });
-    } else {
-      dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（Python 模式）' } });
-    }
+    dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（扩展模式）' } });
 
     let es = null;
     const runId = crypto.randomUUID();
     setCurrentRunId(runId);
 
-    if (runMode === 'extension') {
-      // Open SSE stream before POST so we don't miss early events
-      es = new EventSource(`/api/workflows/${wfId}/run/stream?run_id=${runId}`);
-      es.onmessage = (e) => {
+    // Open SSE stream before POST so we don't miss early events
+    es = new EventSource(`/api/workflows/${wfId}/run/stream?run_id=${runId}`);
+    es.onmessage = (e) => {
         try {
           const evt = JSON.parse(e.data);
           console.log('[Toolbar] SSE event:', evt.type, evt);
@@ -341,7 +358,6 @@ export default function Toolbar() {
         dispatch({ type: 'RUN_DONE', payload: { success: false, stopped: false } });
         dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'warn', msg: '连接中断，执行状态未知' } });
       };
-    }
 
     // Read design-time table data from localStorage for runtime initialization
     const getDesignTableData = () => {
@@ -351,12 +367,10 @@ export default function Toolbar() {
       } catch { return null; }
     };
 
-    console.log(`[Toolbar] calling runWorkflow mode=${runMode} wfId=${wfId}`);
+    console.log(`[Toolbar] calling runWorkflowExtension wfId=${wfId}`);
     try {
-      const data = runMode === 'extension'
-        ? await api.runWorkflowExtension(wfId, runId, getDesignTableData(), parameters)
-        : await api.runWorkflow(wfId, parameters);
-      console.log(`[Toolbar] runWorkflow result success=${data.success}`);
+      const data = await api.runWorkflowExtension(wfId, runId, getDesignTableData(), parameters);
+      console.log(`[Toolbar] runWorkflowExtension result success=${data.success}`);
       if (!stoppedRef.current) {
         setRunResult(data);
       }
@@ -496,14 +510,14 @@ export default function Toolbar() {
             onClick={handleExportJSON}
           >
             <i className="fas fa-file-export text-[10px]"></i>
-            <span>导出 JSON</span>
+            <span>导出流程</span>
           </button>
           <button
             className="h-7 px-3 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
             onClick={() => importInputRef.current?.click()}
           >
             <i className="fas fa-file-import text-[10px]"></i>
-            <span>导入 JSON</span>
+            <span>导入流程</span>
           </button>
           <input
             ref={importInputRef}
@@ -514,25 +528,13 @@ export default function Toolbar() {
           />
           <div className="w-px h-5 bg-gray-200 mx-1"></div>
 
-          {/* Run mode toggle */}
-          <div className="flex items-center bg-gray-100 rounded p-0.5">
-            <button
-              className={`h-6 px-2 rounded text-xs transition-colors ${runMode === 'python' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setRunMode('python')}
-              title="在子进程中运行 Python 脚本"
-            >
-              Python
-            </button>
-            <button
-              className={`h-6 px-2 rounded text-xs transition-colors flex items-center gap-1 ${runMode === 'extension' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setRunMode('extension')}
-              title="通过浏览器扩展执行"
-            >
-              {runMode === 'extension' && (
-                <span className={`w-1.5 h-1.5 rounded-full ${extDotColor}`}></span>
-              )}
-              扩展
-            </button>
+          {/* Extension connection indicator */}
+          <div
+            className="flex items-center gap-1.5 px-2 h-7 rounded border border-[#d9d9d9] text-xs text-gray-600"
+            title={extStatus?.online ? `扩展在线 (${extStatus.count})` : '扩展未连接'}
+          >
+            <span className={`w-2 h-2 rounded-full ${extDotColor}`}></span>
+            <span>{extStatus?.online ? '扩展在线' : '扩展未连接'}</span>
           </div>
 
           {/* Run controls */}
@@ -544,16 +546,6 @@ export default function Toolbar() {
               <i className="fas fa-play text-[10px]"></i>
               <span>运行</span>
             </button>
-          ) : runMode === 'python' ? (
-            <div className="flex items-center gap-1">
-              <button
-                className="h-7 px-3 flex items-center gap-1.5 rounded bg-red-500 hover:bg-red-600 text-white text-xs transition-colors"
-                onClick={handleStop}
-              >
-                <i className="fas fa-stop text-[10px]"></i>
-                <span>停止</span>
-              </button>
-            </div>
           ) : (
             <div className="flex items-center gap-1">
               {paused ? (
@@ -627,14 +619,13 @@ export default function Toolbar() {
 
       {/* 运行结果弹窗 */}
       {runResult && (
-        <RunResultModal result={runResult} onClose={closeResult} mode={runMode} nodes={nodes} typeMap={NODE_TYPE_MAP} />
+        <RunResultModal result={runResult} onClose={closeResult} nodes={nodes} typeMap={NODE_TYPE_MAP} />
       )}
     </>
   );
 }
 
-function RunResultModal({ result, onClose, mode, nodes, typeMap }) {
-  const isExtension = mode === 'extension';
+function RunResultModal({ result, onClose, nodes, typeMap }) {
   const success = result.success;
   const stopped = result.stopped;
 
@@ -658,10 +649,7 @@ function RunResultModal({ result, onClose, mode, nodes, typeMap }) {
             <span className="text-sm font-medium">
               {title}
             </span>
-            {!isExtension && (
-              <span className="text-xs text-gray-400">exit code: {result.returncode}</span>
-            )}
-            {isExtension && result.completedSteps !== undefined && (
+            {result.completedSteps !== undefined && (
               <span className="text-xs text-gray-400">
                 步骤: {result.completedSteps}/{result.totalSteps}
               </span>
@@ -678,7 +666,7 @@ function RunResultModal({ result, onClose, mode, nodes, typeMap }) {
         {/* 内容 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {/* Extension mode results */}
-          {isExtension && result.results && (
+          {result.results && (
             <div>
               <div className="text-xs text-gray-500 mb-1 font-medium">执行结果</div>
               <div className="bg-gray-50 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
@@ -697,7 +685,7 @@ function RunResultModal({ result, onClose, mode, nodes, typeMap }) {
             </div>
           )}
 
-          {isExtension && result.failedSteps && result.failedSteps.length > 0 && (
+          {result.failedSteps && result.failedSteps.length > 0 && (
             <div>
               <div className="text-xs text-red-500 mb-1 font-medium">失败步骤</div>
               <div className="bg-red-50 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
@@ -710,26 +698,8 @@ function RunResultModal({ result, onClose, mode, nodes, typeMap }) {
             </div>
           )}
 
-          {/* Python mode output */}
-          {!isExtension && result.stdout && (
-            <div>
-              <div className="text-xs text-gray-500 mb-1 font-medium">标准输出</div>
-              <pre className="bg-gray-50 rounded p-3 text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
-                {result.stdout}
-              </pre>
-            </div>
-          )}
-          {!isExtension && result.stderr && (
-            <div>
-              <div className="text-xs text-red-500 mb-1 font-medium">错误输出</div>
-              <pre className="bg-red-50 rounded p-3 text-xs text-red-700 whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
-                {result.stderr}
-              </pre>
-            </div>
-          )}
-
           {/* No output fallback */}
-          {!result.stdout && !result.stderr && (!result.results || result.results.length === 0) && (
+          {(!result.results || result.results.length === 0) && (!result.failedSteps || result.failedSteps.length === 0) && (
             <div className="text-sm text-gray-400 text-center py-8">无输出</div>
           )}
         </div>
