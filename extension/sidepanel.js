@@ -468,7 +468,11 @@
   function renderActiveAnchorOptions() {
     if (!activeAnchorSelect) return;
     const current = activeAnchorName;
-    const excludeName = (elName?.value || currentState.elementData?.name || '').trim();
+    // Only exclude the element actually being edited if it already exists in the
+    // library. Using elName.value would transiently clear the active anchor while
+    // the user types a name that happens to match an existing anchor name.
+    const editingName = (elName?.value || currentState.elementData?.name || '').trim();
+    const excludeName = workflowElements.some((el) => el.name === editingName) ? editingName : '';
     const anchorEls = workflowElements.filter((el) => el?.name && el.name !== excludeName);
     const placeholderText = workflowElements.length === 0 ? '先捕获全局元素' : '请选择锚点元素';
     activeAnchorSelect.innerHTML = `<option value="">${placeholderText}</option>`;
