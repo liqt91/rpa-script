@@ -1991,6 +1991,10 @@
         verifyResult.className = 'verify-meta ok';
         markSavedButton();
         if (selectedWorkflowId) loadWorkflowElements(selectedWorkflowId);
+        // 保存完成后清空当前编辑状态，否则 renderActiveAnchorOptions 会把刚保存的元素排除掉
+        globalState.elementData = null;
+        assocState.elementData = null;
+        elName.value = '';
       })
       .catch((err) => {
         verifyResult.textContent = '保存失败: ' + err.message;
