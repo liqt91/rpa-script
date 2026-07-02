@@ -3,12 +3,11 @@ from ._registry import _handler, _py_str, _var_ref
 
 @_handler("openBrowser")
 def _emit_openBrowser(node, extra, depth, prefix, by_parent, lines, element_map=None):
-    browser = extra.get("browserType", "chrome")
-    url = extra.get("url")
-    state = extra.get("windowState", "normal")
+    url = extra.get("url") or "about:blank"
+    # The Python runner already connects to an existing Chrome via connect_chrome().
+    # openBrowser here just means "open a fresh tab"; we cannot switch browsers.
     lines.append(
-        f"{prefix}tab = page.new_tab({{'browser': {browser!r}, "
-        f"'url': {_py_str(url or 'about:blank')}, 'state': {state!r}}})  # openBrowser"
+        f"{prefix}tab = tab.new_tab({_py_str(url)})  # openBrowser"
     )
 
 
