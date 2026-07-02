@@ -56,6 +56,51 @@ function buildTree(flatNodes) {
 }
 
 /**
+ * Build a nested element tree from a flat element list.
+ * Uses backend-derived parent_name/anchor_element_name fields.
+ */
+export function buildElementTree(elements = []) {
+  const byParent = {};
+  const roots = [];
+  const nameSet = new Set(elements.map(e => e.name));
+  for (const el of elements) {
+    const parent = el.parent_name || el.anchor_element_name;
+    if (!parent || !nameSet.has(parent)) {
+      roots.push({ ...el, isOrphan: !!parent });
+    } else {
+      if (!byParent[parent]) byParent[parent] = [];
+      byParent[parent].push(el);
+    }
+  }
+  function walk(el) {
+    return {
+      ...el,
+      children: (byParent[el.name] || []).map(walk),
+    };
+  }
+  return roots.map(walk);
+}
+
+/**
+ * Walk upward from an element through its parent chain and return the chain
+ * from the outermost root to the target element.
+ */
+export function getElementChain(elements = [], targetName) {
+  const byName = Object.fromEntries(elements.map(e => [e.name, e]));
+  const chain = [];
+  const seen = new Set();
+  let current = byName[targetName];
+  while (current) {
+    if (seen.has(current.name)) break;
+    seen.add(current.name);
+    chain.unshift(current);
+    const parentName = current.parent_name || current.anchor_element_name;
+    current = parentName ? byName[parentName] : null;
+  }
+  return chain;
+}
+
+/**
  * Walk upward from a node through parent_id and return ancestor nodes whose
  * type matches one of the given types. Nearest ancestor first.
  */
@@ -784,6 +829,8 @@ export function WorkflowProvider({ children, wfId }) {
     containerNodes,
     containerTypes,
     findAncestorNodes,
+    buildElementTree,
+    getElementChain,
     loadWorkflow,
     loadElements,
     saveNode,

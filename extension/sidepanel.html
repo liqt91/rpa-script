@@ -106,7 +106,26 @@
   .mode-panel { display: none; }
   .mode-panel.active { display: flex; flex-direction: column; }
 
-  /* Capture-mode tabs: new element (clean/global) vs child element (anchored) */
+  /* Bottom panel: selector preview + verify meta, fixed below scrollable content */
+  .bottom-panel {
+    flex-shrink: 0;
+    border-top: 1px solid #e8e8e8;
+    background: #fafafa;
+  }
+  .bottom-panel .selector-section {
+    padding: 10px 0;
+    border-top: none;
+    background: transparent;
+  }
+  .bottom-panel .selector-row { padding: 0 14px; }
+  .bottom-panel .choice-row { border-bottom: none; background: transparent; padding: 0 14px 8px; }
+  .bottom-panel .verify-meta { padding: 0 14px 10px; margin-top: 0; }
+
+  /* Independent capture panels: global vs associated */
+  .capture-panel { display: none; flex-direction: column; }
+  .capture-panel.active { display: flex; }
+
+  /* Capture-mode tabs */
   .capture-tabs {
     display: flex; gap: 0; padding: 8px 14px 0; background: #fafafa;
     border-bottom: 1px solid #e8e8e8;
@@ -148,38 +167,12 @@
   .verify-meta.ok { color: #52c41a; }
   .verify-meta.err { color: #ff4d4f; }
 
-  /* Anchor card */
-  .anchor-card {
-    margin: 10px 14px; border-radius: 4px; border-left: 3px solid #1677ff;
-    background: #f0f7ff; padding: 10px 12px;
-  }
-  .anchor-card.disabled { opacity: 0.6; background: #f5f5f5; border-left-color: #999; }
-  .selector-section .anchor-card { margin: 0 0 10px; }
-  .anchor-card-title {
-    font-size: 12px; font-weight: 600; color: #333; margin-bottom: 8px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .anchor-card-title .anchor-pill { margin-left: auto; }
+  /* Anchor badge/pill */
   .anchor-badge {
     font-size: 11px; font-weight: 500; color: #1677ff;
     background: #e6f4ff; border-radius: 3px; padding: 1px 6px;
   }
   .anchor-badge:empty { display: none; }
-  .anchor-row {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-    font-size: 12px; color: #555;
-  }
-  .anchor-row label { color: #666; width: 64px; flex-shrink: 0; }
-  .anchor-row input[type="text"] {
-    flex: 1; padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px;
-    font-size: 11px; font-family: monospace; background: #fff;
-  }
-  .anchor-row input[type="text"]:read-only { background: #fafafa; color: #666; }
-  .anchor-row select {
-    flex: 1; padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px;
-    font-size: 12px; background: #fff;
-  }
-  .anchor-row select:disabled { background: #fafafa; color: #999; }
   .anchor-pill {
     display: inline-block; padding: 1px 6px; border-radius: 10px;
     font-size: 11px; background: #e6f7ff; color: #1677ff; border: 1px solid #91d5ff;
@@ -290,6 +283,42 @@
 
   /* Hidden */
   .hidden { display: none !important; }
+
+  /* Anchor element tree dropdown */
+  .anchor-select-wrap { position: relative; flex: 1; }
+  .anchor-select-btn {
+    width: 100%; padding: 5px 8px; border: 1px solid #d9d9d9; border-radius: 4px;
+    font-size: 13px; background: #fff; text-align: left; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .anchor-select-btn:hover { border-color: #1677ff; }
+  .anchor-tree-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0; margin-top: 2px;
+    max-height: 240px; overflow-y: auto; background: #fff;
+    border: 1px solid #d9d9d9; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    z-index: 100; padding: 4px 0;
+  }
+  .anchor-tree-node { position: relative; }
+  .anchor-tree-row {
+    display: flex; align-items: center; gap: 2px;
+    padding: 5px 8px; cursor: pointer; font-size: 13px; color: #333;
+  }
+  .anchor-tree-row:hover { background: #f5f5f5; }
+  .anchor-tree-row.selected { background: #e6f7ff; color: #1677ff; }
+  .anchor-tree-row .spacer { width: 16px; flex-shrink: 0; }
+  .anchor-tree-row .toggle {
+    width: 16px; height: 16px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #999; cursor: pointer;
+  }
+  .anchor-tree-row .toggle svg { width: 10px; height: 10px; }
+  .anchor-tree-row .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .anchor-tree-guide-v {
+    position: absolute; border-left: 1px solid #e0e0e0;
+  }
+  .anchor-tree-guide-h {
+    position: absolute; border-top: 1px solid #e0e0e0;
+  }
 </style>
 </head>
 <body>
@@ -316,22 +345,27 @@
     </select>
   </div>
 
-  <!-- Capture-mode tabs. 捕获新元素 = clean global capture (no anchor). 捕获关联元素
-       = anchored capture: pick an anchor element, capture associated elements relative to it. -->
+  <!-- Capture-mode tabs -->
   <div class="capture-tabs">
-    <button class="capture-tab active" data-capmode="new">捕获新元素</button>
-    <button class="capture-tab" data-capmode="child">捕获关联元素</button>
+    <button class="capture-tab active" data-capmode="new">捕获全局元素</button>
+    <button class="capture-tab" data-capmode="child">捕获子元素</button>
   </div>
 
-  <!-- Anchor element (single merged control). Only shown in 捕获关联元素 mode. Pick an
-       existing captured element as the anchor BEFORE capturing its associated elements —
-       the page highlights every anchor instance until cleared or the flow is
-       switched. Also reflects the anchor of an already-captured associated element. -->
+  <!-- Anchor element (only in associated mode) -->
   <div class="workflow-row" id="activeAnchorRow" style="background:#fffbe6; display:none;">
     <label style="width:56px;">锚点元素</label>
-    <select id="activeAnchorSelect" style="flex:1;">
-      <option value="">全局捕获（无锚点）</option>
+    <select id="activeAnchorSelect" class="hidden">
+      <option value="">先捕获全局元素</option>
     </select>
+    <div class="anchor-select-wrap">
+      <button type="button" id="activeAnchorSelectBtn" class="anchor-select-btn">
+        <span id="activeAnchorSelectLabel">请选择锚点元素</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;color:#999;">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+      <div id="activeAnchorTreeDropdown" class="anchor-tree-dropdown" style="display:none;"></div>
+    </div>
     <span id="activeAnchorStatus" style="font-size:11px;color:#888;white-space:nowrap;"></span>
     <button class="btn btn-sm" id="btnClearActiveAnchor" title="清除锚点" style="flex:0 0 auto;">清除</button>
   </div>
@@ -354,90 +388,111 @@
     <div class="screenshot-empty">暂无截图</div>
   </div>
 
-  <!-- Mode toggle -->
-  <div class="mode-row">
-    <button class="mode-btn active" id="modeRecommend">推荐方案</button>
-    <button class="mode-btn" id="modeManual">手动编辑</button>
-  </div>
-
-  <!-- Recommend panel -->
-  <div class="mode-panel active" id="recommendPanel">
-    <div class="candidates-list" id="candidatesList"></div>
-  </div>
-
-  <!-- Manual edit panel -->
-  <div class="mode-panel" id="manualPanel">
-    <!-- DOM tree -->
-    <div class="section">
-      <div class="section-title collapse-header open" id="domCollapseHeader">
-        <span>页面层级</span>
-        <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </div>
-      <div class="collapse-body open" id="domCollapseBody">
-        <div class="dom-panel" id="domPanel"></div>
-      </div>
+  <!-- Global capture panel -->
+  <div class="capture-panel active" id="globalCapturePanel">
+    <div class="mode-row">
+      <button class="mode-btn active" id="globalModeRecommend">推荐方案</button>
+      <button class="mode-btn" id="globalModeManual">手动编辑</button>
     </div>
 
-    <!-- Properties -->
-    <div class="section">
-      <div class="section-title collapse-header open" id="propCollapseHeader">
-        <span>元素属性</span>
-        <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+    <div class="mode-panel active" id="globalRecommendPanel">
+      <div class="candidates-list" id="globalCandidatesList"></div>
+    </div>
+
+    <div class="mode-panel" id="globalManualPanel">
+      <div class="section">
+        <div class="section-title collapse-header open" id="globalDomCollapseHeader">
+          <span>页面层级</span>
+          <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+        <div class="collapse-body open" id="globalDomCollapseBody">
+          <div class="dom-panel" id="globalDomPanel"></div>
+        </div>
       </div>
-      <div class="collapse-body open" id="propCollapseBody">
-        <div class="prop-panel" id="propPanel"></div>
+
+      <div class="section">
+        <div class="section-title collapse-header open" id="globalPropCollapseHeader">
+          <span>元素属性</span>
+          <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+        <div class="collapse-body open" id="globalPropCollapseBody">
+          <div class="prop-panel" id="globalPropPanel"></div>
+        </div>
       </div>
     </div>
   </div>
 
-  </div>
-</div>
-
-<!-- Selector + anchor card. Driven by the capture-mode tabs: 捕获新元素 → global
-     selector is the sole primary output, anchor card hidden; 捕获关联元素 → relative
-     selector card is primary, global selector collapses to a fallback. -->
-<div class="selector-section" id="selectorSection">
-  <!-- Relative selector — primary output in 捕获关联元素 mode. The anchor element lives
-       in #activeAnchorSelect above. -->
-  <div class="anchor-card" id="anchorCard" style="display:none;">
-    <div class="anchor-card-title">
-      <span>相对选择器</span>
+  <!-- Associated capture panel -->
+  <div class="capture-panel" id="assocCapturePanel">
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #e8e8e8;background:#f0f7ff;">
+      <span style="font-size:12px;font-weight:600;color:#333;">相对选择器</span>
       <span class="anchor-badge" id="anchorBadge"></span>
       <span class="anchor-pill" id="anchorMode">锚定</span>
     </div>
-    <div class="anchor-row">
-      <input type="text" id="relativeSelectorInput" placeholder="如 css:.author 或 xpath:./div/span" style="flex:1;">
-      <button class="btn btn-sm" id="btnVerifyRelative">校验</button>
-    </div>
-    <div class="anchor-actions">
-      <label>
-        <input type="checkbox" id="useRelativeChk" checked>
-        <span>使用相对解析</span>
-      </label>
-    </div>
-    <input type="hidden" id="anchorSelectorInput">
-  </div>
 
-  <!-- Global selector. Primary (header hidden) in global mode; collapsible
-       fallback (header shown, body collapsed) in anchor mode. -->
-  <div class="section-title collapse-header" id="globalSelectorHeader" style="display:none;">
-    <span>全局选择器（后备）</span>
-    <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="6 9 12 15 18 9"></polyline>
-    </svg>
+    <div class="mode-row">
+      <button class="mode-btn active" id="assocModeRecommend">推荐方案</button>
+      <button class="mode-btn" id="assocModeManual">手动编辑</button>
+    </div>
+
+    <div class="mode-panel active" id="assocRecommendPanel">
+      <div class="candidates-list" id="assocCandidatesList"></div>
+    </div>
+
+    <div class="mode-panel" id="assocManualPanel">
+      <div style="padding:6px 14px 0;font-size:11px;color:#1677ff;">以下层级相对于所选锚点元素</div>
+      <div class="section">
+        <div class="section-title collapse-header open" id="assocDomCollapseHeader">
+          <span>页面层级（相对）</span>
+          <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+        <div class="collapse-body open" id="assocDomCollapseBody">
+          <div class="dom-panel" id="assocDomPanel"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title collapse-header open" id="assocPropCollapseHeader">
+          <span>元素属性（相对）</span>
+          <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+        <div class="collapse-body open" id="assocPropCollapseBody">
+          <div class="prop-panel" id="assocPropPanel"></div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="collapse-body open" id="globalSelectorBody">
-    <div class="choice-row" style="border-bottom:none; padding:0 0 8px; background:transparent;">
-      <button class="choice-btn active" data-choice="css">CSS</button>
-      <button class="choice-btn" data-choice="xpath">XPath</button>
+</div>
+
+<!-- Bottom panel: fixed selector preview + verify meta -->
+<div class="bottom-panel" id="bottomPanel">
+  <div class="selector-section" id="globalSelectorSection">
+    <div class="choice-row">
+      <button class="choice-btn active global-choice-btn" data-choice="css">CSS</button>
+      <button class="choice-btn global-choice-btn" data-choice="xpath">XPath</button>
     </div>
     <div class="selector-row">
-      <textarea class="selector-input" id="selectorPreview" rows="3"></textarea>
+      <textarea class="selector-input" id="globalSelectorPreview" rows="3"></textarea>
     </div>
+  </div>
+
+  <div class="selector-section" id="assocSelectorSection" style="display:none;">
+    <div class="choice-row">
+      <button class="choice-btn active assoc-choice-btn" data-choice="css">CSS</button>
+      <button class="choice-btn assoc-choice-btn" data-choice="xpath">XPath</button>
+    </div>
+    <div class="selector-row">
+      <textarea class="selector-input" id="assocRelativeSelectorInput" rows="2" placeholder="如 css:.author 或 xpath:./div/span"></textarea>
+    </div>
+    <input type="hidden" id="anchorSelectorInput">
   </div>
 
   <div class="verify-meta" id="verifyResult">点击"校验元素"查看匹配结果</div>

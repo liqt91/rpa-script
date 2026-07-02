@@ -98,7 +98,7 @@
     locator = normalizeLocator(locator);
     if (!locator || typeof locator !== 'string') return 'css';
     if (locator.startsWith('css:')) return 'css';
-    if (locator.startsWith('xpath:') || locator.startsWith('//')) return 'xpath';
+    if (locator.startsWith('xpath:') || locator.startsWith('//') || locator.startsWith('/')) return 'xpath';
     if (locator.startsWith('@') || locator.startsWith('tag:') || locator.startsWith('verse:') || locator.startsWith('text=') || locator.startsWith('@@class:')) return 'drission';
     return 'css';
   }

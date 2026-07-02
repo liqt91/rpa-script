@@ -13,13 +13,14 @@ const BOTTOM_TABS = [
 ];
 
 export default function ElementLibraryTab() {
-  const { elements, loadElements, runLogs, runStatus, wfId } = useWorkflow();
+  const { elements, loadElements, runLogs, runStatus, wfId, buildElementTree, getElementChain } = useWorkflow();
   const [activeTab, setActiveTab] = useState('elements');
   const [expanded, setExpanded] = useState(() => {
     try { return localStorage.getItem('wf_editor_bottom_expanded') !== 'false'; }
     catch { return true; }
   });
   const [selectedElementId, setSelectedElementId] = useState(null);
+  const [expandedNames, setExpandedNames] = useState(new Set());
   const [extOnline, setExtOnline] = useState(false);
   const [extCount, setExtCount] = useState(0);
   const [extBrowsers, setExtBrowsers] = useState([]);  // [{browser, count}]
@@ -81,6 +82,29 @@ export default function ElementLibraryTab() {
   }, [runLogs]);
 
   const selectedElement = elements.find(e => e.id === selectedElementId) || null;
+
+  const elementTree = useMemo(() => buildElementTree(elements), [elements, buildElementTree]);
+  const selectedChain = useMemo(() =>
+    selectedElement ? getElementChain(elements, selectedElement.name) : [],
+    [elements, selectedElement, getElementChain]
+  );
+  useEffect(() => {
+    setExpandedNames(new Set(elements.map(e => e.name)));
+  }, [elements]);
+
+  const kindLabel = { plain: '普通', anchor: '锚点', child: '子元素' };
+  const kindClass = {
+    plain: 'bg-gray-100 text-gray-500',
+    anchor: 'bg-blue-100 text-blue-600',
+    child: 'bg-orange-100 text-orange-600',
+  };
+
+  function toggleExpandedName(name) {
+    const next = new Set(expandedNames);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    setExpandedNames(next);
+  }
 
   useEffect(() => {
     if (renamingId && renameRef.current) {
@@ -155,8 +179,6 @@ export default function ElementLibraryTab() {
     return () => clearInterval(timer);
   }, [activeTab]);
 
-  const filtered = elements;
-
   const showToast = (msg, type = 'info') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
@@ -223,6 +245,98 @@ export default function ElementLibraryTab() {
       showToast('更新锚点失败: ' + e.message, 'error');
     }
   };
+
+  function ElementTreeNode({ node, depth = 0, parentGuideLeft = null }) {
+    const hasChildren = (node.children || []).length > 0;
+    const isExpanded = expandedNames.has(node.name);
+    const isOrphan = node.isOrphan;
+    const rowPaddingLeft = 6 + depth * 16;
+    const guideLeft = rowPaddingLeft + 8;
+    return (
+      <div className="relative">
+        {parentGuideLeft !== null && (
+          <div
+            className="absolute border-t border-gray-200"
+            style={{ left: parentGuideLeft, top: 11, width: rowPaddingLeft - parentGuideLeft }}
+          />
+        )}
+        {isExpanded && hasChildren && (
+          <div
+            className="absolute border-l border-gray-200"
+            style={{ left: guideLeft, top: 24, bottom: 0 }}
+          />
+        )}
+        <div
+          onClick={() => { if (renamingId !== node.id) setSelectedElementId(node.id); }}
+          style={{ paddingLeft: rowPaddingLeft }}
+          className={`group relative z-10 flex items-center gap-1 py-1 pr-2 cursor-pointer ${
+            selectedElementId === node.id
+              ? 'bg-blue-50'
+              : 'hover:bg-gray-100'
+          }`}
+        >
+          {hasChildren ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleExpandedName(node.name); }}
+              className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600 shrink-0"
+            >
+              <i className={`fas fa-chevron-${isExpanded ? 'down' : 'right'} text-[9px]`}></i>
+            </button>
+          ) : (
+            <span className="w-4 shrink-0"></span>
+          )}
+          {renamingId === node.id ? (
+            <input
+              ref={renameRef}
+              value={renamingValue}
+              onChange={(e) => setRenamingValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitRename(node.id);
+                if (e.key === 'Escape') cancelRename();
+              }}
+              onBlur={() => submitRename(node.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 min-w-0 text-xs px-1 py-0.5 border border-blue-300 rounded outline-none bg-white"
+            />
+          ) : (
+            <span className={`flex-1 min-w-0 text-xs truncate ${
+              selectedElementId === node.id ? 'text-blue-700 font-medium' : 'text-gray-700'
+            }`}>
+              {node.name}
+            </span>
+          )}
+          {isOrphan && (
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" title="父元素不存在" />
+          )}
+          {renamingId !== node.id && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <button
+                onClick={(e) => { e.stopPropagation(); startRename(node); }}
+                className="text-gray-400 hover:text-blue-500 px-1"
+                title="重命名"
+              >
+                <i className="fas fa-pen text-[9px]"></i>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDelete(node.id, node.name); }}
+                className="text-gray-400 hover:text-red-500 px-1"
+                title="删除"
+              >
+                <i className="fas fa-trash text-[9px]"></i>
+              </button>
+            </div>
+          )}
+        </div>
+        {isExpanded && hasChildren && (
+          <div>
+            {node.children.map((child) => (
+              <ElementTreeNode key={child.id} node={child} depth={depth + 1} parentGuideLeft={guideLeft} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (!expanded) {
     return (
@@ -301,72 +415,14 @@ export default function ElementLibraryTab() {
             {/* 左侧元素树 */}
             <div className="w-[280px] border-r border-[#e8e8e8] overflow-y-auto p-2">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs text-gray-400 flex-1">{filtered.length} 个元素</span>
+                <span className="text-xs text-gray-400 flex-1">{elements.length} 个元素</span>
               </div>
-              {filtered.length === 0 ? (
+              {elements.length === 0 ? (
                 <div className="text-center text-gray-400 text-xs py-8">暂无元素</div>
               ) : (
-                <div className="space-y-0.5">
-                  {filtered.map(el => (
-                    <div
-                      key={el.id}
-                      onClick={() => { if (renamingId !== el.id) setSelectedElementId(el.id); }}
-                      className={`group flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer ${
-                        selectedElementId === el.id
-                          ? 'bg-blue-50 border border-blue-200'
-                          : 'hover:bg-gray-100 border border-transparent'
-                      }`}
-                    >
-                      <i className={`fas fa-crosshairs text-[10px] w-4 text-center ${
-                        selectedElementId === el.id ? 'text-blue-500' : 'text-gray-400'
-                      }`}></i>
-                      <div className="flex-1 min-w-0">
-                        {renamingId === el.id ? (
-                          <input
-                            ref={renameRef}
-                            value={renamingValue}
-                            onChange={(e) => setRenamingValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') submitRename(el.id);
-                              if (e.key === 'Escape') cancelRename();
-                            }}
-                            onBlur={() => submitRename(el.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full text-xs px-1 py-0.5 border border-blue-300 rounded outline-none bg-white"
-                          />
-                        ) : (
-                          <>
-                            <div className={`text-xs truncate ${
-                              selectedElementId === el.id ? 'text-blue-700 font-medium' : 'text-gray-700'
-                            }`}>{el.name}</div>
-                            <div className="text-[10px] text-gray-400 truncate">{el.web_selector || el.drission_selector || '-'}</div>
-                            {el.anchor_element_name && (
-                              <div className="text-[10px] text-blue-500 truncate">
-                                → {el.anchor_element_name}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      {renamingId !== el.id && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); startRename(el); }}
-                            className="text-gray-400 hover:text-blue-500 px-1"
-                            title="重命名"
-                          >
-                            <i className="fas fa-pen text-[10px]"></i>
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDelete(el.id, el.name); }}
-                            className="text-gray-400 hover:text-red-500 px-1"
-                            title="删除"
-                          >
-                            <i className="fas fa-trash text-[10px]"></i>
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                <div>
+                  {elementTree.map((root) => (
+                    <ElementTreeNode key={root.id} node={root} depth={0} />
                   ))}
                 </div>
               )}
@@ -410,9 +466,12 @@ export default function ElementLibraryTab() {
               {selectedElement ? (
                 <div className="max-w-2xl">
                   {/* 标题 */}
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 mb-2">
                     <i className="fas fa-crosshairs text-blue-500"></i>
                     <h3 className="text-sm font-medium text-gray-800">{selectedElement.name}</h3>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${kindClass[selectedElement.element_kind || 'plain']}`}>
+                      {kindLabel[selectedElement.element_kind || 'plain']}
+                    </span>
                     {selectedElement.tag && (
                       <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500">
                         {selectedElement.tag}
@@ -435,6 +494,18 @@ export default function ElementLibraryTab() {
                       </button>
                     </div>
                   </div>
+
+                  {selectedChain.length > 1 && (
+                    <div className="mb-3 text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded truncate">
+                      {'父链: '}
+                      {selectedChain.map((e, i) => (
+                        <span key={e.name}>
+                          {i > 0 && <span className="text-gray-300 mx-1">/</span>}
+                          <span className={e.name === selectedElement.name ? 'text-gray-800 font-medium' : ''}>{e.name}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* 截图 */}
                   {selectedElement.screenshot && (

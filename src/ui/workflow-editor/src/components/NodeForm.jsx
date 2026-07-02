@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { useWorkflow } from '../store/WorkflowContext';
+import ElementTreeSelect from './ElementTreeSelect';
 
 // ─── Variable extraction helpers ─────────────────────────────────
 
@@ -50,7 +51,7 @@ function findPrimaryElementField(fields) {
 }
 
 export default function NodeForm() {
-  const { selectedNode, updateNode, elements, NODE_TYPE_MAP, containerNodes, nodes, workflow, findAncestorNodes } = useWorkflow();
+  const { selectedNode, updateNode, elements, NODE_TYPE_MAP, containerNodes, nodes, workflow, findAncestorNodes, getElementChain } = useWorkflow();
   const [form, setForm] = useState({});
   const [extra, setExtra] = useState({});
   const [activeTab, setActiveTab] = useState('params');
@@ -65,6 +66,10 @@ export default function NodeForm() {
     const name = primaryElementField ? form[primaryElementField.name] : null;
     return name ? elements.find(e => e.name === name) || null : null;
   }, [primaryElementField, form, elements]);
+  const selectedElementChain = useMemo(() =>
+    selectedElement ? getElementChain(elements, selectedElement.name) : [],
+    [selectedElement, elements, getElementChain]
+  );
   const ancestorLoops = useMemo(() => {
     if (!selectedNode) return [];
     return findAncestorNodes(nodes, selectedNode.id, ['forEachElement']);
@@ -127,10 +132,15 @@ export default function NodeForm() {
       if (primaryElementField) {
         initialForm[primaryElementField.name] = selectedNode.element_name || '';
       }
-      setForm(initialForm);
-      setExtra(selectedNode.extra && typeof selectedNode.extra === 'object'
+      const rawExtra = selectedNode.extra && typeof selectedNode.extra === 'object'
         ? selectedNode.extra
-        : (selectedNode.extra ? JSON.parse(selectedNode.extra) : {}));
+        : (selectedNode.extra ? JSON.parse(selectedNode.extra) : {});
+      const el = primaryElementField
+        ? elements.find(e => e.name === initialForm[primaryElementField.name])
+        : null;
+      const initialExtra = normalizeExtraForElement(el, rawExtra);
+      setForm(initialForm);
+      setExtra(initialExtra);
     });
     // 仅在真正切换节点时重置标签页，避免元素库刷新或节点更新导致当前标签丢失
     if (selectedNode.id !== prevNodeIdRef.current) {
@@ -139,22 +149,48 @@ export default function NodeForm() {
     }
   }, [selectedNode, primaryElementField]);
 
-  // Default relative resolution ON when the selected element is anchored.
-  useEffect(() => {
-    if (!selectedElement?.relative_selector || extra.useRelative !== undefined) return;
-    handleExtraChange('useRelative', true);
-  }, [selectedElement, extra.useRelative]);
+  const normalizeExtraForElement = (el, baseExtra = extra) => {
+    const newExtra = { ...baseExtra };
+    if (el?.element_kind === 'child' && el?.relative_selector) {
+      newExtra.useRelative = true;
+      delete newExtra.loopAnchor;
+    } else {
+      delete newExtra.useRelative;
+      delete newExtra.loopAnchor;
+    }
+    return newExtra;
+  };
 
   const handleChange = (field, value) => {
     const newForm = { ...form, [field]: value };
     setForm(newForm);
-    commit(newForm, extra);
+    if (field === primaryElementField?.name) {
+      const el = elements.find(e => e.name === value);
+      const newExtra = normalizeExtraForElement(el);
+      setExtra(newExtra);
+      commit(newForm, newExtra);
+    } else {
+      commit(newForm, extra);
+    }
   };
 
   const handleExtraChange = (field, value) => {
     const newExtra = { ...extra, [field]: value };
     setExtra(newExtra);
     commit(form, newExtra);
+  };
+
+  const handleReferenceItemToggle = (checked) => {
+    const newExtra = { ...extra, referenceItemItself: checked };
+    if (checked && primaryElementField) {
+      const newForm = { ...form, [primaryElementField.name]: '' };
+      setForm(newForm);
+      setExtra(newExtra);
+      commit(newForm, newExtra);
+    } else {
+      setExtra(newExtra);
+      commit(form, newExtra);
+    }
   };
 
   if (!selectedNode) {
@@ -204,26 +240,54 @@ export default function NodeForm() {
               {hasElementName ? (
                 <>
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">{primaryElementField?.label || '选择元素'}</label>
-                    <select
+                    {ancestorLoops.length > 0 && (
+                      <label className="flex items-center gap-2 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={!!extra.referenceItemItself}
+                          onChange={(e) => handleReferenceItemToggle(e.target.checked)}
+                          className="w-4 h-4 accent-[#1677ff]"
+                        />
+                        <span className="text-xs text-gray-700">引用循环项本身</span>
+                      </label>
+                    )}
+
+                    <ElementTreeSelect
+                      label={primaryElementField?.label || '选择元素'}
                       value={form[primaryElementField?.name] || ''}
-                      onChange={(e) => handleChange(primaryElementField?.name, e.target.value || null)}
-                      className="w-full px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
-                    >
-                      <option value="">-- 选择元素 --</option>
-                      {elements.map(el => (
-                        <option key={el.name} value={el.name}>
-                          {el.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(name) => handleChange(primaryElementField?.name, name || null)}
+                      elements={elements}
+                      placeholder="-- 选择元素 --"
+                      disabled={!!extra.referenceItemItself}
+                      disabledPlaceholder="-- 引用循环项本身 --"
+                    />
+
                     {selectedElement && (
                       <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 rounded px-2 py-1.5 space-y-0.5">
                         <div className="flex items-center gap-2">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                            selectedElement.element_kind === 'anchor' ? 'bg-blue-100 text-blue-600' :
+                            selectedElement.element_kind === 'child' ? 'bg-orange-100 text-orange-600' :
+                            'bg-gray-100 text-gray-500'
+                          }`}>
+                            {selectedElement.element_kind === 'anchor' ? '锚点' :
+                             selectedElement.element_kind === 'child' ? '子元素' : '普通'}
+                          </span>
                           {selectedElement.relative_selector && (
                             <span className="px-1.5 py-0.5 bg-[#1677ff]/10 text-[#1677ff] rounded text-[10px]">相对定位</span>
                           )}
                         </div>
+                        {selectedElementChain.length > 1 && (
+                          <div className="truncate">
+                            {'父链: '}
+                            {selectedElementChain.map((e, i) => (
+                              <span key={e.name}>
+                                {i > 0 && <span className="text-gray-300 mx-1">/</span>}
+                                <span className={e.name === selectedElement.name ? 'text-gray-800 font-medium' : ''}>{e.name}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <div className="font-mono truncate">Web: {selectedElement.web_selector || '-'}</div>
                         <div className="font-mono truncate">Drission: {selectedElement.drission_selector || '-'}</div>
                         {selectedElement.relative_selector && (
@@ -236,47 +300,9 @@ export default function NodeForm() {
                     )}
                   </div>
 
-                  {selectedElement?.relative_selector && (
-                    <div className="space-y-2 border border-[#e8e8e8] rounded p-3 bg-[#fafafa]">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={!!extra.useRelative}
-                          onChange={(e) => handleExtraChange('useRelative', e.target.checked)}
-                          className="w-4 h-4 accent-[#1677ff]"
-                        />
-                        <span className="text-xs text-gray-700">使用相对解析</span>
-                      </label>
-
-                      {extra.useRelative !== false && (
-                        <>
-                          <div>
-                            <label className="block text-[10px] text-gray-400 mb-1">锚点元素</label>
-                            <select
-                              value={extra.loopAnchor || ''}
-                              onChange={(e) => handleExtraChange('loopAnchor', e.target.value || null)}
-                              className="w-full px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
-                            >
-                              <option value="">最近外层循环</option>
-                              {ancestorLoops.map(n => (
-                                <option key={n.id} value={n.element_name || ''}>
-                                  #{n.order} {n.element_name || n.type}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={!!extra.referenceItemItself}
-                              onChange={(e) => handleExtraChange('referenceItemItself', e.target.checked)}
-                              className="w-4 h-4 accent-[#1677ff]"
-                            />
-                            <span className="text-xs text-gray-700">引用循环项本身</span>
-                          </label>
-                        </>
-                      )}
+                  {selectedElement?.element_kind === 'child' && selectedElement.relative_selector && (
+                    <div className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
+                      该元素为子元素，将自动在其锚点循环项内使用相对选择器解析。
                     </div>
                   )}
 

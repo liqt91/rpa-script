@@ -648,6 +648,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // 5c) Side panel 请求某个元素的有效选择器链（支持 child 作为锚点）
+  if (message.action === 'getElementChain') {
+    (async () => {
+      try {
+        const host = await getBackendHost();
+        const port = await getBackendPort();
+        const { workflowId, name } = message;
+        const resp = await fetch(`http://${host}:${port}/api/extension/elements/${encodeURIComponent(name)}/chain?workflow_id=${workflowId}`);
+        const data = await resp.json();
+        sendResponse(data);
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true;
+  }
+
   // 6) Content script 查询当前捕获启用状态（页面刷新后同步）
   if (message.action === 'queryCaptureState') {
     sendResponse({ captureEnabled: agent.sidePanelOpen });

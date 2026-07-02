@@ -259,7 +259,8 @@
       <option value="lt">小于</option>
       <option value="lte">小于等于</option>
     `;
-    matchEl.value = enabledMap[name + ':operator'] || 'equals';
+    const defaultOp = name === 'innerText' || name.startsWith('class:') ? 'contains' : 'equals';
+    matchEl.value = enabledMap[name + ':operator'] || defaultOp;
     matchEl.disabled = !!disabled;
     matchEl.addEventListener('change', () => {
       enabledMap[name + ':operator'] = matchEl.value;
@@ -298,8 +299,11 @@
     if (activeTab === 'css') {
       switch (operator) {
         case 'contains': return `[${key}*="${cssEsc(value)}"]`;
+        case 'not_contains': return `:not([${key}*="${cssEsc(value)}"])`;
         case 'starts_with': return `[${key}^="${cssEsc(value)}"]`;
+        case 'not_starts_with': return `:not([${key}^="${cssEsc(value)}"])`;
         case 'ends_with': return `[${key}$="${cssEsc(value)}"]`;
+        case 'not_ends_with': return `:not([${key}$="${cssEsc(value)}"])`;
         case 'not_equals': return `:not([${key}="${cssEsc(value)}"])`;
         default: return `[${key}="${cssEsc(value)}"]`;
       }
@@ -347,7 +351,9 @@
       }
       (node.classes || []).forEach((cls) => {
         if (attrMap['class:' + cls]) {
-          parts.push('.' + CSS.escape(cls));
+          const op = attrMap['class:' + cls + ':operator'] || 'contains';
+          const negative = op.startsWith('not_');
+          parts.push(negative ? `:not(.${CSS.escape(cls)})` : `.${CSS.escape(cls)}`);
         }
       });
       const attrs = node.attrs || {};

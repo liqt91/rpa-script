@@ -146,7 +146,7 @@
     locator = normalizeLocator(locator);
     if (!locator || typeof locator !== 'string') return 'css';
     if (locator.startsWith('css:')) return 'css';
-    if (locator.startsWith('xpath:') || locator.startsWith('//')) return 'xpath';
+    if (locator.startsWith('xpath:') || locator.startsWith('//') || locator.startsWith('/')) return 'xpath';
     if (locator.startsWith('@') || locator.startsWith('tag:') || locator.startsWith('verse:') || locator.startsWith('text=') || locator.startsWith('@@class:')) return 'drission';
     return 'css';
   }
@@ -554,16 +554,30 @@
     const ctxLocatorType = extra?.contextLocatorType;
     const ctxIndex = extra?.contextIndex ?? 0;
     const ctxTotal = extra?.contextTotal;
+    const srcLocator = extra?.sourceLocator;
+    const srcLocatorType = extra?.sourceSelectorFamily;
+    const srcIndex = extra?.sourceIndex ?? 0;
+    const srcTotal = extra?.sourceTotal;
 
-    if (!ctxLocator) {
+    if (!ctxLocator && !srcLocator) {
       return waitForElement(locator, selectorFamily, mode, timeoutMs);
     }
 
     const start = Date.now();
     return new Promise((resolve, reject) => {
       const tick = () => {
-        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-        const parent = parents[ctxIndex];
+        let parents = [];
+        let parent = null;
+        let usedSource = false;
+        if (ctxLocator) {
+          parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+          parent = parents[ctxIndex];
+        }
+        if (!parent && srcLocator) {
+          parents = resolveAllLocators(srcLocator, srcLocatorType);
+          parent = parents[srcIndex];
+          usedSource = true;
+        }
         if (!parent) {
           if (Date.now() - start >= timeoutMs) {
             return reject(new Error(`上下文元素未找到 (第 ${ctxIndex + 1}/${ctxTotal || '?'} 个)`));
@@ -579,7 +593,7 @@
             window.__rpaLastContextDebugInfo = getElementDebugInfo(locator, selectorFamily, extra, parent);
             return resolve(parent);
           }
-          const err = new Error(`循环项本身不可见: ${ctxLocator}`);
+          const err = new Error(`循环项本身不可见: ${ctxLocator || srcLocator}`);
           err.contextNotFound = true;
           return reject(err);
         }
@@ -622,7 +636,7 @@
             `[waitForElementWithContext] mode=${debugInfo.mode} ` +
             `index=${ctxIndex + 1}/${ctxTotal || '?'} ` +
             `outerTotal=${debugInfo.outerTotal} innerTotal=${debugInfo.innerTotal} innerIndex=${debugInfo.innerIndex} ` +
-            `locator=${locator}`
+            `locator=${locator} ${usedSource ? '(source fallback)' : ''}`
           );
           return resolve(el);
         }
@@ -640,37 +654,46 @@
     const ctxLocator = extra?.contextLocator;
     const ctxLocatorType = extra?.contextLocatorType;
     const ctxIndex = extra?.contextIndex ?? 0;
+    const srcLocator = extra?.sourceLocator;
+    const srcLocatorType = extra?.sourceSelectorFamily;
+    const srcIndex = extra?.sourceIndex ?? 0;
 
-    let el = null;
+    let parent = null;
     if (ctxLocator) {
       const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-      const parent = parents[ctxIndex];
-      if (parent) {
-        // Reference the loop item itself.
-        if (extra?.referenceItemItself) {
-          if (mode === 'any' || checkVisibility(parent, mode)) el = parent;
-        }
-        // Prefer the capture-time relative selector.
-        if (!el && extra?.useRelative && extra?.relativeLocator) {
-          const relMatches = resolveAllRelativeInContext(
-            extra.relativeLocator, extra.relativeSelectorFamily, parent);
-          el = mode === 'any'
-            ? relMatches[0] || null
-            : relMatches.find(e => checkVisibility(e, mode)) || null;
-        }
-        if (!el) {
-          const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          el = mode === 'any'
-            ? allDescendants[0] || null
-            : allDescendants.find(e => checkVisibility(e, mode)) || null;
-        }
+      parent = parents[ctxIndex];
+    }
+    if (!parent && srcLocator) {
+      const parents = resolveAllLocators(srcLocator, srcLocatorType);
+      parent = parents[srcIndex];
+    }
 
-        // Fallback: loop item itself matches the child selector.
-        if (!el) {
-          const globalMatches = resolveAllLocators(locator, selectorFamily);
-          if (globalMatches.includes(parent) && (mode === 'any' || checkVisibility(parent, mode))) {
-            el = parent;
-          }
+    let el = null;
+    if (parent) {
+      // Reference the loop item itself.
+      if (extra?.referenceItemItself) {
+        if (mode === 'any' || checkVisibility(parent, mode)) el = parent;
+      }
+      // Prefer the capture-time relative selector.
+      if (!el && extra?.useRelative && extra?.relativeLocator) {
+        const relMatches = resolveAllRelativeInContext(
+          extra.relativeLocator, extra.relativeSelectorFamily, parent);
+        el = mode === 'any'
+          ? relMatches[0] || null
+          : relMatches.find(e => checkVisibility(e, mode)) || null;
+      }
+      if (!el) {
+        const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+        el = mode === 'any'
+          ? allDescendants[0] || null
+          : allDescendants.find(e => checkVisibility(e, mode)) || null;
+      }
+
+      // Fallback: loop item itself matches the child selector.
+      if (!el) {
+        const globalMatches = resolveAllLocators(locator, selectorFamily);
+        if (globalMatches.includes(parent) && (mode === 'any' || checkVisibility(parent, mode))) {
+          el = parent;
         }
       }
     }
@@ -1770,15 +1793,25 @@ console.log({
       const ctxLocator = extra?.contextLocator;
       const ctxLocatorType = extra?.contextLocatorType;
       const ctxIndex = extra?.contextIndex ?? 0;
+      const srcLocator = extra?.sourceLocator;
+      const srcLocatorType = extra?.sourceSelectorFamily;
+      const srcIndex = extra?.sourceIndex ?? 0;
       const start = Date.now();
       let elements = [];
       while (Date.now() - start < timeoutMs) {
+        let parent = null;
         if (ctxLocator) {
           const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-          const parent = parents[ctxIndex];
-          if (parent) {
-            elements = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          }
+          parent = parents[ctxIndex];
+        }
+        if (!parent && srcLocator) {
+          const parents = resolveAllLocators(srcLocator, srcLocatorType);
+          parent = parents[srcIndex];
+        }
+        if (extra?.useRelative && extra?.relativeLocator && parent) {
+          elements = resolveAllRelativeInContext(extra.relativeLocator, extra.relativeSelectorFamily, parent);
+        } else if (parent) {
+          elements = resolveAllLocatorsInContext(locator, selectorFamily, parent);
         } else {
           elements = resolveAllLocators(locator, selectorFamily);
         }

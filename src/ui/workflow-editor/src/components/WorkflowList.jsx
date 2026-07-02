@@ -38,7 +38,11 @@ export default function WorkflowList() {
       connectRunSSE(Number(savedId), savedRunId);
     }
 
+    // Poll for workflows created elsewhere (e.g. backend or other clients).
+    const poll = setInterval(() => loadWorkflows(true), 5000);
+
     return () => {
+      clearInterval(poll);
       if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     };
   }, []);
@@ -177,8 +181,8 @@ export default function WorkflowList() {
     }
   }
 
-  async function loadWorkflows() {
-    setLoading(true);
+  async function loadWorkflows(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const data = await api.listWorkflows();
       setWorkflows(data);
@@ -186,7 +190,7 @@ export default function WorkflowList() {
     } catch (e) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -202,6 +206,7 @@ export default function WorkflowList() {
       });
       setShowCreate(false);
       setForm({ name: '', description: '', url: '' });
+      loadWorkflows();
       navigate(`/editor/${wf.id}`);
     } catch (e) {
       setError(e.message);
