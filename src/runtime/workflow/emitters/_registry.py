@@ -130,8 +130,9 @@ def _loc_str(node: models.WorkflowNode, element_map: dict | None = None) -> str:
     """Return just the resolved locator string (for use in wait/scroll/etc)."""
     if element_map and node.element_name:
         el = element_map.get(node.element_name)
-        if el and el.drission_selector:
-            return el.drission_selector
+        if el and el.web_selector:
+            bare, family = _split_selector_prefix(el.web_selector)
+            return f"xpath:{bare}" if family == "xpath" else bare
     # fallback: legacy direct locator storage
     loc = _normalize_locator(node)
     if isinstance(loc, list):
@@ -143,8 +144,9 @@ def _loc_str_by_name(element_name: str | None, element_map: dict | None = None) 
     """Return just the resolved locator string for a named element."""
     if element_map and element_name:
         el = element_map.get(element_name)
-        if el and el.drission_selector:
-            return el.drission_selector
+        if el and el.web_selector:
+            bare, family = _split_selector_prefix(el.web_selector)
+            return f"xpath:{bare}" if family == "xpath" else bare
     return ""
 
 
@@ -219,13 +221,20 @@ def _loc_call_by_name(
     )
 
     # Resolve from element_map first (per-workflow element library).
-    if el and el.drission_selector:
+    # Prefer the validated CSS/XPath web_selector; only fall back to the legacy
+    # drission_selector if no web selector exists.
+    if el and (el.web_selector or el.drission_selector):
         if method is None:
             method = "ele"
         visibility_mode = extra.get("visibilityMode")
         visible_only = visibility_mode != "any" if visibility_mode else extra.get("visibleOnly", True)
 
-        loc = _build_relative_locator(rel) if use_relative else el.drission_selector
+        if use_relative and rel:
+            loc = _build_relative_locator(rel)
+        else:
+            primary = el.web_selector or el.drission_selector or ""
+            bare, family = _split_selector_prefix(primary)
+            loc = f"xpath:{bare}" if family == "xpath" else bare
         base_var = item_var if use_relative else "tab"
         if visible_only and method == "ele":
             return f"_ele_visible({base_var}, {_py_str(loc)})"
