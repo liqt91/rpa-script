@@ -468,10 +468,10 @@
   function renderActiveAnchorOptions() {
     if (!activeAnchorSelect) return;
     const current = activeAnchorName;
-    // Only exclude the element actually being edited if it already exists in the
-    // library. Using elName.value would transiently clear the active anchor while
-    // the user types a name that happens to match an existing anchor name.
-    const editingName = (elName?.value || currentState.elementData?.name || '').trim();
+    // Exclude only the element currently being edited if it already exists in
+    // the library. Newly captured elements are not in the library yet, so they
+    // do not need to be excluded here; the dropdown is re-rendered on save/load.
+    const editingName = (currentState.elementData?.name || '').trim();
     const excludeName = workflowElements.some((el) => el.name === editingName) ? editingName : '';
     const anchorEls = workflowElements.filter((el) => el?.name && el.name !== excludeName);
     const placeholderText = workflowElements.length === 0 ? '先捕获全局元素' : '请选择锚点元素';
@@ -608,12 +608,6 @@
       if (wrap && !wrap.contains(e.target)) {
         activeAnchorTreeDropdown.style.display = 'none';
       }
-    });
-  }
-
-  if (elName) {
-    elName.addEventListener('input', () => {
-      renderActiveAnchorOptions();
     });
   }
 
