@@ -149,7 +149,8 @@ class ExtensionManager:
         # Fulfill pending step futures
         if action in ("stepResult", "stepError"):
             step_id = payload.get("stepId")
-            fut = self._step_futures.pop(step_id, None)
+            async with self._lock:
+                fut = self._step_futures.pop(step_id, None)
             if fut and not fut.done():
                 if action == "stepResult":
                     fut.set_result({"status": "success", "result": payload.get("result"), "client_id": client_id})
@@ -167,15 +168,17 @@ class ExtensionManager:
 
     # ── Step result waiting ──
 
-    def register_step_future(self, step_id: str) -> asyncio.Future:
+    async def register_step_future(self, step_id: str) -> asyncio.Future:
         """Register a Future to be fulfilled when stepResult/stepError arrives."""
         fut = asyncio.get_event_loop().create_future()
-        self._step_futures[step_id] = fut
+        async with self._lock:
+            self._step_futures[step_id] = fut
         return fut
 
-    def cancel_step_future(self, step_id: str):
+    async def cancel_step_future(self, step_id: str):
         """Cancel a pending step future (e.g. on timeout)."""
-        fut = self._step_futures.pop(step_id, None)
+        async with self._lock:
+            fut = self._step_futures.pop(step_id, None)
         if fut and not fut.done():
             fut.cancel()
 
@@ -185,11 +188,11 @@ class ExtensionManager:
         Returns {"status": "success"|"error", "result": ..., "error": ..., "client_id": ...}
         Raises TimeoutError if no response within timeout.
         """
-        fut = self.register_step_future(step_id)
+        fut = await self.register_step_future(step_id)
         try:
             return await asyncio.wait_for(fut, timeout=timeout)
         except asyncio.TimeoutError:
-            self.cancel_step_future(step_id)
+            await self.cancel_step_future(step_id)
             raise TimeoutError(f"Step {step_id} timed out after {timeout}s")
 
     # ── 连接保持 ──

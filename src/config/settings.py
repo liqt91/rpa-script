@@ -99,3 +99,7 @@ GITEA_REPO_NAME = os.getenv("GITEA_REPO_NAME", "")
 # 服务端
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
+
+# 工作流全局并发锁（ADR-0007）
+MAX_CONCURRENT_WORKFLOWS = int(os.getenv("MAX_CONCURRENT_WORKFLOWS", "1"))
+WORKFLOW_LOCK_TIMEOUT_SECONDS = float(os.getenv("WORKFLOW_LOCK_TIMEOUT_SECONDS", "30.0"))

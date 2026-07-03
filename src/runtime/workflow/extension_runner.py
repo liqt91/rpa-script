@@ -205,9 +205,30 @@ class _TableAccessor:
 
 # Global registry of active runners keyed by run_id
 _active_runners: dict[str, "ExtensionRunner"] = {}
+_active_runners_lock = asyncio.Lock()
 
 # Cache latest run table result per workflow (runtime-only, memory)
 _last_run_tables: dict[int, dict] = {}
+
+
+async def get_active_runner(run_id: str) -> "ExtensionRunner" | None:
+    async with _active_runners_lock:
+        return _active_runners.get(run_id)
+
+
+async def set_active_runner(run_id: str, runner: "ExtensionRunner") -> None:
+    async with _active_runners_lock:
+        _active_runners[run_id] = runner
+
+
+async def remove_active_runner(run_id: str) -> None:
+    async with _active_runners_lock:
+        _active_runners.pop(run_id, None)
+
+
+async def list_active_runners() -> list[tuple[str, "ExtensionRunner"]]:
+    async with _active_runners_lock:
+        return list(_active_runners.items())
 
 
 class ExtensionRunner:
@@ -239,7 +260,6 @@ class ExtensionRunner:
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
             self._log_file = open(os.path.join(self.log_dir, "run.log"), "w", encoding="utf-8")
-        run_progress.register(self.run_id, self.queue)
 
     def pause(self) -> None:
         if not self._stopped:
@@ -251,7 +271,7 @@ class ExtensionRunner:
         self._pause_event_sent = False
         logger.info(f"[ExtensionRunner] run_id={self.run_id} resumed")
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         self._stopped = True
         self._paused.set()  # wake up if currently paused
         # Cancel the pending step future so _wait_future_with_stop exits immediately
@@ -259,7 +279,7 @@ class ExtensionRunner:
             step_id = self._current_step.get("stepId")
             if step_id:
                 try:
-                    ext_manager.cancel_step_future(step_id)
+                    await ext_manager.cancel_step_future(step_id)
                 except Exception:
                     pass
         logger.info(f"[ExtensionRunner] run_id={self.run_id} stopped")
@@ -328,6 +348,8 @@ class ExtensionRunner:
 
     async def run(self, wf: models.Workflow, nodes: list[models.WorkflowNode]) -> dict:
         """Run workflow nodes through the extension. Returns execution report."""
+        await run_progress.register(self.run_id, self.queue)
+
         # Load workflow elements and build element_map for selector resolution
         db = SessionLocal()
         try:
@@ -346,7 +368,7 @@ class ExtensionRunner:
             f"client={self.client_id} run_id={self.run_id}"
         )
 
-        _active_runners[self.run_id] = self
+        await set_active_runner(self.run_id, self)
         try:
             for instr in instructions:
                 self._current_step = instr
@@ -398,8 +420,8 @@ class ExtensionRunner:
                         self._log_file = None
                 except Exception:
                     pass
-            run_progress.unregister(self.run_id)
-            _active_runners.pop(self.run_id, None)
+            await run_progress.unregister(self.run_id)
+            await remove_active_runner(self.run_id)
 
     @staticmethod
     def _resolve_vars(obj: Any, vars_dict: dict[str, Any]) -> Any:
@@ -481,7 +503,7 @@ class ExtensionRunner:
             **payload,
         }
         logger.info(f"[ExtensionRunner] -> ext handler={handler} stepId={step_id} payload={payload}")
-        future = ext_manager.register_step_future(step_id)
+        future = await ext_manager.register_step_future(step_id)
         try:
             ok = await ext_manager.send_to(
                 self.client_id,
@@ -489,7 +511,7 @@ class ExtensionRunner:
                 {"stepId": step_id, "nodeId": node_id, **instr},
             )
             if not ok:
-                ext_manager.cancel_step_future(step_id)
+                await ext_manager.cancel_step_future(step_id)
                 raise RuntimeError(f"Failed to send {handler} to extension")
 
             resp = await self._wait_future_with_stop(future, timeout=timeout)
@@ -499,10 +521,10 @@ class ExtensionRunner:
             logger.info(f"[ExtensionRunner] <- ext handler={handler} stepId={step_id} result={result}")
             return result
         except asyncio.TimeoutError:
-            ext_manager.cancel_step_future(step_id)
+            await ext_manager.cancel_step_future(step_id)
             raise TimeoutError(f"{handler} timed out after {timeout}s")
         except asyncio.CancelledError:
-            ext_manager.cancel_step_future(step_id)
+            await ext_manager.cancel_step_future(step_id)
             raise
 
     async def _check_element_exists(
@@ -1617,7 +1639,7 @@ class ExtensionRunner:
             instr = {**instr, "extra": extra}
 
         # Register future BEFORE sending to avoid race with fast responses (e.g. navigate)
-        future = ext_manager.register_step_future(step_id)
+        future = await ext_manager.register_step_future(step_id)
         try:
             ok = await ext_manager.send_to(
                 self.client_id,
@@ -1625,7 +1647,7 @@ class ExtensionRunner:
                 {"stepId": step_id, "nodeId": instr.get("nodeId"), **instr},
             )
             if not ok:
-                ext_manager.cancel_step_future(step_id)
+                await ext_manager.cancel_step_future(step_id)
                 raise RuntimeError(f"Failed to send step {step_id} to extension")
 
             resp = await self._wait_future_with_stop(future, timeout=timeout)
@@ -1633,10 +1655,10 @@ class ExtensionRunner:
                 raise RuntimeError(resp.get("error", "Unknown extension error"))
             return resp.get("result")
         except asyncio.TimeoutError:
-            ext_manager.cancel_step_future(step_id)
+            await ext_manager.cancel_step_future(step_id)
             raise TimeoutError(f"Step {step_id} timed out after {timeout}s")
         except asyncio.CancelledError:
-            ext_manager.cancel_step_future(step_id)
+            await ext_manager.cancel_step_future(step_id)
             raise
 
 
@@ -1667,7 +1689,7 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
 
     # 提前注册进度队列，让 SSE 在 runner 启动前就能连上（wait_for_extension 可能耗时数秒）
     pre_queue = asyncio.Queue()
-    run_progress.register(_run_id, pre_queue)
+    await run_progress.register(_run_id, pre_queue)
 
     runner = ExtensionRunner(client_id or "", run_id=_run_id, log_dir=log_dir, queue=pre_queue)
 
@@ -1721,7 +1743,7 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
             "runId": runner.run_id,
             "success": False if stopped else (result.get("success", False) if result else False),
         }
-        run_progress.unregister(_run_id)
+        await run_progress.unregister(_run_id)
 
     result["tableRows"] = runner._table_data.get("rows", [])
     result["tableColumns"] = runner._table_data.get("columns", [])

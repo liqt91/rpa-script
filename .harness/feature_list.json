@@ -53,6 +53,19 @@
         { "id": "test", "title": "End-to-end child capture test passes", "done": true }
       ],
       "domain": "workflows"
+    },
+    {
+      "id": "workflow-concurrency-lock",
+      "title": "工作流全局并发锁（ADR-0007）",
+      "passes": true,
+      "steps": [
+        { "id": "config", "title": "Add MAX_CONCURRENT_WORKFLOWS and lock timeout settings", "done": true },
+        { "id": "lock", "title": "Implement global asyncio.Semaphore in service/runtime", "done": true },
+        { "id": "route", "title": "Wire lock into workflow run endpoint with 503 + Retry-After", "done": true },
+        { "id": "state", "title": "Synchronize access to _active_runners, _step_futures, _queues", "done": true },
+        { "id": "smoke", "title": "Concurrent run returns 503 when lock is held", "done": true }
+      ],
+      "domain": "workflows"
     }
   ]
 }

@@ -3,15 +3,19 @@
 import asyncio
 
 _queues: dict[str, asyncio.Queue] = {}
+_queues_lock = asyncio.Lock()
 
 
-def register(run_id: str, queue: asyncio.Queue) -> None:
-    _queues[run_id] = queue
+async def register(run_id: str, queue: asyncio.Queue) -> None:
+    async with _queues_lock:
+        _queues[run_id] = queue
 
 
-def unregister(run_id: str) -> None:
-    _queues.pop(run_id, None)
+async def unregister(run_id: str) -> None:
+    async with _queues_lock:
+        _queues.pop(run_id, None)
 
 
-def get(run_id: str) -> asyncio.Queue | None:
-    return _queues.get(run_id)
+async def get(run_id: str) -> asyncio.Queue | None:
+    async with _queues_lock:
+        return _queues.get(run_id)
