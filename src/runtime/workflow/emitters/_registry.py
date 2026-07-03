@@ -1,4 +1,8 @@
-"""Shared emit helpers and dispatch registry."""
+from src.runtime.workflow.extension_emitter import (
+    _find_matching_loop,
+    _build_chain_from_loop,
+    _combine_relative_chain,
+)
 
 import contextvars
 import json
@@ -171,7 +175,9 @@ def _loc_call_by_name(
     When the call is inside a forEachElement loop and the element or extra
     asks for relative resolution, emits item.ele('...') or just the loop item.
     An element with anchor_element_name automatically resolves relative to the
-    matching loop in the current loop stack.
+    matching loop in the current loop stack; if the anchor is not itself the
+    loop, the anchor chain is traced up to the nearest enclosing loop and the
+    selectors between that loop and the target are combined.
     Pass method='eles' to force list resolution (used by forEachElement itself).
     """
     # Scope=global forces legacy global resolution regardless of loop context.
@@ -193,12 +199,15 @@ def _loc_call_by_name(
     explicit_loop_anchor = (extra.get("loopAnchor") or "").strip()
 
     matched_anchor = False
+    loop_name = None
     if anchor_name and stack and (not explicit_loop_anchor or explicit_loop_anchor == anchor_name):
-        for loop_name, var in reversed(stack):
-            if loop_name == anchor_name:
-                item_var = var
-                matched_anchor = True
-                break
+        loop_name = _find_matching_loop(anchor_name, element_map, stack)
+        if loop_name:
+            matched_anchor = True
+            for name, var in reversed(stack):
+                if name == loop_name:
+                    item_var = var
+                    break
     elif item_var and rel and not anchor_name:
         # Legacy: element has a relative selector but no named anchor; use the
         # innermost loop for backward compatibility.
@@ -230,7 +239,19 @@ def _loc_call_by_name(
         visible_only = visibility_mode != "any" if visibility_mode else extra.get("visibleOnly", True)
 
         if use_relative and rel:
-            loc = _build_relative_locator(rel)
+            # Trace up the anchor chain to the matching loop and combine
+            # intermediate relative selectors so nested anchors still resolve
+            # from the loop item.
+            relative_loc = None
+            if loop_name:
+                chain = _build_chain_from_loop(el, loop_name, element_map)
+                if chain and len(chain) > 1:
+                    combined, family = _combine_relative_chain(chain)
+                    if combined:
+                        relative_loc = combined if family == "css" else f"xpath:{combined}"
+            if relative_loc is None:
+                relative_loc = _build_relative_locator(rel)
+            loc = relative_loc
         else:
             primary = el.web_selector or el.drission_selector or ""
             bare, family = _split_selector_prefix(primary)

@@ -171,15 +171,116 @@ def _split_prefixed_selector(value: str) -> tuple[str, str]:
     return text, _infer_selector_family(text)
 
 
-def _inject_relative_fields(extra: dict, el) -> dict:
+def _ancestor_chain(el, element_map: dict | None) -> list:
+    """Return the ancestor chain from root down to `el`."""
+    chain = []
+    visited = set()
+    current = el
+    while current:
+        chain.append(current)
+        parent_name = (getattr(current, "anchor_element_name", "") or "").strip()
+        if not parent_name or parent_name in visited:
+            break
+        visited.add(parent_name)
+        current = element_map.get(parent_name) if element_map else None
+    return list(reversed(chain))
+
+
+def _find_matching_loop(anchor_name: str, element_map: dict | None, stack: tuple) -> str | None:
+    """Find the nearest active loop that appears in `anchor_name`'s ancestor chain.
+
+    If `anchor_name` itself is an active loop, it wins immediately. Otherwise
+    walk up through `anchor_element_name` until a loop in `stack` is found.
+    """
+    if not anchor_name or not stack:
+        return None
+    if anchor_name in stack:
+        return anchor_name
+    current = element_map.get(anchor_name) if element_map else None
+    visited = {anchor_name}
+    while current:
+        if current.name in stack:
+            return current.name
+        parent_name = (getattr(current, "anchor_element_name", "") or "").strip()
+        if not parent_name or parent_name in visited:
+            break
+        visited.add(parent_name)
+        current = element_map.get(parent_name)
+    return None
+
+
+def _build_chain_from_loop(el, loop_name: str, element_map: dict | None) -> list | None:
+    """Return the chain [loop_element, ..., el] if `loop_name` is an ancestor of `el`."""
+    chain = []
+    visited = set()
+    current = el
+    while current:
+        chain.insert(0, current)
+        if current.name == loop_name:
+            break
+        parent_name = (getattr(current, "anchor_element_name", "") or "").strip()
+        if not parent_name or parent_name in visited:
+            return None
+        visited.add(parent_name)
+        current = element_map.get(parent_name)
+    if not chain or chain[0].name != loop_name:
+        return None
+    return chain
+
+
+def _combine_relative_chain(chain: list) -> tuple[str | None, str | None]:
+    """Combine relative selectors from a chain into one locator relative to the first element.
+
+    Returns (combined_selector, family). Mixed CSS/XPath families are not supported
+    and return (None, None) so the caller can fall back to the immediate anchor.
+    """
+    css_parts = []
+    xpath_parts = []
+    for node in chain[1:]:
+        sel = (getattr(node, "relative_selector", "") or "").strip()
+        if not sel:
+            sel = (getattr(node, "web_selector", "") or "").strip()
+        if not sel:
+            continue
+        bare, family = _split_prefixed_selector(sel)
+        if not bare:
+            continue
+        if family == "xpath":
+            xpath_parts.append(bare)
+        else:
+            css_parts.append(bare)
+    if css_parts and xpath_parts:
+        return None, None
+    if xpath_parts:
+        combined = xpath_parts[0]
+        for part in xpath_parts[1:]:
+            if part.startswith(".//"):
+                combined += "//" + part[3:]
+            elif part.startswith("./"):
+                combined += "/" + part[2:]
+            elif part.startswith("//"):
+                combined += part
+            else:
+                combined += "//" + part
+        return combined, "xpath"
+    if css_parts:
+        return " ".join(css_parts), "css"
+    return None, None
+
+
+def _inject_relative_fields(extra: dict, el, element_map: dict | None = None) -> dict:
     """Inject capture-time relative-anchor fields into an instruction's extra.
 
     Child elements with a relative_selector always resolve relatively.
     For anchor/plain elements, relative resolution only happens when the user
     has not explicitly disabled it (useRelative=False) and scope is not global.
-    If the element has an explicit anchor_element_name, the relative fields
-    are only injected when the named anchor matches an active forEachElement
-    loop in the current stack.
+
+    If the element's immediate anchor is not the current loop, this function
+    walks up the anchor chain and finds the nearest active forEachElement loop
+    that is an ancestor of the element. It then emits a combined relative
+    selector from that loop down to the target element, so nested anchor chains
+    (e.g. loop -> parent anchor -> child -> grandchild) work without flattening
+    the captured tree.
     """
     if not el:
         return extra
@@ -203,8 +304,8 @@ def _inject_relative_fields(extra: dict, el) -> dict:
     anchor_name = (getattr(el, "anchor_element_name", "") or "").strip()
     stack = _LOOP_STACK.get()
     if anchor_name:
-        matched = any(loop_name == anchor_name for loop_name in reversed(stack))
-        if not matched:
+        loop_name = _find_matching_loop(anchor_name, element_map, stack)
+        if not loop_name:
             if element_kind == "child":
                 raise ValueError(
                     f"Element '{getattr(el, 'name', '')}' is a child element and must be used "
@@ -219,15 +320,23 @@ def _inject_relative_fields(extra: dict, el) -> dict:
             )
         return extra
 
-    anchor = (getattr(el, "anchor_selector", "") or "").strip()
-    anchor_selector, anchor_family = _split_prefixed_selector(anchor) if anchor else ("", "css")
     enriched = dict(extra)
     enriched["useRelative"] = True
+    enriched["loopAnchor"] = loop_name
+
+    # Try to build a combined selector from the matching loop down to this
+    # element. If that fails (mixed families or broken chain), fall back to
+    # the immediate relative selector and the matching loop context.
+    chain = _build_chain_from_loop(el, loop_name, element_map)
+    if chain and len(chain) > 1:
+        combined, family = _combine_relative_chain(chain)
+        if combined:
+            enriched["relativeLocator"] = combined
+            enriched["relativeSelectorFamily"] = family
+            return enriched
+
     enriched["relativeLocator"] = rel_selector
     enriched["relativeSelectorFamily"] = rel_family
-    if anchor_selector:
-        enriched["anchorSelector"] = anchor_selector
-        enriched["anchorSelectorFamily"] = anchor_family
     return enriched
 
 
@@ -247,7 +356,7 @@ def _emit_instruction(
     selector_family = _infer_selector_family(el.web_selector) if el else "css"
 
     # Inject capture-time relative-anchor fields (no-op for unanchored elements).
-    extra = _inject_relative_fields(extra, el)
+    extra = _inject_relative_fields(extra, el, element_map)
 
     return {
         "stepId": f"step_{step_index}",
@@ -342,7 +451,7 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
             if node.type == "forEachElement" and node.element_name:
                 el = element_map.get(node.element_name) if element_map else None
                 if el and getattr(el, "element_kind", "plain") == "child":
-                    rel_extra = _inject_relative_fields(extra, el)
+                    rel_extra = _inject_relative_fields(extra, el, element_map)
                     if rel_extra.get("relativeLocator"):
                         extra = rel_extra
                         locator = rel_extra["relativeLocator"]
