@@ -344,18 +344,50 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             if anchor_el and anchor_el.web_selector:
                 anchor_selector = anchor_el.web_selector
 
-        # Check for existing element with same name in this workflow
-        existing = (
-            db.query(models.WorkflowElement)
-            .filter(
-                models.WorkflowElement.workflow_id == workflow_id,
-                models.WorkflowElement.name == name,
+        # Check for existing element by explicit id first (edit mode), then by name.
+        existing = None
+        el_id = payload.get("id")
+        if isinstance(el_id, int) and el_id:
+            existing = (
+                db.query(models.WorkflowElement)
+                .filter(
+                    models.WorkflowElement.workflow_id == workflow_id,
+                    models.WorkflowElement.id == el_id,
+                )
+                .first()
             )
-            .first()
-        )
+        if not existing:
+            existing = (
+                db.query(models.WorkflowElement)
+                .filter(
+                    models.WorkflowElement.workflow_id == workflow_id,
+                    models.WorkflowElement.name == name,
+                )
+                .first()
+            )
 
         if existing:
+            # When editing by id and renaming, make sure the new name is not
+            # already used by another element in the same workflow.
+            if existing.id and el_id and existing.name != name:
+                name_taken = (
+                    db.query(models.WorkflowElement)
+                    .filter(
+                        models.WorkflowElement.workflow_id == workflow_id,
+                        models.WorkflowElement.name == name,
+                        models.WorkflowElement.id != existing.id,
+                    )
+                    .first()
+                )
+                if name_taken:
+                    print(
+                        f"[elements_service] rename failed: name '{name}' already exists "
+                        f"in workflow {workflow_id}"
+                    )
+                    return None
+
             # Update existing element
+            existing.name = name
             existing.element_kind = element_kind
             existing.target_mode = target_mode
             existing.css_candidates = json.dumps(css_cands)
@@ -373,7 +405,7 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             existing.page_url = page_url
             db.commit()
             db.refresh(existing)
-            print(f"[elements_service] updated element '{name}' in workflow {workflow_id}")
+            print(f"[elements_service] updated element '{name}' (id={existing.id}) in workflow {workflow_id}")
             return existing
 
         # Create new element

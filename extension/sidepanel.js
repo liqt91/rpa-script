@@ -78,6 +78,8 @@
   let currentState = globalState;
   let captureMode = 'new';
 
+  let editingElementId = null;
+
   let currentTabId = null;
   let workflows = [];
   let selectedWorkflowId = localStorage.getItem('rpa_selected_workflow_id') || '';
@@ -214,8 +216,9 @@
   }
 
   function applyCaptureMode(mode) {
-    captureMode = mode === 'child' ? 'child' : 'new';
+    captureMode = mode === 'child' ? 'child' : (mode === 'edit' ? 'edit' : 'new');
     const child = captureMode === 'child';
+    const edit = captureMode === 'edit';
     currentState = child ? assocState : globalState;
 
     document.querySelectorAll('.capture-tab').forEach((b) => {
@@ -230,12 +233,15 @@
       if (panel) panel.classList.toggle('active', p.name === (child ? 'child' : 'new'));
     });
 
+    const editPanel = $('editCapturePanel');
+    if (editPanel) editPanel.classList.toggle('active', edit);
+
     const globalSelectorSection = $('globalSelectorSection');
     const assocSelectorSection = $('assocSelectorSection');
-    if (globalSelectorSection) globalSelectorSection.style.display = child ? 'none' : 'block';
+    if (globalSelectorSection) globalSelectorSection.style.display = child || edit ? 'none' : 'block';
     if (assocSelectorSection) assocSelectorSection.style.display = child ? 'block' : 'none';
 
-    if (!child && activeAnchorSelect && activeAnchorSelect.value) {
+    if (!child && !edit && activeAnchorSelect && activeAnchorSelect.value) {
       // Leaving associated mode drops any active anchor + page highlight.
       activeAnchorSelect.value = '';
       updateAnchorSelectLabel('');
@@ -361,10 +367,12 @@
       const resp = await chrome.runtime.sendMessage({ action: 'getWorkflowElements', workflowId });
       workflowElements = resp?.elements || [];
       renderActiveAnchorOptions();
+      populateEditElementSelect();
     } catch (e) {
       console.warn('[SidePanel] failed to load workflow elements:', e);
       workflowElements = [];
       renderActiveAnchorOptions();
+      populateEditElementSelect();
     }
   }
 
@@ -492,6 +500,106 @@
       activeAnchorName = '';
     }
     updateAnchorSelectLabel(activeAnchorName);
+  }
+
+  // ─── Edit existing element ─────────────────────────────────────────
+
+  const editElementSelect = $('editElementSelect');
+
+  function populateEditElementSelect() {
+    if (!editElementSelect) return;
+    const current = editElementSelect.value;
+    editElementSelect.innerHTML = '<option value="">选择要编辑的元素...</option>';
+    workflowElements.forEach((el) => {
+      if (!el?.name) return;
+      const opt = document.createElement('option');
+      opt.value = el.name;
+      opt.textContent = `${el.name} (${el.elementKind || 'plain'})`;
+      editElementSelect.appendChild(opt);
+    });
+    if (current && workflowElements.some((el) => el.name === current)) {
+      editElementSelect.value = current;
+    } else {
+      editElementSelect.value = '';
+    }
+  }
+
+  function persistedToLoadPayload(el) {
+    const attrs = el.attributes || {};
+    const classes = (attrs.class || '').split(/\s+/).filter(Boolean);
+    const id = attrs.id || '';
+    const tag = attrs.tag || 'div';
+
+    const candidates = [
+      ...(el.cssCandidates || []),
+      ...(el.xpathCandidates || []),
+      ...(el.drissionCandidates || []),
+    ];
+
+    const isChild = el.elementKind === 'child';
+    const selector = isChild ? '' : (el.webSelector || '');
+    const selectorFamily = inferFamilyFromSelector(selector) || 'css';
+
+    const relativeCandidates = el.relativeSelector
+      ? [{
+          syntax: el.relativeSelector,
+          family: inferFamilyFromSelector(el.relativeSelector) || 'css',
+          type: inferFamilyFromSelector(el.relativeSelector) || 'css',
+          matchCount: 1,
+          score: 0,
+        }]
+      : [];
+
+    return {
+      id: el.id,
+      name: el.name,
+      elementKind: el.elementKind || 'plain',
+      selector,
+      selectorFamily,
+      relativeSelector: el.relativeSelector || '',
+      anchorElementName: el.anchorElementName || '',
+      anchorSelector: el.anchorSelector || '',
+      anchorMode: el.anchorMode || 'none',
+      screenshot: el.screenshot || '',
+      pageUrl: el.pageUrl || '',
+      path: el.domPath || [],
+      candidates,
+      relativeCandidates,
+      attrs,
+      classes,
+      id,
+      tag,
+      inner_text: attrs.innerText || attrs.text || '',
+    };
+  }
+
+  async function loadElementForEdit(name) {
+    if (!selectedWorkflowId || !name) return;
+    try {
+      const resp = await send('getElementByName', { workflowId: selectedWorkflowId, name });
+      if (resp?.error || !resp?.name) {
+        verifyResult.textContent = '加载元素失败: ' + (resp?.error || '未知错误');
+        verifyResult.className = 'verify-meta err';
+        return;
+      }
+      const payload = persistedToLoadPayload(resp);
+      editingElementId = payload.id || null;
+      loadElementData(payload);
+      if (payload.elementKind === 'child') {
+        applyActiveAnchor(payload.anchorElementName);
+        setEditMode('manual', assocState);
+      }
+    } catch (err) {
+      verifyResult.textContent = '加载元素失败: ' + err.message;
+      verifyResult.className = 'verify-meta err';
+    }
+  }
+
+  if (editElementSelect) {
+    editElementSelect.addEventListener('change', () => {
+      const name = editElementSelect.value;
+      if (name) loadElementForEdit(name);
+    });
   }
 
   async function applyActiveAnchor(name) {
@@ -751,25 +859,36 @@
     renderProperties(state);
 
     if (state === globalState) {
-      // Global mode: select best global candidate and update global selector preview.
-      const first = (data.candidates || []).find((c) => {
-        const f = c.family || c.type || 'css';
-        return f === 'css' || f === 'xpath';
-      });
-      if (first) {
-        state.activeChoice = first.family || first.type || 'css';
-        syncChoiceButtons(state);
-        state.selectorValue = first.syntax;
+      // Global mode: prefer the persisted selector if available, otherwise
+      // select the best global candidate.
+      const savedSelector = data.selector || '';
+      if (savedSelector) {
+        state.selectorValue = savedSelector;
         const preview = $(getPanelIds('new').selectorPreviewId);
-        if (preview) preview.value = first.syntax;
-        state.selectedCandidateType = first.family || first.type || choiceFamily(state.activeChoice);
-        applyCandidateToUI(first, state);
-        const statusText = first.matchCount === 1 ? '唯一匹配' : (first.isList ? `列表 (${first.matchCount}个)` : first.matchCount + ' 匹配');
-        verifyResult.textContent = `${statusText} | score:${first.score}`;
-        verifyResult.className = 'verify-meta ' + (first.matchCount === 1 ? 'ok' : '');
-        broadcastSelectedCandidate();
-      } else {
+        if (preview) preview.value = savedSelector;
+        state.activeChoice = inferFamilyFromSelector(savedSelector) || data.selectorFamily || 'css';
+        syncChoiceButtons(state);
         updateSelector(state);
+      } else {
+        const first = (data.candidates || []).find((c) => {
+          const f = c.family || c.type || 'css';
+          return f === 'css' || f === 'xpath';
+        });
+        if (first) {
+          state.activeChoice = first.family || first.type || 'css';
+          syncChoiceButtons(state);
+          state.selectorValue = first.syntax;
+          const preview = $(getPanelIds('new').selectorPreviewId);
+          if (preview) preview.value = first.syntax;
+          state.selectedCandidateType = first.family || first.type || choiceFamily(state.activeChoice);
+          applyCandidateToUI(first, state);
+          const statusText = first.matchCount === 1 ? '唯一匹配' : (first.isList ? `列表 (${first.matchCount}个)` : first.matchCount + ' 匹配');
+          verifyResult.textContent = `${statusText} | score:${first.score}`;
+          verifyResult.className = 'verify-meta ' + (first.matchCount === 1 ? 'ok' : '');
+          broadcastSelectedCandidate();
+        } else {
+          updateSelector(state);
+        }
       }
       renderCandidates(state);
     } else {
@@ -1948,14 +2067,29 @@
       ? ''
       : (state === assocState ? (state.selectorValue || globalPreview?.value || '') : (globalPreview?.value || ''));
 
+    const newName = elName.value.trim();
+
+    // Rename collision guard when editing an existing element.
+    if (editingElementId && newName !== (currentState.elementData?.name || '')) {
+      const taken = workflowElements.some(
+        (el) => el.name === newName && el.id !== editingElementId
+      );
+      if (taken) {
+        verifyResult.textContent = `名称 "${newName}" 已被其他元素占用`;
+        verifyResult.className = 'verify-meta err';
+        elName.focus();
+        return;
+      }
+    }
+
     const payload = {
       workflowId: parseInt(selectedWorkflowId, 10),
-      name: elName.value.trim(),
+      name: newName,
       elementKind,
       selector,
       selectorFamily: choiceFamily(state.activeChoice),
       tag: state.elementData?.tag,
-      id: state.elementData?.id || '',
+      id: editingElementId || state.elementData?.id || '',
       classes: state.elementData?.classes || [],
       attrs: state.elementData?.attrs || {},
       text: state.elementData?.inner_text?.slice(0, 50) || '',
@@ -1987,12 +2121,19 @@
       .then(() => {
         verifyResult.textContent = '已保存';
         verifyResult.className = 'verify-meta ok';
-        markSavedButton();
-        if (selectedWorkflowId) loadWorkflowElements(selectedWorkflowId);
-        // 保存完成后清空当前编辑状态，否则 renderActiveAnchorOptions 会把刚保存的元素排除掉
-        globalState.elementData = null;
-        assocState.elementData = null;
-        elName.value = '';
+        if (selectedWorkflowId) {
+          loadWorkflowElements(selectedWorkflowId).then(() => {
+            // Keep the edited element selected in the edit dropdown.
+            if (editElementSelect) editElementSelect.value = newName;
+            resetSaveButton();
+          });
+        } else {
+          markSavedButton();
+        }
+        // Update the in-memory name so continued editing keeps the right identity.
+        if (currentState.elementData) {
+          currentState.elementData.name = newName;
+        }
       })
       .catch((err) => {
         verifyResult.textContent = '保存失败: ' + err.message;
@@ -2002,6 +2143,8 @@
 
   // Cancel
   $('btnCancel').addEventListener('click', () => {
+    editingElementId = null;
+    if (editElementSelect) editElementSelect.value = '';
     [globalState, assocState].forEach((state) => {
       state.elementData = null;
       state.selectedPathIndex = -1;

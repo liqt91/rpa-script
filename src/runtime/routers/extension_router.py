@@ -181,6 +181,43 @@ def list_extension_elements(workflow_id: int):
         db.close()
 
 
+@router.get("/elements/{name}")
+def get_extension_element(name: str, workflow_id: int):
+    """供扩展拉取单个元素的完整数据（用于编辑现有元素）。"""
+    db = SessionLocal()
+    try:
+        item = (
+            db.query(models.WorkflowElement)
+            .filter(
+                models.WorkflowElement.workflow_id == workflow_id,
+                models.WorkflowElement.name == name,
+            )
+            .first()
+        )
+        if not item:
+            return {"error": f"元素 '{name}' 不存在"}
+        return {
+            "id": item.id,
+            "name": item.name,
+            "elementKind": item.element_kind,
+            "webSelector": item.web_selector,
+            "drissionSelector": item.drission_selector,
+            "relativeSelector": item.relative_selector,
+            "anchorSelector": item.anchor_selector,
+            "anchorElementName": item.anchor_element_name,
+            "anchorMode": item.anchor_mode,
+            "cssCandidates": _safe_json_loads(item.css_candidates),
+            "xpathCandidates": _safe_json_loads(item.xpath_candidates),
+            "drissionCandidates": _safe_json_loads(item.drission_candidates),
+            "domPath": _safe_json_loads(item.dom_path),
+            "attributes": _safe_json_loads(item.attributes, {}),
+            "screenshot": item.screenshot,
+            "pageUrl": item.page_url,
+        }
+    finally:
+        db.close()
+
+
 @router.get("/elements/{name}/chain")
 def get_extension_element_chain(name: str, workflow_id: int):
     """供扩展查询某个元素的有效选择器链（支持 child-as-anchor）。"""

@@ -349,6 +349,17 @@
   <div class="capture-tabs">
     <button class="capture-tab active" data-capmode="new">捕获全局元素</button>
     <button class="capture-tab" data-capmode="child">捕获子元素</button>
+    <button class="capture-tab" data-capmode="edit">编辑元素</button>
+  </div>
+
+  <!-- Edit element panel -->
+  <div class="capture-panel" id="editCapturePanel">
+    <div class="workflow-row" style="background:#f6ffed;">
+      <label style="width:60px;">选择元素</label>
+      <select id="editElementSelect" style="flex:1;">
+        <option value="">选择要编辑的元素...</option>
+      </select>
+    </div>
   </div>
 
   <!-- Anchor element (only in associated mode) -->

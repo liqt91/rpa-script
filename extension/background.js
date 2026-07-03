@@ -665,6 +665,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // 5d) Side panel 请求单个元素完整数据（用于编辑现有元素）
+  if (message.action === 'getElementByName') {
+    (async () => {
+      try {
+        const host = await getBackendHost();
+        const port = await getBackendPort();
+        const { workflowId, name } = message;
+        const resp = await fetch(`http://${host}:${port}/api/extension/elements/${encodeURIComponent(name)}?workflow_id=${workflowId}`);
+        const data = await resp.json();
+        sendResponse(data);
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true;
+  }
+
   // 6) Content script 查询当前捕获启用状态（页面刷新后同步）
   if (message.action === 'queryCaptureState') {
     sendResponse({ captureEnabled: agent.sidePanelOpen });
