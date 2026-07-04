@@ -346,6 +346,18 @@ class ExtensionRunner:
         await self._paused.wait()
         return not self._stopped
 
+    async def _interruptible_sleep(self, seconds: float) -> None:
+        """Sleep for up to `seconds`, checking stop/pause every 200ms."""
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + seconds
+        while loop.time() < deadline:
+            if self._stopped:
+                raise asyncio.CancelledError("Run stopped by user")
+            if not await self._wait_if_paused():
+                raise asyncio.CancelledError("Run stopped by user")
+            remaining = deadline - loop.time()
+            await asyncio.sleep(min(0.2, remaining))
+
     async def run(self, wf: models.Workflow, nodes: list[models.WorkflowNode]) -> dict:
         """Run workflow nodes through the extension. Returns execution report."""
         await run_progress.register(self.run_id, self.queue)
@@ -2069,7 +2081,7 @@ async def _local_sleep(runner: "ExtensionRunner", cmd_type: str, step_id: str, i
     seconds = float(extra.get("seconds", 1.0))
     ms = int(seconds * 1000)
     logger.info(f"[ExtensionRunner] sleep {seconds}s")
-    await asyncio.sleep(seconds)
+    await runner._interruptible_sleep(seconds)
     runner.results.append({
         "stepId": step_id,
         "nodeId": instr.get("nodeId"),
@@ -2094,7 +2106,7 @@ async def _local_randomSleep(runner: "ExtensionRunner", cmd_type: str, step_id: 
     seconds = random.uniform(min_sec, max_sec)
     ms = int(seconds * 1000)
     logger.info(f"[ExtensionRunner] randomSleep {seconds:.3f}s (min={min_sec}, max={max_sec})")
-    await asyncio.sleep(seconds)
+    await runner._interruptible_sleep(seconds)
     runner.results.append({
         "stepId": step_id,
         "nodeId": instr.get("nodeId"),

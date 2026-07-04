@@ -42,6 +42,7 @@ export default function Toolbar() {
   const [editNameValue, setEditNameValue] = useState('');
   const importInputRef = useRef(null);
   const stoppedRef = useRef(false);
+  const navigatingAwayRef = useRef(false);
 
   // Poll extension online status.
   useEffect(() => {
@@ -62,7 +63,7 @@ export default function Toolbar() {
   // Warn when trying to close/refresh the tab while a workflow is running.
   useEffect(() => {
     const handler = (e) => {
-      if (running) {
+      if (running && !navigatingAwayRef.current) {
         e.preventDefault();
         e.returnValue = '工作流正在运行，离开页面将中断进度跟踪。';
       }
@@ -488,6 +489,7 @@ export default function Toolbar() {
   };
 
   const handleBack = async () => {
+    navigatingAwayRef.current = true;
     if (running) {
       await handleStop();
     }

@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 import json
 from src.repo import models
 from src.runtime.workflow.extension_runner import run_workflow_extension
@@ -175,3 +176,15 @@ def test_run_status_endpoint(client, auth_headers):
     assert "activeRuns" in data
     assert data["activeCount"] == len(data["activeRuns"])
     assert data["availableSlots"] >= 0
+
+
+@pytest.mark.anyio
+async def test_local_sleep_is_interruptible():
+    """A long local sleep must exit promptly when the runner is stopped."""
+    from src.runtime.workflow.extension_runner import ExtensionRunner
+    runner = ExtensionRunner("")
+    task = asyncio.create_task(runner._interruptible_sleep(1000))
+    await asyncio.sleep(0.1)
+    runner._stopped = True
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, timeout=1.0)
