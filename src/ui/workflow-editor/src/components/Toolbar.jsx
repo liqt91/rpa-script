@@ -488,14 +488,7 @@ export default function Toolbar() {
   };
 
   const handleBack = async () => {
-    if (!running) {
-      window.location.href = '/workflow-editor/';
-      return;
-    }
-    const stopThenLeave = window.confirm(
-      '工作流正在运行。\n\n点击“确定”停止运行并返回列表；\n点击“取消”保持后台运行并返回列表。'
-    );
-    if (stopThenLeave) {
+    if (running) {
       await handleStop();
     }
     window.location.href = '/workflow-editor/';
