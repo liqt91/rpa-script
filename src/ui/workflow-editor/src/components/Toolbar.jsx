@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 import RunParametersDialog from './RunParametersDialog';
@@ -37,6 +37,7 @@ export default function Toolbar() {
   const [runResult, setRunResult] = useState(null);
   const [runParamsOpen, setRunParamsOpen] = useState(false);
   const [extStatus, setExtStatus] = useState(null);
+  const [runStatus, setRunStatus] = useState(null);
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
   const importInputRef = useRef(null);
@@ -55,6 +56,31 @@ export default function Toolbar() {
     };
     poll();
     const timer = setInterval(poll, 5000);
+    return () => { mounted = false; clearInterval(timer); };
+  }, []);
+
+  // Poll global run status so the Run button can be disabled when capacity is full.
+  const refreshRunStatus = useCallback(async () => {
+    try {
+      const data = await api.getRunStatus();
+      setRunStatus(data);
+    } catch {
+      setRunStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const poll = async () => {
+      try {
+        const data = await api.getRunStatus();
+        if (mounted) setRunStatus(data);
+      } catch {
+        if (mounted) setRunStatus(null);
+      }
+    };
+    poll();
+    const timer = setInterval(poll, 3000);
     return () => { mounted = false; clearInterval(timer); };
   }, []);
 
@@ -269,6 +295,10 @@ export default function Toolbar() {
   };
 
   const handleRunClick = () => {
+    if (runStatus?.availableSlots === 0) {
+      alert('当前已有工作流在运行，请等待完成后再试。');
+      return;
+    }
     const params = workflow?.parameters;
     if (Array.isArray(params) && params.length > 0) {
       setRunParamsOpen(true);
@@ -278,6 +308,10 @@ export default function Toolbar() {
   };
 
   const doRun = async (parameters = null) => {
+    if (runStatus?.availableSlots === 0) {
+      alert('当前已有工作流在运行，请等待完成后再试。');
+      return;
+    }
     console.log(`[Toolbar] run clicked, isDirty=${isDirty}`);
     if (isDirty) {
       const ok = confirm('工作流有未保存的更改，先保存再运行？');
@@ -293,6 +327,7 @@ export default function Toolbar() {
     setRunning(true);
     setPaused(false);
     setRunResult(null);
+    refreshRunStatus();
     dispatch({ type: 'RUN_START' });
     dispatch({ type: 'CLEAR_RUN_LOGS' });
     dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'info', msg: '开始执行（扩展模式）' } });
@@ -355,6 +390,7 @@ export default function Toolbar() {
         setRunning(false);
         setPaused(false);
         setCurrentRunId(null);
+        refreshRunStatus();
         dispatch({ type: 'RUN_DONE', payload: { success: false, stopped: false } });
         dispatch({ type: 'APPEND_RUN_LOG', payload: { time: new Date().toLocaleTimeString('zh-CN'), level: 'warn', msg: '连接中断，执行状态未知' } });
       };
@@ -393,6 +429,7 @@ export default function Toolbar() {
       setPaused(false);
       setCurrentRunId(null);
       stoppedRef.current = false;
+      refreshRunStatus();
       if (es) {
         try { es.close(); } catch {}
       }
@@ -435,6 +472,7 @@ export default function Toolbar() {
     setRunning(false);
     setPaused(false);
     setCurrentRunId(null);
+    refreshRunStatus();
   };
 
   const closeResult = () => setRunResult(null);
@@ -537,11 +575,32 @@ export default function Toolbar() {
             <span>{extStatus?.online ? '扩展在线' : '扩展未连接'}</span>
           </div>
 
+          {/* Run capacity indicator */}
+          {runStatus && (
+            <div
+              className={`flex items-center gap-1.5 px-2 h-7 rounded border text-xs ${
+                runStatus.availableSlots === 0
+                  ? 'border-amber-300 bg-amber-50 text-amber-700'
+                  : 'border-[#d9d9d9] text-gray-600'
+              }`}
+              title={runStatus.availableSlots === 0 ? '并发已满，请等待' : `可用运行槽位 ${runStatus.availableSlots}/${runStatus.maxConcurrent}`}
+            >
+              <i className={`fas ${runStatus.availableSlots === 0 ? 'fa-lock' : 'fa-layer-group'} text-[10px]`}></i>
+              <span>{runStatus.availableSlots === 0 ? '运行中' : `${runStatus.availableSlots}`}</span>
+            </div>
+          )}
+
           {/* Run controls */}
           {!running ? (
             <button
-              className={`h-7 px-3 flex items-center gap-1.5 rounded bg-[#1f1f1f] hover:bg-black text-white text-xs transition-colors run-pulse`}
+              className={`h-7 px-3 flex items-center gap-1.5 rounded text-xs transition-colors ${
+                runStatus?.availableSlots === 0
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#1f1f1f] hover:bg-black text-white run-pulse'
+              }`}
               onClick={handleRunClick}
+              disabled={runStatus?.availableSlots === 0}
+              title={runStatus?.availableSlots === 0 ? '当前已有工作流在运行' : '运行工作流'}
             >
               <i className="fas fa-play text-[10px]"></i>
               <span>运行</span>

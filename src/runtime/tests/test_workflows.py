@@ -162,3 +162,16 @@ async def test_workflow_concurrency_lock_blocks_second_run(client, auth_headers,
         assert r.status_code == 503, r.text
         assert r.headers.get("retry-after") == "1"
         assert "capacity full" in r.json()["detail"].lower()
+
+
+def test_run_status_endpoint(client, auth_headers):
+    """GET /api/workflows/runs/status returns capacity and active run summary."""
+    r = client.get("/api/workflows/runs/status", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "maxConcurrent" in data
+    assert "activeCount" in data
+    assert "availableSlots" in data
+    assert "activeRuns" in data
+    assert data["activeCount"] == len(data["activeRuns"])
+    assert data["availableSlots"] >= 0

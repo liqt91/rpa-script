@@ -194,6 +194,7 @@ export const api = {
   // Run logs
   listAllRuns: () => request('/api/workflows/runs'),
   getActiveRuns: () => request('/api/workflows/runs/active'),
+  getRunStatus: () => request('/api/workflows/runs/status'),
   getRunLog: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/log`),
   getRunTable: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/table`),
   openRunFolder: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/open-folder`, { method: 'POST' }),

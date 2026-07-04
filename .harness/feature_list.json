@@ -66,6 +66,18 @@
         { "id": "smoke", "title": "Concurrent run returns 503 when lock is held", "done": true }
       ],
       "domain": "workflows"
+    },
+    {
+      "id": "workflow-concurrency-lock-ui",
+      "title": "工作流并发锁前端约束展示",
+      "passes": true,
+      "steps": [
+        { "id": "api", "title": "Expose /api/workflows/runs/status endpoint", "done": true },
+        { "id": "ui", "title": "Toolbar fetches status and disables run at capacity", "done": true },
+        { "id": "build", "title": "Rebuild static workflow-editor assets", "done": true },
+        { "id": "test", "title": "Status endpoint + smoke tests pass", "done": true }
+      ],
+      "domain": "workflows"
     }
   ]
 }

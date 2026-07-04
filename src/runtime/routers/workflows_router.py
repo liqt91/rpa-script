@@ -25,8 +25,10 @@ from ..workflow.extension_runner import (
 )
 from src.providers import run_progress
 from src.providers.workflow_lock import (
+    MAX_CONCURRENT_WORKFLOWS,
     WorkflowConcurrencyError,
     WORKFLOW_LOCK_TIMEOUT_SECONDS,
+    current_workflow_lock_capacity,
     workflow_lock,
 )
 from src.repo.browser_utils import detect_browser_paths
@@ -89,6 +91,18 @@ async def list_active_runs(user=Depends(auth.get_current_user)):
         {"runId": rid, "clientId": r.client_id}
         for rid, r in runners
     ]
+
+
+@router.get("/runs/status")
+async def get_run_status(user=Depends(auth.get_current_user)):
+    """Return concurrency lock capacity and active run summary."""
+    runners = await list_active_runners()
+    return {
+        "maxConcurrent": MAX_CONCURRENT_WORKFLOWS,
+        "activeCount": len(runners),
+        "availableSlots": current_workflow_lock_capacity(),
+        "activeRuns": [{"runId": rid, "clientId": r.client_id} for rid, r in runners],
+    }
 
 
 # ---------- Workflow CRUD ----------
