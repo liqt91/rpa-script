@@ -113,14 +113,14 @@ def _match_brackets(nodes: list[models.WorkflowNode]) -> tuple[dict, dict]:
 
     for node in sorted_nodes:
         is_container, is_branch, is_structural = _node_meta(node)
-        if is_container:
-            stack.append(node.id)
-        elif is_branch:
+        if is_branch:
+            # Branch nodes (else/catch) belong to the nearest open container and
+            # share its closing marker; do not push them as a new container scope.
             if stack:
                 container_id = stack[-1]
                 container_branch[container_id] = node.id
-                # Replace container with branch in stack (branch opens new scope)
-                stack[-1] = node.id
+        elif is_container:
+            stack.append(node.id)
         elif is_structural:
             if stack:
                 closed = stack.pop()

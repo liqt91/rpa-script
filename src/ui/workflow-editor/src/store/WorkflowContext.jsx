@@ -319,14 +319,13 @@ export function matchBrackets(sorted, typeMap) {
   const match = new Map();
   for (const node of sorted) {
     const info = typeMap[node.type];
-    if (info?.isContainer) {
-      stack.push({ id: node.id, closesWith: info.closesWith });
-    } else if (info?.isBranch) {
-      // 分支替换栈顶容器，不形成新的匹配对
+    if (info?.isBranch) {
+      // 分支（else/catch）与原始容器共享同一个结束标记，不进入栈
       if (stack.length > 0) {
-        stack[stack.length - 1].id = node.id;
         stack[stack.length - 1].closesWith = info.closesWith || stack[stack.length - 1].closesWith;
       }
+    } else if (info?.isContainer) {
+      stack.push({ id: node.id, closesWith: info.closesWith });
     } else if (info?.isStructural) {
       const closeType = node.type; // e.g. "endFor"
       let idx = stack.length - 1;
@@ -349,13 +348,13 @@ export function getUnclosedContainers(sorted, typeMap) {
   for (let i = 0; i < sorted.length; i++) {
     const node = sorted[i];
     const info = typeMap[node.type];
-    if (info?.isContainer) {
-      stack.push({ id: node.id, closesWith: info.closesWith, index: i, depth: node.depth || 0 });
-    } else if (info?.isBranch) {
+    if (info?.isBranch) {
+      // 分支（else/catch）与原始容器共享同一个结束标记，不进入栈
       if (stack.length > 0) {
-        stack[stack.length - 1].id = node.id;
         stack[stack.length - 1].closesWith = info.closesWith || stack[stack.length - 1].closesWith;
       }
+    } else if (info?.isContainer) {
+      stack.push({ id: node.id, closesWith: info.closesWith, index: i, depth: node.depth || 0 });
     } else if (info?.isStructural) {
       const closeType = node.type;
       let idx = stack.length - 1;
@@ -379,31 +378,35 @@ export function computeParents(sorted, typeMap) {
   const containerClose = new Map();
   for (const [sId, cId] of bracketMatch) containerClose.set(cId, sId);
 
-  const scope = []; // 当前打开的容器 {id, closesWith}[]
+  const scope = []; // 当前打开的容器 {containerId, branchId, closesWith}[]
   for (const node of sorted) {
     const info = typeMap[node.type];
     if (info?.isContainer) {
-      node.parent_id = scope.length > 0 ? scope[scope.length - 1].id : null;
-      scope.push({ id: node.id, closesWith: info.closesWith });
+      node.parent_id = scope.length > 0 ? scope[scope.length - 1].branchId : null;
+      scope.push({ containerId: node.id, branchId: node.id, closesWith: info.closesWith });
     } else if (info?.isBranch) {
-      // 分支与容器平级，但它本身也开启新作用域
+      // 分支与原始容器平级，但其后代属于该分支
       const closed = scope.pop();
-      const closedParent = closed ? (sorted.find(n => n.id === closed.id)?.parent_id ?? null) : null;
+      const closedParent = closed ? (sorted.find(n => n.id === closed.containerId)?.parent_id ?? null) : null;
       node.parent_id = closedParent;
-      scope.push({ id: node.id, closesWith: info.closesWith || closed?.closesWith });
+      scope.push({
+        containerId: closed.containerId,
+        branchId: node.id,
+        closesWith: info.closesWith || closed?.closesWith,
+      });
     } else if (info?.isStructural) {
       const closeType = node.type;
       let idx = scope.length - 1;
       while (idx >= 0 && scope[idx].closesWith !== closeType) idx--;
       if (idx >= 0) {
         const closed = scope.splice(idx, 1)[0];
-        const closedParent = sorted.find(n => n.id === closed.id)?.parent_id ?? null;
+        const closedParent = sorted.find(n => n.id === closed.containerId)?.parent_id ?? null;
         node.parent_id = closedParent;
       } else {
         node.parent_id = null;
       }
     } else {
-      node.parent_id = scope.length > 0 ? scope[scope.length - 1].id : null;
+      node.parent_id = scope.length > 0 ? scope[scope.length - 1].branchId : null;
     }
   }
   return sorted;
@@ -416,13 +419,20 @@ export function deriveParentId(nodes, newNodeType, typeMap, insertIndex) {
 
   // 只处理插入位置之前的节点，做括号匹配
   const prefix = insertIndex !== undefined ? sorted.slice(0, insertIndex) : sorted;
-  const scope = []; // 当前未闭合的容器 {id, closesWith}[]
+  const scope = []; // 当前未闭合的容器 {containerId, branchId, closesWith}[]
   for (const node of prefix) {
     const info = typeMap[node.type];
     if (info?.isContainer) {
-      scope.push({ id: node.id, closesWith: info.closesWith });
+      scope.push({ containerId: node.id, branchId: node.id, closesWith: info.closesWith });
     } else if (info?.isBranch) {
-      if (scope.length > 0) scope[scope.length - 1].id = node.id;
+      if (scope.length > 0) {
+        const closed = scope[scope.length - 1];
+        scope[scope.length - 1] = {
+          containerId: closed.containerId,
+          branchId: node.id,
+          closesWith: info.closesWith || closed.closesWith,
+        };
+      }
     } else if (info?.isStructural) {
       const closeType = node.type;
       let idx = scope.length - 1;
@@ -433,25 +443,25 @@ export function deriveParentId(nodes, newNodeType, typeMap, insertIndex) {
 
   const newInfo = typeMap[newNodeType];
   if (newInfo?.isBranch) {
-    // 分支：与栈顶容器平级
+    // 分支：与栈顶原始容器平级
     const closed = scope[scope.length - 1];
     return closed
-      ? (sorted.find(n => n.id === closed.id)?.parent_id ?? null)
+      ? (sorted.find(n => n.id === closed.containerId)?.parent_id ?? null)
       : null;
   }
   if (newInfo?.isStructural) {
-    // 结构标记：找到匹配的容器，与其平级
+    // 结构标记：找到匹配的原始容器，与其平级
     const closeType = newNodeType;
     let idx = scope.length - 1;
     while (idx >= 0 && scope[idx].closesWith !== closeType) idx--;
     if (idx >= 0) {
       const closed = scope[idx];
-      return sorted.find(n => n.id === closed.id)?.parent_id ?? null;
+      return sorted.find(n => n.id === closed.containerId)?.parent_id ?? null;
     }
     return null;
   }
   // 容器/普通节点：落在当前最内层作用域里
-  return scope.length > 0 ? scope[scope.length - 1].id : null;
+  return scope.length > 0 ? scope[scope.length - 1].branchId : null;
 }
 
 export function WorkflowProvider({ children, wfId }) {
