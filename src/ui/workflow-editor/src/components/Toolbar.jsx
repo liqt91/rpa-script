@@ -59,6 +59,18 @@ export default function Toolbar() {
     return () => { mounted = false; clearInterval(timer); };
   }, []);
 
+  // Warn when trying to close/refresh the tab while a workflow is running.
+  useEffect(() => {
+    const handler = (e) => {
+      if (running) {
+        e.preventDefault();
+        e.returnValue = '工作流正在运行，离开页面将中断进度跟踪。';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [running]);
+
   // Poll global run status so the Run button can be disabled when capacity is full.
   const refreshRunStatus = useCallback(async () => {
     try {
@@ -475,6 +487,20 @@ export default function Toolbar() {
     refreshRunStatus();
   };
 
+  const handleBack = async () => {
+    if (!running) {
+      window.location.href = '/workflow-editor/';
+      return;
+    }
+    const stopThenLeave = window.confirm(
+      '工作流正在运行。\n\n点击“确定”停止运行并返回列表；\n点击“取消”保持后台运行并返回列表。'
+    );
+    if (stopThenLeave) {
+      await handleStop();
+    }
+    window.location.href = '/workflow-editor/';
+  };
+
   const closeResult = () => setRunResult(null);
 
   const extDotColor = extStatus?.online ? 'bg-green-500' : 'bg-red-500';
@@ -633,13 +659,13 @@ export default function Toolbar() {
               </button>
             </div>
           )}
-          <a
-            href="/workflow-editor/"
+          <button
+            onClick={handleBack}
             className="h-7 px-2.5 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
           >
             <i className="fas fa-arrow-left text-[10px]"></i>
             <span>返回</span>
-          </a>
+          </button>
         </div>
 
         {/* 右侧：用户信息 */}
