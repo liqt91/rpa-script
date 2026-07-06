@@ -18,10 +18,10 @@
     {
       "id": "not-found-page",
       "title": "Custom 404 page (or handler)",
-      "passes": false,
+      "passes": true,
       "steps": [
-        { "id": "ui", "title": "Add 404 view/handler in ui/ or runtime/", "done": false },
-        { "id": "smoke", "title": "curl /no-such-path returns 404 with the custom body", "done": false }
+        { "id": "ui", "title": "Add 404 view/handler in ui/ or runtime/", "done": true },
+        { "id": "smoke", "title": "curl /no-such-path returns 404 with the custom body", "done": true }
       ],
       "domain": "default"
     },

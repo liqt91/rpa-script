@@ -9,7 +9,8 @@ import os
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 
@@ -157,6 +158,18 @@ async def lifespan(app: FastAPI):
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 app = FastAPI(title="分布式脚本执行平台", version="1.0", lifespan=lifespan)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def not_found_handler(request: Request, exc: StarletteHTTPException):
+    """Return a custom 404 page for unmatched non-API paths."""
+    if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+        return HTMLResponse(
+            content="<html><body><h1>404 - Page Not Found</h1><p>The requested page does not exist.</p></body></html>",
+            status_code=404,
+        )
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
