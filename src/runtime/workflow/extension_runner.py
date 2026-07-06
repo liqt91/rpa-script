@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import httpx
 import time
@@ -181,6 +181,61 @@ class _TableAccessor:
         rows[row][col_name] = value
         self._dirty = True
 
+    def add_cols(self, count: int):
+        """Append `count` columns (always adds, never skips).
+
+        Usage: _table.add_cols(3)  # appends 3 new columns
+        """
+        columns = self._data.setdefault("columns", [])
+        rows = self._data.setdefault("rows", [])
+        current = len(columns)
+        for i in range(current, current + count):
+            name = chr(65 + i) if i < 26 else f"Col{i}"
+            columns.append({"name": name, "type": "text"})
+            for row in rows:
+                row.setdefault(name, "")
+        self._dirty = True
+
+    def add_rows(self, count: int):
+        """Append `count` empty rows (always adds, never skips).
+
+        Usage: _table.add_rows(3)  # appends 3 new rows
+        """
+        rows = self._data.setdefault("rows", [])
+        for _ in range(count):
+            rows.append({})
+        self._dirty = True
+
+    def ensure_cols(self, count: int):
+        """Ensure at least `count` columns exist (idempotent).
+
+        Usage: _table.ensure_cols(5)  # no-op if already 5+ columns
+        """
+        columns = self._data.setdefault("columns", [])
+        rows = self._data.setdefault("rows", [])
+        current = len(columns)
+        if count <= current:
+            return
+        for i in range(current, count):
+            name = chr(65 + i) if i < 26 else f"Col{i}"
+            columns.append({"name": name, "type": "text"})
+            for row in rows:
+                row.setdefault(name, "")
+        self._dirty = True
+
+    def ensure_rows(self, count: int):
+        """Ensure at least `count` rows exist (idempotent).
+
+        Usage: _table.ensure_rows(5)  # no-op if already 5+ rows
+        """
+        rows = self._data.setdefault("rows", [])
+        current = len(rows)
+        if count <= current:
+            return
+        for _ in range(count - current):
+            rows.append({})
+        self._dirty = True
+
     def __len__(self):
         return len(self._data.get("rows", []))
 
@@ -238,13 +293,17 @@ class ExtensionRunner:
         run_id: str | None = None,
         log_dir: str | None = None,
         queue: asyncio.Queue | None = None,
+        workflow_id: int | None = None,
     ):
         self.client_id = client_id
         self.run_id = run_id or f"run_{id(self)}"
+        self.workflow_id = workflow_id
         self.vars: dict[str, Any] = {}
         self.results: list[dict] = []
         self.completed = 0
         self.failed_steps: list[dict] = []
+        self._last_error: str | None = None
+        self._try_depth: int = 0
         self.queue = queue or asyncio.Queue()
         self._step_seq = 0
         self._paused = asyncio.Event()
@@ -316,6 +375,16 @@ class ExtensionRunner:
             await ext_manager.send_to(self.client_id, "runStarted", {"runId": self.run_id})
 
     async def _emit(self, event: dict) -> None:
+        # Enrich compound stepComplete events with the container's start/end
+        # positions so the UI can render the closing marker correctly.
+        if (
+            event.get("type") == "stepComplete"
+            and self._current_step
+            and self._current_step.get("compound")
+        ):
+            event.setdefault("order", self._current_step.get("order"))
+            event.setdefault("endOrder", self._current_step.get("endOrder"))
+            event.setdefault("endNodeId", self._current_step.get("endNodeId"))
         try:
             await asyncio.wait_for(self.queue.put(event), timeout=1.0)
         except Exception:
@@ -361,7 +430,6 @@ class ExtensionRunner:
     async def run(self, wf: models.Workflow, nodes: list[models.WorkflowNode]) -> dict:
         """Run workflow nodes through the extension. Returns execution report."""
         await run_progress.register(self.run_id, self.queue)
-
         # Load workflow elements and build element_map for selector resolution
         db = SessionLocal()
         try:
@@ -390,6 +458,8 @@ class ExtensionRunner:
                     "type": "stepStart",
                     "stepId": instr.get("stepId"),
                     "nodeId": instr.get("nodeId"),
+                    "compound": instr.get("compound", False),
+                    "cmdType": instr.get("cmdType", ""),
                 })
                 try:
                     success = await self._execute_instruction(instr)
@@ -1086,8 +1156,14 @@ class ExtensionRunner:
             body = instr.get("body", [])
             else_body = instr.get("elseBody", [])
             error_var = _clean_var_ref(extra.get("errorVar", "error"))
+            caught_error: str | None = None
+            self._try_depth += 1
             try:
                 success = await self._run_body(body)
+                if not success:
+                    # Body returned False (a step failed with onError=stop).
+                    # Treat it as an exception so the catch block runs.
+                    raise RuntimeError(self._last_error or "try body failed")
                 self.completed += 1
                 await self._emit({
                     "type": "stepComplete",
@@ -1101,15 +1177,20 @@ class ExtensionRunner:
             except LoopContinue:
                 raise
             except Exception as e:
-                self.vars[error_var] = str(e)
-                logger.info(f"[ExtensionRunner] catch {error_var}={str(e)!r}")
+                caught_error = str(e)
+            finally:
+                self._try_depth -= 1
+
+            if caught_error is not None:
+                self.vars[error_var] = caught_error
+                logger.info(f"[ExtensionRunner] catch {error_var}={caught_error!r}")
                 success = await self._run_body(else_body)
                 self.completed += 1
                 await self._emit({
                     "type": "stepComplete",
                     "stepId": step_id,
                     "nodeId": instr.get("nodeId"),
-                    "result": {"try": "caught", "error": str(e)},
+                    "result": {"try": "caught", "error": caught_error},
                 })
                 return success
 
@@ -1358,6 +1439,7 @@ class ExtensionRunner:
                     "round": round, "pow": pow, "divmod": divmod,
                     "sorted": sorted, "reversed": reversed,
                     "isinstance": isinstance, "hasattr": hasattr, "getattr": getattr,
+                    "chr": chr, "ord": ord,
                     "print": _custom_print,
                 },
                 "json": __import__("json"),
@@ -1499,6 +1581,23 @@ class ExtensionRunner:
         for attempt in range(retry_count + 1):
             try:
                 result = await self._send_and_wait(step_id, resolved_instr, timeout)
+
+                # Soft "not found" inside a loop (contextNotFound) is reported as a
+                # warning by the extension. Honor the node's onError policy: "continue"
+                # keeps the empty value, anything else treats it as a real failure so
+                # that a missing element does not silently become blank text.
+                if (
+                    isinstance(result, dict)
+                    and result.get("contextNotFound")
+                    and on_error != "continue"
+                ):
+                    last_error = result.get("warning") or f"{cmd_type}: 元素在当前循环项中未找到"
+                    logger.warning(
+                        f"[ExtensionRunner] {step_id} {cmd_type} contextNotFound "
+                        f"with onError={on_error}, treating as failure"
+                    )
+                    break
+
                 self.results.append({
                     "stepId": step_id,
                     "nodeId": instr.get("nodeId"),
@@ -1588,16 +1687,33 @@ class ExtensionRunner:
                     await asyncio.sleep(1.0)
 
         # All retries exhausted
-        self.failed_steps.append({
+        self._last_error = last_error
+        locator = resolved_instr.get("locator")
+        locator_part = f" locator={locator}" if locator else ""
+        rich_error = f"[{step_id} node={instr.get('nodeId')} cmd={cmd_type}{locator_part}] {last_error}"
+        result_entry = {
             "stepId": step_id, "nodeId": instr.get("nodeId"),
-            "instruction": instr, "error": last_error,
-        })
-        self.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"), "status": "error", "error": last_error})
-        await self._emit({
+            "status": "error", "error": rich_error,
+        }
+        error_event = {
             "type": "stepError",
             "stepId": step_id, "nodeId": instr.get("nodeId"),
-            "error": last_error,
-        })
+            "error": rich_error,
+        }
+        if self._try_depth > 0:
+            # Errors inside a try block are caught by the try handler; don't count
+            # them as uncaught workflow failures in the final summary popup.
+            result_entry["caught"] = True
+            error_event["caught"] = True
+            self.results.append(result_entry)
+            await self._emit(error_event)
+        else:
+            self.failed_steps.append({
+                "stepId": step_id, "nodeId": instr.get("nodeId"),
+                "instruction": instr, "error": rich_error,
+            })
+            self.results.append(result_entry)
+            await self._emit(error_event)
 
         if on_error == "stop":
             return False
@@ -1703,7 +1819,7 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     pre_queue = asyncio.Queue()
     await run_progress.register(_run_id, pre_queue)
 
-    runner = ExtensionRunner(client_id or "", run_id=_run_id, log_dir=log_dir, queue=pre_queue)
+    runner = ExtensionRunner(client_id or "", run_id=_run_id, log_dir=log_dir, queue=pre_queue, workflow_id=wf.id)
 
     # Initialize workflow-level parameters (design-time defaults + runtime overrides)
     param_defaults = {}

@@ -30,6 +30,24 @@ async function getBackendPort() {
   return parseInt(cfg.backendPort || DEFAULT_BACKEND_PORT, 10);
 }
 
+/**
+ * Ensure the target tab has our content scripts injected.
+ * Manifest-declared content scripts only auto-inject on navigation; tabs that
+ * were already open (or that navigated before the extension loaded) need an
+ * explicit injection before we can send them messages.
+ */
+async function ensureContentScripts(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content.js', 'finder.js', 'content_capture.js'],
+    });
+  } catch (e) {
+    console.warn('[Agent] ensureContentScripts failed for tab', tabId, e.message);
+    throw e;
+  }
+}
+
 class AgentBackground {
   constructor() {
     this.ws = null;
@@ -513,7 +531,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ error: 'tabId required' });
       return false;
     }
-    chrome.tabs.sendMessage(tabId, { action: 'verifyElement', payload })
+    ensureContentScripts(tabId)
+      .then(() => chrome.tabs.sendMessage(tabId, { action: 'verifyElement', payload }))
       .then(result => sendResponse(result))
       .catch(err => sendResponse({ error: err.message }));
     return true; // async
@@ -527,7 +546,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ error: 'tabId required' });
       return false;
     }
-    chrome.tabs.sendMessage(tabId, { action: 'recomputeAnchor', payload })
+    ensureContentScripts(tabId)
+      .then(() => chrome.tabs.sendMessage(tabId, { action: 'recomputeAnchor', payload }))
       .then(result => sendResponse(result))
       .catch(err => sendResponse({ error: err.message }));
     return true;
@@ -541,7 +561,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ error: 'tabId required' });
       return false;
     }
-    chrome.tabs.sendMessage(tabId, { action: 'verifyRelative', payload })
+    ensureContentScripts(tabId)
+      .then(() => chrome.tabs.sendMessage(tabId, { action: 'verifyRelative', payload }))
       .then(result => sendResponse(result))
       .catch(err => sendResponse({ error: err.message }));
     return true;
@@ -555,7 +576,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ error: 'tabId required' });
       return false;
     }
-    chrome.tabs.sendMessage(tabId, { action: 'computeRelativeFromAnchor', payload })
+    ensureContentScripts(tabId)
+      .then(() => chrome.tabs.sendMessage(tabId, { action: 'computeRelativeFromAnchor', payload }))
       .then(result => sendResponse(result))
       .catch(err => sendResponse({ error: err.message }));
     return true;
@@ -567,7 +589,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const explicitTab = message.tabId ?? message.payload?.tabId;
     const forward = (tid) => {
       if (!tid) { sendResponse({ error: 'no active tab' }); return; }
-      chrome.tabs.sendMessage(tid, { action: 'setActiveAnchor', payload })
+      ensureContentScripts(tid)
+        .then(() => chrome.tabs.sendMessage(tid, { action: 'setActiveAnchor', payload }))
         .then((result) => sendResponse(result))
         .catch((err) => sendResponse({ error: err.message }));
     };
@@ -609,10 +632,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // 5) Side panel 点击保存 → 转发到后端
+  // 保存元素（通过 HTTP 同步等待后端结果）
   if (message.action === 'saveElement') {
-    agent._send('captureElement', message.payload);
-    sendResponse({ saved: true });
-    return false;
+    (async () => {
+      try {
+        const host = await getBackendHost();
+        const port = await getBackendPort();
+        const resp = await fetch(`http://${host}:${port}/api/extension/elements`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(message.payload),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          sendResponse({ saved: false, error: data?.detail || resp.statusText });
+          return;
+        }
+        sendResponse({ saved: true, element: data });
+      } catch (e) {
+        sendResponse({ saved: false, error: e.message });
+      }
+    })();
+    return true;
   }
 
   // 5a) Side panel 请求流程列表
@@ -654,8 +695,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const host = await getBackendHost();
         const port = await getBackendPort();
-        const { workflowId, name } = message;
-        const resp = await fetch(`http://${host}:${port}/api/extension/elements/${encodeURIComponent(name)}/chain?workflow_id=${workflowId}`);
+        const { workflowId, name } = message.payload || {};
+        const resp = await fetch(`http://${host}:${port}/api/extension/elements/${encodeURIComponent(name)}/chain?workflow_id=${encodeURIComponent(workflowId)}`);
         const data = await resp.json();
         sendResponse(data);
       } catch (e) {
@@ -671,12 +712,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const host = await getBackendHost();
         const port = await getBackendPort();
-        const { workflowId, name } = message;
-        const resp = await fetch(`http://${host}:${port}/api/extension/elements/${encodeURIComponent(name)}?workflow_id=${workflowId}`);
-        const data = await resp.json();
+        const { workflowId, name } = message.payload || {};
+        console.log('[Background] getElementByName request:', { workflowId, name });
+        const url = `http://${host}:${port}/api/extension/elements/${encodeURIComponent(name)}?workflow_id=${encodeURIComponent(workflowId)}`;
+        const resp = await fetch(url);
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          console.warn('[Background] getElementByName failed:', resp.status, url, data);
+          sendResponse({ error: data?.detail || data?.error || `HTTP ${resp.status}` });
+          return;
+        }
+        console.log('[Background] getElementByName response:', data);
         sendResponse(data);
       } catch (e) {
-        sendResponse({ error: e.message });
+        console.warn('[Background] getElementByName error:', e);
+        sendResponse({ error: e.message || String(e) });
       }
     })();
     return true;

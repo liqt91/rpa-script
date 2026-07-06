@@ -649,7 +649,8 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
             <div className="px-4 py-2 bg-[#252526] border-b border-[#333] text-[#858585] text-xs font-mono select-text">
               <div className="text-[#6a9955]"># 可用变量: {vars.map(v => v.name).join(', ') || '无'}</div>
               <div className="text-[#6a9955]">{'# _table[0][0]  第1行第1列;  _table[0]["A"]  第1行A列;  _table[0][1] = "x"  写入'}</div>
-              <div className="text-[#6a9955]">{'# _table.dirty 自动标记，无需手动 _table_dirty; 也可用 _table_data["rows"][0]["A"]'}</div>
+              <div className="text-[#6a9955]">{'# _table.ensure_cols(5) / ensure_rows(9) 确保至少N列/行（幂等）'}</div>
+              <div className="text-[#6a9955]">{'# _table.add_cols(3) / add_rows(3) 追加N列/行（总是添加）'}</div>
               <div className="text-[#6a9955]"># 返回值: _result = xxx</div>
             </div>
             <div className="flex-1 flex overflow-hidden">

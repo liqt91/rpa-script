@@ -79,6 +79,9 @@ export default function NodeList() {
       if (!isMeta) return;
       if (isTextField(e.target)) return;
       if (e.key === 'c' || e.key === 'C') {
+        // 如果页面上有文字被选中（运行日志、代码注释等），交给浏览器原生复制
+        const selection = window.getSelection();
+        if (selection && selection.toString().trim().length > 0) return;
         const ids = Array.from(selectedNodeIds);
         if (ids.length > 0) {
           e.preventDefault();
@@ -526,7 +529,7 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
       >
         <i className="fas fa-grip-vertical text-xs pointer-events-none"></i>
       </div>
-      <span className="text-xs text-gray-400 font-mono mt-0.5 w-4 text-right shrink-0">{index + 1}</span>
+      <span className="text-xs text-gray-400 font-mono mt-0.5 w-6 text-right shrink-0">{index + 1}</span>
       <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 mt-0.5 ${typeInfo.bgColor || 'bg-gray-50'}`}>
         <i className={`fas ${typeInfo.icon || 'fa-circle'} ${typeInfo.iconColor || 'text-gray-400'} text-xs`}></i>
       </div>

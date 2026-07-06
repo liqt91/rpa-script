@@ -8,6 +8,11 @@ from datetime import datetime
 import json
 
 
+# ====== Health ======
+class HealthResponse(BaseModel):
+    status: str
+
+
 # ====== Auth ======
 class LoginRequest(BaseModel):
     username: str
@@ -230,8 +235,33 @@ class WorkflowListOut(BaseModel):
     description: str = ""
     url: str = ""
     framework: str = "DrissionPage"
+    parameters: Optional[list] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    @field_validator("parameters", mode="before")
+    @classmethod
+    def _parse_parameters(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return json.loads(v or "[]")
+            except Exception:
+                return []
+        return v
+
+
+class ActiveRunOut(BaseModel):
+    run_id: str
+    workflow_id: Optional[int] = None
+    workflow_name: str = ""
+    client_id: Optional[str] = None
+
+
+class ActiveRunStopOut(BaseModel):
+    success: bool
+    stopped: list[str] = Field(default_factory=list)
 
 
 # ====== Workflow Elements ======
@@ -298,6 +328,21 @@ class WorkflowElementChainOut(BaseModel):
     combined_css: str = ""
     combined_xpath: str = ""
     error: Optional[str] = None
+
+
+def _to_camel(snake: str) -> str:
+    parts = snake.split("_")
+    return parts[0] + "".join(word.capitalize() for word in parts[1:])
+
+
+class ExtensionWorkflowElementOut(WorkflowElementOut):
+    """CamelCase serialization of WorkflowElementOut for the browser extension."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        alias_generator=_to_camel,
+        populate_by_name=True,
+    )
 
 
 # ====== Data Tables ======

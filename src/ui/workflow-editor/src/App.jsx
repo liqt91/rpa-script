@@ -1,17 +1,12 @@
 import { HashRouter, Routes, Route, useParams, NavLink, useLocation } from 'react-router-dom';
 import { WorkflowProvider } from './store/WorkflowContext';
+import { ActiveRunProvider, useActiveRun } from './context/ActiveRunContext';
 import Layout from './components/Layout';
 import WorkflowList from './components/WorkflowList';
 import RunLogs from './components/RunLogs';
 import Schedules from './components/Schedules';
 import AdminDashboard from './components/admin/AdminDashboard';
-import AdminTasks from './components/admin/AdminTasks';
-import AdminResults from './components/admin/AdminResults';
-import AdminClients from './components/admin/AdminClients';
-import AdminScripts from './components/admin/AdminScripts';
-import AdminAIApps from './components/admin/AdminAIApps';
 import AdminPassword from './components/admin/AdminPassword';
-import AdminCommands from './components/admin/AdminCommands';
 
 function EditorPage() {
   const { id } = useParams();
@@ -34,6 +29,7 @@ function EditorPage() {
 
 function SidebarLayout({ children }) {
   const location = useLocation();
+  const { activeRun, stopActiveRun } = useActiveRun();
   const hideSidebar = location.pathname.startsWith('/editor/');
 
   if (hideSidebar) {
@@ -95,6 +91,26 @@ function SidebarLayout({ children }) {
             管理后台
           </NavLink>
         </nav>
+
+        {activeRun && (
+          <div className="px-3 py-3 border-t border-gray-700">
+            <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-2.5">
+              <div className="flex items-center gap-2 text-xs text-blue-300 mb-1.5">
+                <i className="fas fa-circle-notch fa-spin"></i>
+                <span className="truncate" title={activeRun.workflow_name || `流程 #${activeRun.workflow_id}`}>
+                  运行中：{activeRun.workflow_name || `流程 #${activeRun.workflow_id}`}
+                </span>
+              </div>
+              <button
+                onClick={stopActiveRun}
+                className="w-full px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs flex items-center justify-center gap-1 transition-colors"
+              >
+                <i className="fas fa-stop"></i>
+                停止运行
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 主内容区 */}
@@ -108,20 +124,16 @@ function SidebarLayout({ children }) {
 function App() {
   return (
     <HashRouter>
-      <Routes>
-        <Route path="/" element={<SidebarLayout><WorkflowList /></SidebarLayout>} />
-        <Route path="/logs" element={<SidebarLayout><RunLogs /></SidebarLayout>} />
-        <Route path="/schedules" element={<SidebarLayout><Schedules /></SidebarLayout>} />
-        <Route path="/admin/dashboard" element={<SidebarLayout><AdminDashboard /></SidebarLayout>} />
-        <Route path="/admin/tasks" element={<SidebarLayout><AdminTasks /></SidebarLayout>} />
-        <Route path="/admin/results" element={<SidebarLayout><AdminResults /></SidebarLayout>} />
-        <Route path="/admin/clients" element={<SidebarLayout><AdminClients /></SidebarLayout>} />
-        <Route path="/admin/scripts" element={<SidebarLayout><AdminScripts /></SidebarLayout>} />
-        <Route path="/admin/ai-apps" element={<SidebarLayout><AdminAIApps /></SidebarLayout>} />
-        <Route path="/admin/password" element={<SidebarLayout><AdminPassword /></SidebarLayout>} />
-        <Route path="/admin/commands" element={<SidebarLayout><AdminCommands /></SidebarLayout>} />
-        <Route path="/editor/:id" element={<EditorPage />} />
-      </Routes>
+      <ActiveRunProvider>
+        <Routes>
+          <Route path="/" element={<SidebarLayout><WorkflowList /></SidebarLayout>} />
+          <Route path="/logs" element={<SidebarLayout><RunLogs /></SidebarLayout>} />
+          <Route path="/schedules" element={<SidebarLayout><Schedules /></SidebarLayout>} />
+          <Route path="/admin/dashboard" element={<SidebarLayout><AdminDashboard /></SidebarLayout>} />
+          <Route path="/admin/password" element={<SidebarLayout><AdminPassword /></SidebarLayout>} />
+          <Route path="/editor/:id" element={<EditorPage />} />
+        </Routes>
+      </ActiveRunProvider>
     </HashRouter>
   );
 }

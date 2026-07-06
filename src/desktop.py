@@ -164,7 +164,7 @@ def main():
 
     host = os.environ["HOST"]
     port = os.environ["PORT"]
-    url = f"http://{host}:{port}/admin/commands"
+    url = f"http://{host}:{port}/workflow-editor/#/"
 
     # 启动后端线程
     server_thread = threading.Thread(target=_run_server, daemon=True)

@@ -9,7 +9,8 @@ import os
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,7 @@ from .routers.commands_router import router as commands_router
 from .routers.data_tables_router import router as data_tables_router
 from .routers.other_routers import (
     result_router, script_router, client_router, ai_router, system_router, admin_api_router,
+    health_router,
 )
 from .admin_router import router as admin_router
 from src.config.runtime_config import HOST, PORT
@@ -157,6 +159,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 app = FastAPI(title="分布式脚本执行平台", version="1.0", lifespan=lifespan)
 
+
+@app.exception_handler(StarletteHTTPException)
+async def not_found_handler(request: Request, exc: StarletteHTTPException):
+    """Return a custom 404 page for unmatched non-API paths; preserve headers for other errors."""
+    if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+        return HTMLResponse(
+            content="<html><body><h1>404 - Page Not Found</h1><p>The requested page does not exist.</p></body></html>",
+            status_code=404,
+        )
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # 注册路由
@@ -171,6 +185,7 @@ app.include_router(script_router)
 app.include_router(client_router)
 app.include_router(ai_router)
 app.include_router(system_router)
+app.include_router(health_router)
 app.include_router(admin_api_router)
 app.include_router(admin_router)
 

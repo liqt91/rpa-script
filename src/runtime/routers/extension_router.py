@@ -5,14 +5,19 @@ WebSocket 长连接 + HTTP 命令下发
 """
 
 import asyncio
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, WebSocket, Path, Query, HTTPException
 from typing import Optional
 
 from ..websocket_manager import ext_manager
-from src.service.elements_service import save_captured_element, compute_selector_chain
+from src.service.elements_service import (
+    save_captured_element,
+    compute_selector_chain,
+    get_element_by_name,
+)
 from src.service.extension_scanner import scan_installed_extensions
 from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
+from src.dtypes.schemas import ExtensionWorkflowElementOut
 import json
 
 
@@ -27,20 +32,6 @@ def _safe_json_loads(value, default=None):
 
 
 router = APIRouter(prefix="/api/extension", tags=["extension"])
-
-
-# ── WebSocket 消息回调 ──
-
-async def _on_capture_element(payload: dict, client_id: str):
-    """处理扩展上报的捕获元素，委托 service 层保存"""
-    el = await save_captured_element(payload)
-    if el:
-        print(f"[Extension] 捕获元素已保存: {el.id} {el.name}")
-    else:
-        print("[Extension] 保存捕获元素失败")
-
-
-ext_manager.on("captureElement", _on_capture_element)
 
 
 # ── WebSocket 长连接 ──
@@ -181,41 +172,43 @@ def list_extension_elements(workflow_id: int):
         db.close()
 
 
-@router.get("/elements/{name}")
-def get_extension_element(name: str, workflow_id: int):
-    """供扩展拉取单个元素的完整数据（用于编辑现有元素）。"""
-    db = SessionLocal()
+def _prepare_element(item):
+    """Parse JSON text columns on a WorkflowElement ORM object in place."""
+    for col in ("css_candidates", "xpath_candidates", "drission_candidates", "dom_path"):
+        value = getattr(item, col, None)
+        try:
+            setattr(item, col, json.loads(value) if value else [])
+        except Exception:
+            setattr(item, col, [])
     try:
-        item = (
-            db.query(models.WorkflowElement)
-            .filter(
-                models.WorkflowElement.workflow_id == workflow_id,
-                models.WorkflowElement.name == name,
-            )
-            .first()
-        )
-        if not item:
-            return {"error": f"元素 '{name}' 不存在"}
-        return {
-            "id": item.id,
-            "name": item.name,
-            "elementKind": item.element_kind,
-            "webSelector": item.web_selector,
-            "drissionSelector": item.drission_selector,
-            "relativeSelector": item.relative_selector,
-            "anchorSelector": item.anchor_selector,
-            "anchorElementName": item.anchor_element_name,
-            "anchorMode": item.anchor_mode,
-            "cssCandidates": _safe_json_loads(item.css_candidates),
-            "xpathCandidates": _safe_json_loads(item.xpath_candidates),
-            "drissionCandidates": _safe_json_loads(item.drission_candidates),
-            "domPath": _safe_json_loads(item.dom_path),
-            "attributes": _safe_json_loads(item.attributes, {}),
-            "screenshot": item.screenshot,
-            "pageUrl": item.page_url,
-        }
-    finally:
-        db.close()
+        item.attributes = json.loads(item.attributes) if item.attributes else {}
+    except Exception:
+        item.attributes = {}
+    return item
+
+
+@router.get("/elements/{name}")
+def get_extension_element(
+    name: str = Path(..., max_length=255),
+    workflow_id: int = Query(..., gt=0),
+):
+    """供扩展拉取单个元素的完整数据（用于编辑现有元素）。"""
+    item = get_element_by_name(workflow_id, name)
+    if not item:
+        return {"error": "元素不存在"}
+    return ExtensionWorkflowElementOut.model_validate(_prepare_element(item))
+
+
+@router.post("/elements")
+async def save_extension_element(payload: dict):
+    """供扩展通过 HTTP 保存/更新元素，返回实际保存结果或错误。"""
+    try:
+        el = await save_captured_element(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if not el:
+        raise HTTPException(status_code=400, detail="保存元素失败")
+    return ExtensionWorkflowElementOut.model_validate(_prepare_element(el))
 
 
 @router.get("/elements/{name}/chain")

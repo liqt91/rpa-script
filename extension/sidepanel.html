@@ -34,13 +34,22 @@
     border-bottom: 1px solid #e8e8e8; background: #f0f7ff;
   }
   .workflow-row label { font-size: 12px; color: #666; width: 40px; flex-shrink: 0; }
-  .conn-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-    background: #ff4d4f; transition: background 0.3s;
+  .refresh-btn {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 12px;
+    color: #666;
     cursor: pointer;
+    transition: border-color 0.3s, color 0.3s;
   }
-  .conn-dot.online { background: #52c41a; }
-  .conn-dot.checking { background: #faad14; }
+  .refresh-btn:hover:not(:disabled) { border-color: #1677ff; color: #1677ff; }
+  .refresh-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .refresh-btn.online { border-color: #52c41a; color: #52c41a; }
+  .refresh-btn.checking { border-color: #faad14; color: #faad14; }
+  .refresh-btn.error { border-color: #ff4d4f; color: #ff4d4f; }
   .workflow-row select {
     flex: 1; padding: 5px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; background: #fff;
   }
@@ -281,7 +290,40 @@
   }
   .loading-text { margin-top: 10px; font-size: 13px; color: #666; }
 
-  /* Hidden */
+  /* Edit mode badge */
+  .edit-mode-badge {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .edit-mode-badge.editing {
+    background: #e6f7ff;
+    color: #1677ff;
+    border: 1px solid #91d5ff;
+  }
+  .edit-mode-badge.new {
+    background: #f6ffed;
+    color: #52c41a;
+    border: 1px solid #b7eb8f;
+  }
+
+  /* Pending recapture info */
+  .recapture-info {
+    margin: 0 14px 10px;
+    padding: 8px 12px;
+    background: #fffbe6;
+    border: 1px solid #ffe58f;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #614700;
+  }
+  .recapture-info code {
+    font-family: monospace;
+    font-size: 11px;
+    word-break: break-all;
+    color: #333;
+  }
   .hidden { display: none !important; }
 
   /* Anchor element tree dropdown */
@@ -338,27 +380,36 @@
       <option value="8811">生产</option>
       <option value="8000">开发</option>
     </select>
-    <div id="connDot" class="conn-dot" title="未连接"></div>
     <label style="width:40px;margin-left:8px;">流程</label>
     <select id="workflowSelect">
       <option value="">选择流程...</option>
     </select>
+    <button id="refreshEnvBtn" class="refresh-btn" title="刷新连接并拉取流程">刷新</button>
   </div>
 
   <!-- Capture-mode tabs -->
   <div class="capture-tabs">
     <button class="capture-tab active" data-capmode="new">捕获全局元素</button>
     <button class="capture-tab" data-capmode="child">捕获子元素</button>
-    <button class="capture-tab" data-capmode="edit">编辑元素</button>
+    <button class="capture-tab" data-capmode="edit">重新捕获现有元素</button>
   </div>
 
   <!-- Edit element panel -->
   <div class="capture-panel" id="editCapturePanel">
     <div class="workflow-row" style="background:#f6ffed;">
       <label style="width:60px;">选择元素</label>
-      <select id="editElementSelect" style="flex:1;">
+      <select id="editElementSelect" class="hidden">
         <option value="">选择要编辑的元素...</option>
       </select>
+      <div class="anchor-select-wrap" style="flex:1;">
+        <button type="button" id="editElementSelectBtn" class="anchor-select-btn">
+          <span id="editElementSelectLabel">选择要编辑的元素...</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;color:#999;">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div id="editElementTreeDropdown" class="anchor-tree-dropdown" style="display:none;"></div>
+      </div>
     </div>
   </div>
 
@@ -385,6 +436,7 @@
   <div class="name-row">
     <label>元素名称</label>
     <input type="text" id="elName" placeholder="输入元素名称">
+    <span id="editModeBadge" class="edit-mode-badge new">新元素</span>
     <button class="screenshot-toggle" id="screenshotToggle" title="查看截图" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -392,6 +444,12 @@
         <polyline points="21 15 16 10 5 21"></polyline>
       </svg>
     </button>
+  </div>
+
+  <!-- Pending recapture info -->
+  <div class="recapture-info" id="recaptureInfo" style="display:none;">
+    <div>待更新：<span id="recaptureName"></span></div>
+    <div>原选择器：<code id="recaptureOriginalSelector"></code></div>
   </div>
 
   <!-- Collapsible screenshot panel -->

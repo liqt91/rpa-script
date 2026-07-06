@@ -120,6 +120,36 @@ export function findAncestorNodes(nodes, selectedNodeId, types) {
 
 const isTempId = (id) => id && typeof id === 'string' && id.includes('-');
 
+/**
+ * Copy text to clipboard with fallback for non-secure contexts (HTTP, desktop webview).
+ * Tries modern clipboard API first, falls back to execCommand('copy').
+ */
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  // Fallback: classic textarea + execCommand approach
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.position = 'fixed';
+    el.style.left = '-9999px';
+    el.style.top = '-9999px';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    try {
+      const ok = document.execCommand('copy');
+      if (ok) resolve();
+      else reject(new Error('execCommand copy returned false'));
+    } catch (e) {
+      reject(e);
+    } finally {
+      document.body.removeChild(el);
+    }
+  });
+}
+
 function reducer(state, action) {
   switch (action.type) {
     case 'SET_WF_ID':
@@ -464,6 +494,37 @@ export function deriveParentId(nodes, newNodeType, typeMap, insertIndex) {
   return scope.length > 0 ? scope[scope.length - 1].branchId : null;
 }
 
+/**
+ * Compare two node lists structurally (ignoring IDs).
+ * Returns true if both have the same count, types, orders, and parent relationships.
+ */
+function areNodesEquivalent(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+
+  const sortedA = [...a].sort((x, y) => x.order - y.order);
+  const sortedB = [...b].sort((x, y) => x.order - y.order);
+
+  // Build order→index maps for parent relationship comparison
+  const orderToIdxA = new Map(sortedA.map((n, i) => [n.order, i]));
+  const orderToIdxB = new Map(sortedB.map((n, i) => [n.order, i]));
+
+  for (let i = 0; i < sortedA.length; i++) {
+    const na = sortedA[i];
+    const nb = sortedB[i];
+    if (na.type !== nb.type) return false;
+    if (na.order !== nb.order) return false;
+
+    // Compare parent by order (IDs differ between local/server)
+    const pa = na.parent_id ? sortedA.find(n => n.id === na.parent_id) : null;
+    const pb = nb.parent_id ? sortedB.find(n => n.id === nb.parent_id) : null;
+    const paOrder = pa?.order ?? null;
+    const pbOrder = pb?.order ?? null;
+    if (paOrder !== pbOrder) return false;
+  }
+  return true;
+}
+
 export function WorkflowProvider({ children, wfId }) {
   const [state, dispatch] = useReducer(reducer, { ...initialState, wfId });
   const stateRef = useRef(state);
@@ -518,25 +579,30 @@ export function WorkflowProvider({ children, wfId }) {
       const wf = await api.getWorkflow(stateRef.current.wfId);
       dispatch({ type: 'SET_WORKFLOW', payload: wf });
 
-      // 优先恢复本地未提交的节点
+      // 优先恢复本地未提交的节点；与服务器数据对比，一致则视为已保存
       const key = STORAGE_KEY(stateRef.current.wfId);
       const saved = localStorage.getItem(key);
       console.log(`[WorkflowContext] localStorage check for wf ${stateRef.current.wfId}: key=${key}, found=${!!saved}`);
+      const serverNodes = await api.getWorkflowNodes(stateRef.current.wfId);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          console.log(`[WorkflowContext] ✅ restored ${parsed.length} nodes from localStorage`);
-          dispatch({ type: 'SET_NODES', payload: parsed, isDirty: true });
+          if (areNodesEquivalent(parsed, serverNodes)) {
+            console.log(`[WorkflowContext] localStorage matches server, using server data (clean)`);
+            localStorage.removeItem(key);
+            dispatch({ type: 'SET_NODES', payload: serverNodes, isDirty: false });
+          } else {
+            console.log(`[WorkflowContext] ✅ restored ${parsed.length} nodes from localStorage (dirty)`);
+            dispatch({ type: 'SET_NODES', payload: parsed, isDirty: true });
+          }
         } catch (e) {
           console.error(`[WorkflowContext] ❌ failed to parse localStorage data: ${e.message}`);
           localStorage.removeItem(key);
-          const nodes = await api.getWorkflowNodes(stateRef.current.wfId);
-          dispatch({ type: 'SET_NODES', payload: nodes });
+          dispatch({ type: 'SET_NODES', payload: serverNodes });
         }
       } else {
-        const nodes = await api.getWorkflowNodes(stateRef.current.wfId);
-        console.log(`[WorkflowContext] loaded '${wf.name}' with ${nodes.length} nodes from server`);
-        dispatch({ type: 'SET_NODES', payload: nodes });
+        console.log(`[WorkflowContext] loaded '${wf.name}' with ${serverNodes.length} nodes from server`);
+        dispatch({ type: 'SET_NODES', payload: serverNodes });
       }
     } catch (e) {
       console.error(`[WorkflowContext] loadWorkflow failed: ${e.message}`);
@@ -644,11 +710,11 @@ export function WorkflowProvider({ children, wfId }) {
     };
 
     try {
-      await navigator.clipboard.writeText(JSON.stringify(payload));
+      await copyTextToClipboard(JSON.stringify(payload));
       console.log(`[WorkflowContext] copyNodes count=${copied.length}`);
     } catch (e) {
       console.error('[WorkflowContext] copyNodes failed:', e);
-      dispatch({ type: 'SET_ERROR', payload: '复制失败：' + e.message });
+      dispatch({ type: 'SET_ERROR', payload: '复制失败：' + (e.message || '剪贴板不可用') });
     }
   }, []);
 
