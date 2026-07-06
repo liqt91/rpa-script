@@ -24,6 +24,7 @@ from .routers.commands_router import router as commands_router
 from .routers.data_tables_router import router as data_tables_router
 from .routers.other_routers import (
     result_router, script_router, client_router, ai_router, system_router, admin_api_router,
+    health_router,
 )
 from .admin_router import router as admin_router
 from src.config.runtime_config import HOST, PORT
@@ -171,6 +172,7 @@ app.include_router(script_router)
 app.include_router(client_router)
 app.include_router(ai_router)
 app.include_router(system_router)
+app.include_router(health_router)
 app.include_router(admin_api_router)
 app.include_router(admin_router)
 

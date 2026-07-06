@@ -6,12 +6,12 @@
     {
       "id": "health-endpoint",
       "title": "GET /health returns {status:'ok'}",
-      "passes": false,
+      "passes": true,
       "steps": [
-        { "id": "type", "title": "Define HealthResponse in types/", "done": false },
-        { "id": "service", "title": "Implement getHealth() in service/", "done": false },
-        { "id": "runtime", "title": "Wire route in runtime/", "done": false },
-        { "id": "smoke", "title": "curl localhost returns 200 + {status:'ok'}", "done": false }
+        { "id": "type", "title": "Define HealthResponse in types/", "done": true },
+        { "id": "service", "title": "Implement getHealth() in service/", "done": true },
+        { "id": "runtime", "title": "Wire route in runtime/", "done": true },
+        { "id": "smoke", "title": "curl localhost returns 200 + {status:'ok'}", "done": true }
       ],
       "domain": "default"
     },

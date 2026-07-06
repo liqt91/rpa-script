@@ -850,7 +850,15 @@ def delete_ai_app(cap_type: str, db: Session = Depends(auth.get_db),
     return {"ok": True}
 
 
-# ====== Admin API ======
+# ====== Health ======
+health_router = APIRouter(tags=["health"])
+
+
+@health_router.get("/health")
+def get_health():
+    from src.service.health_service import get_health as _get_health
+    return _get_health()
+
 admin_api_router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
