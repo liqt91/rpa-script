@@ -79,6 +79,10 @@
   let captureMode = 'new';
 
   let editingElementId = null;
+  // When non-null, the user selected an existing element in the "recapture" tab
+  // and must Alt+click to capture new data before saving.
+  let pendingRecapture = null;
+  let recaptureCompleted = false;
 
   let currentTabId = null;
   let workflows = [];
@@ -215,6 +219,49 @@
     if (badge) badge.textContent = name ? `基于 ${name}` : '';
   }
 
+  function refreshEditModeBadge() {
+    const badge = $('editModeBadge');
+    if (!badge) return;
+    if (editingElementId && currentState.elementData?.name) {
+      badge.textContent = '编辑: ' + currentState.elementData.name;
+      badge.className = 'edit-mode-badge editing';
+    } else if (currentState.elementData) {
+      badge.textContent = '新元素';
+      badge.className = 'edit-mode-badge new';
+    } else {
+      badge.textContent = '';
+      badge.className = 'edit-mode-badge';
+    }
+  }
+
+  function updateRecaptureUI() {
+    const info = $('recaptureInfo');
+    const nameEl = $('recaptureName');
+    const selectorEl = $('recaptureOriginalSelector');
+    if (!info || !nameEl || !selectorEl) return;
+    if (pendingRecapture) {
+      info.style.display = 'block';
+      nameEl.textContent = pendingRecapture.name;
+      selectorEl.textContent = pendingRecapture.originalSelector || '（无）';
+    } else {
+      info.style.display = 'none';
+      nameEl.textContent = '';
+      selectorEl.textContent = '';
+    }
+  }
+
+  function updateSaveButtonForRecapture() {
+    const btn = $('btnSave');
+    if (!btn) return;
+    if (pendingRecapture && !recaptureCompleted) {
+      btn.disabled = true;
+      btn.textContent = '请重新捕获';
+    } else {
+      btn.disabled = false;
+      btn.textContent = pendingRecapture ? '保存更新' : '保存';
+    }
+  }
+
   function applyCaptureMode(mode) {
     captureMode = mode === 'child' ? 'child' : (mode === 'edit' ? 'edit' : 'new');
     const child = captureMode === 'child';
@@ -261,7 +308,17 @@
   }
 
   document.querySelectorAll('.capture-tab').forEach((btn) => {
-    btn.addEventListener('click', () => applyCaptureMode(btn.dataset.capmode));
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.capmode;
+      if (mode !== 'edit') {
+        // Leaving the recapture-selection tab only clears the dropdown UI;
+        // the pending recapture state survives until cancel/workflow-change.
+        setEditElementValue('');
+      }
+      applyCaptureMode(mode);
+      refreshEditModeBadge();
+      updateRecaptureUI();
+    });
   });
 
   // ─── Mode toggle (Recommend / Manual) ──────────────────────────────
@@ -335,6 +392,7 @@
   // ─── Load workflows and anchor elements ────────────────────────────
 
   async function loadWorkflows() {
+    console.log('[SidePanel] loadWorkflows start, selectedWorkflowId:', selectedWorkflowId);
     try {
       const resp = await chrome.runtime.sendMessage({ action: 'getWorkflows' });
       if (resp?.workflows) {
@@ -411,19 +469,19 @@
     return roots;
   }
 
-  function renderAnchorTree(nodes, container, selectedName) {
+  function renderElementTree(nodes, container, options) {
+    const { expandedNames, selectedName, onSelect, emptyText = '暂无元素' } = options;
     container.innerHTML = '';
     if (nodes.length === 0) {
-      container.innerHTML = '<div class="anchor-tree-row"><span class="spacer"></span><span class="label">暂无元素</span></div>';
+      container.innerHTML = `<div class="anchor-tree-row"><span class="spacer"></span><span class="label">${emptyText}</span></div>`;
       return;
     }
     const chevronRight = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
     const chevronDown = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
     function appendNode(node, depth) {
       const hasChildren = node.children && node.children.length > 0;
-      const isExpanded = anchorExpandedNames.has(node.name);
+      const isExpanded = expandedNames.has(node.name);
       const paddingLeft = 6 + depth * 16;
-      const guideLeft = paddingLeft + 8;
 
       const wrapper = document.createElement('div');
       wrapper.className = 'anchor-tree-node';
@@ -439,9 +497,9 @@
         toggle.innerHTML = isExpanded ? chevronDown : chevronRight;
         toggle.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (anchorExpandedNames.has(node.name)) anchorExpandedNames.delete(node.name);
-          else anchorExpandedNames.add(node.name);
-          renderAnchorTree(nodes, container, selectedName);
+          if (expandedNames.has(node.name)) expandedNames.delete(node.name);
+          else expandedNames.add(node.name);
+          renderElementTree(nodes, container, options);
         });
       }
       row.appendChild(toggle);
@@ -452,11 +510,7 @@
       row.appendChild(label);
 
       row.addEventListener('click', () => {
-        activeAnchorSelect.value = node.name;
-        activeAnchorName = node.name;
-        updateAnchorSelectLabel(node.name);
-        activeAnchorTreeDropdown.style.display = 'none';
-        activeAnchorSelect.dispatchEvent(new Event('change'));
+        if (onSelect) onSelect(node.name);
       });
 
       wrapper.appendChild(row);
@@ -467,6 +521,20 @@
       }
     }
     nodes.forEach((node) => appendNode(node, 0));
+  }
+
+  function renderAnchorTree(nodes, container, selectedName) {
+    renderElementTree(nodes, container, {
+      expandedNames: anchorExpandedNames,
+      selectedName,
+      onSelect: (name) => {
+        activeAnchorSelect.value = name;
+        activeAnchorName = name;
+        updateAnchorSelectLabel(name);
+        activeAnchorTreeDropdown.style.display = 'none';
+        activeAnchorSelect.dispatchEvent(new Event('change'));
+      },
+    });
   }
 
   function updateAnchorSelectLabel(name) {
@@ -505,29 +573,48 @@
   // ─── Edit existing element ─────────────────────────────────────────
 
   const editElementSelect = $('editElementSelect');
+  const editElementSelectBtn = $('editElementSelectBtn');
+  const editElementSelectLabel = $('editElementSelectLabel');
+  const editElementTreeDropdown = $('editElementTreeDropdown');
+
+  let editExpandedNames = new Set();
+
+  function updateEditElementSelectLabel(name) {
+    if (editElementSelectLabel) editElementSelectLabel.textContent = name || '选择要编辑的元素...';
+  }
+
+  function setEditElementValue(name) {
+    if (editElementSelect) editElementSelect.value = name || '';
+    updateEditElementSelectLabel(name);
+  }
 
   function populateEditElementSelect() {
-    if (!editElementSelect) return;
-    const current = editElementSelect.value;
-    editElementSelect.innerHTML = '<option value="">选择要编辑的元素...</option>';
-    workflowElements.forEach((el) => {
-      if (!el?.name) return;
-      const opt = document.createElement('option');
-      opt.value = el.name;
-      opt.textContent = `${el.name} (${el.elementKind || 'plain'})`;
-      editElementSelect.appendChild(opt);
+    if (!editElementSelectBtn) return;
+    const current = editElementSelect ? editElementSelect.value : '';
+    console.log('[SidePanel] populateEditElementSelect', { count: workflowElements.length, current });
+    editExpandedNames = new Set(workflowElements.map((el) => el.name));
+    const tree = buildElementTree(workflowElements);
+    renderElementTree(tree, editElementTreeDropdown, {
+      expandedNames: editExpandedNames,
+      selectedName: current,
+      emptyText: '暂无元素',
+      onSelect: (name) => {
+        setEditElementValue(name);
+        editElementTreeDropdown.style.display = 'none';
+        loadElementForEdit(name);
+      },
     });
     if (current && workflowElements.some((el) => el.name === current)) {
-      editElementSelect.value = current;
+      updateEditElementSelectLabel(current);
     } else {
-      editElementSelect.value = '';
+      setEditElementValue('');
     }
+    console.log('[SidePanel] editElementSelect value after populate:', editElementSelect ? editElementSelect.value : '');
   }
 
   function persistedToLoadPayload(el) {
     const attrs = el.attributes || {};
     const classes = (attrs.class || '').split(/\s+/).filter(Boolean);
-    const id = attrs.id || '';
     const tag = attrs.tag || 'div';
 
     const candidates = [
@@ -567,38 +654,79 @@
       relativeCandidates,
       attrs,
       classes,
-      id,
       tag,
       inner_text: attrs.innerText || attrs.text || '',
     };
   }
 
   async function loadElementForEdit(name) {
-    if (!selectedWorkflowId || !name) return;
+    console.log('[SidePanel] loadElementForEdit called:', { name, selectedWorkflowId });
+    if (!selectedWorkflowId || !name || selectedWorkflowId === 'undefined' || name === 'undefined') {
+      console.warn('[SidePanel] invalid loadElementForEdit args:', { name, selectedWorkflowId });
+      return;
+    }
     try {
       const resp = await send('getElementByName', { workflowId: selectedWorkflowId, name });
+      console.log('[SidePanel] getElementByName response:', resp);
       if (resp?.error || !resp?.name) {
-        verifyResult.textContent = '加载元素失败: ' + (resp?.error || '未知错误');
+        const detail = Array.isArray(resp?.detail) ? JSON.stringify(resp.detail) : (resp?.detail || '');
+        verifyResult.textContent = '加载元素失败: ' + (resp?.error || detail || '未知错误');
         verifyResult.className = 'verify-meta err';
         return;
       }
       const payload = persistedToLoadPayload(resp);
+
+      // Enter recapture flow: the user must Alt+click to capture new data.
       editingElementId = payload.id || null;
+      pendingRecapture = {
+        id: payload.id || null,
+        name: payload.name || '',
+        elementKind: payload.elementKind || 'plain',
+        originalSelector: payload.selector || payload.relativeSelector || '',
+      };
+      recaptureCompleted = false;
+
+      // Switch to the appropriate capture tab.
+      const targetMode = payload.elementKind === 'child' ? 'child' : 'new';
+      applyCaptureMode(targetMode);
+
+      // Load old data as reference only.
       loadElementData(payload);
+      if (!currentTabId) {
+        await resolveCurrentTab(payload.pageUrl);
+      }
       if (payload.elementKind === 'child') {
         applyActiveAnchor(payload.anchorElementName);
         setEditMode('manual', assocState);
       }
+
+      updateRecaptureUI();
+      updateSaveButtonForRecapture();
+      verifyResult.textContent = '请 Alt+点击页面元素完成重新捕获，或点击取消放弃';
+      verifyResult.className = 'verify-meta err';
     } catch (err) {
-      verifyResult.textContent = '加载元素失败: ' + err.message;
+      console.warn('[SidePanel] loadElementForEdit error:', err);
+      verifyResult.textContent = '加载元素失败: ' + (err.message || String(err));
       verifyResult.className = 'verify-meta err';
     }
   }
 
-  if (editElementSelect) {
-    editElementSelect.addEventListener('change', () => {
-      const name = editElementSelect.value;
-      if (name) loadElementForEdit(name);
+  if (editElementSelectBtn && editElementTreeDropdown) {
+    editElementSelectBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = editElementTreeDropdown.style.display === 'block';
+      editElementTreeDropdown.style.display = isOpen ? 'none' : 'block';
+      if (!isOpen) {
+        populateEditElementSelect();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (editElementTreeDropdown.style.display === 'none') return;
+      const wrap = editElementSelectBtn.closest('.anchor-select-wrap');
+      if (wrap && !wrap.contains(e.target)) {
+        editElementTreeDropdown.style.display = 'none';
+      }
     });
   }
 
@@ -805,16 +933,68 @@
       const resp = await chrome.runtime.sendMessage({ action: 'getCapturePayload' });
       if (resp?.payload) {
         currentTabId = resp.tabId;
+        if (pendingRecapture) {
+          // This capture is the recapture for the pending element.
+          recaptureCompleted = true;
+        } else {
+          // A fresh capture is always a new element.
+          editingElementId = null;
+          setEditElementValue('');
+        }
         loadElementData(resp.payload);
+        if (pendingRecapture) {
+          // Keep the original element name for the update.
+          elName.value = pendingRecapture.name;
+        }
       } else {
         const loading = $('loadingOverlay');
         if (loading) loading.classList.add('hidden');
       }
+      updateRecaptureUI();
+      updateSaveButtonForRecapture();
+      refreshEditModeBadge();
     } catch (e) {
       console.warn('[SidePanel] failed to get payload:', e);
       const loading = $('loadingOverlay');
       if (loading) loading.classList.add('hidden');
     }
+  }
+
+  async function resolveCurrentTab(pageUrl) {
+    // Find a candidate tab for verification.
+    // Priority: exact URL match > active tab whose hostname matches pageUrl > active tab.
+    // Skip chrome://, edge://, extension pages, and the side panel itself.
+    try {
+      const isUsable = (url) => {
+        if (!url) return false;
+        if (url.startsWith('chrome://') || url.startsWith('edge://') || url.startsWith('chrome-extension://') || url.startsWith('edge-extension://')) return false;
+        return true;
+      };
+
+      const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tabs = await chrome.tabs.query({});
+
+      let tab = null;
+      if (pageUrl) {
+        const pageHost = (() => {
+          try { return new URL(pageUrl).hostname; } catch (_e) { return ''; }
+        })();
+        tab = tabs.find((t) => isUsable(t.url) && pageUrl.startsWith(t.url))
+          || tabs.find((t) => isUsable(t.url) && pageHost && t.url.includes(pageHost));
+      }
+      if (!tab && active && isUsable(active.url)) {
+        tab = active;
+      }
+      if (tab?.id) {
+        currentTabId = tab.id;
+        console.log('[SidePanel] resolved verify tab:', { tabId: tab.id, url: tab.url, pageUrl });
+        return tab.id;
+      }
+    } catch (e) {
+      console.warn('[SidePanel] resolveCurrentTab failed:', e);
+    }
+    console.warn('[SidePanel] no usable tab for verify, pageUrl:', pageUrl);
+    return null;
   }
 
   function loadElementData(data) {
@@ -868,7 +1048,6 @@
         if (preview) preview.value = savedSelector;
         state.activeChoice = inferFamilyFromSelector(savedSelector) || data.selectorFamily || 'css';
         syncChoiceButtons(state);
-        updateSelector(state);
       } else {
         const first = (data.candidates || []).find((c) => {
           const f = c.family || c.type || 'css';
@@ -948,6 +1127,7 @@
     }
 
     refreshAnchorBadge();
+    refreshEditModeBadge();
   }
 
   // ─── DOM Tree rendering ────────────────────────────────────────────
@@ -1962,7 +2142,8 @@
   }
 
   // Verify
-  $('btnVerify').addEventListener('click', () => {
+  $('btnVerify').addEventListener('click', async () => {
+    await resolveCurrentTab(currentState.elementData?.pageUrl || '');
     if (!currentTabId) {
       verifyResult.textContent = '未关联页面';
       verifyResult.className = 'verify-meta err';
@@ -2011,16 +2192,21 @@
       return;
     }
     const preview = $(getPanelIds('new').selectorPreviewId);
+    const selector = preview?.value || '';
+    console.log('[SidePanel] verifyElement:', { tabId: currentTabId, selector });
     verifyResult.textContent = '校验中...';
     verifyResult.className = 'verify-meta';
     broadcastSelectedCandidate();
     send('verifyElement', {
       tabId: currentTabId,
-      payload: { selector: preview.value, type: inferFamilyFromSelector(preview.value) },
+      payload: { selector, type: inferFamilyFromSelector(selector) },
     }).then((res) => {
+      console.log('[SidePanel] verifyElement response:', res);
       if (res && res.error) {
         verifyResult.textContent = '校验失败: ' + res.error;
         verifyResult.className = 'verify-meta err';
+      } else if (res) {
+        showVerifyResult(res);
       }
     }).catch((err) => {
       verifyResult.textContent = '校验失败: ' + err.message;
@@ -2048,6 +2234,11 @@
       verifyResult.textContent = '请先选择流程';
       verifyResult.className = 'verify-meta err';
       $('workflowSelect').focus();
+      return;
+    }
+    if (pendingRecapture && !recaptureCompleted) {
+      verifyResult.textContent = '请先 Alt+点击页面元素完成重新捕获，或点击取消放弃';
+      verifyResult.className = 'verify-meta err';
       return;
     }
     if (captureMode === 'child' && !activeAnchorSelect?.value) {
@@ -2118,13 +2309,23 @@
     }
 
     send('saveElement', payload)
-      .then(() => {
+      .then((res) => {
+        if (!res?.saved) {
+          verifyResult.textContent = '保存失败: ' + (res?.error || '未知错误');
+          verifyResult.className = 'verify-meta err';
+          return;
+        }
         verifyResult.textContent = '已保存';
         verifyResult.className = 'verify-meta ok';
+        pendingRecapture = null;
+        recaptureCompleted = false;
+        editingElementId = null;
+        updateRecaptureUI();
+        refreshEditModeBadge();
         if (selectedWorkflowId) {
           loadWorkflowElements(selectedWorkflowId).then(() => {
             // Keep the edited element selected in the edit dropdown.
-            if (editElementSelect) editElementSelect.value = newName;
+            setEditElementValue(newName);
             resetSaveButton();
           });
         } else {
@@ -2144,7 +2345,9 @@
   // Cancel
   $('btnCancel').addEventListener('click', () => {
     editingElementId = null;
-    if (editElementSelect) editElementSelect.value = '';
+    pendingRecapture = null;
+    recaptureCompleted = false;
+    setEditElementValue('');
     [globalState, assocState].forEach((state) => {
       state.elementData = null;
       state.selectedPathIndex = -1;
@@ -2175,25 +2378,35 @@
     });
 
     resetSaveButton();
+    refreshEditModeBadge();
+    updateRecaptureUI();
   });
 
   // ─── Connection / workflow init ────────────────────────────────────
 
+  const refreshEnvBtn = $('refreshEnvBtn');
+
+  function setRefreshBtnStatus(status, title) {
+    if (!refreshEnvBtn) return;
+    refreshEnvBtn.classList.remove('online', 'checking', 'error');
+    if (status === 'online') refreshEnvBtn.classList.add('online');
+    if (status === 'checking') refreshEnvBtn.classList.add('checking');
+    if (status === 'error') refreshEnvBtn.classList.add('error');
+    refreshEnvBtn.title = title || '刷新连接并拉取流程';
+  }
+
   async function updateConnectionStatus() {
     try {
       const resp = await chrome.runtime.sendMessage({ action: 'getConnectionStatus' });
-      const dot = $('connDot');
       if (resp?.connected) {
-        dot.classList.add('online');
-        dot.title = '已连接';
+        setRefreshBtnStatus('online', '已连接');
       } else {
-        dot.classList.remove('online');
-        dot.title = '未连接';
+        setRefreshBtnStatus('error', '未连接');
       }
+      return !!resp?.connected;
     } catch (e) {
-      const dot = $('connDot');
-      dot.classList.remove('online');
-      dot.title = '未连接';
+      setRefreshBtnStatus('error', '未连接');
+      return false;
     }
   }
 
@@ -2201,14 +2414,12 @@
     const cfg = await chrome.storage.local.get(['backendPort']);
     const envSelect = $('envSelect');
     envSelect.value = cfg.backendPort || '8811';
-    await updateConnectionStatus();
+    await reconnectAndLoadWorkflows();
   }
 
-  async function checkConnection() {
-    const dot = $('connDot');
-    dot.classList.remove('online');
-    dot.classList.add('checking');
-    dot.title = '检测中...';
+  async function reconnectAndLoadWorkflows() {
+    if (refreshEnvBtn) refreshEnvBtn.disabled = true;
+    setRefreshBtnStatus('checking', '检测中...');
     try {
       const cfg = await chrome.storage.local.get(['backendPort']);
       await chrome.runtime.sendMessage({
@@ -2217,35 +2428,45 @@
         port: parseInt(cfg.backendPort || '8811', 10),
       });
       await new Promise((r) => setTimeout(r, 1500));
-      await updateConnectionStatus();
+      const connected = await updateConnectionStatus();
+      if (connected) {
+        await loadWorkflows();
+      }
     } catch (err) {
-      dot.classList.remove('online');
-      dot.title = '未连接';
+      setRefreshBtnStatus('error', '连接失败');
+      console.warn('[SidePanel] reconnect failed:', err);
     } finally {
-      dot.classList.remove('checking');
+      if (refreshEnvBtn) refreshEnvBtn.disabled = false;
     }
   }
 
   $('envSelect').addEventListener('change', async (e) => {
     const port = e.target.value;
     await chrome.storage.local.set({ backendPort: port });
-    await checkConnection();
-    loadWorkflows();
+    await reconnectAndLoadWorkflows();
   });
 
-  $('connDot').addEventListener('click', () => {
-    checkConnection();
-  });
+  if (refreshEnvBtn) {
+    refreshEnvBtn.addEventListener('click', () => reconnectAndLoadWorkflows());
+  }
 
   $('workflowSelect').addEventListener('change', (e) => {
     selectedWorkflowId = e.target.value;
+    console.log('[SidePanel] workflowSelect change:', { selectedWorkflowId });
     if (selectedWorkflowId) {
       localStorage.setItem('rpa_selected_workflow_id', selectedWorkflowId);
     } else {
       localStorage.removeItem('rpa_selected_workflow_id');
     }
+    editingElementId = null;
+    pendingRecapture = null;
+    recaptureCompleted = false;
+    setEditElementValue('');
     clearActiveAnchor();
     loadWorkflowElements(selectedWorkflowId);
+    refreshEditModeBadge();
+    updateRecaptureUI();
+    updateSaveButtonForRecapture();
   });
 
   // ─── Init ──────────────────────────────────────────────────────────

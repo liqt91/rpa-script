@@ -122,78 +122,11 @@ export const api = {
   getAdminDashboard: () => request('/api/admin/dashboard'),
   changePassword: (payload) => request('/api/auth/password', { method: 'POST', body: JSON.stringify(payload) }),
 
-  // Tasks
-  listTasks: (params = {}) => request(`/api/tasks?${new URLSearchParams({ page: '1', per_page: '20', ...params })}`),
-  createTask: (payload) => request('/api/tasks', { method: 'POST', body: JSON.stringify(payload) }),
-  getTask: (id) => request(`/api/tasks/${id}`),
-  updateTaskStatus: (id, status) => request(`/api/tasks/${id}/status?status=${encodeURIComponent(status)}`, { method: 'PUT' }),
-
-  // Results
-  listResults: (params = {}) => request(`/api/results?${new URLSearchParams({ page: '1', per_page: '20', ...params })}`),
-  getResult: (id) => request(`/api/results/${id}`),
-
-  // Clients
-  listClients: () => request('/api/clients'),
-
-  // Scripts
-  listScripts: () => request('/api/scripts'),
-  getScriptSource: (name) => request(`/api/scripts/${encodeURIComponent(name)}/source`),
-  updateScriptMeta: (name, payload) => request(`/api/scripts/${encodeURIComponent(name)}/meta`, {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  }),
-  testScript: (name, url, paramsJson) => request(`/api/scripts/${encodeURIComponent(name)}/test`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ url, params_json: paramsJson }),
-  }),
-  getScriptTestResult: (taskId) => request(`/api/scripts/test/${encodeURIComponent(taskId)}`),
-  createScript: (name, jobYaml, mainPy) => request('/api/scripts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ name, job_yaml: jobYaml, main_py: mainPy }),
-  }),
-
-  // AI Apps
-  listAIApps: () => request('/api/ai/apps'),
-  createAIApp: (payload) => request('/api/ai/apps', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }),
-  updateAIApp: (type, payload) => request(`/api/ai/apps/${encodeURIComponent(type)}`, {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  }),
-  deleteAIApp: (type) => request(`/api/ai/apps/${encodeURIComponent(type)}`, { method: 'DELETE' }),
-  getAIAppParameters: (type) => request(`/api/ai/apps/${encodeURIComponent(type)}/parameters`),
-  invokeAI: (capability, payload) => request('/api/ai/invoke', {
-    method: 'POST',
-    body: JSON.stringify({ capability, payload }),
-  }),
-
-  // Commands
-  listCommands: (params = {}) => request(`/api/commands?${new URLSearchParams({ enabled_only: 'true', ...params })}`),
-  createCommand: (payload) => request('/api/commands', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }),
-  updateCommand: (id, payload) => request(`/api/commands/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  }),
-  deleteCommand: (id) => request(`/api/commands/${id}`, { method: 'DELETE' }),
-  validateCommands: () => request('/api/commands/validate', { method: 'POST' }),
-  enableAllCommands: () => request('/api/commands/enable-all', { method: 'POST' }),
-  listCommandHandlers: () => request('/api/commands/handlers'),
-  analyzeCommand: (payload) => request('/api/commands/analyze', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }),
-  exportCommandsCsv: () => fetch('/api/commands/export/csv'),
-
   // Run logs
   listAllRuns: () => request('/api/workflows/runs'),
   getActiveRuns: () => request('/api/workflows/runs/active'),
+  stopActiveRun: () => request('/api/workflows/runs/active/stop', { method: 'POST' }),
+  getWorkflowRuns: (wfId) => request(`/api/workflows/${wfId}/runs`),
   getRunLog: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/log`),
   getRunTable: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/table`),
   openRunFolder: (wfId, runId) => request(`/api/workflows/${wfId}/runs/${encodeURIComponent(runId)}/open-folder`, { method: 'POST' }),

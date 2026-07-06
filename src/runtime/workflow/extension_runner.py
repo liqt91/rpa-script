@@ -243,9 +243,11 @@ class ExtensionRunner:
         run_id: str | None = None,
         log_dir: str | None = None,
         queue: asyncio.Queue | None = None,
+        workflow_id: int | None = None,
     ):
         self.client_id = client_id
         self.run_id = run_id or f"run_{id(self)}"
+        self.workflow_id = workflow_id
         self.vars: dict[str, Any] = {}
         self.results: list[dict] = []
         self.completed = 0
@@ -323,6 +325,16 @@ class ExtensionRunner:
             await ext_manager.send_to(self.client_id, "runStarted", {"runId": self.run_id})
 
     async def _emit(self, event: dict) -> None:
+        # Enrich compound stepComplete events with the container's start/end
+        # positions so the UI can render the closing marker correctly.
+        if (
+            event.get("type") == "stepComplete"
+            and self._current_step
+            and self._current_step.get("compound")
+        ):
+            event.setdefault("order", self._current_step.get("order"))
+            event.setdefault("endOrder", self._current_step.get("endOrder"))
+            event.setdefault("endNodeId", self._current_step.get("endNodeId"))
         try:
             await asyncio.wait_for(self.queue.put(event), timeout=1.0)
         except Exception:
@@ -384,6 +396,8 @@ class ExtensionRunner:
                     "type": "stepStart",
                     "stepId": instr.get("stepId"),
                     "nodeId": instr.get("nodeId"),
+                    "compound": instr.get("compound", False),
+                    "cmdType": instr.get("cmdType", ""),
                 })
                 try:
                     success = await self._execute_instruction(instr)
@@ -1742,7 +1756,7 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     pre_queue = asyncio.Queue()
     await run_progress.register(_run_id, pre_queue)
 
-    runner = ExtensionRunner(client_id or "", run_id=_run_id, log_dir=log_dir, queue=pre_queue)
+    runner = ExtensionRunner(client_id or "", run_id=_run_id, log_dir=log_dir, queue=pre_queue, workflow_id=wf.id)
 
     # Initialize workflow-level parameters (design-time defaults + runtime overrides)
     param_defaults = {}
@@ -2114,13 +2128,24 @@ async def _local_increment(runner: "ExtensionRunner", cmd_type: str, step_id: st
     return True
 
 
+async def _interruptible_sleep(runner: "ExtensionRunner", seconds: float) -> bool:
+    """Sleep for the requested duration, but return False if the run is stopped."""
+    deadline = asyncio.get_event_loop().time() + seconds
+    while asyncio.get_event_loop().time() < deadline:
+        if runner._stopped:
+            return False
+        await asyncio.sleep(min(0.1, deadline - asyncio.get_event_loop().time()))
+    return True
+
+
 @register_local("sleep")
 async def _local_sleep(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
     extra = instr.get("extra") or {}
     seconds = float(extra.get("seconds", 1.0))
     ms = int(seconds * 1000)
     logger.info(f"[ExtensionRunner] sleep {seconds}s")
-    await asyncio.sleep(seconds)
+    if not await _interruptible_sleep(runner, seconds):
+        return False
     runner.results.append({
         "stepId": step_id,
         "nodeId": instr.get("nodeId"),
@@ -2145,7 +2170,8 @@ async def _local_randomSleep(runner: "ExtensionRunner", cmd_type: str, step_id: 
     seconds = random.uniform(min_sec, max_sec)
     ms = int(seconds * 1000)
     logger.info(f"[ExtensionRunner] randomSleep {seconds:.3f}s (min={min_sec}, max={max_sec})")
-    await asyncio.sleep(seconds)
+    if not await _interruptible_sleep(runner, seconds):
+        return False
     runner.results.append({
         "stepId": step_id,
         "nodeId": instr.get("nodeId"),

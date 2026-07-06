@@ -868,16 +868,7 @@ def admin_dashboard_stats(
     _user=Depends(auth.get_current_user),
 ):
     """管理后台仪表盘统计。"""
-    threshold = utcnow() - timedelta(minutes=2)
     return {
-        "tasks_total": db.query(models.Task).count(),
-        "tasks_pending": db.query(models.Task).filter(models.Task.status == "pending").count(),
-        "tasks_running": db.query(models.Task).filter(models.Task.status == "running").count(),
-        "tasks_done": db.query(models.Task).filter(models.Task.status == "done").count(),
-        "tasks_failed": db.query(models.Task).filter(models.Task.status == "failed").count(),
-        "clients_total": db.query(models.Client).count(),
-        "clients_online": db.query(models.Client).filter(
-            models.Client.last_heartbeat >= threshold
-        ).count(),
-        "results_total": db.query(models.Result).count(),
+        "workflow_count": db.query(models.Workflow).count(),
+        "run_count": db.query(models.Result).count(),
     }

@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useActiveRun } from '../context/ActiveRunContext';
+import RunParametersDialog from './RunParametersDialog';
 
 export default function WorkflowList() {
   const navigate = useNavigate();
+  const { activeRun, isBusy, loading: activeRunLoading } = useActiveRun();
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,6 +19,7 @@ export default function WorkflowList() {
   const [runningId, setRunningId] = useState(null);
   const runningRef = useRef(false); // 同步锁，防止 React state 异步更新导致双击穿透
   const [runResult, setRunResult] = useState(null);
+  const [runParamsWorkflow, setRunParamsWorkflow] = useState(null);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const sseRef = useRef(null);
 
@@ -46,6 +50,18 @@ export default function WorkflowList() {
       if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     };
   }, []);
+
+  useEffect(() => {
+    if (activeRun?.workflow_id) {
+      setRunningId(activeRun.workflow_id);
+      sessionStorage.setItem('wf_running_id', String(activeRun.workflow_id));
+      sessionStorage.setItem('wf_run_id', activeRun.run_id);
+    } else if (!activeRunLoading && !runningRef.current) {
+      setRunningId(null);
+      sessionStorage.removeItem('wf_running_id');
+      sessionStorage.removeItem('wf_run_id');
+    }
+  }, [activeRun, activeRunLoading]);
 
   async function loadBrowserPaths() {
     try {
@@ -133,7 +149,20 @@ export default function WorkflowList() {
   }
 
   async function handleRun(wf) {
-    if (runningRef.current || runningId) return; // 同步锁 + state 双保险
+    if (runningRef.current || runningId) return;
+    if (isBusy) {
+      alert('已有流程运行中，请先停止');
+      return;
+    }
+    const params = wf.parameters;
+    if (Array.isArray(params) && params.length > 0) {
+      setRunParamsWorkflow(wf);
+      return;
+    }
+    doRun(wf, null);
+  }
+
+  async function doRun(wf, parameters = null) {
     runningRef.current = true;
     const runId = `run_${Date.now()}`;
     setRunningId(wf.id);
@@ -147,7 +176,7 @@ export default function WorkflowList() {
 
     // 启动 SSE 监听进度，fire-and-forget 发请求
     connectRunSSE(wf.id, runId);
-    api.runWorkflowExtension(wf.id, runId, null).catch(e => {
+    api.runWorkflowExtension(wf.id, runId, null, parameters).catch(e => {
       // 切页/刷新导致 fetch 被浏览器取消，不意味着运行失败，让 SSE 判断最终状态
       const msg = e.message || '';
       if (e.name === 'AbortError' || msg.includes('Failed to fetch') || msg.includes('cancel') || msg.includes('aborted')) {
@@ -166,7 +195,7 @@ export default function WorkflowList() {
   }
 
   async function handleStop(wf) {
-    const runId = sessionStorage.getItem('wf_run_id');
+    const runId = sessionStorage.getItem('wf_run_id') || activeRun?.run_id;
     if (!runId) return;
     try {
       await api.stopRun(wf.id, runId);
@@ -435,8 +464,13 @@ export default function WorkflowList() {
                         ) : (
                           <button
                             onClick={() => handleRun(wf)}
-                            className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 text-green-300 rounded text-xs transition-colors"
-                            title="执行"
+                            disabled={isBusy}
+                            className={`px-3 py-1.5 rounded text-xs transition-colors ${
+                              isBusy
+                                ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                                : 'bg-green-600/20 hover:bg-green-600/30 text-green-300'
+                            }`}
+                            title={isBusy ? '已有流程运行中，请先停止' : '执行'}
                           >
                             <i className="fas fa-play mr-1"></i>执行
                           </button>
@@ -529,6 +563,19 @@ export default function WorkflowList() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Run Parameters Dialog */}
+      {runParamsWorkflow && (
+        <RunParametersDialog
+          parameters={runParamsWorkflow.parameters}
+          onConfirm={(values) => {
+            const wf = runParamsWorkflow;
+            setRunParamsWorkflow(null);
+            doRun(wf, values);
+          }}
+          onCancel={() => setRunParamsWorkflow(null)}
+        />
       )}
 
       {/* Delete Confirm */}

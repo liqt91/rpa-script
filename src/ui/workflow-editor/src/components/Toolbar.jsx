@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../store/WorkflowContext';
+import { useActiveRun } from '../context/ActiveRunContext';
 import { api } from '../api';
 import RunParametersDialog from './RunParametersDialog';
 
@@ -30,6 +32,8 @@ function formatResult(result) {
 }
 
 export default function Toolbar() {
+  const navigate = useNavigate();
+  const { activeRun, isBusy } = useActiveRun();
   const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch, elements, updateWorkflowParameters } = useWorkflow();
   const [running, setRunning] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -269,6 +273,10 @@ export default function Toolbar() {
   };
 
   const handleRunClick = () => {
+    if (isBusy) {
+      alert('已有流程运行中，请先停止');
+      return;
+    }
     const params = workflow?.parameters;
     if (Array.isArray(params) && params.length > 0) {
       setRunParamsOpen(true);
@@ -310,12 +318,25 @@ export default function Toolbar() {
           const t = new Date().toLocaleTimeString('zh-CN');
           if (evt.type === 'stepStart') {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: evt.nodeId } });
+            if (evt.compound) {
+              const node = nodes.find(n => n.id === evt.nodeId);
+              const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
+              dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `${label}: 开始` } });
+            }
           } else if (evt.type === 'stepComplete') {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: null } });
             const node = nodes.find(n => n.id === evt.nodeId);
-            const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
+            const label = node ? (NODE_TYPE_MAP[node.type]?.label || node.type) : evt.stepId;
             const resultStr = evt.result ? formatResult(evt.result) : '完成';
-            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'success', msg: `${label}: ${resultStr}` } });
+            let msg;
+            if (evt.compound || (node && NODE_TYPE_MAP[node.type]?.isContainer)) {
+              const startOrder = evt.order ?? node?.order ?? '';
+              const endOrder = evt.endOrder ?? startOrder;
+              msg = `#${endOrder} 第#${startOrder}步 ${label}: ${resultStr}`;
+            } else {
+              msg = `#${node?.order ?? ''} ${label}: ${resultStr}`;
+            }
+            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'success', msg } });
             if (evt.result?.log !== undefined) {
               dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `  📝 ${evt.result.log}` } });
             }
@@ -331,10 +352,15 @@ export default function Toolbar() {
               }));
             }
           } else if (evt.type === 'stepError') {
-            dispatch({ type: 'RUN_STEP_ERROR', payload: { nodeId: evt.nodeId, error: evt.error } });
             const node = nodes.find(n => n.id === evt.nodeId);
             const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
-            dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'error', msg: `${label}: ${evt.error}` } });
+            if (evt.caught) {
+              // Errors caught by try/catch are warnings, not workflow failures.
+              dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'warn', msg: `${label} 已捕获: ${evt.error}` } });
+            } else {
+              dispatch({ type: 'RUN_STEP_ERROR', payload: { nodeId: evt.nodeId, error: evt.error } });
+              dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'error', msg: `${label}: ${evt.error}` } });
+            }
           } else if (evt.type === 'paused') {
             dispatch({ type: 'RUN_PAUSED' });
             dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'warn', msg: '⏸ 已暂停' } });
@@ -384,8 +410,13 @@ export default function Toolbar() {
       dispatch({ type: 'RUN_DONE', payload: { success: data.success, stopped: data.stopped } });
     } catch (e) {
       console.error(`[Toolbar] runWorkflow failed: ${e.message}`);
+      const isCapacityFull = e.message?.includes('capacity full') || e.message?.includes('503');
+      const errorMsg = isCapacityFull ? '当前已有流程在执行，请等待或停止后再试' : e.message;
+      if (isCapacityFull) {
+        alert('当前已有流程在执行，请等待或停止后再试');
+      }
       if (!stoppedRef.current) {
-        setRunResult({ success: false, stderr: e.message, stdout: '', returncode: -1 });
+        setRunResult({ success: false, stderr: errorMsg, stdout: '', returncode: -1 });
       }
       dispatch({ type: 'RUN_DONE', payload: { success: false, stopped: false } });
     } finally {
@@ -435,6 +466,14 @@ export default function Toolbar() {
     setRunning(false);
     setPaused(false);
     setCurrentRunId(null);
+  };
+
+  const handleBack = async (e) => {
+    e.preventDefault();
+    if (running && currentRunId) {
+      await handleStop();
+    }
+    navigate('/');
   };
 
   const closeResult = () => setRunResult(null);
@@ -540,8 +579,12 @@ export default function Toolbar() {
           {/* Run controls */}
           {!running ? (
             <button
-              className={`h-7 px-3 flex items-center gap-1.5 rounded bg-[#1f1f1f] hover:bg-black text-white text-xs transition-colors run-pulse`}
+              className={`h-7 px-3 flex items-center gap-1.5 rounded text-white text-xs transition-colors run-pulse ${
+                isBusy ? 'bg-gray-500 cursor-not-allowed' : 'bg-[#1f1f1f] hover:bg-black'
+              }`}
               onClick={handleRunClick}
+              disabled={isBusy}
+              title={isBusy ? '已有流程运行中，请先停止' : '运行'}
             >
               <i className="fas fa-play text-[10px]"></i>
               <span>运行</span>
@@ -574,13 +617,13 @@ export default function Toolbar() {
               </button>
             </div>
           )}
-          <a
-            href="/workflow-editor/"
-            className="h-7 px-2.5 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
+          <button
+            onClick={handleBack}
+            className="h-7 px-2.5 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors shrink-0"
           >
             <i className="fas fa-arrow-left text-[10px]"></i>
             <span>返回</span>
-          </a>
+          </button>
         </div>
 
         {/* 右侧：用户信息 */}
@@ -670,17 +713,24 @@ function RunResultModal({ result, onClose, nodes, typeMap }) {
             <div>
               <div className="text-xs text-gray-500 mb-1 font-medium">执行结果</div>
               <div className="bg-gray-50 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
-                {result.results.map((r, i) => (
-                  <div key={i} className="text-xs font-mono flex items-start gap-2">
-                    <span className={`shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${r.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                      {r.status === 'success' ? '✓' : '✗'}
-                    </span>
-                    <span className="text-gray-600">{getLabel(r)}:</span>
-                    <span className="text-gray-800 truncate">
-                      {r.status === 'success' ? (r.result?.log !== undefined ? r.result.log : JSON.stringify(r.result)) : r.error}
-                    </span>
-                  </div>
-                ))}
+                {result.results.map((r, i) => {
+                  const isCaught = r.status !== 'success' && r.caught;
+                  return (
+                    <div key={i} className="text-xs font-mono flex items-start gap-2">
+                      <span className={`shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${
+                        r.status === 'success' ? 'bg-green-100 text-green-600' :
+                        isCaught ? 'bg-amber-100 text-amber-600' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        {r.status === 'success' ? '✓' : isCaught ? '⚠' : '✗'}
+                      </span>
+                      <span className="text-gray-600">{isCaught ? `已捕获 ${getLabel(r)}` : getLabel(r)}:</span>
+                      <span className={`truncate ${isCaught ? 'text-amber-700' : 'text-gray-800'}`}>
+                        {r.status === 'success' ? (r.result?.log !== undefined ? r.result.log : JSON.stringify(r.result)) : r.error}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

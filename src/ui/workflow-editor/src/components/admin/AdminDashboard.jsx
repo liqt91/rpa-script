@@ -3,23 +3,11 @@ import { Link } from 'react-router-dom';
 import { api } from '../../api';
 
 const statCards = [
-  { key: 'tasks_total', label: '任务总数', icon: 'fa-tasks', color: 'text-blue-400', bg: 'bg-blue-600/10' },
-  { key: 'tasks_pending', label: '待执行', icon: 'fa-clock', color: 'text-yellow-400', bg: 'bg-yellow-600/10' },
-  { key: 'tasks_running', label: '进行中', icon: 'fa-spinner', color: 'text-blue-300', bg: 'bg-blue-500/10' },
-  { key: 'tasks_done', label: '已完成', icon: 'fa-check-circle', color: 'text-green-400', bg: 'bg-green-600/10' },
-  { key: 'tasks_failed', label: '失败', icon: 'fa-times-circle', color: 'text-red-400', bg: 'bg-red-600/10' },
-  { key: 'clients_total', label: '客户端总数', icon: 'fa-desktop', color: 'text-purple-400', bg: 'bg-purple-600/10' },
-  { key: 'clients_online', label: '在线客户端', icon: 'fa-signal', color: 'text-green-300', bg: 'bg-green-500/10' },
-  { key: 'results_total', label: '结果总数', icon: 'fa-database', color: 'text-cyan-400', bg: 'bg-cyan-600/10' },
+  { key: 'workflow_count', label: '流程数', icon: 'fa-project-diagram', color: 'text-blue-400', bg: 'bg-blue-600/10' },
+  { key: 'run_count', label: '运行次数', icon: 'fa-database', color: 'text-cyan-400', bg: 'bg-cyan-600/10' },
 ];
 
 const quickLinks = [
-  { to: '/admin/tasks', label: '任务管理', icon: 'fa-tasks' },
-  { to: '/admin/results', label: '结果查看', icon: 'fa-database' },
-  { to: '/admin/clients', label: '客户端', icon: 'fa-desktop' },
-  { to: '/admin/scripts', label: '脚本管理', icon: 'fa-file-code' },
-  { to: '/admin/commands', label: '指令管理', icon: 'fa-terminal' },
-  { to: '/admin/ai-apps', label: 'AI 应用', icon: 'fa-robot' },
   { to: '/admin/password', label: '修改密码', icon: 'fa-key' },
 ];
 
@@ -59,7 +47,7 @@ export default function AdminDashboard() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-4 mb-6">
             {statCards.map(card => (
               <div key={card.key} className={`${card.bg} border border-gray-700 rounded-xl p-4`}>
                 <div className="flex items-center justify-between mb-2">

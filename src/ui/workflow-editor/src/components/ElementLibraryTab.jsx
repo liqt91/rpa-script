@@ -393,6 +393,7 @@ export default function ElementLibraryTab() {
                   return (
                     <div key={i} className={`flex gap-2 px-2 py-1 rounded ${
                       log.level === 'error' ? 'bg-red-50 text-red-700' :
+                      log.level === 'warn' ? 'bg-amber-50 text-amber-700' :
                       log.level === 'success' ? 'bg-green-50 text-green-700' :
                       'text-gray-600'
                     }`}>

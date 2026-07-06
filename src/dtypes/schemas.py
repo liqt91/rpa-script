@@ -252,6 +252,18 @@ class WorkflowListOut(BaseModel):
         return v
 
 
+class ActiveRunOut(BaseModel):
+    run_id: str
+    workflow_id: Optional[int] = None
+    workflow_name: str = ""
+    client_id: Optional[str] = None
+
+
+class ActiveRunStopOut(BaseModel):
+    success: bool
+    stopped: list[str] = Field(default_factory=list)
+
+
 # ====== Workflow Elements ======
 class WorkflowElementIn(BaseModel):
     name: str

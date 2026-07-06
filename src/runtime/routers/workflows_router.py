@@ -72,15 +72,35 @@ def list_all_runs(
     return out
 
 
-@router.get("/runs/active")
-async def list_active_runs(user=Depends(auth.get_current_user)):
-    """返回当前正在运行的扩展工作流 run_id 列表。"""
+@router.get("/runs/active", response_model=list[schemas.ActiveRunOut])
+async def list_active_runs(
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user)
+):
+    """返回当前正在运行的扩展工作流列表（含流程名）。"""
     from ..workflow.extension_runner import list_active_runners
     runners = await list_active_runners()
+    wf_ids = {r.workflow_id for _, r in runners if r.workflow_id}
+    names = {}
+    if wf_ids:
+        for wf in db.query(models.Workflow).filter(models.Workflow.id.in_(wf_ids)).all():
+            names[wf.id] = wf.name
     return [
-        {"runId": rid, "clientId": r.client_id}
+        {"run_id": rid, "workflow_id": r.workflow_id, "workflow_name": names.get(r.workflow_id, ""), "client_id": r.client_id}
         for rid, r in runners
     ]
+
+
+@router.post("/runs/active/stop", response_model=schemas.ActiveRunStopOut)
+async def stop_active_run(user=Depends(auth.get_current_user)):
+    """停止当前正在运行的扩展工作流（全局只有一个）。"""
+    from ..workflow.extension_runner import list_active_runners
+    runners = await list_active_runners()
+    stopped = []
+    for rid, runner in runners:
+        await runner.stop()
+        stopped.append(rid)
+    return {"success": True, "stopped": stopped}
 
 
 # ---------- Workflow CRUD ----------

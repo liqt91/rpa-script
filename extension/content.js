@@ -1364,7 +1364,7 @@ console.log({
       // have no reply). Return empty + a warning and let the run continue, instead
       // of either silently collecting blanks or hard-failing the whole loop.
       if (isSoftNotFound(e)) {
-        const warning = `元素在当前循环项中未找到，返回空值并继续: ${locator}`;
+        const warning = `元素在当前循环项中未找到: ${locator}`;
         console.log(`[RPA extract] ${warning} (${e.message})`);
         addRunLog(`警告: ${warning}`);
         return { extracted: '', warning, contextNotFound: true };

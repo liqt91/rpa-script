@@ -113,14 +113,17 @@ def _match_brackets(nodes: list[models.WorkflowNode]) -> tuple[dict, dict]:
 
     for node in sorted_nodes:
         is_container, is_branch, is_structural = _node_meta(node)
-        if is_container:
-            stack.append(node.id)
-        elif is_branch:
+        # Branch nodes (e.g. catch) must be matched before treating them as
+        # containers, otherwise a branch+container never becomes the elseBody
+        # of its matching try/if container.
+        if is_branch:
             if stack:
                 container_id = stack[-1]
                 container_branch[container_id] = node.id
                 # Replace container with branch in stack (branch opens new scope)
                 stack[-1] = node.id
+        elif is_container:
+            stack.append(node.id)
         elif is_structural:
             if stack:
                 closed = stack.pop()
@@ -401,6 +404,7 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
     """
     by_parent = _build_by_parent(nodes)
     container_close, container_branch = _match_brackets(nodes)
+    node_map = {n.id: n for n in nodes}
     instructions: list[dict] = []
     step_counter = [0]
 
@@ -479,6 +483,12 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
                 "extra": extra,
                 "body": body,
             }
+            close_id = container_close.get(node.id)
+            if close_id:
+                close_node = node_map.get(close_id)
+                if close_node:
+                    compound["endOrder"] = close_node.order
+                    compound["endNodeId"] = close_node.id
             # Support additional elements for multi-element condition commands
             alt_names = extra.get("element_names") or []
             if alt_names:

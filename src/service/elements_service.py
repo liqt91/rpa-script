@@ -202,6 +202,22 @@ def compute_selector_chain(
     }
 
 
+def get_element_by_name(workflow_id: int, name: str) -> models.WorkflowElement | None:
+    """Fetch a single workflow element by name."""
+    db = SessionLocal()
+    try:
+        return (
+            db.query(models.WorkflowElement)
+            .filter(
+                models.WorkflowElement.workflow_id == workflow_id,
+                models.WorkflowElement.name == name,
+            )
+            .first()
+        )
+    finally:
+        db.close()
+
+
 async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
     """
     Persist a captured element from the browser extension into a workflow's element library.
@@ -236,8 +252,8 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
 
         # Build attributes from payload
         attributes = payload.get("attrs", {}) or {}
-        if payload.get("id"):
-            attributes["id"] = payload["id"]
+        # NOTE: payload.id is the database row id in edit mode; do not store it
+        # as a DOM attribute. The DOM id, if any, already lives in attrs.id.
         if payload.get("classes"):
             attributes["class"] = " ".join(payload["classes"])
 
@@ -380,11 +396,9 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
                     .first()
                 )
                 if name_taken:
-                    print(
-                        f"[elements_service] rename failed: name '{name}' already exists "
-                        f"in workflow {workflow_id}"
+                    raise ValueError(
+                        f"name '{name}' already exists in workflow {workflow_id}"
                     )
-                    return None
 
             # Update existing element
             existing.name = name
