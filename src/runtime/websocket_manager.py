@@ -53,6 +53,7 @@ class ExtensionManager:
         self._callbacks: Dict[str, List[Callable]] = {}
         # Step result waiting: step_id -> asyncio.Future
         self._step_futures: Dict[str, asyncio.Future] = {}
+        self._step_futures_lock = asyncio.Lock()
 
     # ── 连接管理 ──
 
@@ -149,7 +150,8 @@ class ExtensionManager:
         # Fulfill pending step futures
         if action in ("stepResult", "stepError"):
             step_id = payload.get("stepId")
-            fut = self._step_futures.pop(step_id, None)
+            async with self._step_futures_lock:
+                fut = self._step_futures.pop(step_id, None)
             if fut and not fut.done():
                 if action == "stepResult":
                     fut.set_result({"status": "success", "result": payload.get("result"), "client_id": client_id})
@@ -173,11 +175,21 @@ class ExtensionManager:
         self._step_futures[step_id] = fut
         return fut
 
+    async def register_step_future_safe(self, step_id: str) -> asyncio.Future:
+        """Async-safe variant of register_step_future."""
+        async with self._step_futures_lock:
+            return self.register_step_future(step_id)
+
     def cancel_step_future(self, step_id: str):
         """Cancel a pending step future (e.g. on timeout)."""
         fut = self._step_futures.pop(step_id, None)
         if fut and not fut.done():
             fut.cancel()
+
+    async def cancel_step_future_safe(self, step_id: str):
+        """Async-safe variant of cancel_step_future."""
+        async with self._step_futures_lock:
+            self.cancel_step_future(step_id)
 
     async def await_step_result(self, step_id: str, timeout: float = 30.0) -> dict:
         """
@@ -185,11 +197,11 @@ class ExtensionManager:
         Returns {"status": "success"|"error", "result": ..., "error": ..., "client_id": ...}
         Raises TimeoutError if no response within timeout.
         """
-        fut = self.register_step_future(step_id)
+        fut = await self.register_step_future_safe(step_id)
         try:
             return await asyncio.wait_for(fut, timeout=timeout)
         except asyncio.TimeoutError:
-            self.cancel_step_future(step_id)
+            await self.cancel_step_future_safe(step_id)
             raise TimeoutError(f"Step {step_id} timed out after {timeout}s")
 
     # ── 连接保持 ──

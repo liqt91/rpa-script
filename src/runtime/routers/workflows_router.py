@@ -21,6 +21,7 @@ from ..workflow.extension_runner import run_workflow_extension
 from src.providers import run_progress
 from src.repo.browser_utils import detect_browser_paths
 from src.service.elements_service import build_element_tree, compute_selector_chain
+from src.providers.workflow_lock import workflow_lock, WORKFLOW_LOCK_WAIT_SECONDS
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -72,12 +73,13 @@ def list_all_runs(
 
 
 @router.get("/runs/active")
-def list_active_runs(user=Depends(auth.get_current_user)):
+async def list_active_runs(user=Depends(auth.get_current_user)):
     """返回当前正在运行的扩展工作流 run_id 列表。"""
-    from ..workflow.extension_runner import _active_runners
+    from ..workflow.extension_runner import list_active_runners
+    runners = await list_active_runners()
     return [
         {"runId": rid, "clientId": r.client_id}
-        for rid, r in _active_runners.items()
+        for rid, r in runners
     ]
 
 
@@ -820,11 +822,11 @@ async def run_workflow_stream(wf_id: int, run_id: str = Query(...), user=Depends
     """SSE stream of workflow execution progress.
     Connect before or concurrently with POST /run/extension.
     """
-    queue = run_progress.get(run_id)
+    queue = await run_progress.get(run_id)
     if not queue:
         # Poll up to 10s for the runner to start and register its queue
         for _ in range(200):
-            queue = run_progress.get(run_id)
+            queue = await run_progress.get(run_id)
             if queue:
                 break
             await asyncio.sleep(0.05)
@@ -851,32 +853,35 @@ async def run_workflow_stream(wf_id: int, run_id: str = Query(...), user=Depends
 # ─── Pause / Resume / Stop controls ───────────────────────────────
 
 @router.post("/{wf_id}/run/{run_id}/pause")
-def pause_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
-    from ..workflow.extension_runner import _active_runners
-    runner = _active_runners.get(run_id)
-    print(f"[pause_run] run_id={run_id} found={runner is not None} keys={list(_active_runners.keys())}")
+async def pause_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
+    from ..workflow.extension_runner import get_active_runner, list_active_runner_ids
+    runner = await get_active_runner(run_id)
+    keys = await list_active_runner_ids()
+    print(f"[pause_run] run_id={run_id} found={runner is not None} keys={keys}")
     if runner:
         runner.pause()
     return {"success": True, "runId": run_id, "action": "pause"}
 
 
 @router.post("/{wf_id}/run/{run_id}/resume")
-def resume_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
-    from ..workflow.extension_runner import _active_runners
-    runner = _active_runners.get(run_id)
-    print(f"[resume_run] run_id={run_id} found={runner is not None} keys={list(_active_runners.keys())}")
+async def resume_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
+    from ..workflow.extension_runner import get_active_runner, list_active_runner_ids
+    runner = await get_active_runner(run_id)
+    keys = await list_active_runner_ids()
+    print(f"[resume_run] run_id={run_id} found={runner is not None} keys={keys}")
     if runner:
         runner.resume()
     return {"success": True, "runId": run_id, "action": "resume"}
 
 
 @router.post("/{wf_id}/run/{run_id}/stop")
-def stop_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
-    from ..workflow.extension_runner import _active_runners
-    runner = _active_runners.get(run_id)
-    print(f"[stop_run] run_id={run_id} found={runner is not None} keys={list(_active_runners.keys())}")
+async def stop_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user)):
+    from ..workflow.extension_runner import get_active_runner, list_active_runner_ids
+    runner = await get_active_runner(run_id)
+    keys = await list_active_runner_ids()
+    print(f"[stop_run] run_id={run_id} found={runner is not None} keys={keys}")
     if runner:
-        runner.stop()
+        await runner.stop()
     return {"success": True, "runId": run_id, "action": "stop", "found": runner is not None}
 
 
@@ -907,12 +912,23 @@ async def run_workflow_extension_endpoint(
     parameters = payload.get("parameters") or {}
     import datetime as _dt
     started_at = _dt.datetime.now()
-    result = await run_workflow_extension(
-        wf, nodes,
-        run_id=run_id or None,
-        initial_table_data=initial_table_data,
-        initial_parameters=parameters,
-    )
+
+    try:
+        async with workflow_lock():
+            result = await run_workflow_extension(
+                wf, nodes,
+                run_id=run_id or None,
+                initial_table_data=initial_table_data,
+                initial_parameters=parameters,
+            )
+    except asyncio.TimeoutError:
+        retry_after = str(int(WORKFLOW_LOCK_WAIT_SECONDS))
+        raise HTTPException(
+            status_code=503,
+            detail=f"Workflow execution capacity full. Retry after {retry_after}s.",
+            headers={"Retry-After": retry_after},
+        )
+
     completed_at = _dt.datetime.now()
 
     # Save run log to Result table

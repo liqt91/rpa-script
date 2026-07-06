@@ -162,13 +162,13 @@ app = FastAPI(title="分布式脚本执行平台", version="1.0", lifespan=lifes
 
 @app.exception_handler(StarletteHTTPException)
 async def not_found_handler(request: Request, exc: StarletteHTTPException):
-    """Return a custom 404 page for unmatched non-API paths."""
+    """Return a custom 404 page for unmatched non-API paths; preserve headers for other errors."""
     if exc.status_code == 404 and not request.url.path.startswith("/api/"):
         return HTMLResponse(
             content="<html><body><h1>404 - Page Not Found</h1><p>The requested page does not exist.</p></body></html>",
             status_code=404,
         )
-    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
 
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])

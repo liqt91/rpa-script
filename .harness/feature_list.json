@@ -53,6 +53,24 @@
         { "id": "test", "title": "End-to-end child capture test passes", "done": true }
       ],
       "domain": "workflows"
+    },
+    {
+      "id": "workflow-concurrency-global-lock",
+      "title": "Process-wide workflow execution lock per ADR-0007",
+      "classification": "normal",
+      "estimatedHours": 2,
+      "storyPath": ".harness/docs/stories/workflow-concurrency-global-lock.md",
+      "adrPath": ".harness/docs/adr/0007-workflow-concurrency-lock.md",
+      "assignedReviewer": "architecture-reviewer",
+      "status": "intake-complete",
+      "passes": true,
+      "steps": [
+        { "id": "config", "title": "Add MAX_CONCURRENT_WORKFLOWS + timeout config", "done": true },
+        { "id": "lock", "title": "Acquire global semaphore in run endpoint with 503 fallback", "done": true },
+        { "id": "state", "title": "Harden ExtensionManager + ExtensionRunner global state access", "done": true },
+        { "id": "smoke", "title": "Single run works and concurrent second run gets 503 or queues", "done": true }
+      ],
+      "domain": "workflows"
     }
   ]
 }
