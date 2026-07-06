@@ -86,7 +86,12 @@ async def list_active_runs(
         for wf in db.query(models.Workflow).filter(models.Workflow.id.in_(wf_ids)).all():
             names[wf.id] = wf.name
     return [
-        {"run_id": rid, "workflow_id": r.workflow_id, "workflow_name": names.get(r.workflow_id, ""), "client_id": r.client_id}
+        {
+            "run_id": rid,
+            "workflow_id": r.workflow_id,
+            "workflow_name": names.get(r.workflow_id, ""),
+            "client_id": r.client_id,
+        }
         for rid, r in runners
     ]
 
