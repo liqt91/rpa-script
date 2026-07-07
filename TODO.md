@@ -10,7 +10,7 @@
   - 只改 `type`，不动 `extra` 和 `parent_id`
   - 验收：运行脚本后，DB 中所有旧 type 名消失，`grep -rn '"click"' data/` 无结果
 
-- [ ] **A2: 旧流程验证 — 跑通新架构的 end-to-end 测试**
+- [x] **A2: 旧流程验证 — 跑通新架构的 end-to-end 测试**
   - 确保 LEGACY_MAP 覆盖所有旧 type → handler 的映射
   - 写一个测试：从 DB 加载一个旧流程，`build_instructions()` 不丢节点
   - 验收：`test_legacy_workflow.py` 通过
