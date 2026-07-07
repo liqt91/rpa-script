@@ -40,7 +40,7 @@ def validate_handler_sync(content_js_path: str | None = None) -> tuple[bool, lis
         # 默认路径: extension/content.js
         from pathlib import Path
         content_js_path = str(
-            Path(__file__).resolve().parent.parent.parent.parent.parent
+            Path(__file__).resolve().parent.parent.parent.parent
             / "extension" / "content.js"
         )
 
