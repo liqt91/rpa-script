@@ -93,17 +93,17 @@
 
 ### E. 基础补全
 
-- [ ] **E1: content.js 补充 checkElementVisible / checkElementExists handler**
+- [x] **E1: content.js 补充 checkElementVisible / checkElementExists handler**
   - 这两个在 content.js 已有注册但 Python 端未声明
   - 在 extension/ 目录创建对应的 .py handler 文件
   - 验收：`handler_validator.py` 校验 ❌ 数量减少
 
-- [ ] **E2: handler_validator 默认路径修复**
+- [x] **E2: handler_validator 默认路径修复**
   - `handler_validator.py` 的默认 content_js_path 指向了错误的项目根
   - 改为基于 `__file__` 计算相对于 REPO_ROOT 的路径
   - 验收：不传参数调用 `validate_handler_sync()` 能正确找到 content.js
 
-- [ ] **E3: CommandsPage 增加"添加字段"按钮仅对自定义指令生效**
+- [x] **E3: CommandsPage 增加"添加字段"按钮仅对自定义指令生效**
   - 当前内建指令也可以加字段，但 handler 不认新字段
   - 对 `isBuiltin` 指令隐藏 "+ 添加字段" 按钮
   - 验收：选内建指令 → 看不到 + 添加字段；选自定义指令 → 可以看到

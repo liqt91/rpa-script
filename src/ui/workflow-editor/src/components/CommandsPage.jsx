@@ -209,7 +209,7 @@ export default function CommandsPage() {
                 <span className="text-xs font-medium text-gray-300">参数字段</span>
                 <span className="text-[10px] text-gray-500">— 变量名由 {isEmitter?'emitter':'handler'} 定义，不可改</span>
               </div>
-              <button onClick={()=>setEditCmd({...editCmd,fields:[...editCmd.fields,{name:'',label:'',type:'text',group:'主属性'}]})} className="text-[10px] text-[#1677ff] hover:text-blue-400 shrink-0">+ 添加字段</button>
+              {!editCmd.isBuiltin && <button onClick={()=>setEditCmd({...editCmd,fields:[...editCmd.fields,{name:'',label:'',type:'text',group:'主属性'}]})} className="text-[10px] text-[#1677ff] hover:text-blue-400 shrink-0">+ 添加字段</button>}
             </div>
             <p className="text-[10px] text-yellow-400/70 mb-2">⚠ 变量名与{isEmitter?'emitter 代码':<>handler 中 <code className="text-yellow-300 bg-yellow-900/30 px-1 rounded">extra.get("变量名")</code></>}绑定，必须一致</p>
             <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-gray-500 bg-[#0f172a]/50 rounded-t"><span className="w-[74px] shrink-0">变量名</span><span className="w-[64px] shrink-0">显示名</span><span className="w-[74px] shrink-0">类型 <button type="button" onClick={e=>{e.stopPropagation();setShowTypeHelp(!showTypeHelp);}} className="inline text-gray-500 hover:text-gray-300 ml-0.5" title="字段类型说明">?</button></span><span className="w-[58px] shrink-0">分组</span><span className="w-[28px] shrink-0 text-center">必填</span><span className="flex-1">默认值</span></div>
