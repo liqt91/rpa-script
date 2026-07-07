@@ -1971,6 +1971,21 @@ console.log({
     });
   });
 
+  // ─── scrollToTop / scrollOneScreen / scrollBy ────────────────────
+
+  registerHandler('scrollToTop', async (args) => {
+    args.extra = { ...(args.extra || {}), action: 'scrollToTop' };
+    return doScroll(args);
+  });
+  registerHandler('scrollOneScreen', async (args) => {
+    args.extra = { ...(args.extra || {}), action: 'scrollOneScreen' };
+    return doScroll(args);
+  });
+  registerHandler('scrollBy', async (args) => {
+    args.extra = { ...(args.extra || {}), action: 'scrollBy' };
+    return doScroll(args);
+  });
+
 
   // ─── Message listener ────────────────────────────────────────────
 

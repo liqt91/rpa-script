@@ -214,3 +214,41 @@ def test_b2_handlers_produce_instructions(db_session):
     assert len(instructions) == len(B2_WAIT_TYPES), \
         f"Expected {len(B2_WAIT_TYPES)}, got {len(instructions)}"
     assert [i["cmdType"] for i in instructions] == B2_WAIT_TYPES
+
+
+# ── B3: scrollToTop / scrollOneScreen / scrollBy ──────────────────
+
+B3_SCROLL_TYPES = ["scrollToTop", "scrollOneScreen", "scrollBy"]
+
+
+def test_b3_handlers_all_resolve():
+    """Each B3 scroll handler type resolves to an extension runtime."""
+    from src.runtime.workflow.extension_emitter import _get_extension_runtime
+    for htype in B3_SCROLL_TYPES:
+        runtime = _get_extension_runtime(htype)
+        assert runtime is not None, f"{htype} should resolve"
+        assert runtime.get("handler"), f"{htype} should have handler name"
+
+
+def test_b3_handlers_produce_instructions(db_session):
+    """All B3 scroll handlers produce valid build_instructions output."""
+    from src.repo import models
+    from src.runtime.workflow.extension_emitter import build_instructions
+    wf = models.Workflow(name="b3-scroll-test", url="https://example.com")
+    db_session.add(wf)
+    db_session.flush()
+    for i, htype in enumerate(B3_SCROLL_TYPES, start=1):
+        node = models.WorkflowNode(
+            workflow_id=wf.id, type=htype, order=i,
+            extra='{}', enabled=1,
+        )
+        db_session.add(node)
+    db_session.flush()
+    loaded = (
+        db_session.query(models.WorkflowNode)
+        .filter(models.WorkflowNode.workflow_id == wf.id)
+        .order_by(models.WorkflowNode.order)
+        .all()
+    )
+    instructions = build_instructions(loaded)
+    assert len(instructions) == len(B3_SCROLL_TYPES),         f"Expected {len(B3_SCROLL_TYPES)}, got {len(instructions)}"
