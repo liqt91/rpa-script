@@ -83,22 +83,18 @@ cat TODO.md | grep '\[ \]' | head -3   # 看前三个待办
 ### 4. 提交
 - `git add -A`
 - `git commit -m "<分类前缀>: <任务描述>"`
-- `git push origin master`
-- 如果 push 失败（网络问题），记录到 .harness/PROGRESS.md 末尾："push failed at <时间>，需手动 push"
+- 不 push，早上手动 `git push origin master`
 
 ### 5. 标记完成 + 记录进度
 - 将 TODO.md 中该任务的 [ ] 改为 [x]
-- 在 .harness/PROGRESS.md 末尾追加一行: `YYYY-MM-DD HH:MM | night_loop | <任务编号> | <commit_hash> | <简要结果>`
-- `git add TODO.md .harness/PROGRESS.md && git commit -m "night: complete <任务编号>" && git push`
+- 在 .harness/PROGRESS.md 末尾追加一行: `YYYY-MM-DD HH:MM | night_loop | <任务编号> | <简要结果>`
+- `git add TODO.md .harness/PROGRESS.md && git commit -m "night: complete <任务编号>"`
 
-### 6. 完成信号
-- 如果还有未完成的夜间任务且时间 < 配额（见下文），回到步骤 1 继续下一个
-- 否则输出: `NIGHT_LOOP_DONE: 完成 N 个任务，剩余 M 个`
-- 会话结束
-
-### 配额
-- 本次最多完成 3 个任务
-- 如果单任务超过 30 分钟未完成，跳过
+### 6. 继续下一个
+- 如果还有未完成的夜间任务，回到步骤 1 继续
+- 检查方式: `grep '\[ \]' TODO.md | head -1`
+- 如果 TODO.md 中没有 [ ] 夜间任务了，输出 `NIGHT_LOOP_DONE: 全部完成`
+- 单任务超 30 分钟仍未完成的，跳过并标记 `(TIMEOUT)`，继续下一个
 
 ### 注意事项
 - 不要改 CLAUDE.md、AGENTS.md、.harness/ 下非 PROGRESS.md 的文件
