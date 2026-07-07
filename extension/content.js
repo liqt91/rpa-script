@@ -1904,6 +1904,73 @@ console.log({
     });
   });
 
+  // ─── waitForLoad / waitForUrl / waitForText ──────────────────────
+
+  registerHandler('waitForLoad', async function waitForLoadHandler({ extra }) {
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    const start = Date.now();
+    while (document.readyState !== 'complete') {
+      if (Date.now() - start >= timeoutMs) {
+        throw new Error(`页面未在 ${timeoutMs}ms 内加载完成`);
+      }
+      await sleep(100);
+    }
+    const extraDelay = (extra?.delay ?? 0) * 1000;
+    if (extraDelay > 0) await sleep(extraDelay);
+    console.log(`[RPA waitForLoad] done after ${Date.now() - start}ms`);
+    return { loaded: true };
+  });
+
+  registerHandler('waitForUrl', async function waitForUrlHandler({ extra }) {
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    const expectedUrl = extra?.expectedUrl || '';
+    const start = Date.now();
+    const initialUrl = location.href;
+    const pollMs = 200;
+    let ticks = 0;
+    return new Promise((resolve, reject) => {
+      const tick = () => {
+        ticks++;
+        const currentUrl = location.href;
+        const matched = expectedUrl
+          ? currentUrl.includes(expectedUrl)
+          : currentUrl !== initialUrl;
+        if (matched) {
+          console.log(`[RPA waitForUrl] matched after ${ticks} ticks, ${Date.now() - start}ms`);
+          return resolve({ url: currentUrl });
+        }
+        if (Date.now() - start >= timeoutMs) {
+          return reject(new Error(`URL未在 ${timeoutMs}ms 内变为包含 "${expectedUrl}"`));
+        }
+        setTimeout(tick, pollMs);
+      };
+      tick();
+    });
+  });
+
+  registerHandler('waitForText', async function waitForTextHandler({ extra }) {
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    const text = extra?.text;
+    if (!text) throw new Error('waitForText: text is required');
+    const start = Date.now();
+    const pollMs = 200;
+    let ticks = 0;
+    return new Promise((resolve, reject) => {
+      const tick = () => {
+        ticks++;
+        if (document.body?.innerText?.includes(text)) {
+          console.log(`[RPA waitForText] found "${text}" after ${ticks} ticks, ${Date.now() - start}ms`);
+          return resolve({ textFound: text });
+        }
+        if (Date.now() - start >= timeoutMs) {
+          return reject(new Error(`文本 "${text}" 未在 ${timeoutMs}ms 内出现`));
+        }
+        setTimeout(tick, pollMs);
+      };
+      tick();
+    });
+  });
+
 
   // ─── Message listener ────────────────────────────────────────────
 

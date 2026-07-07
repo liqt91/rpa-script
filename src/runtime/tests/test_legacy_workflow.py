@@ -170,3 +170,47 @@ def test_wait_handlers_produce_instructions(db_session):
     assert len(instructions) == 2, \
         f"Expected 2 instructions, got {len(instructions)}"
     assert [i["cmdType"] for i in instructions] == ["waitForElement", "waitForElementHide"]
+
+
+# ── B2: waitForLoad / waitForUrl / waitForText ────────────────────
+
+B2_WAIT_TYPES = ["waitForLoad", "waitForUrl", "waitForText"]
+
+
+def test_b2_handlers_all_resolve():
+    """Each B2 handler type resolves to an extension runtime."""
+    for htype in B2_WAIT_TYPES:
+        runtime = _get_extension_runtime(htype)
+        assert runtime is not None, f"{htype} should resolve via registry or LEGACY_MAP"
+        assert runtime.get("handler") == htype, \
+            f"{htype} expected handler '{htype}', got {runtime.get('handler')}"
+
+
+def test_b2_handlers_produce_instructions(db_session):
+    """All B2 wait handlers produce valid build_instructions output."""
+    wf = models.Workflow(name="b2-wait-test", url="https://example.com")
+    db_session.add(wf)
+    db_session.flush()
+
+    nodes = []
+    for i, htype in enumerate(B2_WAIT_TYPES, start=1):
+        node = models.WorkflowNode(
+            workflow_id=wf.id, type=htype, order=i,
+            extra='{}', enabled=1,
+        )
+        db_session.add(node)
+        nodes.append(node)
+
+    db_session.flush()
+
+    loaded = (
+        db_session.query(models.WorkflowNode)
+        .filter(models.WorkflowNode.workflow_id == wf.id)
+        .order_by(models.WorkflowNode.order)
+        .all()
+    )
+
+    instructions = build_instructions(loaded)
+    assert len(instructions) == len(B2_WAIT_TYPES), \
+        f"Expected {len(B2_WAIT_TYPES)}, got {len(instructions)}"
+    assert [i["cmdType"] for i in instructions] == B2_WAIT_TYPES
