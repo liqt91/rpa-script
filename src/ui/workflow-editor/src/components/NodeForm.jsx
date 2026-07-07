@@ -351,10 +351,10 @@ export default function NodeForm() {
                       </tr>
                     </thead>
                     <tbody>
-                      {['input', 'output', 'advanced'].map(group => {
-                        const groupFields = nonElementExtraFields.filter(f => (f.group || 'input') === group);
+                      {['主属性', 'input', 'output', 'advanced'].map(group => {
+                        const groupFields = nonElementExtraFields.filter(f => (f.group || '主属性') === group);
                         if (groupFields.length === 0) return null;
-                        const groupLabel = group === 'input' ? '输入参数' : group === 'output' ? '输出参数' : '高级参数';
+                        const groupLabel = group === '主属性' ? '基本参数' : group === 'input' ? '输入参数' : group === 'output' ? '输出参数' : '高级参数';
                         return (
                           <Fragment key={`group-${group}`}>
                             <tr className="bg-gray-50">

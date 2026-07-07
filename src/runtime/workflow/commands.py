@@ -1500,11 +1500,34 @@ COMMAND_REGISTRY_SEED: dict[str, dict[str, Any]] = copy.deepcopy(COMMAND_REGISTR
 # ─── Helpers ──────────────────────────────────────────────────────
 
 def get_command(type_name: str) -> dict | None:
+    # 1. Try handler registry (new system)
+    from .handler_registry import get_handler
+    h = get_handler(type_name)
+    if h:
+        from .handler_registry import GENERIC_PARAMS
+        is_structural = h.get("isStructural") or h.get("isContainer") or h.get("isBranch")
+        is_emitter = h["runtime"] == "emitter"
+        fields = h["params"] if is_structural else h["params"] + GENERIC_PARAMS
+        return {
+            "type": h["type"], "label": h["label"], "category": h["category"],
+            "icon": h["icon"], "iconColor": h["iconColor"], "bgColor": h["bgColor"],
+            "isContainer": h["isContainer"], "isBranch": h["isBranch"],
+            "isStructural": h["isStructural"], "closesWith": h["closesWith"],
+            "fields": fields, "description": h["description"],
+            "categoryOrder": h["categoryOrder"], "commandOrder": h["commandOrder"],
+            "enabled": h.get("enabled", True), "isBuiltin": True,
+            "runtimes": {"extension": {
+                "handler": None if is_emitter else h["type"],
+                "local": h["runtime"] == "backend",
+                "emitter": is_emitter,
+            }},
+        }
+
+    # 2. Fallback to old COMMAND_REGISTRY
     cmd = COMMAND_REGISTRY.get(type_name)
     if cmd is None:
         return None
     result = copy.deepcopy(cmd)
-    # 为普通指令自动附加通用高级参数
     if not cmd.get("isContainer") and not cmd.get("isStructural"):
         result["fields"] = _attach_common_advanced(cmd.get("fields", []))
     return result

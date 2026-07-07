@@ -178,8 +178,9 @@ class WorkflowNodeOut(BaseModel):
 class WorkflowParameter(BaseModel):
     name: str
     label: str = ""
-    type: str = "text"  # text | number | bool | select
-    options: Optional[list] = None  # for select
+    type: str = "text"  # text | number | bool | list | dict
+    direction: str = "in"  # in | out
+    options: Optional[list] = None  # deprecated, kept for backward compat
     default: Any = None
 
 
@@ -197,6 +198,8 @@ class WorkflowUpdate(BaseModel):
     url: Optional[str] = None
     framework: Optional[str] = None
     parameters: Optional[list[WorkflowParameter]] = None
+    api_enabled: Optional[int] = None
+    api_key: Optional[str] = None
 
 
 class WorkflowOut(BaseModel):
@@ -209,6 +212,8 @@ class WorkflowOut(BaseModel):
     url: str = ""
     framework: str = "DrissionPage"
     parameters: Optional[list] = None
+    api_enabled: int = 0
+    api_key: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     nodes: list[WorkflowNodeOut] = Field(default_factory=list)
@@ -236,6 +241,8 @@ class WorkflowListOut(BaseModel):
     url: str = ""
     framework: str = "DrissionPage"
     parameters: Optional[list] = None
+    api_enabled: int = 0
+    api_key: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

@@ -1838,6 +1838,38 @@ console.log({
       return {};
     });
 
+  // ─── New architecture: 1 handler = 1 instruction ──────────────
+  // Aliases: each command type has its own handler, mapped to existing impl.
+  registerHandler('clickElement', async (args) => doClick(args));
+  registerHandler('inputText', async (args) => doInput(args));
+  registerHandler('getText', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getText' };
+      return doExtract(args);
+  });
+  registerHandler('getAttribute', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getAttr' };
+      return doExtract(args);
+  });
+  registerHandler('getHtml', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getHtml' };
+      return doExtract(args);
+  });
+  registerHandler('getValue', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getValue' };
+      return doExtract(args);
+  });
+  registerHandler('scrollIntoView', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'scrollIntoView' };
+      return doScroll(args);
+  });
+  registerHandler('scrollToBottom', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'scrollToBottom' };
+      return doScroll(args);
+  });
+  registerHandler('doubleClick', async (args) => doClick(args));
+  registerHandler('rightClick', async (args) => doClick(args));
+  registerHandler('inputAndPressEnter', async (args) => doInput(args));
+
 
   // ─── Message listener ────────────────────────────────────────────
 

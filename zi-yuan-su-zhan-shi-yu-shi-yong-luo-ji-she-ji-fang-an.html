@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>子元素展示与使用逻辑设计方案</title>
+<style>
+/* report.css — single source of truth for deliver-html HTML output.
+ *
+ * Extracted from NEXT_ACTIONS.html / PHAN_TICH.html so every deliverable
+ * shares the same dark Github-flavored look. Edit here, every future HTML
+ * deliverable picks it up. Existing HTML files at repo root keep inline
+ * copies (self-contained shipping artefacts — see ADR-0002).
+ */
+
+:root {
+  --bg: #0f1419;
+  --panel: #161b22;
+  --panel2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #a371f7;
+  --good: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code-bg: #1c2128;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.65;
+  font-size: 16px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+
+/* ----- Hero ----- */
+header.hero {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #161b22 0%, #0f1419 100%);
+  border-radius: 14px;
+  padding: 30px 36px;
+  margin-bottom: 28px;
+  position: relative;
+}
+header.hero::after {
+  content: attr(data-badge);
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  background: rgba(163, 113, 247, 0.15);
+  color: var(--accent2);
+  border: 1px solid rgba(163, 113, 247, 0.5);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+header.hero[data-badge-tone="good"]::after {
+  color: var(--good);
+  background: rgba(63, 185, 80, 0.15);
+  border-color: rgba(63, 185, 80, 0.5);
+}
+header.hero[data-badge-tone="warn"]::after {
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.15);
+  border-color: rgba(210, 153, 34, 0.5);
+}
+header.hero[data-badge-tone="bad"]::after {
+  color: var(--bad);
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.5);
+}
+header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.02em; }
+header.hero .sub { color: var(--muted); margin: 0 0 16px; font-size: 15px; }
+header.hero .meta {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+header.hero .meta span strong { color: var(--text); }
+header.hero .tldr {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  border-radius: 8px;
+  font-size: 14.5px;
+}
+header.hero .tldr strong { color: var(--accent); }
+
+/* ----- Typography ----- */
+h2 {
+  margin-top: 44px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 22px;
+}
+h2 .num {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 10px;
+  border: 1px solid var(--border);
+}
+h3 { margin-top: 28px; margin-bottom: 8px; font-size: 17px; color: var(--accent); }
+h4 { margin-top: 18px; margin-bottom: 6px; font-size: 15px; }
+h5 { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+h6 { margin: 10px 0 4px; font-size: 12.5px; color: var(--muted); }
+p { margin: 10px 0 14px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ----- Code ----- */
+code, kbd {
+  font-family: var(--mono);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+pre code { background: none; border: none; padding: 0; }
+
+/* ----- Tables ----- */
+table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+
+/* ----- Lists ----- */
+ul, ol { padding-left: 22px; }
+li { margin: 5px 0; }
+
+/* ----- Cards (border-left accent) ----- */
+.card { border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; background: var(--panel); margin: 16px 0; }
+.card.good { border-left: 4px solid var(--good); }
+.card.warn { border-left: 4px solid var(--warn); }
+.card.bad  { border-left: 4px solid var(--bad); }
+.card.info { border-left: 4px solid var(--accent); }
+.card.next { border-left: 4px solid var(--accent2); }
+.card h4 { margin-top: 0; }
+
+/* ----- Pills (inline badges) ----- */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  margin-right: 6px;
+}
+.pill.good { background: rgba(63, 185, 80, 0.12);  color: var(--good);    border-color: rgba(63, 185, 80, 0.5); }
+.pill.warn { background: rgba(210, 153, 34, 0.12); color: var(--warn);    border-color: rgba(210, 153, 34, 0.5); }
+.pill.bad  { background: rgba(248, 81, 73, 0.12);  color: var(--bad);     border-color: rgba(248, 81, 73, 0.5); }
+.pill.info { background: rgba(88, 166, 255, 0.12); color: var(--accent);  border-color: rgba(88, 166, 255, 0.5); }
+.pill.alt  { background: rgba(163, 113, 247, 0.12);color: var(--accent2); border-color: rgba(163, 113, 247, 0.5); }
+
+/* ----- Grids ----- */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0; }
+@media (max-width: 800px) {
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+}
+
+/* ----- Stat tiles ----- */
+.stat { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; background: var(--panel); }
+.stat .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.stat .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.stat.good .num { color: var(--good); }
+.stat.warn .num { color: var(--warn); }
+.stat.bad  .num { color: var(--bad);  }
+.stat.info .num { color: var(--accent); }
+.stat.alt  .num { color: var(--accent2); }
+
+/* ----- Blockquote ----- */
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 14px 0;
+  padding: 8px 16px;
+  color: var(--muted);
+  background: var(--panel2);
+  border-radius: 0 8px 8px 0;
+}
+blockquote p { margin: 4px 0; }
+
+/* ----- TOC ----- */
+.toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 22px; margin: 20px 0 28px; font-size: 14px; }
+.toc h4 { margin: 6px 0 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.toc ol { margin: 0; padding-left: 22px; columns: 2; }
+@media (max-width: 800px) { .toc ol { columns: 1; } }
+
+/* ----- Side-by-side diff ----- */
+.diff-side { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.diff-side .col { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 14px 16px; }
+.diff-side .col.before { border-top: 3px solid var(--warn); }
+.diff-side .col.after  { border-top: 3px solid var(--good); }
+.diff-side .col h5 { margin: 0 0 8px; }
+@media (max-width: 800px) { .diff-side { grid-template-columns: 1fr; } }
+
+/* ----- Horizontal rule ----- */
+hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ----- Footer ----- */
+footer {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero" data-badge="DECISION DOC" data-badge-tone="alt">
+  <h1>子元素展示与使用逻辑设计方案</h1>
+  <p class="sub">面向后端与扩展的约定（支持 child 作为嵌套锚点）</p>
+  <div class="meta">
+    <span><strong>Generated:</strong> 2026-07-02</span>
+    <span><strong>Template:</strong> decision-doc</span>
+  </div>
+</header>
+
+<h1 id="deliverable">子元素展示与使用逻辑设计方案</h1>
+<h2 id="1">1. 背景与现状</h2>
+<p>元素库当前有三种 <code>element_kind</code>：</p>
+<ul>
+<li><code>plain</code>：独立元素，使用 <code>web_selector</code> 在全局页面内匹配。</li>
+<li><code>anchor</code>：可作为循环锚点的元素，同样使用 <code>web_selector</code> 在全局页面内匹配，用于 <code>forEachElement</code> 循环。</li>
+<li><code>child</code>：依附于某个 <code>anchor</code>（或其他 <code>child</code>）的子元素，保存 <code>relative_selector</code> 与 <code>anchor_element_name</code>，在循环上下文内相对当前外层元素解析。</li>
+</ul>
+<p>当前问题：</p>
+<ul>
+<li><code>child</code> 的全局 <code>web_selector</code> 已不再保存（空值），但后端/前端尚未明确其展示与使用约定。</li>
+<li>用户在不同场景下使用 <code>child</code> 时行为不一致：脱离循环时如何匹配？在循环内如何匹配？需要统一约定。</li>
+<li><code>child</code> 元素本身也可以作为其他 <code>child</code> 的锚点，形成多级相对链。</li>
+</ul>
+<h2 id="2">2. 树结构展示设计</h2>
+<h3 id="2-1">2.1 数据模型层</h3>
+<p>在 <code>WorkflowElement</code> 输出模型中增加只读派生字段：</p>
+<pre><code class="language-json">{
+  &quot;id&quot;: 101,
+  &quot;name&quot;: &quot;comment_card&quot;,
+  &quot;element_kind&quot;: &quot;anchor&quot;,
+  &quot;parent_name&quot;: null,
+  &quot;children&quot;: [&quot;author_name&quot;]
+}</code></pre>
+<pre><code class="language-json">{
+  &quot;id&quot;: 102,
+  &quot;name&quot;: &quot;author_name&quot;,
+  &quot;element_kind&quot;: &quot;child&quot;,
+  &quot;parent_name&quot;: &quot;comment_card&quot;,
+  &quot;children&quot;: [&quot;author_avatar&quot;]
+}</code></pre>
+<ul>
+<li><code>parent_name</code>：等于 <code>anchor_element_name</code>；若为空则为根节点。</li>
+<li><code>children</code>：列出所有以该元素为 <code>anchor_element_name</code> 的子元素名称列表。</li>
+</ul>
+<h3 id="2-2">2.2 后端构造规则</h3>
+<p>后端在返回元素列表时，按以下规则构造树：</p>
+<ol>
+<li>以 <code>plain</code> / <code>anchor</code> 元素为根节点。</li>
+<li>将 <code>child</code> 元素挂载到其 <code>anchor_element_name</code> 对应的父元素下。</li>
+<li>若 <code>child</code> 的 <code>anchor_element_name</code> 不存在，则标记为 <strong>游离子元素</strong>，单独列出或返回警告。</li>
+<li>树深度不限；<code>child</code> 也可以作为其他 <code>child</code> 的父节点。</li>
+</ol>
+<h3 id="2-3-api">2.3 API 建议</h3>
+<p>新增/扩展现有接口：</p>
+<pre><code class="language-http">GET /api/workflows/{wf_id}/elements/tree</code></pre>
+<p>返回：</p>
+<pre><code class="language-json">{
+  &quot;roots&quot;: [
+    {
+      &quot;name&quot;: &quot;comment_card&quot;,
+      &quot;element_kind&quot;: &quot;anchor&quot;,
+      &quot;web_selector&quot;: &quot;css:.comment-card&quot;,
+      &quot;children&quot;: [
+        {
+          &quot;name&quot;: &quot;author_name&quot;,
+          &quot;element_kind&quot;: &quot;child&quot;,
+          &quot;relative_selector&quot;: &quot;css:.author&quot;,
+          &quot;anchor_element_name&quot;: &quot;comment_card&quot;,
+          &quot;children&quot;: [
+            {
+              &quot;name&quot;: &quot;author_avatar&quot;,
+              &quot;element_kind&quot;: &quot;child&quot;,
+              &quot;relative_selector&quot;: &quot;css:.avatar&quot;,
+              &quot;anchor_element_name&quot;: &quot;author_name&quot;
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  &quot;orphans&quot;: []
+}</code></pre>
+<p>现有 <code>GET /api/workflows/{wf_id}/elements</code> 保持不变，仅补充 <code>parent_name</code> / <code>children</code> 字段即可。</p>
+<h2 id="3-effective-selector-chain">3. 有效选择器链（Effective Selector Chain）</h2>
+<p>由于 <code>child</code> 的 <code>web_selector</code> 为空，当需要把它当作锚点使用时，后端必须动态计算其<strong>有效选择器链</strong>：</p>
+<pre><code>[root.web_selector] + [child_1.relative_selector] + ... + [child_n.relative_selector]</code></pre>
+<p>计算规则：</p>
+<ol>
+<li>从目标元素出发，沿 <code>anchor_element_name</code> 向上回溯，直到遇到 <code>plain</code> 或 <code>anchor</code> 元素（根）。</li>
+<li>若任意中间节点缺失或不是有效元素，则链断裂，返回错误。</li>
+<li>链中的每个节点必须有非空的相对选择器（根节点除外，根使用 <code>web_selector</code>）。</li>
+</ol>
+<p>示例：</p>
+<table><thead><tr><th>元素</th><th>kind</th><th>web_selector</th><th>relative_selector</th><th>anchor_element_name</th></tr></thead><tbody><tr><td>comment_card</td><td>anchor</td><td><code>css:.comment-card</code></td><td>-</td><td>-</td></tr><tr><td>author_name</td><td>child</td><td>空</td><td><code>css:.author</code></td><td>comment_card</td></tr><tr><td>author_avatar</td><td>child</td><td>空</td><td><code>css:.avatar</code></td><td>author_name</td></tr></tbody></table>
+<p><code>author_avatar</code> 的有效选择器链：</p>
+<ul>
+<li>CSS 形式：<code>css:.comment-card .author .avatar</code></li>
+<li>XPath 形式：<code>xpath://*[contains(@class,&#39;comment-card&#39;)]//*[contains(@class,&#39;author&#39;)]//*[contains(@class,&#39;avatar&#39;)]</code>（需按家族分别拼接）</li>
+</ul>
+<p>后端应提供接口或工具函数计算任意元素的有效选择器链：</p>
+<pre><code class="language-http">GET /api/workflows/{wf_id}/elements/{name}/chain</code></pre>
+<p>返回：</p>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;author_avatar&quot;,
+  &quot;chain&quot;: [
+    { &quot;name&quot;: &quot;comment_card&quot;, &quot;selector&quot;: &quot;css:.comment-card&quot;, &quot;kind&quot;: &quot;anchor&quot; },
+    { &quot;name&quot;: &quot;author_name&quot;, &quot;selector&quot;: &quot;css:.author&quot;, &quot;kind&quot;: &quot;child&quot; },
+    { &quot;name&quot;: &quot;author_avatar&quot;, &quot;selector&quot;: &quot;css:.avatar&quot;, &quot;kind&quot;: &quot;child&quot; }
+  ],
+  &quot;combined_css&quot;: &quot;.comment-card .author .avatar&quot;,
+  &quot;combined_xpath&quot;: &quot;//*[contains(@class,&#39;comment-card&#39;)]//*[contains(@class,&#39;author&#39;)]//*[contains(@class,&#39;avatar&#39;)]&quot;
+}</code></pre>
+<h2 id="4">4. 使用约定：两种场景</h2>
+<h3 id="4-1-a">4.1 场景 A：全页面匹配（脱离循环 / 无上下文）</h3>
+<p><strong>定义</strong>：<code>child</code> 元素被用在 <code>forEachElement</code> 循环之外，或当前执行栈中没有匹配的锚点循环。</p>
+<p><strong>约定</strong>：</p>
+<ul>
+<li>默认行为：<strong>报错</strong>，不允许直接使用。</li>
+<li>可选行为（显式降级）：如果命令的 <code>extra.scope == &quot;global&quot;</code> 或 <code>extra.useRelative == false</code>，则按 <code>plain</code> 元素处理，使用有效选择器链的全局拼接结果匹配。</li>
+<ul>
+<li>该降级实际上等价于“用全局链式选择器查找”，可用于调试或简单场景。</li>
+</ul>
+</ul>
+<p><strong>执行语义</strong>：</p>
+<pre><code class="language-text">if element_kind == &quot;child&quot; and 当前无匹配锚点循环:
+    if 命令显式要求全页面匹配:
+        使用有效选择器链的全局形式在 document 内查找
+    else:
+        raise ValueError(&quot;子元素必须在 forEachElement 循环内使用&quot;)</code></pre>
+<p><strong>校验规则</strong>：</p>
+<ul>
+<li>保存工作流节点时，后端/扩展运行器检查：若节点引用 <code>child</code> 元素，则默认必须位于对应 <code>anchor_element_name</code> 的 <code>forEachElement</code> 循环体内。</li>
+<li>若允许全页面匹配，需验证有效选择器链可成功计算。</li>
+</ul>
+<h3 id="4-2-b">4.2 场景 B：在当前外层元素内查找（循环上下文内）</h3>
+<p><strong>定义</strong>：<code>child</code> 元素位于其 <code>anchor_element_name</code> 对应的 <code>forEachElement</code> 循环体内。</p>
+<p><strong>约定</strong>：</p>
+<ul>
+<li>必须使用相对解析：<code>extra.useRelative = true</code>。</li>
+<li>解析步骤：</li>
+<ol>
+<li>找到当前循环项（外层元素）。</li>
+<li>在该循环项内部使用 <code>relative_selector</code> 查找子元素。</li>
+<li>返回匹配结果。</li>
+</ol>
+</ul>
+<p><strong>嵌套场景</strong>：</p>
+<p>若 <code>author_avatar</code> 是 <code>author_name</code> 的子元素，<code>author_name</code> 又是 <code>comment_card</code> 的子元素，则工作流中需要嵌套循环：</p>
+<pre><code>forEachElement(comment_card)
+  forEachElement(author_name)
+    click(author_avatar)
+  endFor
+endFor</code></pre>
+<p>扩展运行器通过循环栈 <code>_LOOP_STACK</code> 匹配锚点：</p>
+<pre><code class="language-text">stack = [comment_card, author_name]
+author_avatar.anchor_element_name == author_name  -&gt; 匹配成功</code></pre>
+<p><strong>执行语义（扩展协议）</strong>：</p>
+<pre><code class="language-json">{
+  &quot;cmdType&quot;: &quot;click&quot;,
+  &quot;locator&quot;: &quot;&quot;,
+  &quot;selectorFamily&quot;: &quot;css&quot;,
+  &quot;extra&quot;: {
+    &quot;useRelative&quot;: true,
+    &quot;relativeLocator&quot;: &quot;.avatar&quot;,
+    &quot;relativeSelectorFamily&quot;: &quot;css&quot;
+  }
+}</code></pre>
+<ul>
+<li><code>locator</code> 对 <code>child</code> 元素可为空，运行器优先使用 <code>extra.relativeLocator</code>。</li>
+<li>不需要在 extra 中传递完整祖先链，因为当前循环项已经是直接父元素。</li>
+</ul>
+<p><strong>校验规则</strong>：</p>
+<ul>
+<li>保存 <code>child</code> 元素时，必须存在对应的 <code>anchor_element_name</code> 且该锚点已存在。</li>
+<li><code>relative_selector</code> 不能为空。</li>
+<li>推荐在捕获时校验 <code>relative_selector</code> 在每个父元素实例内至少命中一次。</li>
+</ul>
+<h2 id="5-api">5. 数据模型与 API 变更建议</h2>
+<h3 id="5-1">5.1 后端模型</h3>
+<p><code>WorkflowElement</code> 已包含所需字段，无需新增列。补充：</p>
+<ul>
+<li><code>parent_name</code>（只读，派生）</li>
+<li><code>children</code>（只读，派生）</li>
+<li>服务层工具函数 <code>compute_selector_chain(element_name)</code> 用于计算有效选择器链。</li>
+</ul>
+<h3 id="5-2">5.2 扩展协议</h3>
+<p>扩展执行步骤的 <code>extra</code> 中保留以下字段：</p>
+<ul>
+<li><code>useRelative</code>（bool，默认 true）</li>
+<li><code>relativeLocator</code>（去前缀后的相对选择器）</li>
+<li><code>relativeSelectorFamily</code>（<code>css</code> / <code>xpath</code> / <code>drission</code>）</li>
+</ul>
+<p>对于 <code>child</code> 元素：</p>
+<ul>
+<li><code>locator</code> 字段保持为空，避免扩展端误用全局选择器。</li>
+<li>扩展端必须检查：若 <code>useRelative == true</code> 且 <code>relativeLocator</code> 存在，则优先使用相对解析。</li>
+<li>若需要全页面匹配，则使用后端计算好的链式全局选择器填充 <code>locator</code>。</li>
+</ul>
+<h3 id="5-3">5.3 捕获侧板</h3>
+<ul>
+<li>锚点下拉框允许选择任意元素（包括 <code>child</code>）。</li>
+<li>当选择 <code>child</code> 作为锚点时，侧板调用后端 <code>/elements/{name}/chain</code> 计算有效选择器链，再发送给内容脚本定位锚点。</li>
+<li>若链断裂，提示用户“该子元素缺少可解析的父锚点链”。</li>
+</ul>
+<h2 id="6">6. 前端展示建议</h2>
+<h3 id="6-1">6.1 元素库树形组件</h3>
+<ul>
+<li>根节点为 <code>plain</code> / <code>anchor</code>。</li>
+<li><code>child</code> 可无限嵌套，按 <code>anchor_element_name</code> 挂载。</li>
+<li>游离子元素（<code>anchor_element_name</code> 不存在）用警告色标注。</li>
+<li>点击任意节点可查看其有效选择器链。</li>
+</ul>
+<h3 id="6-2">6.2 节点编辑器</h3>
+<ul>
+<li>当节点引用的元素为 <code>child</code> 时：</li>
+<ul>
+<li>默认强制 <code>使用相对解析</code>。</li>
+<li>允许显式切换为“全页面匹配”，此时使用有效选择器链的全局形式。</li>
+<li>显示所属父元素链（breadcrumb）。</li>
+</ul>
+</ul>
+<h2 id="7">7. 错误处理约定</h2>
+<table><thead><tr><th>场景</th><th>错误信息</th><th>处理方</th></tr></thead><tbody><tr><td><code>child</code> 在循环外使用且未开启全局匹配</td><td>&quot;子元素必须在 forEachElement 循环内使用&quot;</td><td>扩展 emitter / 运行器</td></tr><tr><td><code>child</code> 的父元素不存在</td><td>&quot;未找到父元素：{name}&quot;</td><td>保存时后端校验</td></tr><tr><td><code>child</code> 的 <code>relative_selector</code> 为空</td><td>&quot;子元素必须包含相对选择器&quot;</td><td>保存时后端校验</td></tr><tr><td>有效选择器链断裂</td><td>&quot;无法解析选择器链：{name}&quot;</td><td>后端链计算 / 捕获侧板</td></tr><tr><td>循环内相对选择器未命中</td><td>&quot;相对选择器在循环项内未命中，回退全局解析: {selector}&quot;</td><td>扩展端日志</td></tr></tbody></table>
+<h2 id="8">8. 下一步行动</h2>
+<ol>
+<li>后端：</li>
+<ul>
+<li>在 <code>WorkflowElementOut</code> 中增加 <code>parent_name</code> / <code>children</code> 派生字段。</li>
+<li>新增 <code>/elements/tree</code> 接口。</li>
+<li>新增 <code>/elements/{name}/chain</code> 接口或工具函数，支持 CSS / XPath 链拼接。</li>
+</ul>
+<li>扩展端：</li>
+<ul>
+<li>确保 <code>child</code> 元素的 <code>locator</code> 为空时严格使用 <code>relativeLocator</code>。</li>
+<li>支持通过有效选择器链全页面匹配的降级路径。</li>
+</ul>
+<li>前端：</li>
+<ul>
+<li>实现元素库树形组件。</li>
+<li>节点编辑器根据 <code>element_kind</code> 与链完整性限制可用选项。</li>
+<li>捕获侧板选择 <code>child</code> 作为锚点时，调用链接口解析锚点。</li>
+</ul>
+<li>测试：</li>
+<ul>
+<li>补充端到端用例：单层相对、嵌套相对、游离子元素、链式全局匹配。</li>
+</ul>
+</ol>
+
+<footer>
+  <p>Generated by agent-harness-kit / <code>/deliver-html</code> — HTML for humans, MD for agents.</p>
+</footer>
+</div>
+</body>
+</html>

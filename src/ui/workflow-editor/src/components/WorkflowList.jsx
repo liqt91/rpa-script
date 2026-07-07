@@ -6,7 +6,7 @@ import RunParametersDialog from './RunParametersDialog';
 
 export default function WorkflowList() {
   const navigate = useNavigate();
-  const { activeRun, isBusy, loading: activeRunLoading } = useActiveRun();
+  const { activeRun, isBusy, loading: activeRunLoading, notifyRunStarted } = useActiveRun();
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -110,6 +110,7 @@ export default function WorkflowList() {
             totalSteps: data.totalSteps,
             error: data.error,
             stopped: data.stopped,
+            outputs: data.outputs || {},
           };
           setRunResult(result);
           sessionStorage.setItem('wf_run_result', JSON.stringify(result));
@@ -166,6 +167,7 @@ export default function WorkflowList() {
     runningRef.current = true;
     const runId = `run_${Date.now()}`;
     setRunningId(wf.id);
+    notifyRunStarted(wf.id, runId);
     sessionStorage.setItem('wf_running_id', String(wf.id));
     sessionStorage.setItem('wf_run_id', runId);
     setRunResult(null);
@@ -408,6 +410,18 @@ export default function WorkflowList() {
               </span>
               <button onClick={() => setRunResult(null)} className="text-gray-400 hover:text-white">×</button>
             </div>
+            {runResult.outputs && Object.keys(runResult.outputs).length > 0 && (
+              <div className="mt-2 pt-2 border-t border-current/20 grid grid-cols-2 gap-x-4 gap-y-1">
+                {Object.entries(runResult.outputs).map(([key, value]) => (
+                  <div key={key} className="flex items-center gap-1.5">
+                    <span className="opacity-70">{key}:</span>
+                    <span className="font-mono text-white">
+                      {typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -464,21 +478,26 @@ export default function WorkflowList() {
                         ) : (
                           <button
                             onClick={() => handleRun(wf)}
-                            disabled={isBusy}
+                            disabled={isBusy || runningId !== null}
                             className={`px-3 py-1.5 rounded text-xs transition-colors ${
-                              isBusy
+                              isBusy || runningId !== null
                                 ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
                                 : 'bg-green-600/20 hover:bg-green-600/30 text-green-300'
                             }`}
-                            title={isBusy ? '已有流程运行中，请先停止' : '执行'}
+                            title={isBusy || runningId !== null ? '已有流程运行中，请先停止' : '执行'}
                           >
                             <i className="fas fa-play mr-1"></i>执行
                           </button>
                         )}
                         <button
                           onClick={() => navigate(`/editor/${wf.id}`)}
-                          className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs transition-colors"
-                          title="编辑"
+                          disabled={isBusy || runningId !== null}
+                          className={`px-3 py-1.5 rounded text-xs transition-colors ${
+                            isBusy || runningId !== null
+                              ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300'
+                          }`}
+                          title={isBusy || runningId !== null ? '流程运行中，不可编辑' : '编辑'}
                         >
                           <i className="fas fa-edit mr-1"></i>编辑
                         </button>

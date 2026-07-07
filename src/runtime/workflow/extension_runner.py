@@ -10,6 +10,8 @@ Flows:
     6. Execute compound instructions (loops, conditions, try/catch)
 """
 
+from __future__ import annotations
+
 import asyncio
 import ast
 import json
@@ -29,17 +31,46 @@ from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
 from src.repo.browser_utils import is_browser_running, launch_browser_with_extension
 
+# Single import triggers all handler registration (backend + extension + emitter)
+from . import handlers  # noqa: F401
+from .handler_validator import validate_handler_sync  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_STEP_TIMEOUT = 30.0
 
 _VAR_PLACEHOLDER_RE = re.compile(r"\$\{(\w+)\}|\{\{(\w+)\}\}")
+_WF_VAR_RE = re.compile(r"\$\{wf:(\d+)\.(\w+)\}")
+
+
+def _resolve_wf_var(m: re.Match) -> str:
+    """Resolve ${wf:<workflow_id>.<var_name>} from cached last-run outputs."""
+    wf_id = int(m.group(1))
+    var_name = m.group(2)
+    outputs = _last_run_outputs.get(wf_id, {})
+    if var_name in outputs:
+        val = outputs[var_name]
+        return str(val) if not isinstance(val, str) else val
+    logger.warning(f"[ExtensionRunner] cross-wf ref: wf={wf_id} var={var_name} not found in cached outputs")
+    return m.group(0)
 
 # ─── Local command registry ───────────────────────────────────────
 # Handlers registered here execute backend-only commands without an
 # extension round-trip. New local commands just need a function + decorator.
 
 LOCAL_HANDLERS: dict[str, Callable[["ExtensionRunner", str, dict], Any]] = {}
+
+
+def _populate_local_handlers():
+    """Auto-populate LOCAL_HANDLERS from handler registry."""
+    from .handlers.registry import get_all_handlers
+    for htype, hdef in get_all_handlers().items():
+        if hdef.get("runtime") == "backend":
+            cls = hdef.get("handler_class")
+            if cls and hasattr(cls, "execute"):
+                LOCAL_HANDLERS[htype] = cls.execute
+
+_populate_local_handlers()
 
 
 def register_local(name: str):
@@ -142,6 +173,12 @@ class LoopContinue(Exception):
 
 def _is_local_command(cmd_type: str) -> bool:
     """Return True if the command should be handled locally (backend) rather than sent to extension."""
+    # 1. Check new handler registry
+    from .handlers.registry import get_handler
+    h = get_handler(cmd_type)
+    if h:
+        return h["runtime"] == "backend"
+    # 2. Fallback to old COMMAND_REGISTRY
     cmd = COMMAND_REGISTRY.get(cmd_type)
     if not cmd:
         return False
@@ -264,6 +301,8 @@ _active_runners_lock = asyncio.Lock()
 
 # Cache latest run table result per workflow (runtime-only, memory)
 _last_run_tables: dict[int, dict] = {}
+# Cache latest run outputs per workflow (runtime-only, for cross-wf ${wf:id.var} refs)
+_last_run_outputs: dict[int, dict] = {}
 
 
 async def get_active_runner(run_id: str) -> "ExtensionRunner" | None:
@@ -481,6 +520,14 @@ class ExtensionRunner:
                 "stopped": self._stopped,
             }
         finally:
+            # Extract output params from vars if configured
+            _emit_outputs = {}
+            if hasattr(self, '_output_param_names') and self._output_param_names:
+                _emit_outputs = {
+                    name: self.vars.get(name)
+                    for name in self._output_param_names
+                    if name in self.vars
+                }
             await self._emit({
                 "type": "done",
                 "success": not self._stopped,
@@ -488,6 +535,7 @@ class ExtensionRunner:
                 "totalSteps": len(instructions),
                 "failedSteps": self.failed_steps,
                 "stopped": self._stopped,
+                "outputs": _emit_outputs,
             })
             # 保存数据表格到日志目录
             if self.log_dir:
@@ -507,7 +555,7 @@ class ExtensionRunner:
 
     @staticmethod
     def _resolve_vars(obj: Any, vars_dict: dict[str, Any]) -> Any:
-        """Recursively replace ${var} and {{var}} placeholders in strings."""
+        """Recursively replace ${var}, {{var}} and ${wf:id.var} placeholders in strings."""
         if isinstance(obj, str):
             def _repl(m):
                 key = m.group(1) or m.group(2)
@@ -518,6 +566,9 @@ class ExtensionRunner:
                     f"in vars={list(vars_dict.keys())}"
                 )
                 return m.group(0)
+            # First resolve cross-workflow refs ${wf:<id>.<var>}
+            obj = _WF_VAR_RE.sub(_resolve_wf_var, obj)
+            # Then resolve normal vars
             return _VAR_PLACEHOLDER_RE.sub(_repl, obj)
         if isinstance(obj, list):
             return [ExtensionRunner._resolve_vars(item, vars_dict) for item in obj]
@@ -1203,307 +1254,6 @@ class ExtensionRunner:
         handler = LOCAL_HANDLERS.get(cmd_type)
         if handler:
             return await handler(self, cmd_type, step_id, instr)
-
-        # Legacy hard-coded handlers below. Migrate these to @register_local over time.
-        extra = instr.get("extra") or {}
-        if cmd_type == "httpRequest":
-            method = extra.get("method", "GET")
-            url = extra.get("url", "")
-            headers_str = extra.get("headers", "")
-            body = extra.get("body", "")
-            result_var = _get_output_var(extra)
-            timeout = extra.get("timeout", 30)
-            logger.info(f"[ExtensionRunner] httpRequest {method} {url}")
-            try:
-                request_headers = {}
-                if headers_str:
-                    try:
-                        request_headers = json.loads(headers_str)
-                    except Exception:
-                        pass
-                request_kwargs = {"timeout": float(timeout)}
-                if body and method.upper() in ("POST", "PUT", "PATCH"):
-                    try:
-                        request_kwargs["json"] = json.loads(body)
-                    except Exception:
-                        request_kwargs["content"] = body.encode("utf-8")
-                async with httpx.AsyncClient() as client:
-                    response = await client.request(method.upper(), url, headers=request_headers, **request_kwargs)
-                    result = {
-                        "status_code": response.status_code,
-                        "text": response.text,
-                        "headers": dict(response.headers),
-                    }
-            except Exception as e:
-                logger.error(f"[ExtensionRunner] httpRequest failed: {e}")
-                raise
-            if result_var:
-                self.vars[result_var] = result
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"httpRequest": url, "method": method, "status_code": result.get("status_code")},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"httpRequest": url, "status_code": result.get("status_code")},
-            })
-            return True
-
-        # ── Data Table commands ──
-        if cmd_type == "readTableCell":
-            row_idx = int(extra.get("rowIndex", 0))
-            col_name = extra.get("columnName", "")
-            var_name = _get_output_var(extra)
-            rows = self._table_data.get("rows", [])
-            value = ""
-            if 0 <= row_idx < len(rows):
-                value = rows[row_idx].get(col_name, "")
-            if var_name:
-                self.vars[var_name] = value
-            logger.info(f"[ExtensionRunner] readTableCell [{row_idx}][{col_name}] = {value!r}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"readTableCell": value},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"readTableCell": value},
-            })
-            return True
-
-        if cmd_type == "writeTableCell":
-            row_idx = int(extra.get("rowIndex", 0))
-            col_name = extra.get("columnName", "")
-            value = self._resolve_vars(str(extra.get("value", "")), self.vars)
-            rows = self._table_data.setdefault("rows", [])
-            # Ensure row exists
-            while len(rows) <= row_idx:
-                rows.append({})
-            rows[row_idx][col_name] = value
-            # Auto-add column definition so _TableAccessor numeric index works
-            if col_name:
-                columns = self._table_data.setdefault("columns", [])
-                if not any(c.get("name") == col_name for c in columns):
-                    columns.append({"name": col_name, "type": "text"})
-            self._table_dirty = True
-            logger.info(f"[ExtensionRunner] writeTableCell [{row_idx}][{col_name}] = {value!r}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"writeTableCell": value},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"writeTableCell": value, "tableData": self._table_data},
-            })
-            return True
-
-        if cmd_type == "getTableRowCount":
-            var_name = _get_output_var(extra)
-            count = len(self._table_data.get("rows", []))
-            if var_name:
-                self.vars[var_name] = count
-            logger.info(f"[ExtensionRunner] getTableRowCount = {count}")
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"getTableRowCount": count},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"getTableRowCount": count},
-            })
-            return True
-
-        if cmd_type == "writeTableRow":
-            write_mode = extra.get("writeMode", "append")
-            row_idx = int(extra.get("rowIndex", 0))
-            row_data_raw = extra.get("rowData", "{}")
-            # Resolve variables with JSON encoding so strings get quoted
-            raw_str = str(row_data_raw)
-            matches = list(_VAR_PLACEHOLDER_RE.finditer(raw_str))
-            if matches:
-                resolved = raw_str
-                for m in reversed(matches):
-                    key = m.group(1) or m.group(2)
-                    val = self.vars.get(key)
-                    if isinstance(val, str):
-                        replacement = json.dumps(val)
-                    elif isinstance(val, (int, float, bool)):
-                        replacement = json.dumps(val)
-                    elif val is None:
-                        replacement = "null"
-                    else:
-                        replacement = json.dumps(str(val))
-                    resolved = resolved[:m.start()] + replacement + resolved[m.end():]
-            else:
-                resolved = raw_str
-            try:
-                row_data = json.loads(resolved)
-            except Exception:
-                try:
-                    row_data = ast.literal_eval(resolved)
-                except Exception:
-                    row_data = {}
-            if isinstance(row_data, list):
-                cols = self._table_data.get("columns", [])
-                row_data = {
-                    (cols[i]["name"] if i < len(cols) else chr(65 + i)): v
-                    for i, v in enumerate(row_data)
-                }
-            elif not isinstance(row_data, dict):
-                row_data = {}
-            # Auto-create column definitions when writing a row to an empty table
-            columns = self._table_data.setdefault("columns", [])
-            if not columns and isinstance(row_data, dict):
-                for key in row_data.keys():
-                    columns.append({"name": key, "type": "text"})
-            rows = self._table_data.setdefault("rows", [])
-            if write_mode == "append":
-                rows.append(row_data)
-                logger.info(f"[ExtensionRunner] writeTableRow append = {row_data!r}")
-            elif write_mode == "insert":
-                row_idx = max(0, min(row_idx, len(rows)))
-                rows.insert(row_idx, row_data)
-                logger.info(f"[ExtensionRunner] writeTableRow insert [{row_idx}] = {row_data!r}")
-            else:  # overwrite
-                while len(rows) <= row_idx:
-                    rows.append({})
-                rows[row_idx] = row_data
-                logger.info(f"[ExtensionRunner] writeTableRow overwrite [{row_idx}] = {row_data!r}")
-            self._table_dirty = True
-            self.results.append({
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "status": "success",
-                "result": {"writeTableRow": row_data},
-            })
-            self.completed += 1
-            await self._emit({
-                "type": "stepComplete",
-                "stepId": step_id,
-                "nodeId": instr.get("nodeId"),
-                "result": {"writeTableRow": row_data, "tableData": self._table_data},
-            })
-            return True
-
-        if cmd_type == "custom":
-            code = extra.get("code", "")
-            result_var = _get_output_var(extra)
-            description = extra.get("description", "")
-            if not code.strip():
-                self.results.append({
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "status": "success",
-                    "result": {"custom": True, "note": "empty code"},
-                })
-                self.completed += 1
-                await self._emit({
-                    "type": "stepComplete",
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "result": {"custom": True},
-                })
-                return True
-            print_buffer = []
-            def _custom_print(*args, **kwargs):
-                line = " ".join(str(a) for a in args)
-                print_buffer.append(line)
-                logger.info(f"[custom print] {line}")
-            safe_globals = {
-                "__builtins__": {
-                    "len": len, "range": range, "enumerate": enumerate,
-                    "zip": zip, "map": map, "filter": filter,
-                    "int": int, "float": float, "str": str, "bool": bool,
-                    "list": list, "dict": dict, "set": set, "tuple": tuple,
-                    "abs": abs, "min": min, "max": max, "sum": sum,
-                    "round": round, "pow": pow, "divmod": divmod,
-                    "sorted": sorted, "reversed": reversed,
-                    "isinstance": isinstance, "hasattr": hasattr, "getattr": getattr,
-                    "chr": chr, "ord": ord,
-                    "print": _custom_print,
-                },
-                "json": __import__("json"),
-                "re": __import__("re"),
-                "math": __import__("math"),
-                "datetime": __import__("datetime"),
-                "time": __import__("time"),
-                "random": __import__("random"),
-            }
-            _table = _TableAccessor(self._table_data)
-            safe_locals = dict(self.vars)
-            safe_locals["_table_data"] = self._table_data
-            safe_locals["_table"] = _table
-            safe_locals["_table_dirty"] = False
-            try:
-                exec(code, safe_globals, safe_locals)
-                # Write back modified vars (excluding internals)
-                for k, v in safe_locals.items():
-                    if not k.startswith("_"):
-                        self.vars[k] = v
-                # Write back table data if modified
-                if safe_locals.get("_table_dirty") or _table.dirty:
-                    self._table_data = safe_locals["_table_data"]
-                    self._table_dirty = True
-                result = safe_locals.get("_result", None)
-                if result_var:
-                    self.vars[result_var] = result
-                logger.info(f"[ExtensionRunner] custom executed: {description or 'no desc'}")
-                self.results.append({
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "status": "success",
-                    "result": {"custom": True},
-                })
-                self.completed += 1
-                await self._emit({
-                    "type": "stepComplete",
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "result": {"custom": True, "result": result, "prints": print_buffer},
-                })
-                return True
-            except Exception as e:
-                logger.error(f"[ExtensionRunner] custom failed: {e}")
-                self.failed_steps.append({
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "instruction": instr,
-                    "error": str(e),
-                })
-                self.results.append({
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "status": "error",
-                    "error": str(e),
-                })
-                await self._emit({
-                    "type": "stepError",
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "error": str(e),
-                })
-                return False
-
         # Unknown local command — fail so we know to register a handler
         self.failed_steps.append({
             "stepId": step_id,
@@ -1834,6 +1584,10 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     if initial_parameters:
         param_defaults.update(initial_parameters)
     runner.vars.update(param_defaults)
+    runner._output_param_names = [
+        p.get("name") for p in wf_params
+        if p.get("direction") == "out" and p.get("name")
+    ]
     logger.info(f"[run_workflow_extension] initialized parameters: {list(runner.vars.keys())}")
 
     # Initialize table data from frontend payload (runtime variable, no DB)
@@ -1864,6 +1618,21 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
             "error": "Run stopped by user",
         }
     finally:
+        # Extract output parameters from runner.vars
+        output_param_names = [
+            p.get("name") for p in wf_params
+            if p.get("direction") == "out" and p.get("name")
+        ]
+        outputs = {
+            name: runner.vars.get(name)
+            for name in output_param_names
+            if name in runner.vars
+        }
+        if outputs:
+            _last_run_outputs[wf.id] = outputs
+            logger.info(f"[run_workflow_extension] cached outputs for wf={wf.id}: {list(outputs.keys())}")
+        result["outputs"] = outputs
+
         # Cache for "last run result" panel (runtime-only, no DB flush)
         _last_run_tables[wf.id] = {
             "columns": runner._table_data.get("columns", []),
@@ -1877,362 +1646,3 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     result["tableColumns"] = runner._table_data.get("columns", [])
     result["logDir"] = log_dir
     return result
-
-
-# ─── Local command handlers ───────────────────────────────────────
-# Register simple backend-only commands here. Each handler receives:
-#   runner: ExtensionRunner instance
-#   cmd_type: command type string
-#   step_id: current step id
-#   instr: instruction dict
-
-
-@register_local("setVar")
-async def _local_setVar(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    var_name = _clean_var_ref(extra.get("name", ""))
-    var_value = runner._resolve_vars(extra.get("value", ""), runner.vars)
-    vtype = extra.get("valueType", "string")
-    if vtype == "number":
-        try:
-            var_value = float(var_value)
-        except (ValueError, TypeError):
-            pass
-    elif vtype == "bool":
-        var_value = str(var_value).lower() in ("true", "1", "yes")
-    elif vtype == "list":
-        try:
-            var_value = json.loads(var_value)
-        except Exception:
-            try:
-                var_value = ast.literal_eval(var_value)
-            except Exception:
-                var_value = []
-    elif vtype == "dict":
-        try:
-            var_value = json.loads(var_value)
-        except Exception:
-            try:
-                var_value = ast.literal_eval(var_value)
-            except Exception:
-                var_value = {}
-    elif vtype == "string":
-        val_str = str(var_value)
-        if "+" in val_str:
-            parts = val_str.split("+")
-            has_quoted = any(
-                (p.strip().startswith('"') and p.strip().endswith('"')) or
-                (p.strip().startswith("'") and p.strip().endswith("'"))
-                for p in parts
-            )
-            if has_quoted:
-                merged = []
-                for p in parts:
-                    p = p.strip()
-                    if (p.startswith('"') and p.endswith('"')) or (p.startswith("'") and p.endswith("'")):
-                        p = p[1:-1]
-                    merged.append(p)
-                var_value = "".join(merged)
-    runner.vars[var_name] = var_value
-    logger.info(f"[ExtensionRunner] setVar {var_name} = {var_value!r}")
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"setVar": var_name, "value": var_value},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id, "nodeId": instr.get("nodeId"),
-        "result": {"setVar": var_name, "value": var_value},
-    })
-    return True
-
-
-@register_local("log")
-async def _local_log(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    msg = extra.get("message", "")
-    level = extra.get("level", "info")
-    logger.info(f"[ExtensionRunner] LOG vars={list(runner.vars.keys())} msg={msg!r}")
-    resolved_msg = runner._resolve_vars(msg, runner.vars)
-    logger.info(f"[ExtensionRunner] LOG [{level}] {resolved_msg}")
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"log": resolved_msg},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id, "nodeId": instr.get("nodeId"),
-        "result": {"log": resolved_msg},
-    })
-    return True
-
-
-@register_local("openBrowser")
-async def _local_openBrowser(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    """Launch the browser with the RPA extension and wait for it to connect."""
-    extra = instr.get("extra") or {}
-    browser_type = extra.get("browserType", "chrome")
-    url = extra.get("url") or "about:blank"
-    state = extra.get("windowState", "normal")
-
-    logger.info(f"[ExtensionRunner] openBrowser type={browser_type} url={url} state={state}")
-
-    # Browser launch is the caller's responsibility; if already running we reuse it.
-    if not is_browser_running(browser_type):
-        logger.info(f"[{browser_type}] 浏览器未运行，启动并加载扩展...")
-        if not launch_browser_with_extension(browser_type):
-            raise RuntimeError(f"无法启动 {browser_type}，请检查浏览器安装路径")
-        # Give the browser process a moment to start
-        await asyncio.sleep(3.0)
-    else:
-        logger.info(f"[{browser_type}] 浏览器已在运行，等待扩展连接...")
-
-    runner.client_id = await wait_for_extension_connection(browser_type, ext_manager, timeout=10.0)
-    if not runner._run_started_sent:
-        runner._run_started_sent = True
-        await ext_manager.send_to(runner.client_id, "runStarted", {"runId": runner.run_id})
-
-    # Ask the extension to create/reuse the work window with the requested URL/state.
-    # background.js openBrowser will set workWindowId/workTabId for subsequent steps.
-    result = await runner._send_and_wait(step_id, instr, timeout=DEFAULT_STEP_TIMEOUT)
-
-    # Persist the window object so later steps can reference it via windowVar.
-    save_to_var = _get_output_var(extra)
-    if save_to_var and isinstance(result, dict):
-        runner.vars[save_to_var] = {
-            "windowId": result.get("windowId"),
-            "tabId": result.get("tabId"),
-        }
-        logger.info(f"[ExtensionRunner] openBrowser saved window to {save_to_var}: {runner.vars[save_to_var]!r}")
-
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"openBrowser": browser_type, "clientId": runner.client_id, "initialResult": result},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "result": {"openBrowser": browser_type, "clientId": runner.client_id},
-    })
-    return True
-
-
-@register_local("appendToList")
-async def _local_appendToList(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    list_name = _clean_var_ref(extra.get("listName", ""))
-    value = extra.get("value", "")
-    resolved_value = runner._resolve_vars(value, runner.vars)
-    if list_name not in runner.vars or not isinstance(runner.vars[list_name], list):
-        runner.vars[list_name] = []
-    runner.vars[list_name].append(resolved_value)
-    logger.info(f"[ExtensionRunner] appendToList {list_name} += {resolved_value!r}")
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"appendToList": list_name, "value": resolved_value},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "result": {"appendToList": list_name},
-    })
-    return True
-
-
-@register_local("setDictValue")
-async def _local_setDictValue(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    dict_name = _clean_var_ref(extra.get("dictName", ""))
-    key = runner._resolve_vars(str(extra.get("key", "")), runner.vars)
-    value = runner._resolve_vars(str(extra.get("value", "")), runner.vars)
-    if dict_name not in runner.vars or not isinstance(runner.vars[dict_name], dict):
-        runner.vars[dict_name] = {}
-    runner.vars[dict_name][key] = value
-    logger.info(f"[ExtensionRunner] setDictValue {dict_name}[{key}] = {value!r}")
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"setDictValue": dict_name, "key": key, "value": value},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "result": {"setDictValue": dict_name},
-    })
-    return True
-
-
-@register_local("getDictValue")
-async def _local_getDictValue(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    dict_name = _clean_var_ref(extra.get("dictName", ""))
-    key = runner._resolve_vars(str(extra.get("key", "")), runner.vars)
-    target_var = _get_output_var(extra)
-    d = runner.vars.get(dict_name, {})
-    result = d.get(key) if isinstance(d, dict) else None
-    if target_var:
-        runner.vars[target_var] = result
-    logger.info(f"[ExtensionRunner] getDictValue {dict_name}[{key}] -> {target_var} = {result!r}")
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"getDictValue": dict_name, "key": key, "value": result},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "result": {"getDictValue": dict_name, "value": result},
-    })
-    return True
-
-
-@register_local("removeDictKey")
-async def _local_removeDictKey(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    dict_name = _clean_var_ref(extra.get("dictName", ""))
-    key = runner._resolve_vars(str(extra.get("key", "")), runner.vars)
-    d = runner.vars.get(dict_name, {})
-    removed = False
-    if isinstance(d, dict) and key in d:
-        del d[key]
-        removed = True
-    logger.info(f"[ExtensionRunner] removeDictKey {dict_name}[{key}] removed={removed}")
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"removeDictKey": dict_name, "key": key, "removed": removed},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "result": {"removeDictKey": dict_name},
-    })
-    return True
-
-
-@register_local("stringConcat")
-async def _local_stringConcat(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    target_var = _clean_var_ref(extra.get("targetVar", ""))
-    part1 = runner._resolve_vars(str(extra.get("part1", "")), runner.vars)
-    part2 = runner._resolve_vars(str(extra.get("part2", "")), runner.vars)
-    part3 = runner._resolve_vars(str(extra.get("part3", "")), runner.vars)
-    result = part1 + part2 + part3
-    runner.vars[target_var] = result
-    logger.info(f"[ExtensionRunner] stringConcat {target_var} = {result!r}")
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"stringConcat": target_var, "value": result},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "result": {"stringConcat": target_var},
-    })
-    return True
-
-
-@register_local("increment")
-async def _local_increment(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    var_name = _clean_var_ref(extra.get("varName", ""))
-    step = extra.get("step", 1)
-    try:
-        step = float(step)
-    except (ValueError, TypeError):
-        step = 1
-    current = runner.vars.get(var_name, 0)
-    try:
-        current = float(current)
-    except (ValueError, TypeError):
-        current = 0
-    runner.vars[var_name] = current + step
-    logger.info(f"[ExtensionRunner] increment {var_name} += {step}")
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"increment": var_name, "value": runner.vars[var_name]},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "result": {"increment": var_name},
-    })
-    return True
-
-
-@register_local("sleep")
-async def _local_sleep(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    extra = instr.get("extra") or {}
-    seconds = float(extra.get("seconds", 1.0))
-    ms = int(seconds * 1000)
-    logger.info(f"[ExtensionRunner] sleep {seconds}s")
-    await runner._interruptible_sleep(seconds)
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"waited": ms},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id, "nodeId": instr.get("nodeId"),
-        "result": {"waited": ms},
-    })
-    return True
-
-
-@register_local("randomSleep")
-async def _local_randomSleep(runner: "ExtensionRunner", cmd_type: str, step_id: str, instr: dict) -> bool:
-    import random
-    extra = instr.get("extra") or {}
-    min_sec = float(extra.get("minSeconds", 1.0))
-    max_sec = float(extra.get("maxSeconds", 3.0))
-    seconds = random.uniform(min_sec, max_sec)
-    ms = int(seconds * 1000)
-    logger.info(f"[ExtensionRunner] randomSleep {seconds:.3f}s (min={min_sec}, max={max_sec})")
-    await runner._interruptible_sleep(seconds)
-    runner.results.append({
-        "stepId": step_id,
-        "nodeId": instr.get("nodeId"),
-        "status": "success",
-        "result": {"waited": ms, "min": min_sec, "max": max_sec},
-    })
-    runner.completed += 1
-    await runner._emit({
-        "type": "stepComplete",
-        "stepId": step_id, "nodeId": instr.get("nodeId"),
-        "result": {"waited": ms, "min": min_sec, "max": max_sec},
-    })
-    return True

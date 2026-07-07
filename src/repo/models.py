@@ -88,7 +88,9 @@ class Workflow(Base):
     url = Column(Text, default="")          # 目标页面 URL
     framework = Column(String(32), default="DrissionPage")
     target_browser = Column(String(16), default="")  # chrome / edge / ""=任意
-    parameters = Column(Text, default="[]")  # JSON: [{name, label, type, default}]
+    parameters = Column(Text, default="[]")  # JSON: [{name, label, type, default, direction}]
+    api_enabled = Column(Integer, default=0)   # 0=disabled, 1=enabled
+    api_key = Column(String(32), default="")   # API access key
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     nodes = relationship("WorkflowNode", back_populates="workflow",

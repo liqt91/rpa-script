@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine
 
-_SCHEMA_VERSION = 10  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 11  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -413,6 +413,20 @@ def _migrate_010():
         conn.commit()
 
 
+def _migrate_011():
+    """Add api_enabled and api_key columns to workflows table."""
+    inspector = inspect(engine)
+    if "workflows" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("workflows")}
+    with engine.connect() as conn:
+        if "api_enabled" not in cols:
+            conn.execute(text("ALTER TABLE workflows ADD COLUMN api_enabled INTEGER DEFAULT 0"))
+        if "api_key" not in cols:
+            conn.execute(text("ALTER TABLE workflows ADD COLUMN api_key VARCHAR(32) DEFAULT ''"))
+        conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
@@ -426,6 +440,7 @@ _MIGRATIONS = {
     8: _migrate_008,
     9: _migrate_009,
     10: _migrate_010,
+    11: _migrate_011,
 }
 
 

@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>元素捕获侧板 UI 重设计方案</title>
+<style>
+/* report.css — single source of truth for deliver-html HTML output.
+ *
+ * Extracted from NEXT_ACTIONS.html / PHAN_TICH.html so every deliverable
+ * shares the same dark Github-flavored look. Edit here, every future HTML
+ * deliverable picks it up. Existing HTML files at repo root keep inline
+ * copies (self-contained shipping artefacts — see ADR-0002).
+ */
+
+:root {
+  --bg: #0f1419;
+  --panel: #161b22;
+  --panel2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #a371f7;
+  --good: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code-bg: #1c2128;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.65;
+  font-size: 16px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+
+/* ----- Hero ----- */
+header.hero {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #161b22 0%, #0f1419 100%);
+  border-radius: 14px;
+  padding: 30px 36px;
+  margin-bottom: 28px;
+  position: relative;
+}
+header.hero::after {
+  content: attr(data-badge);
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  background: rgba(163, 113, 247, 0.15);
+  color: var(--accent2);
+  border: 1px solid rgba(163, 113, 247, 0.5);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+header.hero[data-badge-tone="good"]::after {
+  color: var(--good);
+  background: rgba(63, 185, 80, 0.15);
+  border-color: rgba(63, 185, 80, 0.5);
+}
+header.hero[data-badge-tone="warn"]::after {
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.15);
+  border-color: rgba(210, 153, 34, 0.5);
+}
+header.hero[data-badge-tone="bad"]::after {
+  color: var(--bad);
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.5);
+}
+header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.02em; }
+header.hero .sub { color: var(--muted); margin: 0 0 16px; font-size: 15px; }
+header.hero .meta {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+header.hero .meta span strong { color: var(--text); }
+header.hero .tldr {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  border-radius: 8px;
+  font-size: 14.5px;
+}
+header.hero .tldr strong { color: var(--accent); }
+
+/* ----- Typography ----- */
+h2 {
+  margin-top: 44px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 22px;
+}
+h2 .num {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 10px;
+  border: 1px solid var(--border);
+}
+h3 { margin-top: 28px; margin-bottom: 8px; font-size: 17px; color: var(--accent); }
+h4 { margin-top: 18px; margin-bottom: 6px; font-size: 15px; }
+h5 { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+h6 { margin: 10px 0 4px; font-size: 12.5px; color: var(--muted); }
+p { margin: 10px 0 14px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ----- Code ----- */
+code, kbd {
+  font-family: var(--mono);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+pre code { background: none; border: none; padding: 0; }
+
+/* ----- Tables ----- */
+table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+
+/* ----- Lists ----- */
+ul, ol { padding-left: 22px; }
+li { margin: 5px 0; }
+
+/* ----- Cards (border-left accent) ----- */
+.card { border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; background: var(--panel); margin: 16px 0; }
+.card.good { border-left: 4px solid var(--good); }
+.card.warn { border-left: 4px solid var(--warn); }
+.card.bad  { border-left: 4px solid var(--bad); }
+.card.info { border-left: 4px solid var(--accent); }
+.card.next { border-left: 4px solid var(--accent2); }
+.card h4 { margin-top: 0; }
+
+/* ----- Pills (inline badges) ----- */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  margin-right: 6px;
+}
+.pill.good { background: rgba(63, 185, 80, 0.12);  color: var(--good);    border-color: rgba(63, 185, 80, 0.5); }
+.pill.warn { background: rgba(210, 153, 34, 0.12); color: var(--warn);    border-color: rgba(210, 153, 34, 0.5); }
+.pill.bad  { background: rgba(248, 81, 73, 0.12);  color: var(--bad);     border-color: rgba(248, 81, 73, 0.5); }
+.pill.info { background: rgba(88, 166, 255, 0.12); color: var(--accent);  border-color: rgba(88, 166, 255, 0.5); }
+.pill.alt  { background: rgba(163, 113, 247, 0.12);color: var(--accent2); border-color: rgba(163, 113, 247, 0.5); }
+
+/* ----- Grids ----- */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0; }
+@media (max-width: 800px) {
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+}
+
+/* ----- Stat tiles ----- */
+.stat { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; background: var(--panel); }
+.stat .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.stat .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.stat.good .num { color: var(--good); }
+.stat.warn .num { color: var(--warn); }
+.stat.bad  .num { color: var(--bad);  }
+.stat.info .num { color: var(--accent); }
+.stat.alt  .num { color: var(--accent2); }
+
+/* ----- Blockquote ----- */
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 14px 0;
+  padding: 8px 16px;
+  color: var(--muted);
+  background: var(--panel2);
+  border-radius: 0 8px 8px 0;
+}
+blockquote p { margin: 4px 0; }
+
+/* ----- TOC ----- */
+.toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 22px; margin: 20px 0 28px; font-size: 14px; }
+.toc h4 { margin: 6px 0 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.toc ol { margin: 0; padding-left: 22px; columns: 2; }
+@media (max-width: 800px) { .toc ol { columns: 1; } }
+
+/* ----- Side-by-side diff ----- */
+.diff-side { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.diff-side .col { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 14px 16px; }
+.diff-side .col.before { border-top: 3px solid var(--warn); }
+.diff-side .col.after  { border-top: 3px solid var(--good); }
+.diff-side .col h5 { margin: 0 0 8px; }
+@media (max-width: 800px) { .diff-side { grid-template-columns: 1fr; } }
+
+/* ----- Horizontal rule ----- */
+hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ----- Footer ----- */
+footer {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero" data-badge="DECISION DOC" data-badge-tone="alt">
+  <h1>元素捕获侧板 UI 重设计方案</h1>
+  <p class="sub">截图折叠 + Family/模式拆分 + 锚点重捕获</p>
+  <div class="meta">
+    <span><strong>Generated:</strong> 2026-07-01</span>
+    <span><strong>Template:</strong> decision-doc</span>
+  </div>
+</header>
+
+<h1 id="ui">元素捕获侧板 UI 重设计方案（修订版）</h1>
+<h2 id="1">1. 现状与问题</h2>
+<p>当前 <code>extension/sidepanel.html</code> 采用垂直堆叠，存在以下体验问题：</p>
+<ul>
+<li><strong>信息密度过高</strong>：选择器预览、校验结果、目标模式、循环锚点全部挤在底部固定栏，编辑锚点时空间不足。</li>
+<li><strong>截图占用首屏</strong>：截图区域固定 140px，捕获时抢眼但并不需要一直展开。</li>
+<li><strong>目标模式与 Tab 重复</strong>：底部有“目标模式 [单个/列表 ▼]”，顶部又有 <code>XPath-单个 / XPath-列表 / CSS-单个 / CSS-列表</code> 四个 Tab，二者互相影响但位置分离，容易选错。</li>
+<li><strong>锚点不可见/难操作</strong>：<code>anchorBox</code> 只在元素已被锚定时才出现，且仅展示两个输入框，无法直观看到锚点元素，也没有重新捕获入口。</li>
+<li><strong>Drission 选择器占用 Tab</strong>：对普通用户而言 Drission 是内部实现细节，却与 XPath/CSS 并列成一级 Tab，增加认知负担。</li>
+</ul>
+<h2 id="2">2. 设计目标</h2>
+<ol>
+<li><strong>布局合理</strong>：按“命名/看图 → 选 family → 选模式 → 选方案 → 调锚点 → 保存”的顺序组织。</li>
+<li><strong>截图可折叠</strong>：首屏只显示截图入口按钮，点击后展开大图，不占用编辑空间。</li>
+<li><strong>目标模式与 XPath/CSS 关系直觉化</strong>：用“Family Tab + 单个/列表切换”替代 4 个平铺 Tab，目标模式不再单独下拉。</li>
+<li><strong>锚点可查看、可重新捕获</strong>：把循环锚点提升为独立卡片，展示锚点元素摘要并提供重捕获入口。</li>
+<li><strong>不展示 Drission 选择器</strong>：侧板界面完全隐藏 Drission；Drission 选择器仍由后端保存供 Python 导出使用。</li>
+<li><strong>向后兼容</strong>：<code>relativeSelector</code> / <code>anchorSelector</code> / <code>anchorMode</code> 数据模型不变。</li>
+</ol>
+<h2 id="3-ascii">3. 整体布局（ASCII 线框）</h2>
+<pre><code>┌────────────────────────────────────────────┐
+│  环境 [生产▼]  ●  流程 [选择流程...▼]        │  ← 头部固定
+├────────────────────────────────────────────┤
+│  元素名称 [输入名称          ] [📷]         │  ← 截图按钮在名称后
+├────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────┐  │  ← 点击 📷 后展开
+│  │           [截图大图]                  │  │
+│  └──────────────────────────────────────┘  │
+├────────────────────────────────────────────┤
+│  选择器类型                                │
+│  ┌──────────┬──────────┐                   │
+│  │  XPath   │   CSS    │                   │  ← 只按 family 分 Tab
+│  └──────────┴──────────┘                   │
+│  匹配范围:  [● 单个] [○ 列表]              │  ← 单个/列表切换
+│                                             │
+│  推荐方案（按 family+模式 过滤）            │
+│  ┌──────────────────────────────┐          │
+│  │ #author .name        [唯一]   │          │
+│  │ #author span.name    [3 匹配] │          │
+│  └──────────────────────────────┘          │
+│                                             │
+│  当前选择器 [textarea]                      │
+│  校验结果: 唯一匹配 | score:92              │
+├────────────────────────────────────────────┤
+│  循环锚点（仅在列表子元素时出现）            │  ← 新增独立卡片
+│  ┌──────────────────────────────────────┐  │
+│  │ 模式: 自动                            │  │
+│  │ 锚点: div.comment-card  (css, 12个)   │  │
+│  │ 相对: .author-name                    │  │
+│  │ [校验相对] [重新捕获锚点]             │  │
+│  └──────────────────────────────────────┘  │
+├────────────────────────────────────────────┤
+│  ▼ 页面层级 / 元素属性（可折叠）             │
+├────────────────────────────────────────────┤
+│  [校验元素]              [取消] [保存]       │  ← 底部固定
+└────────────────────────────────────────────┘</code></pre>
+<h2 id="4">4. 模块详细设计</h2>
+<h3 id="4-1">4.1 头部（固定）</h3>
+<p>保留“环境”下拉和“流程”下拉，连接状态点放到流程选择框左侧：</p>
+<blockquote><p><code>环境</code> <code>生产 ▼</code> <code>●</code> <code>流程</code> <code>选择流程... ▼</code></p></blockquote>
+<h3 id="4-2">4.2 元素名称与截图按钮</h3>
+<pre><code>元素名称 [输入元素名称          ] [📷]</code></pre>
+<ul>
+<li>截图不再默认展开。</li>
+<li>名称输入框右侧放置一个小按钮（图标或缩略图），hover 提示“查看截图”。</li>
+<li>点击后，在名称行下方展开一个截图面板；再次点击或点击关闭按钮收起。</li>
+<li>无截图时按钮置灰，提示“暂无截图”。</li>
+</ul>
+<h3 id="4-3">4.3 选择器类型 + 匹配范围</h3>
+<p><strong>优化核心</strong>：把“选择器 family”和“匹配范围”拆成两个互相独立的控件。</p>
+<table><thead><tr><th>控件</th><th>作用</th><th>默认值</th></tr></thead><tbody><tr><td>Family Tab</td><td>切换 <code>xpath</code> / <code>css</code></td><td>上次保存或 <code>xpath</code></td></tr><tr><td>单个/列表切换</td><td>切换 <code>targetMode</code></td><td><code>single</code></td></tr></tbody></table>
+<p>交互规则：</p>
+<ul>
+<li>切换 Family Tab：候选列表按 family 过滤；当前选择器前缀自动切换（<code>xpath:</code> ↔ <code>css:</code>）。</li>
+<li>切换 单个/列表：候选列表按 <code>isList</code> 过滤；<code>targetMode</code> 同步更新。</li>
+<li><strong>不再显示“目标模式”下拉框</strong>，避免与 Tab 重复。</li>
+<li>保存时，根据当前 Family + 单个/列表状态生成：</li>
+<ul>
+<li><code>selectorFamily</code></li>
+<li><code>targetMode</code></li>
+<li><code>selector</code>（当前选择器文本，已带 family 前缀）</li>
+</ul>
+</ul>
+<p>这样用户只需要“选 family → 选范围 → 点候选方案”三步，逻辑与界面一一对应。</p>
+<h3 id="4-4">4.4 推荐方案与当前选择器</h3>
+<ul>
+<li>推荐方案列表按当前 family + 模式过滤。</li>
+<li>选中方案后回填“当前选择器”文本域，并触发页面高亮。</li>
+<li>文本域允许用户手动微调；校验按钮对文本域内容执行页面匹配。</li>
+<li>校验结果展示匹配数、是否唯一、score。</li>
+</ul>
+<h3 id="4-5">4.5 循环锚点卡片（新增）</h3>
+<p>当 <code>content_capture.js</code> 检测到元素位于可重复列表项内部时展示。</p>
+<pre><code>┌────────────────────────────────────┐
+│ 循环锚点                            │
+│ 模式: 自动                          │
+│ 锚点元素: div.comment-card          │
+│          (css, 当前页 12 个匹配)     │
+│ 相对选择器: .author-name            │
+│ [使用相对解析 ☑]                    │
+│ [校验相对] [重新捕获锚点]           │
+└────────────────────────────────────┘</code></pre>
+<p>字段说明：</p>
+<table><thead><tr><th>元素</th><th>说明</th></tr></thead><tbody><tr><td>模式</td><td><code>自动</code> / <code>手动</code> / <code>回填</code> Pill 标签</td></tr><tr><td>锚点元素</td><td>人类可读摘要 + 匹配数量，例如 <code>div.comment-card (css, 12 个)</code></td></tr><tr><td>相对选择器</td><td>可编辑输入框；用户修改后模式变为 <code>手动</code></td></tr><tr><td>使用相对解析</td><td>复选框；取消勾选则 <code>relativeSelector</code> 设为空，回退全局解析</td></tr><tr><td>校验相对</td><td>在页面向当前锚点项内执行 <code>querySelectorAll</code>，验证唯一匹配</td></tr><tr><td>重新捕获锚点</td><td>重新执行 <code>detectListFamily</code> + <code>computeRelativeSelector</code>，尝试更稳定的锚点</td></tr></tbody></table>
+<p>卡片使用浅色背景 + 左侧蓝色边框，与主选择器区分。</p>
+<h3 id="4-6">4.6 页面层级 / 元素属性</h3>
+<ul>
+<li>默认折叠，只保留标题行。</li>
+<li>用户需要时再展开勾选属性或查看 DOM 路径。</li>
+</ul>
+<h3 id="4-7">4.7 底部操作栏</h3>
+<ul>
+<li>左侧：<code>校验元素</code></li>
+<li>右侧：<code>取消</code>、<code>保存</code></li>
+<li>保存成功后按钮变为 <code>已保存</code> 并禁用。</li>
+</ul>
+<h2 id="5">5. 重新捕获锚点流程</h2>
+<h3 id="a">方式 A：一键重算（一期）</h3>
+<ol>
+<li>用户点击“重新捕获锚点”。</li>
+<li><code>sidepanel.js</code> 发送 <code>recomputeAnchor</code> 消息到 <code>content.js</code>，携带当前目标元素信息。</li>
+<li><code>content.js</code> 重新执行 <code>detectListFamily</code> + <code>computeRelativeSelector</code>。</li>
+<li>返回新的 <code>anchorSelector</code> / <code>relativeSelector</code>，<code>anchorMode=&#39;auto&#39;</code>。</li>
+<li>侧板刷新卡片。</li>
+</ol>
+<h3 id="b">方式 B：手动指定锚点元素（二期）</h3>
+<ol>
+<li>用户点击“手动指定锚点”。</li>
+<li><code>content.js</code> 进入高亮模式，高亮所有候选列表项。</li>
+<li>用户点击某个列表项后，以该项为新锚点重新计算 <code>relativeSelector</code>。</li>
+<li>返回侧板，<code>anchorMode=&#39;manual&#39;</code>。</li>
+</ol>
+<h2 id="6">6. 需要移除/隐藏的内容</h2>
+<ul>
+<li><code>sidepanel.html</code> 中的 <code>&lt;button class=&quot;tab&quot; data-tab=&quot;drission&quot;&gt;Drission&lt;/button&gt;</code>。</li>
+<li><code>sidepanel.js</code> 中 Drission 候选过滤、Drission 标签渲染。</li>
+<li>原“目标模式”下拉框；目标模式由 单个/列表 切换隐式决定。</li>
+<li>固定的截图区域；改为可折叠按钮。</li>
+</ul>
+<h2 id="7">7. 状态表</h2>
+<table><thead><tr><th>场景</th><th>Family Tab</th><th>单个/列表</th><th>锚点卡片</th><th>行为</th></tr></thead><tbody><tr><td>普通元素</td><td>xpath/css</td><td>single</td><td>隐藏</td><td>只使用主选择器</td></tr><tr><td>列表元素本身</td><td>xpath/css</td><td>list</td><td>隐藏</td><td>用于 <code>forEachElement</code></td></tr><tr><td>列表子元素</td><td>xpath/css</td><td>single</td><td>显示</td><td>自动计算相对选择器</td></tr><tr><td>用户切到“列表”</td><td>同左</td><td>list</td><td>过滤出列表候选</td><td>保存 <code>targetMode=&#39;list&#39;</code></td></tr><tr><td>用户取消“使用相对解析”</td><td>-</td><td>-</td><td>卡片置灰</td><td><code>relativeSelector=&#39;&#39;</code>，回退全局</td></tr></tbody></table>
+<h2 id="8">8. 下一步实现建议</h2>
+<ol>
+<li><code>extension/sidepanel.html</code>：</li>
+<ul>
+<li>名称行右侧加截图按钮；</li>
+<li>选择器区改为 2 个 Family Tab + 单个/列表切换；</li>
+<li>删除目标模式下拉和 Drission Tab；</li>
+<li>新增锚点卡片和可折叠层级/属性区。</li>
+</ul>
+<li><code>extension/sidepanel.js</code>：</li>
+<ul>
+<li>维护 <code>activeFamily</code>（xpath/css）和 <code>targetMode</code>（single/list）两个状态；</li>
+<li>候选列表按两者联合过滤；</li>
+<li>删除 Drission 相关逻辑；</li>
+<li>实现截图展开/收起、锚点卡片渲染、重新捕获消息。</li>
+</ul>
+<li><code>extension/content.js</code>：</li>
+<ul>
+<li>新增 <code>recomputeAnchor</code> 消息处理器，复用现有 <code>detectListFamily</code> / <code>computeRelativeSelector</code>。</li>
+</ul>
+<li>React 编辑器元素详情：可同步隐藏 Drission 选择器展示，减少非必要信息。</li>
+</ol>
+
+<footer>
+  <p>Generated by agent-harness-kit / <code>/deliver-html</code> — HTML for humans, MD for agents.</p>
+</footer>
+</div>
+</body>
+</html>

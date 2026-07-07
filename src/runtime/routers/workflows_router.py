@@ -78,6 +78,7 @@ def list_all_runs(
             "totalSteps": d.get("total_steps", 0),
             "completedSteps": r.total,
             "error": d.get("error"),
+            "outputs": d.get("outputs", {}),
             "logDir": r.log_dir,
         })
     return out
@@ -176,6 +177,7 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
         cat = row.category or reg_cmd.get("category", "其他")
         cmd = {
             **reg_cmd,
+            "id": row.id,
             "type": row.type,
             "label": row.label or reg_cmd.get("label", row.type),
             "category": cat,
@@ -183,6 +185,7 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
             "iconColor": row.icon_color or reg_cmd.get("iconColor", "text-gray-500"),
             "bgColor": row.bg_color or reg_cmd.get("bgColor", "bg-gray-50"),
             "description": row.description or reg_cmd.get("description", ""),
+            "isBuiltin": bool(row.is_builtin),
         }
 
         db_row = {"type": row.type, "handler": row.handler, "local": row.local}
@@ -984,6 +987,7 @@ async def run_workflow_extension_endpoint(
                 "total_steps": result.get("totalSteps"),
                 "failed_steps": result.get("failedSteps"),
                 "error": result.get("error"),
+                "outputs": result.get("outputs", {}),
             }),
             client_id=None,
             trigger_type=payload.get("triggerType", "manual"),
@@ -1026,6 +1030,7 @@ def list_workflow_runs(
             "totalSteps": d.get("total_steps", 0),
             "completedSteps": r.total,
             "error": d.get("error"),
+            "outputs": d.get("outputs", {}),
             "logDir": r.log_dir,
         })
     return out

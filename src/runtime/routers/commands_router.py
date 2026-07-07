@@ -101,6 +101,17 @@ def validate_commands(user=Depends(auth.get_current_user)):
     }
 
 
+@router.post("/sync-check")
+def check_handler_sync(user=Depends(auth.get_current_user)):
+    """校验 Python handler 声明与 content.js 实现是否一致。"""
+    from src.runtime.workflow.handler_validator import validate_handler_sync
+    passed, messages = validate_handler_sync()
+    return {
+        "passed": passed,
+        "messages": messages,
+    }
+
+
 @router.post("")
 def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
     type_name = payload.get("type", "").strip()

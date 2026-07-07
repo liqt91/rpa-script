@@ -1,0 +1,341 @@
+{
+  "id": 2,
+  "name": "新浪搜索",
+  "updated_at": "2026-06-08 05:59:52.743712",
+  "nodes": [
+    {
+      "id": 101,
+      "parentId": null,
+      "order": 1,
+      "type": "navigate",
+      "action": "navigate",
+      "element_name": null,
+      "extra": {
+        "waitLoad": true,
+        "timeout": 30,
+        "onError": "stop",
+        "retryCount": 3,
+        "humanLike": true,
+        "url": "https://cj.sina.com.cn/"
+      },
+      "enabled": true
+    },
+    {
+      "id": 112,
+      "parentId": null,
+      "order": 2,
+      "type": "sleep",
+      "action": "sleep",
+      "element_name": null,
+      "extra": {
+        "seconds": 100,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "enabled": false
+    },
+    {
+      "id": 102,
+      "parentId": null,
+      "order": 3,
+      "type": "click",
+      "action": "click",
+      "element_name": "输入框",
+      "extra": {
+        "scope": "local",
+        "forceJs": false,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "visibleOnly": true,
+        "humanLike": true
+      },
+      "enabled": true
+    },
+    {
+      "id": 103,
+      "parentId": null,
+      "order": 4,
+      "type": "inputAndPressEnter",
+      "action": "inputAndPressEnter",
+      "element_name": "输入框",
+      "extra": {
+        "scope": "local",
+        "clearFirst": true,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "visibleOnly": true,
+        "humanLike": true,
+        "text": "东方财富"
+      },
+      "enabled": true
+    },
+    {
+      "id": 113,
+      "parentId": null,
+      "order": 5,
+      "type": "click",
+      "action": "click",
+      "element_name": "搜索按钮",
+      "extra": {
+        "scope": "local",
+        "forceJs": false,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "visibleOnly": true,
+        "humanLike": true
+      },
+      "enabled": true
+    },
+    {
+      "id": 104,
+      "parentId": null,
+      "order": 6,
+      "type": "waitForElement",
+      "action": "waitForElement",
+      "element_name": "搜索结果页",
+      "extra": {
+        "scope": "local",
+        "timeout": 10,
+        "onError": "stop",
+        "retryCount": 3,
+        "visibleOnly": true,
+        "humanLike": true
+      },
+      "enabled": true
+    },
+    {
+      "id": 105,
+      "parentId": null,
+      "order": 7,
+      "type": "forRange",
+      "action": "forRange",
+      "element_name": null,
+      "extra": {
+        "start": 0,
+        "end": 20,
+        "step": 1,
+        "varName": "i"
+      },
+      "enabled": true
+    },
+    {
+      "id": 106,
+      "parentId": 105,
+      "order": 8,
+      "type": "forEachElement",
+      "action": "forEachElement",
+      "element_name": "搜索结果列表",
+      "extra": {
+        "scope": "local",
+        "itemVar": "item",
+        "indexVar": "index"
+      },
+      "enabled": true
+    },
+    {
+      "id": 107,
+      "parentId": 106,
+      "order": 9,
+      "type": "getText",
+      "action": "getText",
+      "element_name": "帖子标题",
+      "extra": {
+        "scope": "local",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "visibleOnly": true,
+        "humanLike": true,
+        "varName": "帖子标题"
+      },
+      "enabled": true
+    },
+    {
+      "id": 108,
+      "parentId": 106,
+      "order": 10,
+      "type": "getAttr",
+      "action": "getAttr",
+      "element_name": "帖子标题",
+      "extra": {
+        "scope": "local",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "visibleOnly": true,
+        "humanLike": true,
+        "attrName": "href",
+        "varName": "帖子url"
+      },
+      "enabled": true
+    },
+    {
+      "id": 116,
+      "parentId": 106,
+      "order": 11,
+      "type": "setVar",
+      "action": "setVar",
+      "element_name": null,
+      "extra": {
+        "valueType": "string",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "name": "${帖子url}",
+        "value": "\"https://cj.sina.com.cn\" + ${帖子url}"
+      },
+      "enabled": true
+    },
+    {
+      "id": 109,
+      "parentId": 106,
+      "order": 12,
+      "type": "log",
+      "action": "log",
+      "element_name": null,
+      "extra": {
+        "level": "info",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "message": "[${帖子标题},${帖子url}]"
+      },
+      "enabled": true
+    },
+    {
+      "id": 114,
+      "parentId": 106,
+      "order": 13,
+      "type": "writeTableRow",
+      "action": "writeTableRow",
+      "element_name": null,
+      "extra": {
+        "writeMode": "append",
+        "rowIndex": 0,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "rowData": "[${帖子标题},${帖子url}]"
+      },
+      "enabled": true
+    },
+    {
+      "id": 110,
+      "parentId": 105,
+      "order": 14,
+      "type": "endFor",
+      "action": null,
+      "element_name": null,
+      "extra": {},
+      "enabled": true
+    },
+    {
+      "id": 117,
+      "parentId": 105,
+      "order": 15,
+      "type": "click",
+      "action": "click",
+      "element_name": "下一页",
+      "extra": {
+        "scope": "local",
+        "forceJs": false,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "visibleOnly": true,
+        "humanLike": true
+      },
+      "enabled": true
+    },
+    {
+      "id": 111,
+      "parentId": null,
+      "order": 16,
+      "type": "endFor",
+      "action": null,
+      "element_name": null,
+      "extra": {},
+      "enabled": true
+    }
+  ],
+  "elements": [
+    {
+      "id": 12,
+      "name": "input",
+      "targetMode": "single",
+      "cssCandidates": "[{\"syntax\": \"css:.search-ipt\", \"family\": \"css\", \"score\": 101, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \".search-ipt\", \"family\": \"css\", \"score\": 73, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"css:div > form > .search-trigger > .search-ipt\", \"family\": \"css\", \"score\": 52, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .search-ipt\", \"family\": \"css\", \"score\": 52, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > .search-ipt\", \"family\": \"css\", \"score\": 48, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .search-ipt\", \"family\": \"css\", \"score\": 48, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > [name=\\\"keywords\\\"]\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > .search-ipt\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .search-ipt\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > [name=\\\"keywords\\\"]\", \"family\": \"css\", \"score\": 43, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:.search-trigger > input\", \"family\": \"css\", \"score\": 56, \"matchCount\": 2, \"isList\": true}, {\"syntax\": \"css:.search-trigger input\", \"family\": \"css\", \"score\": 54, \"matchCount\": 2, \"isList\": true}, {\"syntax\": \"css:input\", \"family\": \"css\", \"score\": 33, \"matchCount\": 7, \"isList\": true}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://*[@name='keywords']\", \"family\": \"xpath\", \"score\": 82, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://input[@name='keywords']\", \"family\": \"xpath\", \"score\": 80, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://input[@placeholder='\\u6807\\u9898/\\u5173\\u952e\\u8bcd...']\", \"family\": \"xpath\", \"score\": 64, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://input[contains(@class,'search-ipt')]\", \"family\": \"xpath\", \"score\": 64, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://*[@placeholder='\\u6807\\u9898/\\u5173\\u952e\\u8bcd...']\", \"family\": \"xpath\", \"score\": 62, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://body/div[1]/div/div[2]/form/div/input[1]\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}]",
+      "webSelector": "xpath://*[@name='keywords']",
+      "drissionSelector": "@name=keywords",
+      "elementKind": "plain"
+    },
+    {
+      "id": 13,
+      "name": "搜索结果页",
+      "targetMode": "single",
+      "cssCandidates": "[{\"syntax\": \"css:.search-res-box\", \"family\": \"css\", \"score\": 97, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:.search-res-box\", \"family\": \"css\", \"score\": 97, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0]}, {\"syntax\": \".search-res-box\", \"family\": \"css\", \"score\": 69, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0]}, {\"syntax\": \"css:.search-res-box\", \"family\": \"css\", \"score\": 16, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0]}, {\"syntax\": \"css:div.search-res-box:nth-of-type(4)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0]}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://div[contains(@class,'search-res-box')]\", \"family\": \"xpath\", \"score\": 64, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0]}, {\"syntax\": \"xpath://body/div[4]\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0]}]",
+      "webSelector": "xpath://div[contains(@class,'search-res-box')]",
+      "drissionSelector": "tag:div@class=search-res-box",
+      "elementKind": "plain"
+    },
+    {
+      "id": 14,
+      "name": "搜索结果列表",
+      "targetMode": "list",
+      "cssCandidates": "[{\"syntax\": \"css:div.search-res-box\", \"family\": \"css\", \"score\": 49, \"matchCount\": 1, \"isList\": true, \"listContainer\": \"div.search-res-box\"}, {\"syntax\": \".article-main\", \"family\": \"css\", \"score\": 73, \"matchCount\": 10, \"isList\": true, \"pathMapping\": [3]}, {\"syntax\": \"css:.article > div\", \"family\": \"css\", \"score\": 60, \"matchCount\": 10, \"isList\": true}, {\"syntax\": \"css:.list > div\", \"family\": \"css\", \"score\": 60, \"matchCount\": 10, \"isList\": true}, {\"syntax\": \"css:.article div\", \"family\": \"css\", \"score\": 58, \"matchCount\": 30, \"isList\": true}, {\"syntax\": \"css:.list div\", \"family\": \"css\", \"score\": 58, \"matchCount\": 40, \"isList\": true}, {\"syntax\": \"css:.list div.article-main\", \"family\": \"css\", \"score\": 58, \"matchCount\": 10, \"isList\": true}, {\"syntax\": \"css:.search-res-box > div\", \"family\": \"css\", \"score\": 56, \"matchCount\": 4, \"isList\": true}, {\"syntax\": \"css:.article div.article-main\", \"family\": \"css\", \"score\": 54, \"matchCount\": 10, \"isList\": true}, {\"syntax\": \"css:.search-res-box div\", \"family\": \"css\", \"score\": 54, \"matchCount\": 45, \"isList\": true}, {\"syntax\": \"css:div > div > div > div:nth-of-type(4)\", \"family\": \"css\", \"score\": 23, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(2) > .article-main\", \"family\": \"css\", \"score\": 17, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(2) > .article-main\", \"family\": \"css\", \"score\": 13, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(2) > .article-main\", \"family\": \"css\", \"score\": 8, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:.search-res-box > .list > div:nth-of-type(2) > .article-main\", \"family\": \"css\", \"score\": 3, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}, {\"syntax\": \"css:.search-res-box > div > div:nth-of-type(2) > .article-main\", \"family\": \"css\", \"score\": 3, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}, {\"syntax\": \"css:.search-res-box > .list > div:nth-of-type(2) > div\", \"family\": \"css\", \"score\": 3, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}, {\"syntax\": \"css:div > .list > div:nth-of-type(2) > div\", \"family\": \"css\", \"score\": 3, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}, {\"syntax\": \"css:.search-res-box > div > div:nth-of-type(2) > div\", \"family\": \"css\", \"score\": 3, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}, {\"syntax\": \"css:div:nth-of-type(4) > .list > div:nth-of-type(2) > .article-main\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://body/div[4]/div[2]/div[2]/div\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}]",
+      "webSelector": ".article-main",
+      "drissionSelector": "verse:中国海证券之",
+      "elementKind": "plain"
+    },
+    {
+      "id": 15,
+      "name": "下一页",
+      "targetMode": "single",
+      "cssCandidates": "[{\"syntax\": \"css:span > div\", \"family\": \"css\", \"score\": 101, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 24, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 23, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 19, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 14, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:.search-res-box > #pageBox > div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 8, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}, {\"syntax\": \"css:.search-res-box > .page-box > div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 3, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}, {\"syntax\": \"css:.search-res-box > div > div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 3, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}, {\"syntax\": \"css:div:nth-of-type(4) > div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div:nth-of-type(4) > div > span:nth-of-type(8)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:#pageBox span\", \"family\": \"css\", \"score\": 58, \"matchCount\": 9, \"isList\": true}, {\"syntax\": \"css:.search-res-box span\", \"family\": \"css\", \"score\": 54, \"matchCount\": 41, \"isList\": true}, {\"syntax\": \"css:span\", \"family\": \"css\", \"score\": 33, \"matchCount\": 58, \"isList\": true}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://body/div[4]/div[4]/div/span[8]\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3]}]",
+      "webSelector": "xpath://body/div[4]/div[4]/div/span[8]",
+      "drissionSelector": "",
+      "elementKind": "plain"
+    },
+    {
+      "id": 16,
+      "name": "帖子标题",
+      "targetMode": "list",
+      "cssCandidates": "[{\"syntax\": \"css:.search-res-box > .list > div:nth-of-type(1) > .article-main > .article-title > a\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}, {\"syntax\": \"css:div > div:nth-of-type(1) > .article-main > .article-title > a\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:.search-res-box > div > div:nth-of-type(1) > .article-main > .article-title > a\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}, {\"syntax\": \"css:.search-res-box > .list > div:nth-of-type(1) > div > .article-title > a\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}, {\"syntax\": \"css:.search-res-box > .list > div:nth-of-type(1) > .article-main > div > a\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}, {\"syntax\": \"css:div.search-res-box:nth-of-type(4) > div.list:nth-of-type(2) > div.article:nth-of-type(1) > div.article-main > div.article-title:nth-of-type(1) > a:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}, {\"syntax\": \"css:.article > a\", \"family\": \"css\", \"score\": 60, \"matchCount\": 10, \"isList\": true}, {\"syntax\": \"css:.article a\", \"family\": \"css\", \"score\": 58, \"matchCount\": 20, \"isList\": true}, {\"syntax\": \"css:.article-title > a\", \"family\": \"css\", \"score\": 56, \"matchCount\": 10, \"isList\": true}, {\"syntax\": \"css:.article-title a\", \"family\": \"css\", \"score\": 54, \"matchCount\": 10, \"isList\": true}, {\"syntax\": \"css:.article-main a\", \"family\": \"css\", \"score\": 54, \"matchCount\": 10, \"isList\": true}, {\"syntax\": \"css:a\", \"family\": \"css\", \"score\": 33, \"matchCount\": 75, \"isList\": true}, {\"syntax\": \"css:a\", \"family\": \"css\", \"score\": 20, \"matchCount\": 75, \"isList\": true, \"pathMapping\": [5]}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://a[contains(text(),'\\u6b63\\u89c4\\u80a1\\u7968\\u5b9e\\u76d8\\u914d\\u8d44\\u8d44\\u91d1\\u76d1\\u6d4b\\u7814\\u7a76\\u4e0e\\u98ce\\u9669\\u610f\\u8bc6\\u4f53\\u7cfb\\u5b8c\\u5584\\u2014\\u2014')]\", \"family\": \"xpath\", \"score\": 72, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://*[contains(text(),'\\u6b63\\u89c4\\u80a1\\u7968\\u5b9e\\u76d8\\u914d\\u8d44\\u8d44\\u91d1\\u76d1\\u6d4b\\u7814\\u7a76\\u4e0e\\u98ce\\u9669\\u610f\\u8bc6\\u4f53\\u7cfb\\u5b8c\\u5584\\u2014\\u2014')]\", \"family\": \"xpath\", \"score\": 70, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://body/div[4]/div[2]/div[1]/div/div[1]/a\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}]",
+      "webSelector": "css:.article-title > a",
+      "drissionSelector": "tag:a@text()=正规股票实盘配资资金监测研究与风险意识体系完善——",
+      "elementKind": "plain"
+    },
+    {
+      "id": 17,
+      "name": "输入框",
+      "targetMode": "single",
+      "cssCandidates": "[{\"syntax\": \"css:.search-ipt\", \"family\": \"css\", \"score\": 101, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \".search-ipt\", \"family\": \"css\", \"score\": 73, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"css:div > form > .search-trigger > .search-ipt\", \"family\": \"css\", \"score\": 52, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .search-ipt\", \"family\": \"css\", \"score\": 52, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > .search-ipt\", \"family\": \"css\", \"score\": 48, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .search-ipt\", \"family\": \"css\", \"score\": 48, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > [name=\\\"keywords\\\"]\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > .search-ipt\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .search-ipt\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > [name=\\\"keywords\\\"]\", \"family\": \"css\", \"score\": 43, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:.search-trigger > input\", \"family\": \"css\", \"score\": 56, \"matchCount\": 2, \"isList\": true}, {\"syntax\": \"css:.search-trigger input\", \"family\": \"css\", \"score\": 54, \"matchCount\": 2, \"isList\": true}, {\"syntax\": \"css:input\", \"family\": \"css\", \"score\": 33, \"matchCount\": 7, \"isList\": true}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://input[@name='keywords']\", \"family\": \"xpath\", \"score\": 80, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://input[@placeholder='\\u6807\\u9898/\\u5173\\u952e\\u8bcd...']\", \"family\": \"xpath\", \"score\": 64, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://input[contains(@class,'search-ipt')]\", \"family\": \"xpath\", \"score\": 64, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://*[@placeholder='\\u6807\\u9898/\\u5173\\u952e\\u8bcd...']\", \"family\": \"xpath\", \"score\": 62, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://body/div[1]/div/div[2]/form/div[1]/input[1]\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}]",
+      "webSelector": "xpath://input[@name='keywords']",
+      "drissionSelector": "tag:input@class=search-ipt",
+      "elementKind": "plain"
+    },
+    {
+      "id": 18,
+      "name": "搜索按钮",
+      "targetMode": "single",
+      "cssCandidates": "[{\"syntax\": \"css:.search-ipt+input\", \"family\": \"css\", \"score\": 84, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \".btn-search\", \"family\": \"css\", \"score\": 73, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"css:div > form > .search-trigger > .btn-search\", \"family\": \"css\", \"score\": 52, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .btn-search\", \"family\": \"css\", \"score\": 52, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > .btn-search\", \"family\": \"css\", \"score\": 48, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .btn-search\", \"family\": \"css\", \"score\": 48, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:input:nth-of-type(2)\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > .btn-search\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > div > .btn-search\", \"family\": \"css\", \"score\": 47, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > form > .search-trigger > .btn-search\", \"family\": \"css\", \"score\": 43, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:.search-trigger > input\", \"family\": \"css\", \"score\": 56, \"matchCount\": 2, \"isList\": true}, {\"syntax\": \"css:.search-trigger input\", \"family\": \"css\", \"score\": 54, \"matchCount\": 2, \"isList\": true}, {\"syntax\": \"css:input\", \"family\": \"css\", \"score\": 33, \"matchCount\": 7, \"isList\": true}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://input[contains(@class,'btn-search')]\", \"family\": \"xpath\", \"score\": 64, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://input[@type='submit']\", \"family\": \"xpath\", \"score\": 61, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [5]}, {\"syntax\": \"xpath://body/div[1]/div/div[2]/form/div[1]/input[2]\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5]}]",
+      "webSelector": "xpath://input[contains(@class,'btn-search')]",
+      "drissionSelector": "tag:input@class=btn-search",
+      "elementKind": "plain"
+    }
+  ]
+}

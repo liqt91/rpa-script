@@ -8,6 +8,10 @@ export function ActiveRunProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
+  const notifyRunStarted = useCallback((workflow_id, run_id) => {
+    setActiveRun((prev) => prev ?? { workflow_id, run_id });
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const runs = await api.getActiveRuns();
@@ -29,6 +33,7 @@ export function ActiveRunProvider({ children }) {
     if (!activeRun) return;
     try {
       await api.stopActiveRun();
+      setActiveRun(null);
       await refresh();
     } catch (e) {
       console.error('[ActiveRun] stop failed:', e);
@@ -39,7 +44,7 @@ export function ActiveRunProvider({ children }) {
   useEffect(() => {
     mountedRef.current = true;
     refresh();
-    const id = setInterval(refresh, 3000);
+    const id = setInterval(refresh, 2000);
     return () => {
       mountedRef.current = false;
       clearInterval(id);
@@ -47,7 +52,7 @@ export function ActiveRunProvider({ children }) {
   }, [refresh]);
 
   return (
-    <ActiveRunContext.Provider value={{ activeRun, isBusy: !!activeRun, loading, refresh, stopActiveRun }}>
+    <ActiveRunContext.Provider value={{ activeRun, isBusy: !!activeRun, loading, refresh, notifyRunStarted, stopActiveRun }}>
       {children}
     </ActiveRunContext.Provider>
   );

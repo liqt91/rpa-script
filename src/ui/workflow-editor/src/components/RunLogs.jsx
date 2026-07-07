@@ -199,27 +199,40 @@ export default function RunLogs() {
                     <span className={`px-2 py-0.5 rounded text-xs ${
                       run.triggerType === 'scheduled'
                         ? 'bg-purple-900/40 text-purple-300'
-                        : 'bg-blue-900/40 text-blue-300'
+                        : run.triggerType === 'api'
+                          ? 'bg-green-900/40 text-green-300'
+                          : 'bg-blue-900/40 text-blue-300'
                     }`}>
-                      {run.triggerType === 'scheduled' ? '计划执行' : '手动运行'}
+                      {run.triggerType === 'scheduled' ? '计划执行' : run.triggerType === 'api' ? 'API 调用' : '手动运行'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-400">{formatDuration(run.startedAt, run.completedAt)}</td>
                   <td className="px-4 py-3">
-                    {run.success === true ? (
-                      <span className="flex items-center gap-1.5 text-green-400">
-                        <i className="fas fa-check-circle"></i>
-                        运行成功
-                      </span>
-                    ) : run.success === false ? (
-                      <span className="flex items-center gap-1.5 text-red-400">
-                        <i className="fas fa-times-circle"></i>
-                        运行失败
-                        {run.error && <span className="text-red-500 text-xs ml-1">({run.error})</span>}
-                      </span>
-                    ) : (
-                      <span className="text-gray-500">未知</span>
-                    )}
+                    <div>
+                      {run.success === true ? (
+                        <span className="flex items-center gap-1.5 text-green-400">
+                          <i className="fas fa-check-circle"></i>
+                          运行成功
+                        </span>
+                      ) : run.success === false ? (
+                        <span className="flex items-center gap-1.5 text-red-400">
+                          <i className="fas fa-times-circle"></i>
+                          运行失败
+                          {run.error && <span className="text-red-500 text-xs ml-1">({run.error})</span>}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">未知</span>
+                      )}
+                      {run.outputs && Object.keys(run.outputs).length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {Object.entries(run.outputs).map(([key, value]) => (
+                            <span key={key} className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-300 font-mono">
+                              {key}: {typeof value === 'object' ? JSON.stringify(value).slice(0, 40) : String(value ?? '-')}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">

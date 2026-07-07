@@ -1,0 +1,485 @@
+{
+  "id": 3,
+  "name": "知乎竞品统计",
+  "updated_at": "2026-06-08 09:44:36.381967",
+  "nodes": [
+    {
+      "id": 196,
+      "parentId": null,
+      "order": 1,
+      "type": "setVar",
+      "action": "setVar",
+      "element_name": null,
+      "extra": {
+        "valueType": "list",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "name": "keywords",
+        "value": "[\"东方财富\",\"同花顺\",\"雪球\",\"华泰证券\",\"国泰海通\",\"麦高\",\"中信证券\",\"九方智投\"]"
+      },
+      "enabled": true
+    },
+    {
+      "id": 197,
+      "parentId": null,
+      "order": 2,
+      "type": "setVar",
+      "action": "setVar",
+      "element_name": null,
+      "extra": {
+        "valueType": "list",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "name": "keywords",
+        "value": "[\"九方智投\",\"麦高\"]"
+      },
+      "enabled": true
+    },
+    {
+      "id": 198,
+      "parentId": null,
+      "order": 3,
+      "type": "setVar",
+      "action": "setVar",
+      "element_name": null,
+      "extra": {
+        "valueType": "dict",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "name": "帖子列表",
+        "value": "{}"
+      },
+      "enabled": true
+    },
+    {
+      "id": 199,
+      "parentId": null,
+      "order": 4,
+      "type": "log",
+      "action": "log",
+      "element_name": null,
+      "extra": {
+        "level": "info",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "message": "${keywords}"
+      },
+      "enabled": true
+    },
+    {
+      "id": 230,
+      "parentId": null,
+      "order": 5,
+      "type": "openBrowser",
+      "action": "openBrowser",
+      "element_name": null,
+      "extra": {
+        "browserType": "chrome",
+        "windowState": "normal",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "enabled": true
+    },
+    {
+      "id": 200,
+      "parentId": null,
+      "order": 6,
+      "type": "forList",
+      "action": "forList",
+      "element_name": null,
+      "extra": {
+        "itemVar": "当前关键词",
+        "indexVar": "index",
+        "listVar": "keywords"
+      },
+      "enabled": true
+    },
+    {
+      "id": 201,
+      "parentId": 200,
+      "order": 7,
+      "type": "setVar",
+      "action": "setVar",
+      "element_name": null,
+      "extra": {
+        "valueType": "string",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "name": "关键词url",
+        "value": "\"https://www.zhihu.com/search?q=\" + ${当前关键词} + \"&type=content&time_interval=a_day\""
+      },
+      "enabled": true
+    },
+    {
+      "id": 202,
+      "parentId": 200,
+      "order": 8,
+      "type": "log",
+      "action": "log",
+      "element_name": null,
+      "extra": {
+        "level": "info",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "message": "${关键词url}"
+      },
+      "enabled": true
+    },
+    {
+      "id": 203,
+      "parentId": 200,
+      "order": 9,
+      "type": "navigate",
+      "action": "navigate",
+      "element_name": null,
+      "extra": {
+        "waitLoad": true,
+        "timeout": 30,
+        "onError": "stop",
+        "retryCount": 3,
+        "humanLike": true,
+        "url": "${关键词url}"
+      },
+      "enabled": true
+    },
+    {
+      "id": 204,
+      "parentId": 200,
+      "order": 10,
+      "type": "forRange",
+      "action": "forRange",
+      "element_name": null,
+      "extra": {
+        "start": 0,
+        "end": 999,
+        "step": 1,
+        "varName": "i"
+      },
+      "enabled": true
+    },
+    {
+      "id": 205,
+      "parentId": 204,
+      "order": 11,
+      "type": "ifElementVisible",
+      "action": "ifElementVisible",
+      "element_name": "到底了-没有满意结果",
+      "extra": {
+        "scope": "local",
+        "operator": "visible",
+        "element_names": [
+          "到底了​_没有更多了​"
+        ]
+      },
+      "enabled": true
+    },
+    {
+      "id": 206,
+      "parentId": 205,
+      "order": 12,
+      "type": "log",
+      "action": "log",
+      "element_name": null,
+      "extra": {
+        "level": "info",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true,
+        "message": "找到结束元素，退出当前关键字 ${当前关键词}"
+      },
+      "enabled": true
+    },
+    {
+      "id": 207,
+      "parentId": 205,
+      "order": 13,
+      "type": "sleep",
+      "action": "sleep",
+      "element_name": null,
+      "extra": {
+        "seconds": 3,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "enabled": true
+    },
+    {
+      "id": 208,
+      "parentId": 205,
+      "order": 14,
+      "type": "break",
+      "action": null,
+      "element_name": null,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "enabled": true
+    },
+    {
+      "id": 209,
+      "parentId": 204,
+      "order": 15,
+      "type": "endIf",
+      "action": null,
+      "element_name": null,
+      "extra": {},
+      "enabled": true
+    },
+    {
+      "id": 210,
+      "parentId": 204,
+      "order": 16,
+      "type": "scrollToBottom",
+      "action": null,
+      "element_name": null,
+      "extra": {
+        "humanLike": true,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10
+      },
+      "enabled": true
+    },
+    {
+      "id": 211,
+      "parentId": 200,
+      "order": 17,
+      "type": "endFor",
+      "action": null,
+      "element_name": null,
+      "extra": {},
+      "enabled": true
+    },
+    {
+      "id": 212,
+      "parentId": 200,
+      "order": 18,
+      "type": "forEachElement",
+      "action": "forEachElement",
+      "element_name": "搜索结果列表",
+      "extra": {
+        "scope": "local",
+        "itemVar": "item",
+        "indexVar": "index"
+      },
+      "enabled": true
+    },
+    {
+      "id": 213,
+      "parentId": 212,
+      "order": 19,
+      "type": "ifElementVisible",
+      "action": "ifElementVisible",
+      "element_name": "帖子标题新",
+      "extra": {
+        "scope": "local",
+        "operator": "notVisible"
+      },
+      "enabled": true
+    },
+    {
+      "id": 214,
+      "parentId": 213,
+      "order": 20,
+      "type": "continue",
+      "action": "continue",
+      "element_name": null,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": false
+      },
+      "enabled": true
+    },
+    {
+      "id": 215,
+      "parentId": 212,
+      "order": 21,
+      "type": "endIf",
+      "action": null,
+      "element_name": null,
+      "extra": {},
+      "enabled": true
+    },
+    {
+      "id": 216,
+      "parentId": 212,
+      "order": 22,
+      "type": "getText",
+      "action": "getText",
+      "element_name": "帖子标题新",
+      "extra": {
+        "scope": "local",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "visibleOnly": true,
+        "humanLike": false,
+        "varName": "当前标题"
+      },
+      "enabled": true
+    },
+    {
+      "id": 217,
+      "parentId": 212,
+      "order": 23,
+      "type": "getText",
+      "action": "getText",
+      "element_name": "帖子正文摘要",
+      "extra": {
+        "scope": "local",
+        "onError": "continue",
+        "retryCount": 3,
+        "timeout": 10,
+        "visibleOnly": true,
+        "humanLike": false,
+        "varName": "当前正文摘要"
+      },
+      "enabled": true
+    },
+    {
+      "id": 218,
+      "parentId": 212,
+      "order": 24,
+      "type": "writeTableRow",
+      "action": "writeTableRow",
+      "element_name": null,
+      "extra": {
+        "writeMode": "append",
+        "rowIndex": 0,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": false,
+        "rowData": "[${当前关键词},${当前标题},${当前正文摘要}]"
+      },
+      "enabled": true
+    },
+    {
+      "id": 219,
+      "parentId": 200,
+      "order": 25,
+      "type": "endFor",
+      "action": null,
+      "element_name": null,
+      "extra": {},
+      "enabled": true
+    },
+    {
+      "id": 220,
+      "parentId": null,
+      "order": 26,
+      "type": "endFor",
+      "action": null,
+      "element_name": null,
+      "extra": {},
+      "enabled": true
+    },
+    {
+      "id": 231,
+      "parentId": null,
+      "order": 27,
+      "type": "scrollToBottom",
+      "action": null,
+      "element_name": null,
+      "extra": {
+        "humanLike": true,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10
+      },
+      "enabled": true
+    },
+    {
+      "id": 221,
+      "parentId": null,
+      "order": 28,
+      "type": "custom",
+      "action": "custom",
+      "element_name": null,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": false,
+        "code": "# 统计A列每个值在C列中出现的次数\ncount_dict = {}\n\n# 遍历所有行（行索引从0开始）\nfor row_idx in range(len(_table)):\n    a_value = _table[row_idx][0]  # A列的值\n    c_value = _table[row_idx][2]  # C列的值（索引2表示第3列）\n    \n    # 检查C列是否包含A列的值\n    if a_value in str(c_value):\n        if a_value in count_dict:\n            count_dict[a_value] += 1\n        else:\n            count_dict[a_value] = 1\n\n_result = count_dict",
+        "description": "统计数据表格中各关键词帖子数"
+      },
+      "enabled": true
+    }
+  ],
+  "elements": [
+    {
+      "id": 19,
+      "name": "帖子标题新",
+      "targetMode": "list",
+      "cssCandidates": "[{\"syntax\": \"css:span > div > div > div > [href=\\\"/question/1938281419563595434/answer/1941046067023033114\\\"] > .Highlight\", \"family\": \"css\", \"score\": 23, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [10, 11, 12, 13, 14, 15]}, {\"syntax\": \"css:span > div > div > div > [href=\\\"/question/1938281419563595434/answer/1941046067023033114\\\"] > span\", \"family\": \"css\", \"score\": 19, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [10, 11, 12, 13, 14, 15]}, {\"syntax\": \"css:div.Search-container:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(1) > div.List > div:nth-of-type(1) > div:nth-of-type(3) > div.Card > div.List-item > div.ContentItem > h2.ContentItem-title > span:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1) > span.Highlight\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}, {\"syntax\": \".Highlight\", \"family\": \"css\", \"score\": 73, \"matchCount\": 151, \"isList\": true, \"pathMapping\": [15]}, {\"syntax\": \"css:.Highlight\", \"family\": \"css\", \"score\": 20, \"matchCount\": 151, \"isList\": true, \"pathMapping\": [15]}]",
+      "xpathCandidates": "[]",
+      "webSelector": "css:.ContentItem-title",
+      "drissionSelector": "verse:新人首新人首",
+      "elementKind": "plain"
+    },
+    {
+      "id": 20,
+      "name": "到底了​_没有更多了​",
+      "targetMode": "single",
+      "cssCandidates": "[{\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 16, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 16, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 16, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 13, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 12, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 12, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 12, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 11, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 11, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(213)\", \"family\": \"css\", \"score\": 11, \"matchCount\": 1, \"isList\": false}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://div[contains(text(),'\\u6ca1\\u6709\\u66f4\\u591a\\u4e86')]\", \"family\": \"xpath\", \"score\": 72, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [9]}, {\"syntax\": \"xpath://*[contains(text(),'\\u6ca1\\u6709\\u66f4\\u591a\\u4e86')]\", \"family\": \"xpath\", \"score\": 70, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [9]}, {\"syntax\": \"xpath://body/div[1]/div/main/div/div[2]/div[3]/div/div/div/div[213]\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}]",
+      "webSelector": "xpath://div[contains(text(),'没有更多了')]",
+      "drissionSelector": "tag:div@text()=没有更多了",
+      "elementKind": "plain"
+    },
+    {
+      "id": 21,
+      "name": "帖子正文摘要",
+      "targetMode": "list",
+      "cssCandidates": "[{\"syntax\": \"css:.RichContent-inner span\", \"family\": \"css\", \"score\": 54, \"matchCount\": 44, \"isList\": true}, {\"syntax\": \"css:.RichContent #content\", \"family\": \"css\", \"score\": 32, \"matchCount\": 11, \"isList\": true}, {\"syntax\": \"css:.ContentItem #content\", \"family\": \"css\", \"score\": 32, \"matchCount\": 11, \"isList\": true}, {\"syntax\": \"css:.List-item #content\", \"family\": \"css\", \"score\": 32, \"matchCount\": 11, \"isList\": true}, {\"syntax\": \"css:.RichContent-inner #content\", \"family\": \"css\", \"score\": 28, \"matchCount\": 11, \"isList\": true}, {\"syntax\": \"#content\", \"family\": \"css\", \"score\": 108, \"matchCount\": 11, \"isList\": false, \"pathMapping\": [15]}, {\"syntax\": \"css:#content\", \"family\": \"css\", \"score\": 30, \"matchCount\": 11, \"isList\": false, \"pathMapping\": [15]}, {\"syntax\": \"css:#content\", \"family\": \"css\", \"score\": 24, \"matchCount\": 11, \"isList\": false, \"pathMapping\": [15]}, {\"syntax\": \"css:#content\", \"family\": \"css\", \"score\": 20, \"matchCount\": 11, \"isList\": false, \"pathMapping\": [15]}]",
+      "xpathCandidates": "[]",
+      "webSelector": "css:.ContentItem #content",
+      "drissionSelector": "verse:m通信m通信",
+      "elementKind": "plain"
+    },
+    {
+      "id": 22,
+      "name": "到底了-没有满意结果",
+      "targetMode": "single",
+      "cssCandidates": "[{\"syntax\": \"css:div > div > div > div > div > div > div:nth-of-type(3) > div:nth-of-type(2)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(13) > div > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(13) > div > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(13) > div > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(13) > div > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(13) > div > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(13) > div > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(13) > div > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > div:nth-of-type(13) > div > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:#root > div:nth-of-type(1) > main.App-main > div:nth-of-type(1) > div.Search-container:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(1) > div.List > div:nth-of-type(1) > div:nth-of-type(13) > div:nth-of-type(1) > div:nth-of-type(1)\", \"family\": \"css\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://div[contains(text(),'\\u6ca1\\u6709\\u6ee1\\u610f\\u7ed3\\u679c\\uff1f\\u63d0\\u95ee\\u5feb\\u901f\\u83b7\\u5f97\\u56de\\u7b54')]\", \"family\": \"xpath\", \"score\": 72, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [11]}, {\"syntax\": \"xpath://*[contains(text(),'\\u6ca1\\u6709\\u6ee1\\u610f\\u7ed3\\u679c\\uff1f\\u63d0\\u95ee\\u5feb\\u901f\\u83b7\\u5f97\\u56de\\u7b54')]\", \"family\": \"xpath\", \"score\": 70, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [11]}, {\"syntax\": \"xpath://body/div[1]/div/main/div/div[2]/div[3]/div/div/div/div[13]/div/div[1]\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}]",
+      "webSelector": "xpath://div[contains(text(),'没有满意结果？提问快速获得回答')]",
+      "drissionSelector": "verse:没有满提问快",
+      "elementKind": "plain"
+    },
+    {
+      "id": 23,
+      "name": "搜索结果列表",
+      "targetMode": "list",
+      "cssCandidates": "[{\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > .List-item\", \"family\": \"css\", \"score\": 60, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > .List-item\", \"family\": \"css\", \"score\": 60, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > .List-item\", \"family\": \"css\", \"score\": 60, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > .List-item\", \"family\": \"css\", \"score\": 57, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > .List-item\", \"family\": \"css\", \"score\": 56, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > .List-item\", \"family\": \"css\", \"score\": 56, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > .List-item\", \"family\": \"css\", \"score\": 56, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > div\", \"family\": \"css\", \"score\": 56, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > div\", \"family\": \"css\", \"score\": 56, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \"css:div > [data-za-detail-view-path-index=\\\"10\\\"] > div\", \"family\": \"css\", \"score\": 56, \"matchCount\": 1, \"isList\": false}, {\"syntax\": \".List-item\", \"family\": \"css\", \"score\": 73, \"matchCount\": 11, \"isList\": true, \"pathMapping\": [11]}, {\"syntax\": \"css:.Card > div\", \"family\": \"css\", \"score\": 60, \"matchCount\": 11, \"isList\": true}, {\"syntax\": \"css:.Card div\", \"family\": \"css\", \"score\": 58, \"matchCount\": 111, \"isList\": true}, {\"syntax\": \"css:.Card div.List-item\", \"family\": \"css\", \"score\": 58, \"matchCount\": 11, \"isList\": true}, {\"syntax\": \"css:.List-item\", \"family\": \"css\", \"score\": 20, \"matchCount\": 11, \"isList\": true, \"pathMapping\": [11]}]",
+      "xpathCandidates": "[{\"syntax\": \"xpath://body/div[1]/div/main/div/div[2]/div[3]/div/div/div/div[12]/div/div\", \"family\": \"xpath\", \"score\": 1, \"matchCount\": 1, \"isList\": false, \"pathMapping\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}]",
+      "webSelector": ".List-item",
+      "drissionSelector": "verse:m4小时",
+      "elementKind": "plain"
+    }
+  ]
+}

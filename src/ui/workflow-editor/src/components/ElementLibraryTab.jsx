@@ -3,6 +3,7 @@ import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 import DataTableTab from './DataTableTab';
 import WorkflowParametersPanel from './WorkflowParametersPanel';
+import ApiSettingsPanel from './ApiSettingsPanel';
 
 const BOTTOM_TABS = [
   { key: 'elements', label: '元素库', icon: 'fa-crosshairs' },
@@ -10,6 +11,7 @@ const BOTTOM_TABS = [
   { key: 'dataTable', label: '数据表格', icon: 'fa-table' },
   { key: 'logs', label: '运行日志', icon: 'fa-terminal' },
   { key: 'params', label: '流程参数', icon: 'fa-sliders-h' },
+  { key: 'api', label: 'API 设置', icon: 'fa-plug' },
 ];
 
 export default function ElementLibraryTab() {
@@ -668,7 +670,7 @@ export default function ElementLibraryTab() {
             </div>
           </>
         )}
-        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && activeTab !== 'params' && activeTab !== 'images' && (
+        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && activeTab !== 'params' && activeTab !== 'images' && activeTab !== 'api' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
               <i className="fas fa-inbox text-gray-400 text-xl"></i>
@@ -680,6 +682,10 @@ export default function ElementLibraryTab() {
 
         {activeTab === 'params' && (
           <WorkflowParametersPanel variant="bottom" />
+        )}
+
+        {activeTab === 'api' && (
+          <ApiSettingsPanel />
         )}
 
         {/* DataTableTab 始终挂载，通过 hidden 控制显隐，确保运行时事件不丢失 */}
