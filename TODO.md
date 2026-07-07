@@ -17,26 +17,26 @@
 
 ### B. content.js 补充缺失 handler（13 个 ❌ + 若干内部辅助）
 
-- [ ] **B1: waitForElement / waitForElementHide**
+- [x] **B1: waitForElement / waitForElementHide**
   - content.js 实现，用 MutationObserver 或 polling 检测元素出现/消失
   - 验收：测试确认元素出现后立即返回，超时抛异常
 
-- [ ] **B2: waitForLoad / waitForUrl / waitForText**
+- [x] **B2: waitForLoad / waitForUrl / waitForText**
   - waitForLoad: `document.readyState === 'complete'` + 可选额外延迟
   - waitForUrl: polling `location.href` 变化
   - waitForText: 检测页面上包含指定文本是否出现
   - 验收：各写一个测试
 
-- [ ] **B3: scrollToTop / scrollOneScreen / scrollBy**
+- [x] **B3: scrollToTop / scrollOneScreen / scrollBy**
   - content.js 实现，基于 `window.scrollBy` / `document.querySelector(locator).scrollIntoView`
   - 验收：测试确认滚动后页面位置变化
 
-- [ ] **B4: takeScreenshot**
+- [x] **B4: takeScreenshot**
   - content.js 调用 `chrome.tabs.captureVisibleTab`，base64 回传 Python 存为 PNG
   - 需要 background.js 配合声明权限
   - 验收：工作流中添加截图指令，运行后 data/ 目录生成 PNG
 
-- [ ] **B5: keyCombo / getPageTitle / getElementCount / clickIfExists**
+- [x] **B5: keyCombo / getPageTitle / getElementCount / clickIfExists**
   - keyCombo: 模拟组合键 Ctrl+C 等
   - getPageTitle: `document.title`
   - getElementCount: `document.querySelectorAll(locator).length`
