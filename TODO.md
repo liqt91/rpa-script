@@ -4,7 +4,7 @@
 
 ### A. 旧流程迁移到新指令架构
 
-- [ ] **A1: DB 迁移脚本 — 旧 type 名批量更新**
+- [x] **A1: DB 迁移脚本 — 旧 type 名批量更新**
   - 写 `scripts/migrate_workflow_types.py`，扫描 `workflow_nodes` 表的 `type` 字段
   - 将已知旧名替换为新名（如 `click`→`clickElement`、`input`→`inputText` 等）
   - 只改 `type`，不动 `extra` 和 `parent_id`
