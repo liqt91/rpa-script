@@ -122,3 +122,51 @@ def test_legacy_workflow_realistic(db_session):
     type_order = [i["cmdType"] for i in instructions]
     assert type_order == ["navigate", "click", "input", "waitForElement", "getText"], \
         f"Unexpected instruction order: {type_order}"
+
+
+# ── B1: waitForElement / waitForElementHide ──────────────────────
+
+def test_wait_for_element_handler_resolves():
+    """waitForElement type resolves to an extension runtime handler."""
+    runtime = _get_extension_runtime("waitForElement")
+    assert runtime is not None, "waitForElement should resolve via registry or LEGACY_MAP"
+    assert runtime.get("handler") == "waitForElement", \
+        f"Expected handler 'waitForElement', got {runtime.get('handler')}"
+
+
+def test_wait_for_element_hide_handler_resolves():
+    """waitForElementHide type resolves to an extension runtime handler."""
+    runtime = _get_extension_runtime("waitForElementHide")
+    assert runtime is not None, "waitForElementHide should resolve via registry or LEGACY_MAP"
+    assert runtime.get("handler") == "waitForElementHide", \
+        f"Expected handler 'waitForElementHide', got {runtime.get('handler')}"
+
+
+def test_wait_handlers_produce_instructions(db_session):
+    """Both wait handlers produce valid build_instructions output."""
+    wf = models.Workflow(name="wait-test", url="https://example.com")
+    db_session.add(wf)
+    db_session.flush()
+
+    node1 = models.WorkflowNode(
+        workflow_id=wf.id, type="waitForElement", order=1,
+        extra='{"element_name":"btn"}', enabled=1,
+    )
+    node2 = models.WorkflowNode(
+        workflow_id=wf.id, type="waitForElementHide", order=2,
+        extra='{"element_name":"modal"}', enabled=1,
+    )
+    db_session.add_all([node1, node2])
+    db_session.flush()
+
+    loaded = (
+        db_session.query(models.WorkflowNode)
+        .filter(models.WorkflowNode.workflow_id == wf.id)
+        .order_by(models.WorkflowNode.order)
+        .all()
+    )
+
+    instructions = build_instructions(loaded)
+    assert len(instructions) == 2, \
+        f"Expected 2 instructions, got {len(instructions)}"
+    assert [i["cmdType"] for i in instructions] == ["waitForElement", "waitForElementHide"]

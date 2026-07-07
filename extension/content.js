@@ -1870,6 +1870,40 @@ console.log({
   registerHandler('rightClick', async (args) => doClick(args));
   registerHandler('inputAndPressEnter', async (args) => doInput(args));
 
+  // ─── waitForElement / waitForElementHide ─────────────────────────
+
+  registerHandler('waitForElement', async function waitForElementHandler({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    await waitForElement(locator, selectorFamily, mode, timeoutMs);
+    return { appeared: true };
+  });
+
+  registerHandler('waitForElementHide', async function waitForElementHideHandler({ locator, selectorFamily, extra }) {
+    locator = normalizeLocator(locator);
+    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
+    const mode = getVisibilityMode(extra);
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    const pollMs = 200;
+    const start = Date.now();
+    let ticks = 0;
+    return new Promise((resolve, reject) => {
+      const tick = () => {
+        ticks++;
+        const el = resolveLocator(locator, selectorFamily, 'any');
+        if (!el || el === document || (mode !== 'any' && !checkVisibility(el, mode))) {
+          console.log(`[RPA waitForElementHide] GONE after ${ticks} ticks, ${Date.now() - start}ms`);
+          return resolve({ disappeared: true });
+        }
+        if (Date.now() - start >= timeoutMs) {
+          return reject(new Error(`元素未在 ${timeoutMs}ms 内消失: ${locator}`));
+        }
+        setTimeout(tick, pollMs);
+      };
+      tick();
+    });
+  });
+
 
   // ─── Message listener ────────────────────────────────────────────
 

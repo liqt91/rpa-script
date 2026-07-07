@@ -16,7 +16,7 @@
 
   // ─── Locator resolution ──────────────────────────────────────────
 
-  function isVisible(el) {
+  function isRendered(el) {
     if (!el) return false;
     let node = el;
     let accumulatedOpacity = 1;
@@ -32,9 +32,57 @@
     }
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return false;
-    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return false;
     if (el.disabled === true || el.readOnly === true || el.getAttribute('tabindex') === '-1' || el.hasAttribute('inert')) return false;
     return true;
+  }
+
+  function isInViewport(el) {
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    return !(
+      rect.width <= 0 || rect.height <= 0 ||
+      rect.bottom < 0 || rect.top > window.innerHeight ||
+      rect.right < 0 || rect.left > window.innerWidth
+    );
+  }
+
+  function isVisible(el) {
+    return isRendered(el) && isInViewport(el);
+  }
+
+  function checkVisibility(el, mode) {
+    if (!el || mode === 'any') return true;
+    return isRendered(el);
+  }
+
+  function getVisibilityMode(extra) {
+    if (extra?.visibilityMode) {
+      const m = extra.visibilityMode;
+      // backwards compatibility for old saved values
+      if (m === 'rendered' || m === 'viewport') return 'visible';
+      return m;
+    }
+    if (extra?.visibleOnly === false) return 'any';
+    return 'visible';
+  }
+
+  function getElementXPath(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return '';
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === Node.ELEMENT_NODE) {
+      let index = 1;
+      let sibling = node.previousSibling;
+      while (sibling) {
+        if (sibling.nodeType === Node.ELEMENT_NODE && sibling.localName === node.localName) {
+          index += 1;
+        }
+        sibling = sibling.previousSibling;
+      }
+      parts.unshift(`${node.localName.toLowerCase()}[${index}]`);
+      node = node.parentNode;
+    }
+    return 'xpath:/' + parts.join('/');
   }
 
   // ─── web-verse text fingerprint ──────────────────────────────────
@@ -177,7 +225,7 @@
     return [];
   }
 
-  function resolveLocator(locator, selectorFamily, visibleOnly) {
+  function resolveLocator(locator, selectorFamily, mode) {
     locator = normalizeLocator(locator);
     selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
     if (!locator) return document;
@@ -236,25 +284,25 @@
       try { el = document.evaluate(locator, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; } catch (e) {}
     }
 
-    if (!el || !visibleOnly) return el;
-    if (!isVisible(el)) {
+    if (!el || mode === 'any') return el;
+    if (!checkVisibility(el, mode)) {
       const all = resolveAllLocators(locator, selectorFamily);
-      const v = all.find(isVisible);
+      const v = all.find(e => checkVisibility(e, mode));
       if (v) return v;
     }
     return el;
   }
 
-  function waitForElement(locator, selectorFamily, visibleOnly, timeoutMs = 10000, pollMs = 200) {
+  function waitForElement(locator, selectorFamily, mode, timeoutMs = 10000, pollMs = 200) {
     locator = normalizeLocator(locator);
     selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
-    console.log(`[RPA waitForElement] normLocator=${locator} normType=${selectorFamily} visibleOnly=${visibleOnly} timeout=${timeoutMs}`);
+    console.log(`[RPA waitForElement] normLocator=${locator} normType=${selectorFamily} mode=${mode} timeout=${timeoutMs}`);
     const start = Date.now();
     let ticks = 0;
     return new Promise((resolve, reject) => {
       const tick = () => {
         ticks++;
-        const el = resolveLocator(locator, selectorFamily, visibleOnly);
+        const el = resolveLocator(locator, selectorFamily, mode);
         if (el && el !== document) {
           console.log(`[RPA waitForElement] FOUND after ${ticks} ticks, ${Date.now() - start}ms`);
           return resolve(el);
@@ -360,10 +408,16 @@
 
     if (lt === 'xpath') {
       let xl = l;
-      if (xl.startsWith('//')) xl = '.' + xl;
-      const r = document.evaluate(xl, rootElement, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      // If the XPath was captured as an absolute document path (//...), evaluating it
+      // relative to a context element with './/...' would fail because the path includes
+      // ancestor nodes outside the context. Always evaluate against document and then
+      // filter to descendants of the context element.
+      const r = document.evaluate(xl, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
       const arr = [];
-      for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+      for (let i = 0; i < r.snapshotLength; i++) {
+        const node = r.snapshotItem(i);
+        if (rootElement.contains(node)) arr.push(node);
+      }
       return arr;
     }
     if (lt === 'drission') {
@@ -434,14 +488,58 @@
     return [];
   }
 
-  function waitForElementInContext(locator, selectorFamily, rootElement, timeoutMs = 10000, pollMs = 200) {
+  // True relative query: evaluate a capture-time relative selector strictly
+  // *within* the loop-item parent, rather than the legacy global-evaluate +
+  // parent.contains() filter. Unifies xpath/css/drission scope semantics so a
+  // child selector cannot leak across sibling loop items.
+  function resolveAllRelativeInContext(relLocator, relFamily, rootElement) {
+    if (!rootElement || !relLocator) return [];
+    let l = String(relLocator).trim();
+    let lt = relFamily || '';
+    if (l.startsWith('css:')) { l = l.slice(4); lt = 'css'; }
+    else if (l.startsWith('xpath:')) { l = l.slice(6); lt = 'xpath'; }
+    else if (l.startsWith('drission:')) { l = l.slice(9); lt = 'drission'; }
+    if (!lt) lt = inferSelectorFamily(l) || 'css';
+
+    if (lt === 'xpath') {
+      // Force the path to evaluate relative to the context node.
+      let xl = l;
+      if (xl.startsWith('.//') || xl.startsWith('./')) {
+        // already relative
+      } else if (xl.startsWith('//')) {
+        xl = '.' + xl;            // //div -> .//div
+      } else if (xl.startsWith('/')) {
+        xl = '.' + xl;            // /div  -> ./div
+      } else {
+        xl = './/' + xl;          // div/span -> .//div/span
+      }
+      try {
+        const r = document.evaluate(xl, rootElement, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        const arr = [];
+        for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+        return arr;
+      } catch (e) { return []; }
+    }
+
+    if (lt === 'drission') {
+      // Reuse the drission→css/walker logic by delegating to the contains-based
+      // resolver; for drission, relative is best-effort (still scoped to parent).
+      return resolveAllLocatorsInContext(l, 'drission', rootElement);
+    }
+
+    // css family
+    try { return Array.from(rootElement.querySelectorAll(l)); } catch (e) {}
+    return [];
+  }
+
+  function waitForElementInContext(locator, selectorFamily, rootElement, mode = 'visible', timeoutMs = 10000, pollMs = 200) {
     locator = normalizeLocator(locator);
     selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
     const start = Date.now();
     return new Promise((resolve, reject) => {
       const tick = () => {
         const el = resolveLocatorInContext(locator, selectorFamily, rootElement);
-        if (el && el !== rootElement) return resolve(el);
+        if (el && el !== rootElement && checkVisibility(el, mode)) return resolve(el);
         if (Date.now() - start >= timeoutMs) {
           return reject(new Error(`元素未在 ${timeoutMs}ms 内出现: ${locator}`));
         }
@@ -451,21 +549,35 @@
     });
   }
 
-  function waitForElementWithContext(locator, selectorFamily, extra, visibleOnly = true, timeoutMs = 10000, pollMs = 200) {
+  function waitForElementWithContext(locator, selectorFamily, extra, mode = 'visible', timeoutMs = 10000, pollMs = 200) {
     const ctxLocator = extra?.contextLocator;
     const ctxLocatorType = extra?.contextLocatorType;
     const ctxIndex = extra?.contextIndex ?? 0;
     const ctxTotal = extra?.contextTotal;
+    const srcLocator = extra?.sourceLocator;
+    const srcLocatorType = extra?.sourceSelectorFamily;
+    const srcIndex = extra?.sourceIndex ?? 0;
+    const srcTotal = extra?.sourceTotal;
 
-    if (!ctxLocator) {
-      return waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+    if (!ctxLocator && !srcLocator) {
+      return waitForElement(locator, selectorFamily, mode, timeoutMs);
     }
 
     const start = Date.now();
     return new Promise((resolve, reject) => {
       const tick = () => {
-        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-        const parent = parents[ctxIndex];
+        let parents = [];
+        let parent = null;
+        let usedSource = false;
+        if (ctxLocator) {
+          parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+          parent = parents[ctxIndex];
+        }
+        if (!parent && srcLocator) {
+          parents = resolveAllLocators(srcLocator, srcLocatorType);
+          parent = parents[srcIndex];
+          usedSource = true;
+        }
         if (!parent) {
           if (Date.now() - start >= timeoutMs) {
             return reject(new Error(`上下文元素未找到 (第 ${ctxIndex + 1}/${ctxTotal || '?'} 个)`));
@@ -473,75 +585,200 @@
           return setTimeout(tick, pollMs);
         }
 
-        let el = resolveLocatorInContext(locator, selectorFamily, parent);
-        let mode = 'descendant';
-        let globalMatches = null;
-        if (visibleOnly && el && !isVisible(el)) {
-          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          el = all.find(isVisible) || null;
+        // "Reference the loop item itself": the target IS the current loop item,
+        // not a descendant. First-class replacement for the old "child selector
+        // == loop selector" heuristic.
+        if (extra?.referenceItemItself) {
+          if (mode === 'any' || checkVisibility(parent, mode)) {
+            window.__rpaLastContextDebugInfo = getElementDebugInfo(locator, selectorFamily, extra, parent);
+            return resolve(parent);
+          }
+          const err = new Error(`循环项本身不可见: ${ctxLocator || srcLocator}`);
+          err.contextNotFound = true;
+          return reject(err);
         }
 
-        // Fallback: index alignment when descendant search yields nothing
-        if (!el) {
-          globalMatches = resolveAllLocators(locator, selectorFamily);
-          mode = 'index-alignment';
-          if (globalMatches.length <= ctxIndex) {
-            return reject(new Error(
-              `按循环序号对齐失败：外层循环第 ${ctxIndex + 1} 个元素，但当前选择器只匹配到 ${globalMatches.length} 个元素`
-            ));
+        // Prefer the capture-time relative selector when present: query strictly
+        // within the loop item, unifying xpath/css scope semantics.
+        let el = null;
+        if (extra?.useRelative && extra?.relativeLocator) {
+          const relMatches = resolveAllRelativeInContext(
+            extra.relativeLocator, extra.relativeSelectorFamily, parent);
+          el = mode === 'any'
+            ? relMatches[0] || null
+            : relMatches.find(e => checkVisibility(e, mode)) || null;
+          if (!el && relMatches.length === 0) {
+            addRunLog(`相对选择器在循环项内未命中，回退全局解析: ${extra.relativeLocator}`);
           }
-          el = globalMatches[ctxIndex] || null;
-          if (visibleOnly && el && !isVisible(el)) {
-            el = globalMatches.slice(ctxIndex).find(isVisible) || null;
+        }
+
+        // Local/descendant scope: only search within the current outer element.
+        if (!el) {
+          const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+          el = mode === 'any'
+            ? allDescendants[0] || null
+            : allDescendants.find(e => checkVisibility(e, mode)) || null;
+        }
+
+        // Fallback: when the child selector is the same as the loop selector,
+        // the intended target is the current loop item itself (not a descendant).
+        if (!el) {
+          const globalMatches = resolveAllLocators(locator, selectorFamily);
+          if (globalMatches.includes(parent) && (mode === 'any' || checkVisibility(parent, mode))) {
+            el = parent;
           }
         }
 
         if (el) {
+          const debugInfo = getElementDebugInfo(locator, selectorFamily, extra, el);
+          window.__rpaLastContextDebugInfo = debugInfo;
           console.log(
-            `[waitForElementWithContext] mode=${mode} ` +
+            `[waitForElementWithContext] mode=${debugInfo.mode} ` +
             `index=${ctxIndex + 1}/${ctxTotal || '?'} ` +
-            `globalMatches=${globalMatches ? globalMatches.length : '-'} ` +
-            `locator=${locator}`
+            `outerTotal=${debugInfo.outerTotal} innerTotal=${debugInfo.innerTotal} innerIndex=${debugInfo.innerIndex} ` +
+            `locator=${locator} ${usedSource ? '(source fallback)' : ''}`
           );
           return resolve(el);
         }
-        if (Date.now() - start >= timeoutMs) {
-          return reject(new Error(`元素未在 ${timeoutMs}ms 内出现: ${locator}`));
-        }
-        setTimeout(tick, pollMs);
+
+        // Parent exists but no matching descendant inside it.
+        const err = new Error(`元素在当前外层元素中未找到: ${locator}`);
+        err.contextNotFound = true;
+        return reject(err);
       };
       tick();
     });
   }
 
-  function reResolveWithContext(locator, selectorFamily, extra, visibleOnly = true) {
+  function reResolveWithContext(locator, selectorFamily, extra, mode = 'visible') {
     const ctxLocator = extra?.contextLocator;
     const ctxLocatorType = extra?.contextLocatorType;
     const ctxIndex = extra?.contextIndex ?? 0;
+    const srcLocator = extra?.sourceLocator;
+    const srcLocatorType = extra?.sourceSelectorFamily;
+    const srcIndex = extra?.sourceIndex ?? 0;
 
-    let el = null;
+    let parent = null;
     if (ctxLocator) {
       const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-      const parent = parents[ctxIndex];
-      if (parent) {
-        el = resolveLocatorInContext(locator, selectorFamily, parent);
-        if (visibleOnly && el && !isVisible(el)) {
-          const all = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          el = all.find(isVisible) || null;
-        }
-        if (!el) {
-          const all = resolveAllLocators(locator, selectorFamily);
-          el = all[ctxIndex] || null;
-          if (visibleOnly && el && !isVisible(el)) {
-            el = all.slice(ctxIndex).find(isVisible) || null;
-          }
+      parent = parents[ctxIndex];
+    }
+    if (!parent && srcLocator) {
+      const parents = resolveAllLocators(srcLocator, srcLocatorType);
+      parent = parents[srcIndex];
+    }
+
+    let el = null;
+    if (parent) {
+      // Reference the loop item itself.
+      if (extra?.referenceItemItself) {
+        if (mode === 'any' || checkVisibility(parent, mode)) el = parent;
+      }
+      // Prefer the capture-time relative selector.
+      if (!el && extra?.useRelative && extra?.relativeLocator) {
+        const relMatches = resolveAllRelativeInContext(
+          extra.relativeLocator, extra.relativeSelectorFamily, parent);
+        el = mode === 'any'
+          ? relMatches[0] || null
+          : relMatches.find(e => checkVisibility(e, mode)) || null;
+      }
+      if (!el) {
+        const allDescendants = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+        el = mode === 'any'
+          ? allDescendants[0] || null
+          : allDescendants.find(e => checkVisibility(e, mode)) || null;
+      }
+
+      // Fallback: loop item itself matches the child selector.
+      if (!el) {
+        const globalMatches = resolveAllLocators(locator, selectorFamily);
+        if (globalMatches.includes(parent) && (mode === 'any' || checkVisibility(parent, mode))) {
+          el = parent;
         }
       }
     }
     if (!el) {
-      el = resolveLocator(locator, selectorFamily, visibleOnly);
+      el = resolveLocator(locator, selectorFamily, mode);
+    }
+    if (el && extra?.contextLocator) {
+      window.__rpaLastContextDebugInfo = getElementDebugInfo(locator, selectorFamily, extra, el);
     }
     return el;
+  }
+
+  function buildDebugSnippet(ctxLocator, ctxLocatorType, ctxIndex, locator, selectorFamily, mode, innerIndex, outerTotal, innerTotal) {
+    const safe = (s) => JSON.stringify(s ?? '');
+    function snapExpr(scopeVar, sel, type) {
+      const family = type || inferSelectorFamily(sel);
+      if (family === 'xpath' || (sel && sel.startsWith('//'))) {
+        return `document.evaluate(${safe(sel)}, ${scopeVar}, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null)`;
+      }
+      return `${scopeVar}.querySelectorAll(${safe(sel)})`;
+    }
+    function lenExpr(expr) {
+      return `(${expr}.snapshotLength ?? ${expr}.length)`;
+    }
+    const ctxExpr = snapExpr('document', ctxLocator, ctxLocatorType);
+    const scope = mode === 'descendant' ? 'outer' : 'document';
+    let innerSel = locator;
+    if (mode === 'descendant' && (selectorFamily === 'xpath' || (innerSel && innerSel.startsWith('//')))) {
+      innerSel = '.' + innerSel;
+    }
+    const innerExpr = snapExpr(scope, innerSel, selectorFamily);
+    const idx = innerIndex >= 0 ? innerIndex : 0;
+    return `// RPA debug snippet (mode=${mode})
+function rpaItem(list, i) { return list.snapshotItem ? list.snapshotItem(i) : list[i]; }
+const outer = rpaItem(${ctxExpr}, ${ctxIndex});
+const innerAll = ${innerExpr};
+const inner = rpaItem(innerAll, ${idx});
+console.log({
+  outerTotal: ${lenExpr(ctxExpr)},
+  outerIndex: ${ctxIndex},
+  innerTotal: ${lenExpr(innerExpr)},
+  innerIndex: ${innerIndex}
+});
+// target element: inner`;
+  }
+
+  function getElementDebugInfo(locator, selectorFamily, extra, el) {
+    const ctxLocator = extra?.contextLocator;
+    const ctxLocatorType = extra?.contextLocatorType;
+    const ctxIndex = extra?.contextIndex ?? 0;
+    const mode = getVisibilityMode(extra);
+    const info = {
+      mode: 'none',
+      outerTotal: 0,
+      outerIndex: ctxIndex,
+      innerTotal: 0,
+      innerIndex: -1,
+      jsSnippet: '',
+    };
+    if (!ctxLocator) return info;
+
+    const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+    info.outerTotal = parents.length;
+    const parent = parents[ctxIndex];
+    if (!parent) {
+      info.mode = 'no-outer';
+      info.jsSnippet = buildDebugSnippet(ctxLocator, ctxLocatorType, ctxIndex, locator, selectorFamily, info.mode, -1, info.outerTotal, 0);
+      return info;
+    }
+
+    const inCtxAll = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+    const inCtx = mode !== 'any' ? inCtxAll.filter(e => checkVisibility(e, mode)) : inCtxAll;
+    const descendantEl = inCtx[0] || null;
+    let innerList = inCtx;
+    let resolutionMode = 'descendant';
+    if (el && descendantEl !== el) {
+      resolutionMode = 'index-alignment';
+      const globalAll = resolveAllLocators(locator, selectorFamily);
+      innerList = mode !== 'any' ? globalAll.filter(e => checkVisibility(e, mode)) : globalAll;
+    }
+    info.mode = resolutionMode;
+    info.innerTotal = innerList.length;
+    info.innerIndex = el ? innerList.indexOf(el) : -1;
+    info.jsSnippet = buildDebugSnippet(ctxLocator, ctxLocatorType, ctxIndex, locator, selectorFamily, resolutionMode, info.innerIndex, info.outerTotal, info.innerTotal);
+    return info;
   }
 
   // ─── Human-like interaction utilities ────────────────────────────
@@ -640,8 +877,29 @@
     }
   }
 
+  // 等待元素滚动停止（用于平滑滚动）
+  async function waitForScrollEnd(el, timeout = 2000) {
+    const start = performance.now();
+    let lastTop = el.getBoundingClientRect().top;
+    let lastWindowY = window.scrollY;
+    let stableFrames = 0;
+    while (performance.now() - start < timeout) {
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      const top = el.getBoundingClientRect().top;
+      const windowY = window.scrollY;
+      if (Math.abs(top - lastTop) < 0.5 && Math.abs(windowY - lastWindowY) < 0.5) {
+        stableFrames += 1;
+        if (stableFrames >= 3) return;
+      } else {
+        stableFrames = 0;
+      }
+      lastTop = top;
+      lastWindowY = windowY;
+    }
+  }
+
   // 拟人点击
-  async function humanClick(el, humanLike) {
+  async function humanClick(el, humanLike, clickType = 'click') {
     try {
       // 后台标签页 setTimeout 被节流到 1s，跳过拟人动画避免超时
       if (document.hidden) {
@@ -652,15 +910,20 @@
       }
 
       // 确保元素在视口内并可交互
-      el.scrollIntoView({ block: 'center', behavior: 'instant' });
-      await sleep(50);
+      const scrollBehavior = humanLike ? 'smooth' : 'instant';
+      el.scrollIntoView({ block: 'center', behavior: scrollBehavior });
+      if (humanLike) {
+        await waitForScrollEnd(el);
+      } else {
+        await sleep(50);
+      }
       if (el.focus) el.focus();
 
       const point = getClickPoint(el, humanLike);
       const rect = el.getBoundingClientRect();
       const startX = rect.left + rect.width / 2;
       const startY = rect.top + rect.height / 2;
-      console.log(`[humanClick] el=${el.tagName} point=(${point.x.toFixed(1)},${point.y.toFixed(1)}) humanLike=${humanLike}`);
+      console.log(`[humanClick] el=${el.tagName} point=(${point.x.toFixed(1)},${point.y.toFixed(1)}) humanLike=${humanLike} clickType=${clickType}`);
       try {
         console.log(`[humanClick] detail class="${el.className || ''}" id="${el.id || ''}" disabled=${el.disabled} readOnly=${el.readOnly} tabindex="${el.getAttribute?.('tabindex') || ''}"`);
         const style = window.getComputedStyle(el);
@@ -683,12 +946,15 @@
         await sleep(rand(80, 300));
       }
 
+      const button = clickType === 'rightClick' ? 2 : 0;
+      const detail = clickType === 'doubleClick' ? 2 : 1;
+
       const mousedown = new MouseEvent('mousedown', {
         bubbles: true, cancelable: true, view: window,
-        clientX: point.x, clientY: point.y, button: 0
+        clientX: point.x, clientY: point.y, button, detail
       });
       el.dispatchEvent(mousedown);
-      console.log('[humanClick] dispatched mousedown to', el.tagName);
+      console.log('[humanClick] dispatched mousedown to', el.tagName, 'button=', button);
 
       if (humanLike) {
         await sleep(rand(80, 200));
@@ -696,23 +962,41 @@
 
       const mouseup = new MouseEvent('mouseup', {
         bubbles: true, cancelable: true, view: window,
-        clientX: point.x, clientY: point.y, button: 0
+        clientX: point.x, clientY: point.y, button, detail
       });
       el.dispatchEvent(mouseup);
-      console.log('[humanClick] dispatched mouseup to', el.tagName);
+      console.log('[humanClick] dispatched mouseup to', el.tagName, 'button=', button);
 
-      const clickEvt = new MouseEvent('click', {
-        bubbles: true, cancelable: true, view: window,
-        clientX: point.x, clientY: point.y, button: 0
-      });
-      el.dispatchEvent(clickEvt);
-      console.log('[humanClick] dispatched click to', el.tagName, 'bubbles=true');
+      if (clickType === 'doubleClick') {
+        const dblclickEvt = new MouseEvent('dblclick', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: point.x, clientY: point.y, button: 0, detail: 2
+        });
+        el.dispatchEvent(dblclickEvt);
+        console.log('[humanClick] dispatched dblclick to', el.tagName);
+        // Fallback
+        if (el.click) { el.click(); await sleep(rand(80, 200)); el.click(); }
+      } else if (clickType === 'rightClick') {
+        const contextEvt = new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: point.x, clientY: point.y, button: 2, detail: 1
+        });
+        el.dispatchEvent(contextEvt);
+        console.log('[humanClick] dispatched contextmenu to', el.tagName);
+      } else {
+        const clickEvt = new MouseEvent('click', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: point.x, clientY: point.y, button: 0, detail: 1
+        });
+        el.dispatchEvent(clickEvt);
+        console.log('[humanClick] dispatched click to', el.tagName, 'bubbles=true');
+      }
 
       // Fallback：某些框架只响应原生 click()
-      if (el.click && !humanLike) {
+      if (clickType === 'click' && el.click && !humanLike) {
         console.log('[humanClick] fallback el.click()');
         el.click();
-      } else if (humanLike) {
+      } else if (clickType === 'click' && humanLike) {
         console.log('[humanClick] fallback el.click() skipped because humanLike=true');
       }
     } catch (e) {
@@ -813,69 +1097,6 @@
       requestAnimationFrame(tick);
     });
   }
-
-  // ─── Network interception helpers ────────────────────────────────
-
-  const _interceptQueue = [];
-  const _traceResults = [];
-  let _interceptActive = false;
-
-  function matchPattern(url, pattern) {
-    if (!pattern || pattern === '*') return true;
-    const parts = pattern.split('*');
-    let idx = 0;
-    for (const part of parts) {
-      const i = url.indexOf(part, idx);
-      if (i === -1) return false;
-      idx = i + part.length;
-    }
-    return true;
-  }
-
-  function tryJsonParse(text) {
-    try { return JSON.parse(text); } catch { return text; }
-  }
-
-  function injectInterceptScript(config) {
-    removeInterceptScript();
-    const script = document.createElement('script');
-    script.id = '__rpa_intercept_script';
-    script.src = chrome.runtime.getURL('intercept.js');
-    script.dataset.config = JSON.stringify(config);
-    (document.head || document.documentElement).appendChild(script);
-    // Also broadcast config via postMessage in case script loaded before config was set
-    window.postMessage({ source: 'rpa-intercept-config', config }, '*');
-  }
-
-  function removeInterceptScript() {
-    const existing = document.getElementById('__rpa_intercept_script');
-    if (existing) existing.remove();
-    window.__rpaInterceptActive = false;
-    _interceptActive = false;
-  }
-
-  // Listen for data from the injected intercept.js
-  window.addEventListener('message', (e) => {
-    if (!e.data || e.data.source !== 'rpa-intercept') return;
-    if (e.data.type === 'trace') {
-      _traceResults.push({ url: e.data.url, method: e.data.method, time: e.data.time });
-    } else if (e.data.type === 'intercept') {
-      _interceptQueue.push({
-        url: e.data.url,
-        method: e.data.method,
-        status: e.data.status,
-        body: e.data.body,
-        time: e.data.time,
-      });
-      // Forward to background for optional WS relay
-      try {
-        chrome.runtime.sendMessage({
-          action: 'interceptedData',
-          payload: { url: e.data.url, method: e.data.method, status: e.data.status },
-        });
-      } catch (_e) {}
-    }
-  });
 
   // ─── Running UI ──────────────────────────────────────────────────
 
@@ -994,70 +1215,137 @@
 
   // ─── Step handlers ───────────────────────────────────────────────
 
-  const handlers = {
-    navigate({ extra }) {
-      const url = extra?.url;
-      if (!url) throw new Error('navigate: url required');
-      window.location.href = url;
-      return { navigatedTo: url };
-    },
+  const handlers = {};
 
-    async click({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
-      const humanLike = extra?.humanLike ?? true;
-      const forceJs = extra?.forceJs ?? false;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
+  function registerHandler(name, fn) {
+    handlers[name] = fn;
+  }
 
-      let el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+  // Generic element-action implementations used by both legacy handlers and elementAction.
 
-      await visualConfirmDelay();
+  // A "soft not found" is a loop-context miss where the loop-item parent exists
+  // but this child is genuinely absent inside it (heterogeneous lists are normal).
+  // Such cases warn + skip + continue; they are NOT subject to the node's onError
+  // policy. A missing anchor/parent (broken selector) is a HARD failure and throws.
+  function isSoftNotFound(e) {
+    return !!(e?.contextNotFound || e?.message?.includes('按循环序号对齐失败'));
+  }
 
-      const fresh = reResolveWithContext(locator, selectorFamily, extra, visibleOnly);
-      if (fresh && fresh !== document) el = fresh;
+  async function doClick({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const forceJs = extra?.forceJs ?? false;
+    const clickType = extra?.clickType || extra?.action || 'click';
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      if (forceJs) {
-        el.scrollIntoView({ block: 'center', behavior: 'instant' });
-        if (el.focus) el.focus();
-        el.click();
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      // Soft "not found" inside a loop item → warn + skip this iteration's click,
+      // mirroring doExtract. Hard failures (broken selector / missing context)
+      // still propagate to the node's onError policy.
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过点击并继续: ${locator}`;
+        console.log(`[RPA click] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { clicked: false, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
+
+    await visualConfirmDelay();
+
+    const fresh = reResolveWithContext(locator, selectorFamily, extra, mode);
+    if (fresh && fresh !== document) el = fresh;
+
+    return performClick(el, { humanLike, forceJs, clickType });
+  }
+
+  async function doClickCurrentLoopItem({ extra }) {
+    const ctxLocator = extra?.contextLocator;
+    const ctxLocatorType = extra?.contextLocatorType;
+    const ctxIndex = extra?.contextIndex ?? 0;
+    const ctxTotal = extra?.contextTotal;
+
+    if (!ctxLocator) {
+      throw new Error('点击当前循环元素 必须在 forEachElement 循环体内使用');
+    }
+
+    const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+    const parent = parents[ctxIndex];
+    if (!parent) {
+      throw new Error(`当前循环元素未找到 (第 ${ctxIndex + 1}/${ctxTotal || '?'} 个)`);
+    }
+
+    await visualConfirmDelay();
+
+    const humanLike = extra?.humanLike ?? true;
+    const forceJs = extra?.forceJs ?? false;
+    const clickType = extra?.clickType || 'click';
+    return performClick(parent, { humanLike, forceJs, clickType });
+  }
+
+  async function performClick(el, { humanLike, forceJs, clickType }) {
+    if (forceJs) {
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      if (el.focus) el.focus();
+      if (clickType === 'doubleClick') {
+        el.click(); el.click();
+      } else if (clickType === 'rightClick') {
+        el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window, button: 2 }));
       } else {
-        await humanClick(el, humanLike);
+        el.click();
       }
-      return { clicked: true, tagName: el.tagName };
-    },
+    } else {
+      await humanClick(el, humanLike, clickType);
+    }
+    return { clicked: true, clickType, tagName: el.tagName };
+  }
 
-    async input({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
-      const humanLike = extra?.humanLike ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
+  async function doInput({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
-
-      const text = extra?.text ?? '';
-      const clearFirst = extra?.clearFirst !== false;
-
-      if (clearFirst) {
-        setInputValue(el, '');
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过输入并继续: ${locator}`;
+        console.log(`[RPA input] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { input: false, skipped: true, warning, contextNotFound: true };
       }
+      throw e;
+    }
 
-      await humanType(el, text, humanLike);
+    const text = extra?.text ?? '';
+    const clearFirst = extra?.clearFirst !== false;
 
-      // If inputAndPressEnter, also dispatch Enter key
-      if (extra?.pressEnter) {
-        if (humanLike) await sleep(rand(200, 600));
-        el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        if (humanLike) await sleep(rand(30, 100));
-        el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
-      }
+    if (clearFirst) {
+      setInputValue(el, '');
+    }
 
-      return { input: true, length: text.length };
-    },
+    await humanType(el, text, humanLike);
 
-    async extract({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    if (extra?.pressEnter) {
+      if (humanLike) await sleep(rand(200, 600));
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      if (humanLike) await sleep(rand(30, 100));
+      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+    }
 
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+    return { input: true, length: text.length };
+  }
 
+  async function doExtract({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    try {
+      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
       const attr = extra?.attribute;
       let value;
       if (attr === 'innerHTML') {
@@ -1070,25 +1358,106 @@
         value = el.textContent?.trim() ?? '';
       }
       return { extracted: value };
-    },
+    } catch (e) {
+      // Soft "not found": the loop-item parent exists but this child is genuinely
+      // absent inside it (heterogeneous lists are normal — e.g. some comment cards
+      // have no reply). Return empty + a warning and let the run continue, instead
+      // of either silently collecting blanks or hard-failing the whole loop.
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到: ${locator}`;
+        console.log(`[RPA extract] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { extracted: '', warning, contextNotFound: true };
+      }
+      // Hard failure (anchor/context element itself missing → selector is broken):
+      // propagate so the node's onError policy (default stop) applies.
+      throw e;
+    }
+  }
 
-    wait({ extra }) {
-      const ms = (extra?.seconds || 1) * 1000;
-      return new Promise((resolve) => {
-        setTimeout(() => resolve({ waited: ms }), ms);
-      });
-    },
+  function isScrollableElement(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const style = window.getComputedStyle(el);
+    const overflowY = style.overflowY;
+    const overflow = style.overflow;
+    const canOverflow = overflowY === 'auto' || overflowY === 'scroll' || overflow === 'auto' || overflow === 'scroll';
+    return canOverflow && el.scrollHeight > el.clientHeight + 1;
+  }
 
-    async scroll({ locator, selectorFamily, extra }) {
-      const scrollType = extra?.scrollType || 'toBottom';
-      const humanLike = extra?.humanLike ?? true;
-      const smooth = extra?.smooth ?? true;
+  function findLargestScrollableElement() {
+    const all = document.querySelectorAll('*');
+    let best = null;
+    let bestDiff = 0;
+    for (const el of all) {
+      if (isScrollableElement(el)) {
+        const diff = el.scrollHeight - el.clientHeight;
+        if (diff > bestDiff) {
+          bestDiff = diff;
+          best = el;
+        }
+      }
+    }
+    return best;
+  }
 
-      // scrollIntoView mode (element target)
-      if (scrollType === 'intoView' || locator) {
-        const visibleOnly = extra?.visibleOnly ?? true;
-        const timeoutMs = (extra?.timeout ?? 10) * 1000;
-        const el = await waitForElement(locator, selectorFamily, visibleOnly, timeoutMs);
+  function findScrollableElement(el) {
+    // 1. try ancestors of the captured element
+    let current = el;
+    while (current && current !== document.body && current !== document.documentElement) {
+      if (isScrollableElement(current)) return current;
+      current = current.parentElement;
+    }
+    // 2. fall back to body/html if they scroll
+    if (isScrollableElement(document.documentElement)) return document.documentElement;
+    if (isScrollableElement(document.body)) return document.body;
+    // 3. last resort: the largest scrollable element on the page
+    return findLargestScrollableElement();
+  }
+
+  async function elementHumanScroll(el, delta, smooth) {
+    if (!smooth || document.hidden) {
+      el.scrollTop += delta;
+      return;
+    }
+    const startTop = el.scrollTop;
+    const maxTop = el.scrollHeight - el.clientHeight;
+    const targetTop = Math.max(0, Math.min(maxTop, startTop + delta));
+    const distance = targetTop - startTop;
+    if (Math.abs(distance) < 5) return;
+
+    const duration = rand(600, 1400);
+    const startTime = performance.now();
+    const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    await new Promise((resolve) => {
+      function tick(now) {
+        const elapsed = now - startTime;
+        const p = Math.min(elapsed / duration, 1);
+        el.scrollTop = startTop + distance * ease(p);
+        if (p < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          if (Math.random() < 0.1) {
+            el.scrollTop += distance > 0 ? randInt(3, 10) : randInt(-10, -3);
+          }
+          resolve();
+        }
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  async function doScroll({ locator, selectorFamily, extra }) {
+    const scrollType = extra?.scrollType || 'toBottom';
+    const humanLike = extra?.humanLike ?? true;
+    const smooth = extra?.smooth ?? true;
+
+    if (locator) {
+      const mode = getVisibilityMode(extra);
+      const timeoutMs = (extra?.timeout ?? 10) * 1000;
+      const el = await waitForElement(locator, selectorFamily, mode, timeoutMs);
+
+      if (scrollType === 'intoView') {
         if (humanLike) {
           const rect = el.getBoundingClientRect();
           const targetY = rect.top + window.scrollY;
@@ -1099,42 +1468,245 @@
           const block = extra?.block || 'center';
           el.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block });
         }
-        return { scrolled: 'intoView' };
+        return { scrolled: 'intoView', element: true };
       }
 
-      // Page scroll modes
+      const scrollEl = extra?.lookupScrollable ? (findScrollableElement(el) || el) : el;
+      const usingAncestor = scrollEl !== el;
+      console.log(`[RPA scroll] lookup=${extra?.lookupScrollable} captured=${el.tagName}.${el.className} scrollable=${scrollEl.tagName}.${scrollEl.className} sh=${scrollEl.scrollHeight} ch=${scrollEl.clientHeight}`);
+
+      if (!humanLike) {
+        if (scrollType === 'oneScreen') {
+          scrollEl.scrollTop += scrollEl.clientHeight;
+          return { scrolled: 'oneScreen', element: !usingAncestor, ancestor: usingAncestor };
+        }
+        if (scrollType === 'toBottom') {
+          scrollEl.scrollTop = scrollEl.scrollHeight;
+          return { scrolled: 'toBottom', element: !usingAncestor, ancestor: usingAncestor };
+        }
+        if (scrollType === 'toTop') {
+          scrollEl.scrollTop = 0;
+          return { scrolled: 'toTop', element: !usingAncestor, ancestor: usingAncestor };
+        }
+        if (scrollType === 'by') {
+          scrollEl.scrollBy(0, extra?.y || 500);
+          return { scrolled: 'by', y: extra?.y || 500, element: !usingAncestor, ancestor: usingAncestor };
+        }
+        return { scrolled: 'unknown', scrollType, element: !usingAncestor, ancestor: usingAncestor };
+      }
+
       if (scrollType === 'oneScreen') {
-        const amount = window.innerHeight * 3;
-        await humanScroll('down', amount, humanLike);
-        return { scrolled: 'oneScreen', amount };
+        await elementHumanScroll(scrollEl, scrollEl.clientHeight, smooth);
+        return { scrolled: 'oneScreen', element: !usingAncestor, ancestor: usingAncestor };
       }
+      if (scrollType === 'toBottom') {
+        await elementHumanScroll(scrollEl, scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight, smooth);
+        return { scrolled: 'toBottom', element: !usingAncestor, ancestor: usingAncestor };
+      }
+      if (scrollType === 'toTop') {
+        await elementHumanScroll(scrollEl, -scrollEl.scrollTop, smooth);
+        return { scrolled: 'toTop', element: !usingAncestor, ancestor: usingAncestor };
+      }
+      if (scrollType === 'by') {
+        await elementHumanScroll(scrollEl, extra?.y || 500, smooth);
+        return { scrolled: 'by', y: extra?.y || 500, element: !usingAncestor, ancestor: usingAncestor };
+      }
+      return { scrolled: 'unknown', scrollType, element: !usingAncestor, ancestor: usingAncestor };
+    }
 
-      const direction = {
-        'toBottom': 'bottom',
-        'toTop': 'top',
-        'by': (extra?.y || 500) >= 0 ? 'down' : 'up',
-      }[scrollType] || 'bottom';
-      const amount = scrollType === 'by' ? Math.abs(extra?.y || 500) : 0;
-      await humanScroll(direction, amount, humanLike);
-      return { scrolled: direction, amount };
-    },
+    if (scrollType === 'oneScreen') {
+      const amount = window.innerHeight * 3;
+      await humanScroll('down', amount, humanLike);
+      return { scrolled: 'oneScreen', amount };
+    }
 
-    goBack() {
-      window.history.back();
-      return { wentBack: true };
-    },
+    const direction = {
+      'toBottom': 'bottom',
+      'toTop': 'top',
+      'by': (extra?.y || 500) >= 0 ? 'down' : 'up',
+    }[scrollType] || 'bottom';
+    const amount = scrollType === 'by' ? Math.abs(extra?.y || 500) : 0;
+    await humanScroll(direction, amount, humanLike);
+    return { scrolled: direction, amount };
+  }
 
-    goForward() {
-      window.history.forward();
-      return { wentForward: true };
-    },
+  async function doHover({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-    refresh() {
-      window.location.reload();
-      return { refreshed: true };
-    },
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过悬停并继续: ${locator}`;
+        console.log(`[RPA hover] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { hovered: false, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
 
-    async pressKey({ extra }) {
+    const point = getClickPoint(el, humanLike);
+    const rect = el.getBoundingClientRect();
+    const startX = rect.left + rect.width / 2;
+    const startY = rect.top + rect.height / 2;
+    if (humanLike) {
+      await moveMouseBezier(startX, startY, point.x, point.y, true);
+      await hoverWiggle(point.x, point.y);
+    }
+    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
+    _lastHoveredElement = el;
+    return { hovered: true, tagName: el.tagName };
+  }
+
+  async function doUnhover({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    let el;
+    if (locator) {
+      try {
+        el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+      } catch (e) {
+        if (isSoftNotFound(e)) {
+          const warning = `元素在当前循环项中未找到，跳过取消悬停并继续: ${locator}`;
+          console.log(`[RPA unhover] ${warning} (${e.message})`);
+          addRunLog(`警告: ${warning}`);
+          return { unhovered: false, skipped: true, warning, contextNotFound: true };
+        }
+        throw e;
+      }
+    } else {
+      el = _lastHoveredElement;
+    }
+    if (!el) throw new Error('unhover: 未指定元素且无最近悬停记录');
+
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
+    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
+    if (_lastHoveredElement === el) _lastHoveredElement = null;
+    return { unhovered: true, tagName: el.tagName };
+  }
+
+  async function doClearInput({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过清空并继续: ${locator}`;
+        console.log(`[RPA clearInput] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { cleared: false, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
+
+    if (humanLike) await visualConfirmDelay();
+    setInputValue(el, '');
+    return { cleared: true };
+  }
+
+  async function doSelectOption({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const humanLike = extra?.humanLike ?? true;
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+
+    let el;
+    try {
+      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+    } catch (e) {
+      if (isSoftNotFound(e)) {
+        const warning = `元素在当前循环项中未找到，跳过下拉选择并继续: ${locator}`;
+        console.log(`[RPA selectOption] ${warning} (${e.message})`);
+        addRunLog(`警告: ${warning}`);
+        return { selected: null, skipped: true, warning, contextNotFound: true };
+      }
+      throw e;
+    }
+
+    const value = extra?.value;
+    if (!value) throw new Error('selectOption: value required');
+    if (humanLike) await visualConfirmDelay();
+
+    let option = el.querySelector(`option[value="${CSS.escape(value)}"]`);
+    if (!option) {
+      option = Array.from(el.options).find(o => o.textContent.trim() === value);
+    }
+    if (option) {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+      if (descriptor && descriptor.set) {
+        descriptor.set.call(el, option.value);
+      } else {
+        el.value = option.value;
+      }
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return { selected: option.value, text: option.textContent };
+    }
+    throw new Error(`selectOption: option "${value}" not found`);
+  }
+
+  // Unified elementAction handler: routes by extra.action so new element commands
+  // can reuse existing browser logic without adding a dedicated handler.
+  registerHandler('elementAction', async function elementAction({ locator, selectorFamily, extra }) {
+    const action = extra?.action;
+    if (!action) throw new Error('elementAction: extra.action is required');
+    switch (action) {
+      case 'click':
+      case 'doubleClick':
+      case 'rightClick':
+        return doClick({ locator, selectorFamily, extra });
+      case 'clickCurrentLoopItem':
+        return doClickCurrentLoopItem({ extra });
+      case 'input':
+      case 'inputAndPressEnter':
+        return doInput({ locator, selectorFamily, extra });
+      case 'extract':
+      case 'getText':
+      case 'getAttr':
+      case 'getHtml':
+      case 'getValue':
+        return doExtract({ locator, selectorFamily, extra });
+      case 'scroll':
+      case 'scrollToBottom':
+      case 'scrollToTop':
+      case 'scrollOneScreen':
+      case 'scrollIntoView':
+      case 'scrollBy':
+        return doScroll({ locator, selectorFamily, extra });
+      case 'hover':
+        return doHover({ locator, selectorFamily, extra });
+      case 'unhover':
+        return doUnhover({ locator, selectorFamily, extra });
+      case 'clearInput':
+        return doClearInput({ locator, selectorFamily, extra });
+      case 'selectOption':
+        return doSelectOption({ locator, selectorFamily, extra });
+      default:
+        throw new Error(`elementAction: unknown action "${action}"`);
+    }
+  });
+
+  registerHandler('navigate', function navigate({ extra }) {
+      const url = extra?.url;
+      if (!url) throw new Error('navigate: url required');
+      window.location.href = url;
+      return { navigatedTo: url };
+    });
+  registerHandler('click', async function click(args) { return doClick(args); });
+  registerHandler('input', async function input(args) { return doInput(args); });
+  registerHandler('extract', async function extract(args) { return doExtract(args); });
+  registerHandler('scroll', async function scroll(args) { return doScroll(args); });
+  registerHandler('pressKey', async function pressKey({ extra }) {
       const key = extra?.key || 'Enter';
       const humanLike = extra?.humanLike ?? true;
       const modifiers = ['Control', 'Alt', 'Shift', 'Meta'];
@@ -1152,163 +1724,102 @@
       if (humanLike && !isModifier) await sleep(rand(80, 200));
       document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
       return { pressed: key };
-    },
-
-    async hover({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
-      const humanLike = extra?.humanLike ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
-
-      const point = getClickPoint(el, humanLike);
-      const rect = el.getBoundingClientRect();
-      const startX = rect.left + rect.width / 2;
-      const startY = rect.top + rect.height / 2;
-      if (humanLike) {
-        await moveMouseBezier(startX, startY, point.x, point.y, true);
-        await hoverWiggle(point.x, point.y);
-      }
-      el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
-      el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
-      _lastHoveredElement = el;
-      return { hovered: true, tagName: el.tagName };
-    },
-
-    async unhover({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      let el;
-      if (locator) {
-        el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
-      } else {
-        el = _lastHoveredElement;
-      }
-      if (!el) throw new Error('unhover: 未指定元素且无最近悬停记录');
-
-      const rect = el.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
-      el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
-      if (_lastHoveredElement === el) _lastHoveredElement = null;
-      return { unhovered: true, tagName: el.tagName };
-    },
-
-    async clearInput({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
-      const humanLike = extra?.humanLike ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
-
-      if (humanLike) await visualConfirmDelay();
-      setInputValue(el, '');
-      return { cleared: true };
-    },
-
-    async selectOption({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
-      const humanLike = extra?.humanLike ?? true;
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
-
-      const value = extra?.value;
-      if (!value) throw new Error('selectOption: value required');
-      if (humanLike) await visualConfirmDelay();
-
-      // Try select.by_value first
-      let option = el.querySelector(`option[value="${CSS.escape(value)}"]`);
-      if (!option) {
-        // Fallback: select.by_text
-        option = Array.from(el.options).find(o => o.textContent.trim() === value);
-      }
-      if (option) {
-        const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
-        if (descriptor && descriptor.set) {
-          descriptor.set.call(el, option.value);
-        } else {
-          el.value = option.value;
-        }
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        return { selected: option.value, text: option.textContent };
-      }
-      throw new Error(`selectOption: option "${value}" not found`);
-    },
-
-    newTab({ extra }) {
+    });
+  registerHandler('hover', async function hover(args) { return doHover(args); });
+  registerHandler('unhover', async function unhover(args) { return doUnhover(args); });
+  registerHandler('clearInput', async function clearInput(args) { return doClearInput(args); });
+  registerHandler('selectOption', async function selectOption(args) { return doSelectOption(args); });
+  registerHandler('newTab', function newTab({ extra }) {
       const url = extra?.url;
       if (!url) throw new Error('newTab: url required');
       window.open(url, '_blank');
       return { opened: url };
-    },
-
-    executeJs({ extra }) {
+    });
+  registerHandler('executeJs', function executeJs({ extra }) {
       const script = extra?.script;
       if (!script) throw new Error('executeJs: script required');
       // eslint-disable-next-line no-eval
       const result = eval(script);
       return { executed: true, result: String(result) };
-    },
-
-    // ─── Condition check handlers ───────────────────────────────────
-
-    async checkElementExists({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+    });
+// ─── Condition check handlers ───────────────────────────────────
+  registerHandler('checkElementExists', async function checkElementExists({ locator, selectorFamily, extra }) {
+      const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       try {
-        await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
+        await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
         return { exists: true };
       } catch (e) {
         return { exists: false };
       }
-    },
-
-    async checkElementVisible({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('checkElementVisible', async function checkElementVisible({ locator, selectorFamily, extra }) {
+      const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const ctxLocator = extra?.contextLocator;
-      console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${selectorFamily} ctx=${ctxLocator ? 'yes' : 'no'} timeout=${timeoutMs}`);
+      console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${selectorFamily} ctx=${ctxLocator ? 'yes' : 'no'} mode=${mode} timeout=${timeoutMs}`);
       try {
-        const el = await waitForElementWithContext(locator, selectorFamily, extra, false, timeoutMs);
-        const vis = isVisible(el);
+        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+        const vis = checkVisibility(el, mode);
         console.log(`[RPA checkElementVisible] result tag=${el?.tagName} visible=${vis}`);
         return { visible: vis };
       } catch (e) {
         console.log(`[RPA checkElementVisible] ERROR: ${e.message}`);
         return { visible: false };
       }
-    },
-
-    async getElementText({ locator, selectorFamily, extra }) {
-      const visibleOnly = extra?.visibleOnly ?? true;
+    });
+  registerHandler('getElementText', async function getElementText({ locator, selectorFamily, extra }) {
+      const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, visibleOnly, timeoutMs);
-      return { text: el.textContent?.trim() ?? '' };
-    },
-
-    getCurrentUrl() {
+      try {
+        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+        const text = el.textContent?.trim() ?? '';
+        console.log(`[RPA getElementText] mode=${mode} tag=${el?.tagName} textLen=${text.length} locator=${JSON.stringify(locator)}`);
+        return { text };
+      } catch (e) {
+        if (e?.contextNotFound || e?.message?.includes('按循环序号对齐失败')) {
+          console.log(`[RPA getElementText] element not found in loop context, returning empty: ${e.message}`);
+          return { text: '' };
+        }
+        throw e;
+      }
+    });
+  registerHandler('getCurrentUrl', function getCurrentUrl() {
       return window.location.href;
-    },
-
-    async findElements({ locator, selectorFamily, extra }) {
+    });
+  registerHandler('findElements', async function findElements({ locator, selectorFamily, extra }) {
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
+      const mode = getVisibilityMode(extra);
       const ctxLocator = extra?.contextLocator;
       const ctxLocatorType = extra?.contextLocatorType;
       const ctxIndex = extra?.contextIndex ?? 0;
+      const srcLocator = extra?.sourceLocator;
+      const srcLocatorType = extra?.sourceSelectorFamily;
+      const srcIndex = extra?.sourceIndex ?? 0;
       const start = Date.now();
       let elements = [];
       while (Date.now() - start < timeoutMs) {
+        let parent = null;
         if (ctxLocator) {
           const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-          const parent = parents[ctxIndex];
-          if (parent) {
-            elements = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-          }
+          parent = parents[ctxIndex];
+        }
+        if (!parent && srcLocator) {
+          const parents = resolveAllLocators(srcLocator, srcLocatorType);
+          parent = parents[srcIndex];
+        }
+        if (extra?.useRelative && extra?.relativeLocator && parent) {
+          elements = resolveAllRelativeInContext(extra.relativeLocator, extra.relativeSelectorFamily, parent);
+        } else if (parent) {
+          elements = resolveAllLocatorsInContext(locator, selectorFamily, parent);
         } else {
           elements = resolveAllLocators(locator, selectorFamily);
         }
+        const rawCount = elements.length;
+        if (mode !== 'any') {
+          elements = elements.filter(el => checkVisibility(el, mode));
+        }
+        console.log(`[RPA findElements] raw=${rawCount} filtered=${elements.length} mode=${mode} locator=${JSON.stringify(locator)} ctx=${ctxLocator ? 'yes' : 'no'}`);
         if (elements.length > 0) break;
         await sleep(200);
       }
@@ -1317,113 +1828,82 @@
         html: el.innerHTML?.slice(0, 500) ?? '',
         tagName: el.tagName,
         index: idx,
+        contextLocator: getElementXPath(el),
+        contextLocatorType: 'xpath',
       }));
       return { count: items.length, items };
-    },
-
-    // ─── Network interception handlers ──────────────────────────────
-
-    traceNetwork({ extra }) {
-      const duration = (extra?.duration || 5) * 1000;
-      const urlPattern = extra?.urlPattern || '*';
-      _traceResults.length = 0;
-      _interceptActive = true;
-      injectInterceptScript({ mode: 'trace', urlPattern, method: 'ALL', captureResponse: false });
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          removeInterceptScript();
-          const urls = _traceResults.map(r => `${r.method} ${r.url}`);
-          resolve({ traced: _traceResults.length, urls });
-        }, duration);
-      });
-    },
-
-    interceptNetwork({ extra }) {
-      const urlPattern = extra?.urlPattern || '*';
-      const method = extra?.method || 'ALL';
-      const captureResponse = extra?.captureResponse !== false;
-      _interceptQueue.length = 0;
-      _interceptActive = true;
-      injectInterceptScript({ mode: 'intercept', urlPattern, method, captureResponse });
-      return { started: true, pattern: urlPattern, method, captureResponse };
-    },
-
-    waitForNetwork({ extra }) {
-      const urlPattern = extra?.urlPattern || '*';
-      const timeoutMs = (extra?.timeout || 10) * 1000;
-      const start = Date.now();
-      if (!_interceptActive) {
-        // Auto-start intercept if not active
-        interceptNetwork({ extra: { urlPattern } });
-      }
-      return new Promise((resolve, reject) => {
-        const tick = () => {
-          const elapsed = Date.now() - start;
-          const match = _interceptQueue.find(item => matchPattern(item.url, urlPattern));
-          if (match) {
-            resolve({ matched: true, url: match.url, data: tryJsonParse(match.body) });
-            return;
-          }
-          if (elapsed >= timeoutMs) {
-            reject(new Error(`waitForNetwork 超时: ${timeoutMs}ms 内未匹配到 ${urlPattern}`));
-            return;
-          }
-          setTimeout(tick, 200);
-        };
-        tick();
-      });
-    },
-
-    getInterceptedData({ extra }) {
-      const limit = extra?.limit || 100;
-      const data = _interceptQueue.slice(0, limit).map(item => ({
-        url: item.url,
-        method: item.method,
-        status: item.status,
-        data: tryJsonParse(item.body),
-      }));
-      return { count: data.length, data };
-    },
-
-    previewInterceptData() {
-      if (_interceptQueue.length === 0) return { preview: null };
-      const first = _interceptQueue[0];
-      return { preview: { url: first.url, data: tryJsonParse(first.body) } };
-    },
-
-    logInterceptedData() {
-      const summary = _interceptQueue.slice(0, 5).map((item, idx) => {
-        const data = tryJsonParse(item.body);
-        const preview = typeof data === 'object'
-          ? JSON.stringify(data).slice(0, 180)
-          : String(data).slice(0, 180);
-        return `${idx + 1}. [${item.method}] ${item.url} → ${preview}...`;
-      });
-      console.log('[RPA Intercept] 已拦截数据摘要 (' + _interceptQueue.length + ' 条):\n' + summary.join('\n'));
-      return { logged: _interceptQueue.length, summary };
-    },
-
-    clearInterceptedData() {
-      const count = _interceptQueue.length;
-      _interceptQueue.length = 0;
-      return { cleared: count };
-    },
-
-    stopIntercept() {
-      removeInterceptScript();
-      return { stopped: true, remaining: _interceptQueue.length };
-    },
-
-    openBrowser() {
-      // handled by background.js (_ensureWorkTab)
-      return {};
-    },
-
-    closeBrowser() {
+    });
+  registerHandler('closeBrowser', function closeBrowser() {
       // handled by background.js (chrome.windows.remove)
       return {};
-    },
-  };
+    });
+
+  // ─── New architecture: 1 handler = 1 instruction ──────────────
+  // Aliases: each command type has its own handler, mapped to existing impl.
+  registerHandler('clickElement', async (args) => doClick(args));
+  registerHandler('inputText', async (args) => doInput(args));
+  registerHandler('getText', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getText' };
+      return doExtract(args);
+  });
+  registerHandler('getAttribute', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getAttr' };
+      return doExtract(args);
+  });
+  registerHandler('getHtml', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getHtml' };
+      return doExtract(args);
+  });
+  registerHandler('getValue', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getValue' };
+      return doExtract(args);
+  });
+  registerHandler('scrollIntoView', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'scrollIntoView' };
+      return doScroll(args);
+  });
+  registerHandler('scrollToBottom', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'scrollToBottom' };
+      return doScroll(args);
+  });
+  registerHandler('doubleClick', async (args) => doClick(args));
+  registerHandler('rightClick', async (args) => doClick(args));
+  registerHandler('inputAndPressEnter', async (args) => doInput(args));
+
+  // ─── waitForElement / waitForElementHide ─────────────────────────
+
+  registerHandler('waitForElement', async function waitForElementHandler({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    await waitForElement(locator, selectorFamily, mode, timeoutMs);
+    return { appeared: true };
+  });
+
+  registerHandler('waitForElementHide', async function waitForElementHideHandler({ locator, selectorFamily, extra }) {
+    locator = normalizeLocator(locator);
+    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
+    const mode = getVisibilityMode(extra);
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    const pollMs = 200;
+    const start = Date.now();
+    let ticks = 0;
+    return new Promise((resolve, reject) => {
+      const tick = () => {
+        ticks++;
+        const el = resolveLocator(locator, selectorFamily, 'any');
+        if (!el || el === document || (mode !== 'any' && !checkVisibility(el, mode))) {
+          console.log(`[RPA waitForElementHide] GONE after ${ticks} ticks, ${Date.now() - start}ms`);
+          return resolve({ disappeared: true });
+        }
+        if (Date.now() - start >= timeoutMs) {
+          return reject(new Error(`元素未在 ${timeoutMs}ms 内消失: ${locator}`));
+        }
+        setTimeout(tick, pollMs);
+      };
+      tick();
+    });
+  });
+
 
   // ─── Message listener ────────────────────────────────────────────
 
@@ -1502,31 +1982,26 @@
         _lastOpTime = performance.now();
         clearTimeout(timeoutId);
 
-        // Compute matched count for logging
+        // Compute matched count and context debug info
         let matchedCount = result?.matchedCount;
-        if (targetLocator && matchedCount === undefined) {
-          const ctxLocator = extra?.contextLocator;
-          const ctxLocatorType = extra?.contextLocatorType;
-          const ctxIndex = extra?.contextIndex ?? 0;
-          const visibleOnly = extra?.visibleOnly !== false;
-          if (ctxLocator) {
-            const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-            const parent = parents[ctxIndex];
-            if (parent) {
-              const all = resolveAllLocatorsInContext(targetLocator, targetLocatorType, parent);
-              matchedCount = visibleOnly ? all.filter(isVisible).length : all.length;
-            }
-          } else {
-            const all = resolveAllLocators(targetLocator, targetLocatorType);
-            matchedCount = visibleOnly ? all.filter(isVisible).length : all.length;
+        let contextDebug = null;
+        if (extra?.contextLocator) {
+          contextDebug = window.__rpaLastContextDebugInfo || null;
+          if (contextDebug) {
+            matchedCount = contextDebug.innerTotal;
+            console.log(`[RPA Agent] context mode=${contextDebug.mode} outer=${contextDebug.outerTotal} inner=${contextDebug.innerTotal} innerIndex=${contextDebug.innerIndex}`);
           }
+        } else if (targetLocator && matchedCount === undefined) {
+          const all = resolveAllLocators(targetLocator, targetLocatorType);
+          const mode = getVisibilityMode(extra);
+          matchedCount = mode !== 'any' ? all.filter(e => checkVisibility(e, mode)).length : all.length;
           console.log(`[RPA Agent] matched ${matchedCount} element(s) for locator=${targetLocator}`);
         }
 
         addRunLog(`${type} 完成`);
         const responseResult = (result && typeof result === 'object' && !Array.isArray(result))
-          ? { ...result, matchedIndex, matchedCount }
-          : { value: result, matchedIndex, matchedCount };
+          ? { ...result, matchedIndex, matchedCount, ...(contextDebug ? { contextDebug } : {}) }
+          : { value: result, matchedIndex, matchedCount, ...(contextDebug ? { contextDebug } : {}) };
         safeRespond({ status: 'success', result: responseResult });
       } catch (e) {
         console.error(`[RPA Agent] step ${type} failed:`, e);
