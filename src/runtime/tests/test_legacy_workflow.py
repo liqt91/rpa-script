@@ -252,3 +252,36 @@ def test_b3_handlers_produce_instructions(db_session):
     )
     instructions = build_instructions(loaded)
     assert len(instructions) == len(B3_SCROLL_TYPES),         f"Expected {len(B3_SCROLL_TYPES)}, got {len(instructions)}"
+
+
+# ── B4: takeScreenshot ───────────────────────────────────────────
+
+def test_take_screenshot_handler_resolves():
+    """takeScreenshot type resolves to an extension runtime."""
+    from src.runtime.workflow.extension_emitter import _get_extension_runtime
+    runtime = _get_extension_runtime("takeScreenshot")
+    assert runtime is not None, "takeScreenshot should resolve"
+    assert runtime.get("handler") == "takeScreenshot",         f"Expected handler 'takeScreenshot', got {runtime.get('handler')}"
+
+
+def test_take_screenshot_produces_instruction(db_session):
+    """takeScreenshot produces valid build_instructions output."""
+    from src.repo import models
+    from src.runtime.workflow.extension_emitter import build_instructions
+    wf = models.Workflow(name="screenshot-test", url="https://example.com")
+    db_session.add(wf)
+    db_session.flush()
+    node = models.WorkflowNode(
+        workflow_id=wf.id, type="takeScreenshot", order=1,
+        extra='{}', enabled=1,
+    )
+    db_session.add(node)
+    db_session.flush()
+    loaded = (
+        db_session.query(models.WorkflowNode)
+        .filter(models.WorkflowNode.workflow_id == wf.id)
+        .all()
+    )
+    instructions = build_instructions(loaded)
+    assert len(instructions) == 1,         f"Expected 1 instruction, got {len(instructions)}"
+    assert instructions[0]["cmdType"] == "takeScreenshot"
