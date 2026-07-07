@@ -2012,6 +2012,68 @@ console.log({
     return { dataUrl: resp.dataUrl, elementScreenshot: false };
   });
 
+  // ─── keyCombo / getPageTitle / getElementCount / clickIfExists ───
+
+  registerHandler('keyCombo', async function keyComboHandler({ extra }) {
+    const keysStr = extra?.keys;
+    if (!keysStr) throw new Error('keyCombo: keys is required');
+    const parts = keysStr.split('+').map(s => s.trim());
+    const key = parts.pop();
+    const modifiers = parts;
+    const opts = { key, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false };
+    for (const m of modifiers) {
+      const lower = m.toLowerCase();
+      if (lower === 'ctrl' || lower === 'control') opts.ctrlKey = true;
+      else if (lower === 'alt') opts.altKey = true;
+      else if (lower === 'shift') opts.shiftKey = true;
+      else if (lower === 'meta' || lower === 'cmd' || lower === 'win') opts.metaKey = true;
+    }
+    const humanLike = extra?.humanLike ?? true;
+    if (humanLike) {
+      for (const m of modifiers) {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: m, ctrlKey: m === 'Ctrl', altKey: m === 'Alt', shiftKey: m === 'Shift', metaKey: m === 'Meta', bubbles: true }));
+        await sleep(rand(30, 80));
+      }
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { ...opts, bubbles: true }));
+    if (humanLike) await sleep(rand(30, 100));
+    document.dispatchEvent(new KeyboardEvent('keyup', { ...opts, bubbles: true }));
+    if (humanLike) {
+      for (const m of [...modifiers].reverse()) {
+        document.dispatchEvent(new KeyboardEvent('keyup', { key: m, ctrlKey: m === 'Ctrl', altKey: m === 'Alt', shiftKey: m === 'Shift', metaKey: m === 'Meta', bubbles: true }));
+        await sleep(rand(30, 60));
+      }
+    }
+    return { keyCombo: keysStr };
+  });
+
+  registerHandler('getPageTitle', function getPageTitleHandler() {
+    return { title: document.title, url: location.href };
+  });
+
+  registerHandler('getElementCount', async function getElementCountHandler({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const normLocator = normalizeLocator(locator);
+    const normFamily = normalizeSelectorFamily(locator, selectorFamily);
+    const all = resolveAllLocators(normLocator, normFamily, mode);
+    return { count: all.length };
+  });
+
+  registerHandler('clickIfExists', async function clickIfExistsHandler({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const normLocator = normalizeLocator(locator);
+    const normFamily = normalizeSelectorFamily(locator, selectorFamily);
+    const el = resolveLocator(normLocator, normFamily, mode);
+    if (!el || el === document) {
+      console.log(`[RPA clickIfExists] element not found, skipping: ${normLocator}`);
+      return { clicked: false, skipped: true };
+    }
+    await visualConfirmDelay();
+    const humanLike = extra?.humanLike ?? true;
+    const forceJs = extra?.forceJs ?? false;
+    return performClick(el, { humanLike, forceJs, clickType: 'click' });
+  });
+
 
   // ─── Message listener ────────────────────────────────────────────
 

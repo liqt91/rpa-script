@@ -285,3 +285,42 @@ def test_take_screenshot_produces_instruction(db_session):
     instructions = build_instructions(loaded)
     assert len(instructions) == 1,         f"Expected 1 instruction, got {len(instructions)}"
     assert instructions[0]["cmdType"] == "takeScreenshot"
+
+
+# ── B5: keyCombo / getPageTitle / getElementCount / clickIfExists ──
+
+B5_TYPES = ["keyCombo", "getPageTitle", "getElementCount", "clickIfExists"]
+
+
+def test_b5_handlers_all_resolve():
+    """Each B5 handler type resolves to an extension runtime."""
+    from src.runtime.workflow.extension_emitter import _get_extension_runtime
+    for htype in B5_TYPES:
+        runtime = _get_extension_runtime(htype)
+        assert runtime is not None, f"{htype} should resolve"
+        assert runtime.get("handler"), f"{htype} should have handler name"
+
+
+def test_b5_handlers_produce_instructions(db_session):
+    """All B5 handlers produce valid build_instructions output."""
+    from src.repo import models
+    from src.runtime.workflow.extension_emitter import build_instructions
+    wf = models.Workflow(name="b5-test", url="https://example.com")
+    db_session.add(wf)
+    db_session.flush()
+    for i, htype in enumerate(B5_TYPES, start=1):
+        node = models.WorkflowNode(
+            workflow_id=wf.id, type=htype, order=i,
+            extra='{}', enabled=1,
+        )
+        db_session.add(node)
+    db_session.flush()
+    loaded = (
+        db_session.query(models.WorkflowNode)
+        .filter(models.WorkflowNode.workflow_id == wf.id)
+        .order_by(models.WorkflowNode.order)
+        .all()
+    )
+    instructions = build_instructions(loaded)
+    assert len(instructions) == len(B5_TYPES),         f"Expected {len(B5_TYPES)}, got {len(instructions)}"
+    assert [i["cmdType"] for i in instructions] == B5_TYPES
