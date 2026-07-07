@@ -206,6 +206,34 @@ def update_command(
     return {"success": True}
 
 
+@router.get("/{cmd_id}/source")
+def get_command_source(cmd_id: int, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Return the handler source code for a command."""
+    import inspect
+
+    cmd = db.get(models.WorkflowCommand, cmd_id)
+    if not cmd:
+        raise HTTPException(status_code=404, detail="Command not found")
+
+    from ..workflow.handlers.registry import get_handler
+    h = get_handler(cmd.type)
+    if h and h.get("handler_class"):
+        try:
+            source = inspect.getsource(h["handler_class"])
+            return {"type": cmd.type, "source": source}
+        except Exception:
+            pass
+
+    # Fallback: try to find source from emitter or commands.py
+    from ..workflow.commands import COMMAND_REGISTRY_SEED
+    seed = COMMAND_REGISTRY_SEED.get(cmd.type, {})
+    emitter = seed.get("emitter")
+    if emitter:
+        return {"type": cmd.type, "source": f"# Emitter ({cmd.type})\n# Source not available via inspect", "fallback": True}
+
+    return {"type": cmd.type, "source": None, "fallback": True}
+
+
 @router.delete("/{cmd_id}")
 def delete_command(cmd_id: int, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
     cmd = db.get(models.WorkflowCommand, cmd_id)

@@ -10,7 +10,7 @@ import contextvars
 import json
 from contextlib import contextmanager
 from src.repo import runtime_models as models
-from src.runtime.workflow.commands import COMMAND_REGISTRY
+from src.runtime.workflow.handlers.registry import build_command_registry
 
 
 # Extra transforms applied per command type for extension compatibility.
@@ -77,7 +77,7 @@ def _parse_extra(node: models.WorkflowNode) -> dict:
 
 def _apply_defaults(cmd_type: str, extra: dict) -> dict:
     """Fill missing extra fields with schema defaults so old workflows pick up new fields."""
-    cmd = COMMAND_REGISTRY.get(cmd_type)
+    cmd = build_command_registry().get(cmd_type)
     if not cmd:
         return extra
     defaults = {}
@@ -91,7 +91,7 @@ def _apply_defaults(cmd_type: str, extra: dict) -> dict:
 
 def _node_meta(node: models.WorkflowNode) -> tuple[bool, bool, bool]:
     """Return (is_container, is_branch, is_structural) for a node."""
-    cmd = COMMAND_REGISTRY.get(node.type) or {}
+    cmd = build_command_registry().get(node.type) or {}
     is_container = cmd.get("isContainer", False)
     is_branch = cmd.get("isBranch", False)
     is_structural = cmd.get("isStructural", False)
@@ -373,10 +373,32 @@ def _emit_instruction(
 
 def _get_extension_runtime(cmd_type: str) -> dict | None:
     """Return the extension runtime declaration for a command, or None."""
-    cmd = COMMAND_REGISTRY.get(cmd_type)
-    if not cmd:
-        return None
-    return cmd.get("runtimes", {}).get("extension")
+    # Old type name → handler mapping for backward compatibility
+    LEGACY_MAP = {
+        "click": "elementAction", "input": "elementAction",
+        "clearInput": "elementAction", "doubleClick": "elementAction",
+        "rightClick": "elementAction", "hover": "elementAction",
+        "unhover": "elementAction", "selectOption": "elementAction",
+        "getAttr": "elementAction", "getHtml": "elementAction",
+        "getText": "elementAction", "getValue": "elementAction",
+        "scrollToBottom": "elementAction", "scrollToTop": "elementAction",
+        "scrollBy": "elementAction", "scrollOneScreen": "elementAction",
+        "inputAndPressEnter": "elementAction", "clickCurrentLoopItem": "elementAction",
+        "pressKey": "pressKey", "keyCombo": "keyCombo",
+        "getPageTitle": "getPageTitle", "getElementCount": "getElementCount",
+        "takeScreenshot": "takeScreenshot", "executeJs": "executeJs",
+        "waitForElement": "wait", "waitForText": "wait",
+        "waitForUrl": "wait", "waitForLoad": "wait",
+        "waitForElementHide": "wait",
+    }
+    cmd = build_command_registry().get(cmd_type)
+    if cmd:
+        return cmd.get("runtimes", {}).get("extension")
+    # Fallback: old type name
+    handler = LEGACY_MAP.get(cmd_type)
+    if handler:
+        return {"handler": handler, "local": False}
+    return None
 
 
 def _is_container_node(node: models.WorkflowNode) -> bool:

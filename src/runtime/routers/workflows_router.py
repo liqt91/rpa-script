@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 from .. import schemas, auth
 from src.repo import runtime_models as models
 from src.config import runtime_config as config
-from ..workflow.commands import COMMAND_REGISTRY, get_command, enrich_command_meta
+from ..workflow.commands import get_command, enrich_command_meta
+from ..workflow.handlers.registry import get_all_handlers
 from ..workflow.exporter import build_python
 from ..workflow.extension_runner import (
     run_workflow_extension,
@@ -175,6 +176,20 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
             continue
 
         cat = row.category or reg_cmd.get("category", "其他")
+        # Merge handler fields with DB customizations (label/group changes)
+        handler_fields = reg_cmd.get("fields", [])
+        if row.fields:
+            try:
+                db_fields = json.loads(row.fields)
+                db_by_name = {f["name"]: f for f in db_fields if isinstance(f, dict)}
+                handler_fields = [
+                    {**h, **{k: v for k, v in db_by_name.get(h["name"], {}).items()
+                             if k in ("label", "group", "required", "placeholder", "default")}}
+                    for h in handler_fields
+                ]
+            except Exception:
+                pass
+
         cmd = {
             **reg_cmd,
             "id": row.id,
@@ -186,6 +201,7 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
             "bgColor": row.bg_color or reg_cmd.get("bgColor", "bg-gray-50"),
             "description": row.description or reg_cmd.get("description", ""),
             "isBuiltin": bool(row.is_builtin),
+            "fields": handler_fields,
         }
 
         db_row = {"type": row.type, "handler": row.handler, "local": row.local}
@@ -199,8 +215,9 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
             categories.append(cat)
         commands_by_cat[cat].append(cmd)
 
-    container_types = [t for t in enabled_types if COMMAND_REGISTRY.get(t, {}).get("isContainer")]
-    branch_types = [t for t in enabled_types if COMMAND_REGISTRY.get(t, {}).get("isBranch")]
+    all_handlers = get_all_handlers()
+    container_types = [t for t in enabled_types if all_handlers.get(t, {}).get("isContainer")]
+    branch_types = [t for t in enabled_types if all_handlers.get(t, {}).get("isBranch")]
 
     return {
         "categories": categories,

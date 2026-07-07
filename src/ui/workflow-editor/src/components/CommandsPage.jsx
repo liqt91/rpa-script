@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import { api } from '../api';
 
 const HANDLER_DESC = {
@@ -13,9 +13,9 @@ const HANDLER_DESC = {
 };
 
 const FIELD_TYPES = [
-  {v:'text',l:'📝 文本'},{v:'number',l:'🔢 数字'},{v:'bool',l:'✅ 布尔'},
-  {v:'select',l:'📋 下拉'},{v:'varName',l:'🏷 变量名'},{v:'elementName',l:'🎯 元素名'},
-  {v:'textarea',l:'📄 多行文本'},{v:'code',l:'💻 代码'},
+  {v:'text',l:'文本'},{v:'number',l:'数字'},{v:'bool',l:'开关'},
+  {v:'select',l:'下拉'},{v:'varName',l:'变量'},{v:'elementName',l:'元素'},
+  {v:'textarea',l:'多行'},{v:'code',l:'代码'},
 ];
 
 const FIELD_GROUPS = [
@@ -39,6 +39,8 @@ export default function CommandsPage() {
   const [search, setSearch] = useState('');
   const [editCmd, setEditCmd] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [showTypeHelp, setShowTypeHelp] = useState(false);
+  const [viewSource, setViewSource] = useState(null); // {type, source, loading}
 
   useEffect(() => { loadCommands(); }, []);
 
@@ -66,6 +68,16 @@ export default function CommandsPage() {
       setEditCmd(null);loadCommands();
     }catch(e){alert('保存失败: '+e.message);}
     finally{setEditSaving(false);}
+  }
+
+  async function handleViewSource(cmd) {
+    setViewSource({ type: cmd.type, source: null, loading: true });
+    try {
+      const data = await api.request(`/api/commands/${cmd.id}/source`);
+      setViewSource({ type: data.type, source: data.source, loading: false });
+    } catch (e) {
+      setViewSource({ type: cmd.type, source: null, loading: false, error: e.message });
+    }
   }
 
   const allCommands=commands?.commands||{};
@@ -144,6 +156,11 @@ export default function CommandsPage() {
                 <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">②</span>
                 <span className="text-xs font-medium text-gray-300">Handler</span>
                 <span className="text-[10px] text-gray-500">— 执行该指令的函数，1:1 对应</span>
+                {editCmd.handler && (
+                  <button onClick={() => handleViewSource(editCmd)} className="ml-auto text-[10px] text-[#1677ff] hover:text-blue-400">
+                    <i className="fas fa-code mr-1"></i>查看源码
+                  </button>
+                )}
               </div>
               <div className="px-3 py-2 bg-[#0f172a] border border-gray-700 rounded text-xs font-mono text-gray-300">
                 {editCmd.handler||<span className="text-gray-500 italic">无（可能未注册或缺失运行时）</span>}
@@ -151,6 +168,25 @@ export default function CommandsPage() {
                 {HANDLER_DESC[editCmd.handler]&&<span className="text-gray-500 ml-2 font-normal">— {HANDLER_DESC[editCmd.handler]}</span>}
               </div>
             </div>
+
+            {/* Handler source code */}
+            {viewSource && (
+              <div className="border border-gray-700/50 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-[#0f172a]/80 border-b border-gray-700/50">
+                  <span className="text-[10px] text-gray-400 font-mono">{viewSource.type} source</span>
+                  <button onClick={() => setViewSource(null)} className="text-gray-400 hover:text-white"><i className="fas fa-times"></i></button>
+                </div>
+                {viewSource.loading ? (
+                  <div className="px-4 py-8 text-center text-gray-500 text-xs"><i className="fas fa-circle-notch fa-spin mr-2"></i>加载中...</div>
+                ) : viewSource.error ? (
+                  <div className="px-4 py-4 text-red-400 text-xs">{viewSource.error}</div>
+                ) : viewSource.source ? (
+                  <pre className="p-4 text-[11px] font-mono text-gray-300 bg-[#0a0e14] overflow-auto max-h-64 leading-relaxed">{viewSource.source}</pre>
+                ) : (
+                  <div className="px-4 py-4 text-gray-500 text-xs">无法获取源码（可能是 emitter 或旧指令）</div>
+                )}
+              </div>
+            )}
           </>)}
 
           {/* ═══ 控制指令（emitter） ═══ */}
@@ -176,17 +212,62 @@ export default function CommandsPage() {
               <button onClick={()=>setEditCmd({...editCmd,fields:[...editCmd.fields,{name:'',label:'',type:'text',group:'主属性'}]})} className="text-[10px] text-[#1677ff] hover:text-blue-400 shrink-0">+ 添加字段</button>
             </div>
             <p className="text-[10px] text-yellow-400/70 mb-2">⚠ 变量名与{isEmitter?'emitter 代码':<>handler 中 <code className="text-yellow-300 bg-yellow-900/30 px-1 rounded">extra.get("变量名")</code></>}绑定，必须一致</p>
-            <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-gray-500 bg-[#0f172a]/50 rounded-t"><span className="w-[90px] shrink-0">变量名</span><span className="w-[72px] shrink-0">显示名</span><span className="w-[90px] shrink-0">类型</span><span className="w-[68px] shrink-0">分组</span><span className="w-[36px] shrink-0 text-center">必填</span><span className="flex-1">默认值</span></div>
-            <div className="space-y-1 max-h-48 overflow-y-auto">{editCmd.fields.map((f,i)=>(<div key={i} className="flex items-center gap-1.5 bg-[#0f172a] rounded px-2 py-1">
-              <div className="w-[90px] flex items-center gap-1"><span className="text-[10px] text-gray-600 shrink-0">🔒</span><input value={f.name||''} disabled className="flex-1 px-1.5 py-1 bg-gray-800/50 border border-gray-700 rounded text-gray-400 text-[10px] font-mono" placeholder="url"/></div>
-              <input value={f.label||''} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],label:e.target.value};setEditCmd({...editCmd,fields:fs});}} placeholder="显示名" className="w-[72px] px-1.5 py-1 bg-transparent border border-gray-600 rounded text-white text-[10px] outline-none focus:border-blue-500"/>
-              <select value={f.type||'text'} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],type:e.target.value};setEditCmd({...editCmd,fields:fs});}} className="w-[90px] px-1 py-1 bg-[#1e293b] border border-gray-500 rounded text-white text-[10px] outline-none focus:border-blue-500">{FIELD_TYPES.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}</select>
-              <select value={f.group||'主属性'} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],group:e.target.value};setEditCmd({...editCmd,fields:fs});}} className="w-[68px] px-1 py-1 bg-[#1e293b] border border-gray-500 rounded text-white text-[10px] outline-none focus:border-blue-500">{FIELD_GROUPS.map(g=><option key={g.v} value={g.v}>{g.l}</option>)}</select>
-              <label className="flex justify-center w-[36px] shrink-0"><input type="checkbox" checked={!!f.required} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],required:e.target.checked};setEditCmd({...editCmd,fields:fs});}} className="accent-[#1677ff]"/></label>
+            <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-gray-500 bg-[#0f172a]/50 rounded-t"><span className="w-[74px] shrink-0">变量名</span><span className="w-[64px] shrink-0">显示名</span><span className="w-[74px] shrink-0">类型 <button type="button" onClick={e=>{e.stopPropagation();setShowTypeHelp(!showTypeHelp);}} className="inline text-gray-500 hover:text-gray-300 ml-0.5" title="字段类型说明">?</button></span><span className="w-[58px] shrink-0">分组</span><span className="w-[28px] shrink-0 text-center">必填</span><span className="flex-1">默认值</span></div>
+            <div className="space-y-1 max-h-48 overflow-y-auto">{editCmd.fields.map((f,i)=>(<Fragment key={i}>
+              <div className="flex items-center gap-1.5 bg-[#0f172a] rounded px-2 py-1">
+              <div className="w-[74px] flex items-center gap-0.5"><span className="text-[10px] text-gray-600 shrink-0">🔒</span><input value={f.name||''} disabled className="flex-1 px-1.5 py-1 bg-gray-800/50 border border-gray-700 rounded text-gray-400 text-[10px] font-mono" placeholder="url"/></div>
+              <input value={f.label||''} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],label:e.target.value};setEditCmd({...editCmd,fields:fs});}} placeholder="显示名" className="w-[65px] px-1.5 py-1 bg-transparent border border-gray-600 rounded text-white text-[10px] outline-none focus:border-blue-500"/>
+              <div className="w-[74px] px-1 py-1 bg-gray-800/50 border border-gray-700 rounded text-gray-400 text-[10px] flex items-center gap-0.5"><span className="text-[10px] text-gray-600">🔒</span><span className="truncate">{(FIELD_TYPES.find(t=>t.v===f.type)||{}).l||f.type||'text'}</span></div>
+              <select value={f.group||'主属性'} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],group:e.target.value};setEditCmd({...editCmd,fields:fs});}} className="w-[58px] px-1 py-1 bg-[#1e293b] border border-gray-500 rounded text-white text-[10px] outline-none focus:border-blue-500">{FIELD_GROUPS.map(g=><option key={g.v} value={g.v}>{g.l}</option>)}</select>
+              <label className="flex justify-center w-[28px] shrink-0"><input type="checkbox" checked={!!f.required} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],required:e.target.checked};setEditCmd({...editCmd,fields:fs});}} className="accent-[#1677ff]"/></label>
               {f.default!==undefined&&f.default!==null?<input value={String(f.default)} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],default:e.target.value};setEditCmd({...editCmd,fields:fs});}} placeholder="默认值" className="flex-1 px-1.5 py-1 bg-transparent border border-gray-600 rounded text-white text-[10px] outline-none focus:border-blue-500"/>
               :<button onClick={()=>{const fs=[...editCmd.fields];fs[i]={...fs[i],default:''};setEditCmd({...editCmd,fields:fs});}} className="text-[10px] text-gray-500 hover:text-gray-300 flex-1">+默认</button>}
               <button onClick={()=>{const fs=editCmd.fields.filter((_,j)=>j!==i);setEditCmd({...editCmd,fields:fs});}} className="text-red-400 hover:text-red-300 text-[10px] shrink-0"><i className="fas fa-trash-alt"></i></button>
-            </div>))}</div>
+            </div>
+            {f.type==='select'&&f.options&&f.options.length>0&&(
+              <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] text-gray-500">
+                <span className="w-[74px] shrink-0"></span>
+                <span className="text-gray-600">🔒 选项:</span>
+                <span className="text-gray-400">{f.options.map(o=>typeof o==='object'?o.label:o).join(', ')}</span>
+              </div>
+            )}
+            </Fragment>))}</div>
+
+            {/* Type help popover */}
+            {showTypeHelp && (
+              <div className="relative">
+                <div className="absolute z-30 top-0 left-[170px] w-[380px] bg-[#1a2236] border border-gray-600 rounded-lg shadow-2xl p-4 text-xs">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-medium text-gray-200">字段类型说明</span>
+                    <button onClick={() => setShowTypeHelp(false)} className="text-gray-400 hover:text-white"><i className="fas fa-times"></i></button>
+                  </div>
+                  <table className="w-full text-[10px]">
+                    <thead>
+                      <tr className="text-gray-400 border-b border-gray-700">
+                        <th className="text-left py-1.5 pr-2">类型</th>
+                        <th className="text-left py-1.5 pr-2">含义</th>
+                        <th className="text-left py-1.5 pr-2">变量替换</th>
+                        <th className="text-left py-1.5">示例</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-gray-300">
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">文本</td><td className="py-1 pr-2">任意字符串</td><td className="py-1 pr-2 text-green-400">{'${var}→文本'}</td><td className="py-1 font-mono">https://...</td></tr>
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">数字</td><td className="py-1 pr-2">数值</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">30</td></tr>
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">开关</td><td className="py-1 pr-2">布尔</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">true</td></tr>
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">下拉</td><td className="py-1 pr-2">枚举选一</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">chrome</td></tr>
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">变量</td><td className="py-1 pr-2">变量名引用</td><td className="py-1 pr-2 text-amber-400">原类型传递</td><td className="py-1 font-mono">browser1 → {'{windowId,tabId}'}</td></tr>
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">元素</td><td className="py-1 pr-2">元素库选择</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">login_btn</td></tr>
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">多行</td><td className="py-1 pr-2">多行文本</td><td className="py-1 pr-2 text-green-400">{'${var}→文本'}</td><td className="py-1">长文本内容</td></tr>
+                      <tr><td className="py-1 pr-2 text-blue-300">代码</td><td className="py-1 pr-2">Python/JS</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">print('hi')</td></tr>
+                    </tbody>
+                  </table>
+                  <div className="mt-2 text-gray-500 text-[10px]">
+                    <span className="text-green-400">变量替换</span> = 文本/多行会把 <code className="text-yellow-300 bg-yellow-900/30 px-1 rounded">{'${name}'}</code> 替换为变量值并转字符串；
+                    <span className="text-amber-400 ml-1">原类型传递</span> = 变量类型保留原始类型（字典/列表等）
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ④/③ 基本信息 */}

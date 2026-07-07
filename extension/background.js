@@ -213,11 +213,11 @@ class AgentBackground {
       const createUrl = url || 'about:blank';
       const state = step.extra?.windowState || 'normal';
 
-      // 浏览器刚启动时通常只有一个空白窗口，复用它而不是再创建一个
+      // 优先复用已有的空白窗口（刚由 launch_browser_with_extension 启动的）
       const allWins = await chrome.windows.getAll({ populate: true });
-      const normalWins = allWins.filter(w => w.type === 'normal');
-      if (normalWins.length === 1) {
-        const win = normalWins[0];
+      // 找最新的 about:blank/newtab 窗口
+      for (const win of allWins.reverse()) {
+        if (win.type !== 'normal') continue;
         const tab = win.tabs?.[0];
         if (tab && (tab.url === 'about:blank' || tab.url?.includes('newtab') || tab.url === 'edge://newtab/')) {
           this.workWindowId = win.id;
@@ -230,7 +230,7 @@ class AgentBackground {
         }
       }
 
-      // 已有其他窗口，创建新窗口作为独立工作窗口
+      // 没有可复用的空白窗口，创建新窗口
       const newWindow = await chrome.windows.create({ url: createUrl, focused: true, state });
       this.workWindowId = newWindow.id;
       const newTab = newWindow.tabs?.[0];

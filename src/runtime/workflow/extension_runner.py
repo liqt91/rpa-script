@@ -25,7 +25,6 @@ import time
 
 from src.runtime.websocket_manager import ext_manager
 from .extension_emitter import build_instructions
-from .commands import COMMAND_REGISTRY
 from src.providers import run_progress
 from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
@@ -178,11 +177,7 @@ def _is_local_command(cmd_type: str) -> bool:
     h = get_handler(cmd_type)
     if h:
         return h["runtime"] == "backend"
-    # 2. Fallback to old COMMAND_REGISTRY
-    cmd = COMMAND_REGISTRY.get(cmd_type)
-    if not cmd:
-        return False
-    return cmd.get("runtimes", {}).get("extension", {}).get("local", False)
+    return False
 
 
 class _TableAccessor:

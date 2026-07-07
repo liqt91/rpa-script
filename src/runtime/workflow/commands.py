@@ -1523,14 +1523,8 @@ def get_command(type_name: str) -> dict | None:
             }},
         }
 
-    # 2. Fallback to old COMMAND_REGISTRY
-    cmd = COMMAND_REGISTRY.get(type_name)
-    if cmd is None:
-        return None
-    result = copy.deepcopy(cmd)
-    if not cmd.get("isContainer") and not cmd.get("isStructural"):
-        result["fields"] = _attach_common_advanced(cmd.get("fields", []))
-    return result
+    # 2. Fallback: not found in handler system
+    return None
 
 
 def list_categories() -> list[str]:

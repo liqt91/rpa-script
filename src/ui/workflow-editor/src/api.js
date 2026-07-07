@@ -34,6 +34,7 @@ async function request(url, options = {}) {
 }
 
 export const api = {
+  request,
   // Workflow
   listWorkflows: () => request('/api/workflows'),
   createWorkflow: (payload) => request('/api/workflows', {

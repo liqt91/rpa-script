@@ -6,7 +6,8 @@ import copy
 import re
 from pathlib import Path
 
-from .commands import COMMAND_REGISTRY, _attach_common_advanced
+from .handlers.registry import build_command_registry
+from .commands import _attach_common_advanced
 
 REQUIRED_KEYS = {"label", "category", "icon", "iconColor", "bgColor", "fields"}
 
@@ -159,8 +160,9 @@ def validate() -> tuple[bool, list[str]]:
     """Run all validations and return (passed, messages)."""
     js_handlers = extract_js_handler_names()
     all_errors: list[str] = []
-    all_errors.extend(validate_schema(COMMAND_REGISTRY))
-    all_errors.extend(validate_handlers(COMMAND_REGISTRY, js_handlers))
-    all_errors.extend(validate_category_colors(COMMAND_REGISTRY))
-    all_errors.extend(validate_common_advanced(COMMAND_REGISTRY))
+    registry = build_command_registry()
+    all_errors.extend(validate_schema(registry))
+    all_errors.extend(validate_handlers(registry, js_handlers))
+    all_errors.extend(validate_category_colors(registry))
+    all_errors.extend(validate_common_advanced(registry))
     return len(all_errors) == 0, all_errors

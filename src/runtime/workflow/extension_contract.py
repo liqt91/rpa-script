@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-from src.runtime.workflow.commands import COMMAND_REGISTRY
+from src.runtime.workflow.handlers.registry import build_command_registry
 
 # Paths relative to repo root (run from repo root)
 REPO_ROOT = Path.cwd()
@@ -20,7 +20,7 @@ CONTENT_JS = REPO_ROOT / "extension" / "content.js"
 
 def _load_registry() -> dict:
     """Return COMMAND_REGISTRY from commands.py."""
-    return COMMAND_REGISTRY
+    return build_command_registry()
 
 
 def _extract_content_js_handlers() -> set[str]:

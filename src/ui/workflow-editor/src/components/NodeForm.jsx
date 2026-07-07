@@ -372,6 +372,7 @@ export default function NodeForm() {
                                     onChange={(v) => handleExtraChange(field.name, v)}
                                     availableVars={availableVars}
                                     elements={elements}
+                                    fullscreenTitle={`#${selectedNode.order} ${command?.label || selectedNode.type}-${field.label || field.name}`}
                                   />
                                   {field.description && (
                                     <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
@@ -449,7 +450,7 @@ function findVarContext(value, cursorPos) {
  * Variable-aware input / textarea.
  * Typing '$' shows a dropdown of variables defined earlier in the workflow.
  */
-function VarInput({ value, onChange, placeholder, className, vars, multiline = false, enableFullscreen = false }) {
+function VarInput({ value, onChange, placeholder, className, vars, multiline = false, enableFullscreen = false, fullscreenMode = 'code', fullscreenTitle = '编辑' }) {
   const inputRef = useRef(null);
   const [ctx, setCtx] = useState(null); // { start, end, prefix, hasBrace }
   const ctxRef = useRef(ctx);
@@ -607,7 +608,19 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
           )}
         </div>
       ) : (
-        <input type="text" {...commonProps} />
+        <div className="relative">
+          <input type="text" {...commonProps} />
+          {enableFullscreen && (
+            <button
+              type="button"
+              onClick={openFullscreen}
+              className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 bg-white/80 border border-gray-200 rounded text-[10px]"
+              title="全屏编辑"
+            >
+              <i className="fas fa-expand"></i>
+            </button>
+          )}
+        </div>
       )}
       {ctx && filtered.length > 0 && (
         <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-[#d9d9d9] rounded shadow-lg max-h-48 overflow-y-auto">
@@ -628,8 +641,66 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
         </div>
       )}
 
-      {/* Fullscreen editor modal */}
-      {fullscreen && createPortal(
+      {/* Fullscreen editor modal — simple mode */}
+      {fullscreen && fullscreenMode === 'simple' && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4" onMouseDown={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <span className="text-sm font-medium text-gray-700">{fullscreenTitle}</span>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={saveFullscreen} className="text-xs px-4 py-1.5 bg-[#1677ff] text-white rounded hover:bg-[#4096ff]">保存</button>
+                <button type="button" onClick={() => setFullscreen(false)} className="text-xs px-4 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-50">取消</button>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              <textarea
+                ref={fullscreenRef}
+                value={fullscreenValue}
+                onChange={(e) => setFullscreenValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFullscreen(); }
+                  if (e.key === 'Escape') setFullscreen(false);
+                }}
+                className="w-full h-48 p-3 border border-gray-300 rounded text-sm outline-none focus:border-[#1677ff] resize-y"
+                placeholder={placeholder}
+                autoFocus
+              />
+              {vars.length > 0 && (
+                <div>
+                  <div className="text-[11px] text-gray-400 mb-1.5">可用变量（点击插入 ${'{变量名}'}）</div>
+                  <div className="flex flex-wrap gap-1">
+                    {vars.map(v => (
+                      <button
+                        key={v.name}
+                        type="button"
+                        onClick={() => {
+                          const el = fullscreenRef.current;
+                          if (!el) return;
+                          const insert = `\${${v.name}}`;
+                          const start = el.selectionStart;
+                          const end = el.selectionEnd;
+                          const newVal = fullscreenValue.slice(0, start) + insert + fullscreenValue.slice(end);
+                          setFullscreenValue(newVal);
+                          requestAnimationFrame(() => {
+                            el.focus();
+                            el.setSelectionRange(start + insert.length, start + insert.length);
+                          });
+                        }}
+                        className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-[11px] text-blue-600 hover:bg-blue-100 font-mono"
+                        title={v.node ? `#${v.node.order} ${v.node.type}` : (v.source || '流程参数')}
+                      >
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      {fullscreen && fullscreenMode === 'code' && createPortal(
         <div
           className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4"
           onMouseDown={(e) => e.stopPropagation()}
@@ -737,8 +808,8 @@ function ElementNameListField({ field, value, onChange, elements = [] }) {
  * Schema-driven control renderer (no label wrapper).
  * Supports: text, number, select, bool, textarea, varName, elementName
  */
-function SchemaControl({ field, value, onChange, availableVars = [], elements = [] }) {
-  const inputClass = "w-full px-2 py-1.5 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]";
+function SchemaControl({ field, value, onChange, availableVars = [], elements = [], fullscreenTitle = '' }) {
+  const inputClass = "w-full px-3 py-2 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]";
   const currentValue = value !== undefined ? value : (field.default ?? '');
 
   switch (field.type) {
@@ -819,6 +890,9 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
           placeholder={field.placeholder || ''}
           className={inputClass}
           vars={availableVars}
+          enableFullscreen
+          fullscreenMode="simple"
+          fullscreenTitle={fullscreenTitle}
         />
       );
   }

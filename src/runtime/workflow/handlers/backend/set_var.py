@@ -28,10 +28,13 @@ class SetVarHandler:
         value = extra.get("value", "")
         value_type = extra.get("valueType", "string")
         if name:
-            runner.vars[name] = convert_value(value, value_type, runner.vars)
+            resolved_value = convert_value(value, value_type, runner.vars)
+            runner.vars[name] = resolved_value
+        else:
+            resolved_value = None
         runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
-            "status": "success", "result": {"setVar": name}})
+            "status": "success", "result": {"setVar": name, "value": resolved_value}})
         await runner._emit({"type": "stepComplete", "stepId": step_id,
-            "nodeId": instr.get("nodeId"), "result": {"setVar": name}})
+            "nodeId": instr.get("nodeId"), "result": {"setVar": name, "value": resolved_value}})
         return True

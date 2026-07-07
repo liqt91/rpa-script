@@ -70,18 +70,18 @@ def _load_ai_apps_from_db(db):
 
 
 def _seed_commands_to_db(db):
-    """将 commands.py 中的内置指令种子同步到数据库。
+    """将 handler 系统中的内置指令种子同步到数据库。
 
     - 首次安装：插入所有内置指令。
     - 后续启动：用代码种子更新已有内置指令（保持自定义指令不变）。
     - 自定义指令（is_builtin=0）永远不会被覆盖。
     """
-    from .workflow import commands
+    from .workflow.handlers.registry import build_command_registry
 
+    registry = build_command_registry()
     existing = {row.type: row for row in db.query(models.WorkflowCommand).all()}
-    for type_name, cmd in commands.COMMAND_REGISTRY.items():
+    for type_name, cmd in registry.items():
         row = existing.get(type_name)
-        # 如果该类型已被用户当作自定义指令占用，不要覆盖
         if row is not None and not row.is_builtin:
             continue
 
