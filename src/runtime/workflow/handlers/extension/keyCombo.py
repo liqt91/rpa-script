@@ -4,7 +4,7 @@ from ..registry import register_handler, Param
     icon="fa-keyboard", icon_color="text-purple-500", bg_color="bg-purple-50", category_order=60, command_order=35)
 class KeyComboHandler:
     params = [
-        Param("keys", "按键序列", "text", required=True, placeholder="Ctrl+C / Alt+Tab"),
+        Param("keys", "按键序列", "str-input", required=True, placeholder="Ctrl+C / Alt+Tab"),
     ]
 
 

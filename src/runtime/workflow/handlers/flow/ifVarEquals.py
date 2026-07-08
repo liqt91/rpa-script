@@ -8,6 +8,6 @@ from ..registry import register_handler, Param
     icon="fa-equals", icon_color="text-cyan-500", bg_color="bg-cyan-50", category_order=85, command_order=40)
 class IfVarEqualsHandler:
     params = [
-        Param("varName", "变量名", "varName", required=True),
-        Param("compareTo", "比较值", "text", required=True),
+        Param("varName", "变量名", "str-var", required=True),
+        Param("compareTo", "比较值", "str-input", required=True),
     ]

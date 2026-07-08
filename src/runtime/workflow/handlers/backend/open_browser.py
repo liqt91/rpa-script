@@ -1,5 +1,6 @@
 """打开浏览器 — openBrowser"""
 from ..registry import register_handler, Param
+from ..utils import clean_var_ref
 
 
 @register_handler(type="openBrowser", label="打开浏览器", category="浏览器", runtime="backend",
@@ -8,13 +9,13 @@ from ..registry import register_handler, Param
     description="启动浏览器并加载RPA扩展")
 class OpenBrowserHandler:
     params = [
-        Param("browserType", "浏览器", "select",
+        Param("browserType", "浏览器", "str-dropdown",
               options=[{"label": "Chrome", "value": "chrome"}, {"label": "Edge", "value": "edge"}],
               default="chrome"),
-        Param("windowState", "窗口状态", "select",
+        Param("windowState", "窗口状态", "str-dropdown",
               options=[{"label": "普通", "value": "normal"}, {"label": "最大化", "value": "maximized"}, {"label": "最小化", "value": "minimized"}],
               default="normal", group="advanced"),
-        Param("windowVar", "窗口变量", "varName", default="browser1", group="input"),
+        Param("windowVar", "保存窗口对象到", "str-var", default="browser1", group="output"),
     ]
 
     @staticmethod
@@ -40,7 +41,7 @@ class OpenBrowserHandler:
 
         result = await runner._send_and_wait(step_id, instr, timeout=DEFAULT_STEP_TIMEOUT)
 
-        save_to = extra.get("windowVar") or extra.get("varName") or extra.get("saveToVar")
+        save_to = clean_var_ref(extra.get("windowVar") or extra.get("varName") or extra.get("saveToVar"))
         if save_to and isinstance(result, dict):
             runner.vars[save_to] = {"windowId": result.get("windowId"), "tabId": result.get("tabId")}
 

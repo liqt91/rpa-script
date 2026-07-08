@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
     category_order=90, command_order=20)
 class LogHandler:
     params = [
-        Param("message", "日志内容", "text", required=True, placeholder="支持 ${var} 变量插值"),
-        Param("level", "日志级别", "select",
+        Param("message", "日志内容", "any-input", required=True, placeholder="支持 ${var} 变量插值"),
+        Param("level", "日志级别", "str-dropdown",
               options=[{"label":"信息","value":"info"},{"label":"警告","value":"warn"},{"label":"错误","value":"error"}],
               default="info", group="advanced"),
     ]

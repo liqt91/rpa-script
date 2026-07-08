@@ -4,11 +4,11 @@ from ..registry import register_handler, Param
     icon="fa-code", icon_color="text-green-500", bg_color="bg-green-50", category_order=50, command_order=20)
 class GetAttributeHandler:
     params = [
-        Param("element_name", "元素", "elementName", required=True),
-        Param("attribute", "属性名", "text", required=True, placeholder="如 href、class"),
-        Param("varName", "保存到变量", "varName", required=True, group="output"),
-        Param("scope", "匹配范围", "select",
+        Param("element_name", "元素", "str-element", required=True),
+        Param("attribute", "属性名", "str-input", required=True, placeholder="如 href、class"),
+        Param("varName", "保存到变量", "str-var", required=True, group="output"),
+        Param("scope", "匹配范围", "str-dropdown",
               options=[{"label": "当前外层元素内", "value": "local"}, {"label": "全页面", "value": "global"}],
               default="local", group="advanced"),
-        Param("loopAnchor", "锚点元素", "varName", default="", group="anchor"),
+        Param("loopAnchor", "锚点元素", "str-var", default="", group="anchor"),
     ]

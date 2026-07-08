@@ -7,6 +7,22 @@ import ElementTreeSelect from './ElementTreeSelect';
 
 const VAR_FIELD_NAMES = ['varName', 'itemVar', 'indexVar', 'listVar', 'dataVar', 'errorVar', 'name', 'targetVar', 'saveToVar', 'resultVar'];
 
+
+// ─── 参数类型提示 ────────────────────────────────────────────────
+const TYPE_INFO = {
+  'str-input':     { type:'str', example:'hello ${name}' },
+  'str-textarea':  { type:'str', example:'多行文本' },
+  'str-var':       { type:'str', example:'myVar' },
+  'str-dropdown':  { type:'str', example:'选一项' },
+  'str-element':   { type:'str', example:'从元素库选' },
+  'int-number':    { type:'int', example:'30' },
+  'bool-check':    { type:'bool', example:'勾选' },
+  'list-input':    { type:'list', example:'["${a}","${b}"]' },
+  'dict-input':    { type:'dict', example:'{"k":"${v}"}' },
+  'any-expr':      { type:'any', example:'keywords[0:3]' },
+  'any-input':     { type:'any', example:'${v} / [1,2] / true' },
+};
+
 function extractVarsFromNode(node) {
   const extra = node?.extra || {};
   const vars = [];
@@ -47,7 +63,9 @@ function useAvailableVars(selectedNode, nodes, parameters = []) {
 
 // Primary element field is marked by the schema (replaces hard-coded element_name special case)
 function findPrimaryElementField(fields) {
-  return fields?.find(f => f.isPrimaryElement) || null;
+  return fields?.find(f => f.isPrimaryElement)
+      || fields?.find(f => f.type === 'str-element')
+      || null;
 }
 
 export default function NodeForm() {
@@ -75,11 +93,11 @@ export default function NodeForm() {
     return findAncestorNodes(nodes, selectedNode.id, ['forEachElement']);
   }, [selectedNode, nodes, findAncestorNodes]);
   const elementExtraFields = useMemo(
-    () => (command?.fields || []).filter(f => (f.type === 'elementName' || f.type === 'elementNameList') && !f.isPrimaryElement),
+    () => (command?.fields || []).filter(f => (f.type === 'str-element' || f.type === 'str-element-list') && !f.isPrimaryElement),
     [command]
   );
   const elementListExtraFields = useMemo(
-    () => elementExtraFields.filter(f => f.type === 'elementNameList'),
+    () => elementExtraFields.filter(f => f.type === 'str-element-list'),
     [elementExtraFields]
   );
   const singleElementExtraFields = useMemo(
@@ -87,7 +105,7 @@ export default function NodeForm() {
     [elementExtraFields]
   );
   const nonElementExtraFields = useMemo(
-    () => (command?.fields || []).filter(f => f.type !== 'elementName' && f.type !== 'elementNameList' && f.group !== 'anchor'),
+    () => (command?.fields || []).filter(f => f.type !== 'str-element' && f.type !== 'str-element-list' && f.group !== 'anchor'),
     [command]
   );
 
@@ -364,7 +382,14 @@ export default function NodeForm() {
                             </tr>
                             {groupFields.map(field => (
                               <tr key={field.name} className="border-b border-[#f0f0f0] last:border-0 hover:bg-[#fafafa]">
-                                <td className="px-3 py-2 text-xs text-gray-600 align-middle">{field.label || field.name}</td>
+                                <td className="px-3 py-2 text-xs text-gray-600 align-middle whitespace-nowrap">
+                                  {field.label || field.name}
+                                  <span className="relative inline-flex items-center justify-center w-4 h-4 ml-1.5 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-500 text-[10px] font-bold cursor-help select-none group">
+                                    ?
+                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[11px] rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+                                      >回传: {(TYPE_INFO[field.type]||{}).type||'str'} | 示例: {(TYPE_INFO[field.type]||{}).example||field.placeholder||'—'}</span>
+                                  </span>
+                                </td>
                                 <td className="px-3 py-2 align-middle">
                                   <SchemaControl
                                     field={field}
@@ -806,14 +831,14 @@ function ElementNameListField({ field, value, onChange, elements = [] }) {
 
 /**
  * Schema-driven control renderer (no label wrapper).
- * Supports: text, number, select, bool, textarea, varName, elementName
+ * Supports: str-input, int-number, str-dropdown, bool-check, str-textarea, str-var, str-element, list-input, dict-input, any-expr, any-input
  */
 function SchemaControl({ field, value, onChange, availableVars = [], elements = [], fullscreenTitle = '' }) {
   const inputClass = "w-full px-3 py-2 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]";
   const currentValue = value !== undefined ? value : (field.default ?? '');
 
   switch (field.type) {
-    case 'bool':
+    case 'bool-check':
       return (
         <input
           type="checkbox"
@@ -823,7 +848,7 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
         />
       );
 
-    case 'select':
+    case 'str-dropdown':
       return (
         <select
           value={currentValue}
@@ -839,7 +864,7 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
         </select>
       );
 
-    case 'number':
+    case 'int-number':
       return (
         <input
           type="number"
@@ -851,7 +876,8 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
         />
       );
 
-    case 'textarea':
+    case 'any-expr':
+    case 'str-textarea':
       return (
         <VarInput
           value={currentValue}
@@ -864,7 +890,7 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
         />
       );
 
-    case 'elementName':
+    case 'str-element':
       return (
         <select
           value={currentValue || ''}
@@ -880,8 +906,8 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
         </select>
       );
 
-    case 'varName':
-    case 'text':
+    case 'str-var':
+    case 'str-input':
     default:
       return (
         <VarInput

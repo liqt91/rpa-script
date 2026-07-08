@@ -4,5 +4,5 @@ from ..registry import register_handler, Param
     icon="fa-eye-slash", icon_color="text-yellow-500", bg_color="bg-yellow-50", category_order=20, command_order=50)
 class WaitForElementHideHandler:
     params = [
-        Param("element_name", "元素", "elementName", required=True),
+        Param("element_name", "元素", "str-element", required=True),
     ]

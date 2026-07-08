@@ -20,24 +20,24 @@ from dataclasses import dataclass, field
 
 GENERIC_PARAMS = [
     {
-        "name": "onError", "label": "执行失败时", "type": "select",
+        "name": "onError", "label": "执行失败时", "type": "str-dropdown",
         "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
         "default": "stop", "group": "advanced",
     },
     {
-        "name": "retryCount", "label": "重试次数", "type": "number",
+        "name": "retryCount", "label": "重试次数", "type": "int-number",
         "default": 3, "group": "advanced",
     },
     {
-        "name": "timeout", "label": "超时(秒)", "type": "number",
+        "name": "timeout", "label": "超时(秒)", "type": "int-number",
         "default": 10, "group": "advanced",
     },
     {
-        "name": "humanLike", "label": "模拟人工操作", "type": "bool",
+        "name": "humanLike", "label": "模拟人工操作", "type": "bool-check",
         "default": True, "group": "advanced",
     },
     {
-        "name": "description", "label": "步骤说明", "type": "textarea",
+        "name": "description", "label": "步骤说明", "type": "str-textarea",
         "default": "", "group": "advanced",
     },
 ]
@@ -48,7 +48,7 @@ class Param:
     """Handler 参数声明。handler 内部通过 `params["name"]` 读取。"""
     name: str                                    # 参数名，handler 代码中读取的 key
     label: str = ""                              # 编辑器显示标签
-    type: str = "text"                           # text | number | bool | select | varName | elementName | textarea | code
+    type: str = "str-input"                         # str-input | str-textarea | str-var | str-dropdown | str-element | int-number | bool-check | list-input | dict-input | any-expr | any-input
     required: bool = False
     default: Any = None
     group: str = "主属性"                         # 主属性 | advanced | output | input | anchor
@@ -141,11 +141,13 @@ def build_command_registry() -> dict[str, dict]:
     """
     registry = {}
     for handler_type, hdef in _HANDLER_REGISTRY.items():
-        runtime_cfg = {}
         if hdef["runtime"] == "backend":
-            runtime_cfg = {"handler": handler_type, "local": True}
+            runtimes = {"extension": {"handler": handler_type, "local": True}}
+        elif hdef["runtime"] == "extension":
+            runtimes = {"extension": {"handler": hdef.get("runtime_handler", handler_type), "local": False}}
         else:
-            runtime_cfg = {"handler": hdef["runtime_handler"] if "runtime_handler" in hdef else handler_type, "local": False}
+            # emitter / flow-control 指令没有运行时 handler
+            runtimes = {}
 
         entry = {
             "type": handler_type,
@@ -163,7 +165,7 @@ def build_command_registry() -> dict[str, dict]:
             "categoryOrder": hdef["categoryOrder"],
             "commandOrder": hdef["commandOrder"],
             "enabled": hdef["enabled"],
-            "runtimes": {"extension": runtime_cfg},
+            "runtimes": runtimes,
         }
         registry[handler_type] = entry
     return registry

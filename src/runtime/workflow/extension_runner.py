@@ -347,12 +347,23 @@ class ExtensionRunner:
         self._pause_event_sent = False
         self._table_data: dict = {"columns": [], "rows": []}
         self._table_dirty: bool = False
+
         self.log_dir = log_dir or ""
         self._log_file = None
         self._run_started_sent = False
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
             self._log_file = open(os.path.join(self.log_dir, "run.log"), "w", encoding="utf-8")
+
+    def _ensure_table_data(self) -> dict:
+        """Ensure _table_data is initialized and return it."""
+        if not isinstance(self._table_data, dict):
+            self._table_data = {"columns": [], "rows": []}
+        if "columns" not in self._table_data:
+            self._table_data["columns"] = []
+        if "rows" not in self._table_data:
+            self._table_data["rows"] = []
+        return self._table_data
 
     def pause(self) -> None:
         if not self._stopped:
@@ -915,7 +926,12 @@ class ExtensionRunner:
         if cmd_type == "whileCondition":
             cond_type = extra.get("conditionType", "elementExists")
             met = False
-            if cond_type == "elementExists":
+            if cond_type == "expression":
+                try:
+                    met = bool(_eval_expression(extra.get("condition", "False"), self.vars))
+                except Exception:
+                    met = False
+            elif cond_type == "elementExists":
                 met = await self._check_element_exists(locator, selector_family, timeout=timeout, extra=extra)
             elif cond_type == "elementNotExists":
                 met = not await self._check_element_exists(locator, selector_family, timeout=timeout, extra=extra)
@@ -941,6 +957,43 @@ class ExtensionRunner:
         logger.warning(f"[ExtensionRunner] Unknown condition type: {cmd_type}")
         return {"met": False, "cmdType": cmd_type}
 
+    @staticmethod
+    def _summarize(instr: dict) -> str:
+        """生成指令输入摘要，用于调试日志。"""
+        cmd = instr.get("cmdType", instr.get("type", ""))
+        extra = instr.get("extra") or {}
+        if cmd == "setVar":
+            return f'name={extra.get("name","?")} value={str(extra.get("value",""))[:60]}'
+        if cmd == "writeTableRow":
+            return f'row={str(extra.get("rowData",""))[:60]}'
+        if cmd == "writeTableCell":
+            return f'[{extra.get("rowIndex","?")},{extra.get("colIndex","?")}]={str(extra.get("value",""))[:40]}'
+        if cmd == "log":
+            return str(extra.get("message", ""))[:80]
+        if cmd == "navigate":
+            return str(extra.get("url", ""))[:80]
+        if cmd == "openBrowser":
+            return f'{extra.get("browserType","?")}'
+        if cmd == "forList":
+            return f'listVar={extra.get("listVar","?")}'
+        if cmd == "forRange":
+            return f'var={extra.get("varName","i")} [{extra.get("start",0)}..{extra.get("end",10)})'
+        if cmd == "forEachElement":
+            return f'{instr.get("elementName","?")}'
+        if cmd == "forList":
+            return f'listVar={extra.get("listVar","?")}'
+        if cmd == "clickElement":
+            return f'{extra.get("element_name","?")}'
+        if cmd == "inputText":
+            return f'{extra.get("text","")[:40]}'
+        if cmd == "getText":
+            return f'{extra.get("element_name","?")} → {extra.get("varName","?")}'
+        if cmd == "custom":
+            return str(extra.get("code", ""))[:80]
+        if cmd in ("ifElementVisible", "ifTextContains", "ifVarEquals"):
+            return str(extra.get("operator", ""))
+        return ""
+
     async def _run_body(self, body: list[dict], emit_events: bool = True) -> bool:
         """Execute a list of instructions (a body block). Returns False if flow should stop."""
         for sub in body:
@@ -952,6 +1005,7 @@ class ExtensionRunner:
                     "type": "stepStart",
                     "stepId": sub.get("stepId"),
                     "nodeId": sub.get("nodeId"),
+                    "_summary": self._summarize(sub),
                 })
             success = await self._execute_instruction(sub)
             if not success:
@@ -972,10 +1026,11 @@ class ExtensionRunner:
 
         # ── forRange ──
         if cmd_type == "forRange":
+            raw_extra = instr.get("extra") or {}
             start = int(extra.get("start", 0))
             end = int(extra.get("end", 10))
             step = int(extra.get("step", 1))
-            var_name = _clean_var_ref(extra.get("varName", "i"))
+            var_name = _clean_var_ref(raw_extra.get("varName", "i"))
             body = instr.get("body", [])
             for i in range(start, end, step):
                 if self._stopped:
@@ -1076,12 +1131,14 @@ class ExtensionRunner:
 
         # ── forList ──
         if cmd_type == "forList":
-            list_var = _clean_var_ref(extra.get("listVar", "items"))
+            # 变量名引用必须从原始 extra 读取（已解析的会被 str() 破坏）
+            raw_extra = instr.get("extra") or {}
+            list_var = _clean_var_ref(raw_extra.get("listVar", "items"))
             items = self.vars.get(list_var, [])
             if not isinstance(items, list):
                 items = []
-            item_var = _clean_var_ref(extra.get("itemVar", "item"))
-            idx_var = _clean_var_ref(extra.get("indexVar", "index"))
+            item_var = _clean_var_ref(raw_extra.get("itemVar", "item"))
+            idx_var = _clean_var_ref(raw_extra.get("indexVar", "index"))
             body = instr.get("body", [])
             logger.info(f"[ExtensionRunner] forList {list_var} has {len(items)} items")
             for idx, item in enumerate(items):
@@ -1110,9 +1167,10 @@ class ExtensionRunner:
 
         # ── forEachTableRow ──
         if cmd_type == "forEachTableRow":
+            raw_extra = instr.get("extra") or {}
             rows = self._table_data.get("rows", [])
-            item_var = _clean_var_ref(extra.get("itemVar", "row"))
-            idx_var = _clean_var_ref(extra.get("indexVar", "index"))
+            item_var = _clean_var_ref(raw_extra.get("itemVar", "row"))
+            idx_var = _clean_var_ref(raw_extra.get("indexVar", "index"))
             body = instr.get("body", [])
             logger.info(f"[ExtensionRunner] forEachTableRow has {len(rows)} rows")
             for idx, row in enumerate(rows):
@@ -1317,7 +1375,38 @@ class ExtensionRunner:
         # Schema-driven local command routing
         cmd_type = instr.get("cmdType") or step_type
         if _is_local_command(cmd_type):
-            return await self._handle_local(cmd_type, step_id, instr)
+            try:
+                return await self._handle_local(cmd_type, step_id, instr)
+            except LoopBreak:
+                raise
+            except LoopContinue:
+                raise
+            except Exception as e:
+                logger.error(f"[ExtensionRunner] local {cmd_type} failed: {e}")
+                self.failed_steps.append({
+                    "stepId": step_id,
+                    "nodeId": instr.get("nodeId"),
+                    "instruction": instr,
+                    "error": str(e),
+                })
+                self.results.append({
+                    "stepId": step_id,
+                    "nodeId": instr.get("nodeId"),
+                    "status": "error",
+                    "error": str(e),
+                })
+                await self._emit({
+                    "type": "stepError",
+                    "stepId": step_id,
+                    "nodeId": instr.get("nodeId"),
+                    "error": str(e),
+                })
+                if on_error == "stop":
+                    return False
+                elif on_error == "continue":
+                    self.completed += 1
+                    return True
+                return False
 
         # Resolve variable placeholders in the instruction before sending
         resolved_instr = self._resolve_vars(instr, self.vars)
@@ -1476,9 +1565,11 @@ class ExtensionRunner:
             raise RuntimeError(f"Extension {self.client_id} is not connected")
 
         # Resolve explicit window variable -> windowId/tabId for extension routing
+        # openBrowser 的 windowVar 是输出变量（浏览器创建后才赋值），不是输入引用，跳过查找
         extra = dict(instr.get("extra") or {})
+        cmd_type = instr.get("cmdType", instr.get("type", ""))
         window_var = extra.get("windowVar")
-        if window_var:
+        if window_var and cmd_type != "openBrowser":
             window_val = self.vars.get(window_var)
             if window_val is None:
                 raise RuntimeError(f"窗口变量 '{window_var}' 未定义，请先执行打开浏览器指令")

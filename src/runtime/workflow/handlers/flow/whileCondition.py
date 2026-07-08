@@ -9,7 +9,7 @@ from ..registry import register_handler, Param
     description="当条件满足时持续循环")
 class WhileConditionHandler:
     params = [
-        Param("condition", "条件表达式", "code", required=True, placeholder="如 ${i} < 10"),
+        Param("condition", "条件表达式", "any-expr", required=True, placeholder="如 ${i} < 10"),
     ]
 
 

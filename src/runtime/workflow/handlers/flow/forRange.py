@@ -9,8 +9,8 @@ from ..registry import register_handler, Param
     description="按指定次数循环执行")
 class ForRangeHandler:
     params = [
-        Param("start", "起始值", "number", default=0),
-        Param("end", "结束值", "number", default=10),
-        Param("step", "步长", "number", default=1),
-        Param("varName", "循环变量", "text", default="i", group="output"),
+        Param("start", "起始值", "int-number", default=0),
+        Param("end", "结束值", "int-number", default=10),
+        Param("step", "步长", "int-number", default=1),
+        Param("varName", "循环变量", "str-input", default="i", group="output"),
     ]

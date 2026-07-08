@@ -4,5 +4,5 @@ from ..registry import register_handler, Param
     icon="fa-hand-pointer", icon_color="text-blue-500", bg_color="bg-blue-50", category_order=40, command_order=31)
 class UnhoverHandler:
     params = [
-        Param("element_name", "元素", "elementName", required=True, group="主属性"),
+        Param("element_name", "元素", "str-element", required=True, group="主属性"),
     ]

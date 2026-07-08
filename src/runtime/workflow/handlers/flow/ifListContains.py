@@ -8,6 +8,6 @@ from ..registry import register_handler, Param
     icon="fa-list", icon_color="text-cyan-500", bg_color="bg-cyan-50", category_order=85, command_order=60)
 class IfListContainsHandler:
     params = [
-        Param("listVar", "列表变量", "varName", required=True),
-        Param("value", "查找值", "text", required=True),
+        Param("listVar", "列表变量", "str-var", required=True),
+        Param("value", "查找值", "str-input", required=True),
     ]

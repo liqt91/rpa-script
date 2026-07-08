@@ -5,5 +5,5 @@ from ..registry import register_handler, Param
     description="关闭浏览器窗口")
 class CloseBrowserHandler:
     params = [
-        Param("windowVar", "窗口变量", "varName", default="browser1", group="input"),
+        Param("windowVar", "窗口变量", "str-var", default="browser1", group="input"),
     ]

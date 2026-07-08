@@ -8,6 +8,6 @@ from ..registry import register_handler, Param
     icon="fa-search", icon_color="text-cyan-500", bg_color="bg-cyan-50", category_order=85, command_order=50)
 class IfVarContainsHandler:
     params = [
-        Param("varName", "变量名", "varName", required=True),
-        Param("substring", "包含文本", "text", required=True),
+        Param("varName", "变量名", "str-var", required=True),
+        Param("substring", "包含文本", "str-input", required=True),
     ]

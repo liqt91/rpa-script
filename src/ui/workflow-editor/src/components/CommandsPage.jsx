@@ -13,9 +13,11 @@ const HANDLER_DESC = {
 };
 
 const FIELD_TYPES = [
-  {v:'text',l:'文本'},{v:'number',l:'数字'},{v:'bool',l:'开关'},
-  {v:'select',l:'下拉'},{v:'varName',l:'变量'},{v:'elementName',l:'元素'},
-  {v:'textarea',l:'多行'},{v:'code',l:'代码'},
+  {v:'str-input',l:'str · 文本'},{v:'str-textarea',l:'str · 多行'},{v:'str-var',l:'str · 变量'},
+  {v:'str-dropdown',l:'str · 下拉'},{v:'str-element',l:'str · 元素'},
+  {v:'int-number',l:'int · 数字'},{v:'bool-check',l:'bool · 开关'},
+  {v:'list-input',l:'list · 文本'},{v:'dict-input',l:'dict · 文本'},
+  {v:'any-expr',l:'any · 代码'},{v:'any-input',l:'any · 单行'},
 ];
 
 const FIELD_GROUPS = [

@@ -1,6 +1,6 @@
 """HTTP 请求 + 表格操作 — httpRequest, writeTableRow, readTableCell, writeTableCell, getTableRowCount"""
 from ..registry import register_handler, Param
-from ..utils import resolve_vars
+from ..utils import resolve_vars, convert_value
 import json, asyncio, logging
 
 logger = logging.getLogger(__name__)
@@ -9,25 +9,19 @@ logger = logging.getLogger(__name__)
     icon="fa-table", icon_color="text-orange-500", bg_color="bg-orange-50", category_order=70, command_order=10)
 class WriteTableRowHandler:
     params = [
-        Param("rowData", "行数据", "text", required=True, placeholder="[${colA}, ${colB}]"),
-        Param("writeMode", "写入模式", "select",
+        Param("rowData", "行数据", "list-input", required=True, placeholder='["${colA}", "${colB}"]'),
+        Param("writeMode", "写入模式", "str-dropdown",
               options=[{"label": "追加", "value": "append"}, {"label": "覆盖指定行", "value": "overwrite"}],
               default="append"),
-        Param("rowIndex", "行号", "number", default=0),
+        Param("rowIndex", "行号", "int-number", default=0),
     ]
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
         extra = instr.get("extra") or {}
-        row_data = resolve_vars(extra.get("rowData", "[]"), runner.vars)
+        row_data = convert_value(extra.get("rowData", "[]"), "list-input", runner.vars)
         write_mode = extra.get("writeMode", "append")
         row_index = int(extra.get("rowIndex", 0))
-
-        if isinstance(row_data, str):
-            try:
-                row_data = json.loads(row_data)
-            except Exception:
-                row_data = [row_data]
 
         table = runner._ensure_table_data()
         rows = table.setdefault("rows", [])
@@ -49,6 +43,11 @@ class WriteTableRowHandler:
             rows[row_index] = row_dict
 
         runner.completed += 1
+        table_snapshot = {"columns": table.get("columns", []), "rows": table.get("rows", [])}
+        # 实时刷新缓存（轮询用）+ SSE 推送（实时用）
+        from src.runtime.workflow.extension_runner import _last_run_tables
+        if runner.workflow_id:
+            _last_run_tables[runner.workflow_id] = {**table_snapshot, "runId": runner.run_id, "success": None}
         await runner._emit({"type": "stepComplete", "stepId": step_id, "nodeId": instr.get("nodeId"),
-            "result": {"writeTableRow": True}})
+            "result": {"writeTableRow": True, "tableData": table_snapshot}})
         return True

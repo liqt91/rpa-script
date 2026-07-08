@@ -4,7 +4,7 @@ from ..registry import register_handler, Param
     icon="fa-arrows-alt-v", icon_color="text-purple-500", bg_color="bg-purple-50", category_order=60, command_order=50)
 class ScrollOneScreenHandler:
     params = [
-        Param("scrollContainer", "滚动容器", "elementName", required=False, group="主属性"),
-        Param("direction", "方向", "select",
+        Param("scrollContainer", "滚动容器", "str-element", required=False, group="主属性"),
+        Param("direction", "方向", "str-dropdown",
               options=[{"label": "向下", "value": "down"}, {"label": "向上", "value": "up"}], default="down"),
     ]

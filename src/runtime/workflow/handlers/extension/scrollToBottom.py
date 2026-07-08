@@ -5,6 +5,6 @@ from ..registry import register_handler, Param
     description="滚动页面到底部")
 class ScrollToBottomHandler:
     params = [
-        Param("scrollContainer", "滚动容器", "elementName", required=False, group="主属性",
+        Param("scrollContainer", "滚动容器", "str-element", required=False, group="主属性",
               description="留空则滚动整个页面"),
     ]

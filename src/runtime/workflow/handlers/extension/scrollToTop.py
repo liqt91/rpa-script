@@ -4,5 +4,5 @@ from ..registry import register_handler, Param
     icon="fa-arrow-up", icon_color="text-purple-500", bg_color="bg-purple-50", category_order=60, command_order=40)
 class ScrollToTopHandler:
     params = [
-        Param("scrollContainer", "滚动容器", "elementName", required=False, group="主属性"),
+        Param("scrollContainer", "滚动容器", "str-element", required=False, group="主属性"),
     ]

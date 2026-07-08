@@ -8,7 +8,7 @@ from ..registry import register_handler, Param
     icon="fa-exclamation-triangle", icon_color="text-red-500", bg_color="bg-red-50", category_order=87, command_order=20)
 class CatchHandler:
     params = [
-        Param("errorVar", "错误信息保存到", "varName", default="error", group="output"),
+        Param("errorVar", "错误信息保存到", "str-var", default="error", group="output"),
     ]
 
 

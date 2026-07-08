@@ -5,7 +5,7 @@ Architecture:
   handlers/
     backend/     — Python handler classes (local execution, @register_handler)
     extension/   — manifest declaring extension-side handlers (content.js)
-    emitters/    — manifest declaring emitter/container commands (Python emitter)
+    flow/        — 流程控制指令声明（容器 / 分支 / 结束标记 / 跳转）
 
 How it works:
   1. Importing this package auto-scans all three directories for .py files.
@@ -16,7 +16,7 @@ How it works:
 Mapping conventions (no hardcoded config):
   - Extension handler:  type name in _manifest.py == registerHandler(name, ...) in content.js
   - Backend handler:   type name in backend/*.py == handler class name convention
-  - Emitter:           type name in emitters/_manifest.py == @_handler(type) in emitters/*.py
+  - Emitter:           type name in flow/*.py == @register_handler(type=...)
 """
 import importlib
 import pkgutil
@@ -39,4 +39,4 @@ def _auto_import_subpackage(subpackage_name: str):
 # Auto-discover and register all handlers
 _auto_import_subpackage("backend")
 _auto_import_subpackage("extension")
-_auto_import_subpackage("emitters")
+_auto_import_subpackage("flow")

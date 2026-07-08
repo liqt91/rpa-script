@@ -7,7 +7,7 @@ import asyncio
     icon="fa-clock", icon_color="text-yellow-500", bg_color="bg-yellow-50", category_order=20, command_order=10)
 class SleepHandler:
     params = [
-        Param("seconds", "等待秒数", "number", default=3),
+        Param("seconds", "等待秒数", "int-number", default=3),
     ]
 
     @staticmethod

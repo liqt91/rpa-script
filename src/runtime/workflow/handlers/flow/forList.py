@@ -9,7 +9,7 @@ from ..registry import register_handler, Param
     description="遍历列表变量中的每个元素")
 class ForListHandler:
     params = [
-        Param("listVar", "列表变量", "varName", required=True, group="主属性"),
-        Param("itemVar", "当前项变量", "text", required=True, default="item", group="output"),
-        Param("indexVar", "索引变量", "text", default="index", group="output"),
+        Param("listVar", "列表变量", "str-var", required=True, group="主属性"),
+        Param("itemVar", "当前项变量", "str-input", required=True, default="item", group="output"),
+        Param("indexVar", "索引变量", "str-input", default="index", group="output"),
     ]

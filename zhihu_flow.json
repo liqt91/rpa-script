@@ -1,0 +1,355 @@
+{
+  "name": "知乎关键词搜索统计",
+  "nodes": [
+    {
+      "id": 1,
+      "order": 1,
+      "type": "openBrowser",
+      "parent_id": null,
+      "extra": {
+        "browserType": "edge",
+        "windowState": "maximized",
+        "windowVar": "browser1",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "openBrowser"
+    },
+    {
+      "id": 2,
+      "order": 2,
+      "type": "setVar",
+      "parent_id": null,
+      "extra": {
+        "name": "关键词列表",
+        "value": "[\"知乎财富\",\"同花顺\",\"雪球\",\"华泰证券\",\"华泰通\",\"京东\",\"京东证券\",\"东方财富\"]",
+        "valueType": "list-input",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "setVar"
+    },
+    {
+      "id": 3,
+      "order": 3,
+      "type": "forList",
+      "parent_id": null,
+      "extra": {
+        "listVar": "${关键词列表}",
+        "itemVar": "当前关键词",
+        "indexVar": "index",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "forList"
+    },
+    {
+      "id": 4,
+      "order": 4,
+      "type": "navigate",
+      "parent_id": 3,
+      "extra": {
+        "windowVar": "browser1",
+        "url": "https://www.zhihu.com/search?type=content&q=${当前关键词}",
+        "waitLoad": true,
+        "saveToVar": null,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "navigate"
+    },
+    {
+      "id": 5,
+      "order": 5,
+      "type": "forRange",
+      "parent_id": 3,
+      "extra": {
+        "start": 0,
+        "end": 999,
+        "step": 1,
+        "varName": "页数",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "forRange"
+    },
+    {
+      "id": 6,
+      "order": 6,
+      "type": "ifElementVisible",
+      "parent_id": 5,
+      "extra": {
+        "element_name": "到底了-没有满意结果",
+        "operator": "visible",
+        "scope": "global",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "ifElementVisible"
+    },
+    {
+      "id": 7,
+      "order": 7,
+      "type": "break",
+      "parent_id": 6,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "break"
+    },
+    {
+      "id": 8,
+      "order": 8,
+      "type": "endIf",
+      "parent_id": 5,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "endIf"
+    },
+    {
+      "id": 9,
+      "order": 9,
+      "type": "scrollToBottom",
+      "parent_id": 5,
+      "extra": {
+        "scrollContainer": null,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "scrollToBottom"
+    },
+    {
+      "id": 10,
+      "order": 10,
+      "type": "ifElementVisible",
+      "parent_id": 5,
+      "extra": {
+        "element_name": "到底了_没有更多了",
+        "operator": "visible",
+        "scope": "global",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "ifElementVisible"
+    },
+    {
+      "id": 11,
+      "order": 11,
+      "type": "break",
+      "parent_id": 10,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "break"
+    },
+    {
+      "id": 12,
+      "order": 12,
+      "type": "endIf",
+      "parent_id": 5,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "endIf"
+    },
+    {
+      "id": 13,
+      "order": 13,
+      "type": "forEachElement",
+      "parent_id": 5,
+      "extra": {
+        "element_name": "帖子列表新",
+        "itemVar": "帖子",
+        "indexVar": "帖子索引",
+        "scope": "global",
+        "visibilityMode": "visible",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "forEachElement"
+    },
+    {
+      "id": 14,
+      "order": 14,
+      "type": "getText",
+      "parent_id": 13,
+      "extra": {
+        "element_name": "帖子标题",
+        "varName": "标题",
+        "scope": "local",
+        "loopAnchor": null,
+        "visibilityMode": "visible",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "getText"
+    },
+    {
+      "id": 15,
+      "order": 15,
+      "type": "getText",
+      "parent_id": 13,
+      "extra": {
+        "element_name": "帖子正文摘要",
+        "varName": "摘要",
+        "scope": "local",
+        "loopAnchor": null,
+        "visibilityMode": "visible",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "getText"
+    },
+    {
+      "id": 16,
+      "order": 16,
+      "type": "writeTableRow",
+      "parent_id": 13,
+      "extra": {
+        "rowData": "[\"${当前关键词}\", \"${标题}\", \"${摘要}\"]",
+        "writeMode": "append",
+        "rowIndex": null,
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "writeTableRow"
+    },
+    {
+      "id": 17,
+      "order": 17,
+      "type": "endFor",
+      "parent_id": 5,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "endFor"
+    },
+    {
+      "id": 18,
+      "order": 18,
+      "type": "endFor",
+      "parent_id": 3,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "endFor"
+    },
+    {
+      "id": 19,
+      "order": 19,
+      "type": "endFor",
+      "parent_id": null,
+      "extra": {
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "endFor"
+    },
+    {
+      "id": 20,
+      "order": 20,
+      "type": "custom",
+      "parent_id": null,
+      "extra": {
+        "code": "keywords = [\"知乎财富\",\"同花顺\",\"雪球\",\"华泰证券\",\"华泰通\",\"京东\",\"京东证券\",\"东方财富\"]\ncounts = {kw: 0 for kw in keywords}\nfor row in _table:\n    abstract = row[2] if len(row) > 2 else \"\"\n    for kw in keywords:\n        counts[kw] += abstract.count(kw)\ncounts",
+        "resultVar": "statistic",
+        "onError": "stop",
+        "retryCount": 3,
+        "timeout": 10,
+        "humanLike": true
+      },
+      "element_name": null,
+      "action": "custom"
+    }
+  ],
+  "elements": [
+    {
+      "name": "帖子列表新",
+      "web_selector": "xpath://div[@role='list']/div",
+      "drission_selector": "verse:如他会4小时",
+      "element_kind": "plain"
+    },
+    {
+      "name": "帖子标题",
+      "web_selector": "xpath://h2[contains(@class,'ContentItem-title')]",
+      "drission_selector": "text=新品发布难改股价走势，影石创新Pre-IPO解禁结构交易拆解",
+      "element_kind": "plain"
+    },
+    {
+      "name": "帖子正文摘要",
+      "web_selector": "css:.ContentItem #content",
+      "drission_selector": "verse:m通信m通信",
+      "element_kind": "plain"
+    },
+    {
+      "name": "到底了-没有满意结果",
+      "web_selector": "xpath://div[contains(text(),'没有满意结果？提问快速获得回答')]",
+      "drission_selector": "verse:没有满提问快",
+      "element_kind": "plain"
+    }
+  ]
+}

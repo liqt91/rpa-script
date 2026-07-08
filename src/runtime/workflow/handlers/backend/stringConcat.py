@@ -1,20 +1,20 @@
 """字典操作 — setDictValue, getDictValue, removeDictKey, stringConcat"""
 from ..registry import register_handler, Param
-from ..utils import resolve_vars
+from ..utils import resolve_vars, clean_var_ref
 
 @register_handler(type="stringConcat", label="字符串拼接", category="变量操作", runtime="backend",
     icon="fa-plus", icon_color="text-green-500", bg_color="bg-green-50", category_order=30, command_order=70)
 class StringConcatHandler:
     params = [
-        Param("parts", "拼接内容", "text", required=True, placeholder='用 + 连接, 如 "hello" + ${name}'),
-        Param("saveToVar", "保存到变量", "varName", group="output"),
+        Param("parts", "拼接内容", "str-input", required=True, placeholder='用 + 连接, 如 "hello" + ${name}'),
+        Param("saveToVar", "保存到变量", "str-var", group="output"),
     ]
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
         extra = instr.get("extra") or {}
         parts = extra.get("parts", "")
-        save_to = extra.get("saveToVar") or extra.get("varName", "")
+        save_to = clean_var_ref(extra.get("saveToVar") or extra.get("varName", ""))
         result = resolve_vars(parts, runner.vars)
         if save_to:
             runner.vars[save_to] = result

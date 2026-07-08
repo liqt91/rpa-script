@@ -9,6 +9,6 @@ from ..registry import register_handler, Param
     description="遍历数据表格的每一行")
 class ForEachTableRowHandler:
     params = [
-        Param("itemVar", "当前行变量", "text", required=True, default="row", group="output"),
-        Param("indexVar", "索引变量", "text", default="index", group="output"),
+        Param("itemVar", "当前行变量", "str-input", required=True, default="row", group="output"),
+        Param("indexVar", "索引变量", "str-input", default="index", group="output"),
     ]

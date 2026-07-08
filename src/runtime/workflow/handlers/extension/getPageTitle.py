@@ -4,5 +4,5 @@ from ..registry import register_handler, Param
     icon="fa-heading", icon_color="text-blue-500", bg_color="bg-blue-50", category_order=10, command_order=50)
 class GetPageTitleHandler:
     params = [
-        Param("saveToVar", "保存到变量", "varName", required=True, group="output"),
+        Param("saveToVar", "保存到变量", "str-var", required=True, group="output"),
     ]

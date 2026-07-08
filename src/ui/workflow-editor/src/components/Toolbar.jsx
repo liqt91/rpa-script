@@ -362,10 +362,11 @@ export default function Toolbar() {
           const t = new Date().toLocaleTimeString('zh-CN');
           if (evt.type === 'stepStart') {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: evt.nodeId } });
-            if (evt.compound) {
+            if (evt.compound || evt._summary) {
               const node = nodes.find(n => n.id === evt.nodeId);
               const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
-              dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `${label}: 开始` } });
+              const summary = evt._summary ? ` → ${evt._summary}` : '';
+              dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `${label}${summary}` } });
             }
           } else if (evt.type === 'stepComplete') {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: null } });

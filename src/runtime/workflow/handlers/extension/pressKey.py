@@ -5,8 +5,8 @@ from ..registry import register_handler, Param
     description="发送键盘按键")
 class PressKeyHandler:
     params = [
-        Param("key", "按键", "text", required=True, default="Enter", placeholder="Enter / Tab / Escape / ..."),
-        Param("modifiers", "修饰键", "text", default="", placeholder="如 Ctrl,Alt,Shift", group="advanced",
+        Param("key", "按键", "str-input", required=True, default="Enter", placeholder="Enter / Tab / Escape / ..."),
+        Param("modifiers", "修饰键", "str-input", default="", placeholder="如 Ctrl,Alt,Shift", group="advanced",
               description="逗号分隔的修饰键"),
     ]
 

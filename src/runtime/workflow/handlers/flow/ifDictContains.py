@@ -8,8 +8,8 @@ from ..registry import register_handler, Param
     icon="fa-book", icon_color="text-cyan-500", bg_color="bg-cyan-50", category_order=85, command_order=70)
 class IfDictContainsHandler:
     params = [
-        Param("dictVar", "字典变量", "varName", required=True),
-        Param("key", "键名", "text", required=True),
+        Param("dictVar", "字典变量", "str-var", required=True),
+        Param("key", "键名", "str-input", required=True),
     ]
 
 

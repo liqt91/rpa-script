@@ -7,8 +7,8 @@ import asyncio, random
     icon="fa-random", icon_color="text-yellow-500", bg_color="bg-yellow-50", category_order=20, command_order=20)
 class RandomSleepHandler:
     params = [
-        Param("minSeconds", "最小秒数", "number", default=1),
-        Param("maxSeconds", "最大秒数", "number", default=5),
+        Param("minSeconds", "最小秒数", "int-number", default=1),
+        Param("maxSeconds", "最大秒数", "int-number", default=5),
     ]
 
     @staticmethod

@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
     icon="fa-table", icon_color="text-orange-500", bg_color="bg-orange-50", category_order=70, command_order=30)
 class WriteTableCellHandler:
     params = [
-        Param("rowIndex", "行号", "number", required=True),
-        Param("colIndex", "列号/列名", "text", required=True),
-        Param("value", "值", "text"),
+        Param("rowIndex", "行号", "int-number", required=True),
+        Param("colIndex", "列号/列名", "str-input", required=True),
+        Param("value", "值", "any-input"),
     ]
 
     @staticmethod

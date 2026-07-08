@@ -5,8 +5,8 @@ from ..registry import register_handler, Param
     description="随机等待 min~max 秒")
 class RandomWaitHandler:
     params = [
-        Param("min", "最小秒数", "number", default=1),
-        Param("max", "最大秒数", "number", default=5),
+        Param("min", "最小秒数", "int-number", default=1),
+        Param("max", "最大秒数", "int-number", default=5),
     ]
 
 

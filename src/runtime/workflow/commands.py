@@ -14,22 +14,22 @@ from typing import Any
 # ─── Field type helpers ───────────────────────────────────────────
 
 def _element_name_field(required: bool = True) -> dict:
-    return {"name": "element_name", "label": "元素", "type": "elementName", "required": required, "isPrimaryElement": True}
+    return {"name": "element_name", "label": "元素", "type": "str-element", "required": required, "isPrimaryElement": True}
 
 def _timeout_field(default: int = 10) -> dict:
-    return {"name": "timeout", "label": "超时(秒)", "type": "number", "default": default, "group": "advanced"}
+    return {"name": "timeout", "label": "超时(秒)", "type": "int-number", "default": default, "group": "advanced"}
 
 def _var_field(name: str = "varName", label: str = "保存到变量") -> dict:
-    return {"name": name, "label": label, "type": "varName", "required": False, "group": "output"}
+    return {"name": name, "label": label, "type": "str-var", "required": False, "group": "output"}
 
 def _window_var_field() -> dict:
-    return {"name": "windowVar", "label": "窗口变量", "type": "varName", "required": False, "default": "browser1", "placeholder": "如 browser1", "group": "input"}
+    return {"name": "windowVar", "label": "窗口变量", "type": "str-var", "required": False, "default": "browser1", "placeholder": "如 browser1", "group": "input"}
 
 def _scope_field() -> dict:
     return {
         "name": "scope",
         "label": "匹配范围",
-        "type": "select",
+        "type": "str-dropdown",
         "options": [
             {"label": "在当前外层元素内查找", "value": "local"},
             {"label": "全页面匹配", "value": "global"},
@@ -43,7 +43,7 @@ def _on_error_field(default: str = "stop") -> dict:
     return {
         "name": "onError",
         "label": "执行失败时",
-        "type": "select",
+        "type": "str-dropdown",
         "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
         "default": default,
         "group": "advanced",
@@ -53,7 +53,7 @@ def _retry_count_field(default: int = 3) -> dict:
     return {
         "name": "retryCount",
         "label": "重试次数",
-        "type": "number",
+        "type": "int-number",
         "default": default,
         "group": "advanced",
     }
@@ -62,7 +62,7 @@ def _visibility_mode_field() -> dict:
     return {
         "name": "visibilityMode",
         "label": "元素可见性",
-        "type": "select",
+        "type": "str-dropdown",
         "options": [
             {"label": "匹配可见元素", "value": "visible"},
             {"label": "匹配所有元素", "value": "any"},
@@ -76,7 +76,7 @@ def _use_relative_field() -> dict:
     return {
         "name": "useRelative",
         "label": "使用相对解析",
-        "type": "bool",
+        "type": "bool-check",
         "default": True,
         "group": "anchor",
         "description": "开启时优先使用捕获时记录的相对选择器（相对循环项解析）；关闭则回退到全局绝对选择器。",
@@ -86,7 +86,7 @@ def _loop_anchor_field() -> dict:
     return {
         "name": "loopAnchor",
         "label": "锚点元素",
-        "type": "select",
+        "type": "str-dropdown",
         "options": [{"label": "最近外层循环", "value": ""}],
         "default": "",
         "group": "anchor",
@@ -97,7 +97,7 @@ def _reference_item_field() -> dict:
     return {
         "name": "referenceItemItself",
         "label": "引用循环项本身",
-        "type": "bool",
+        "type": "bool-check",
         "default": False,
         "group": "anchor",
         "description": "开启后目标即为当前循环项本身，不再在其内部查找子元素。",
@@ -127,7 +127,7 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
             {
                 "name": "humanLike",
                 "label": "拟人化操作",
-                "type": "bool",
+                "type": "bool-check",
                 "default": True,
                 "group": "advanced",
             }
@@ -180,10 +180,10 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "openBrowser", "local": True}},
         "fields": [
-            {"name": "browserType", "label": "浏览器", "type": "select", "options": [{"label": "Chrome", "value": "chrome"}, {"label": "Edge", "value": "edge"}], "default": "chrome"},
-            {"name": "url", "label": "启动后打开网址", "type": "text", "required": False, "placeholder": "留空则打开 about:blank"},
-            {"name": "windowState", "label": "窗口状态", "type": "select", "options": [{"label": "正常", "value": "normal"}, {"label": "最大化", "value": "maximized"}], "default": "normal"},
-            {"name": "saveToVar", "label": "保存窗口对象到", "type": "varName", "required": False, "default": "browser1", "group": "output"},
+            {"name": "browserType", "label": "浏览器", "type": "str-dropdown", "options": [{"label": "Chrome", "value": "chrome"}, {"label": "Edge", "value": "edge"}], "default": "chrome"},
+            {"name": "url", "label": "启动后打开网址", "type": "str-input", "required": False, "placeholder": "留空则打开 about:blank"},
+            {"name": "windowState", "label": "窗口状态", "type": "str-dropdown", "options": [{"label": "正常", "value": "normal"}, {"label": "最大化", "value": "maximized"}], "default": "normal"},
+            {"name": "saveToVar", "label": "保存窗口对象到", "type": "str-var", "required": False, "default": "browser1", "group": "output"},
         ],
     },
     "navigate": {
@@ -198,9 +198,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "navigate", "local": False}},
         "fields": [
-            {"name": "url", "label": "网址", "type": "text", "required": True, "placeholder": "https://..."},
+            {"name": "url", "label": "网址", "type": "str-input", "required": True, "placeholder": "https://..."},
             _window_var_field(),
-            {"name": "waitLoad", "label": "等待加载完成", "type": "bool", "default": True},
+            {"name": "waitLoad", "label": "等待加载完成", "type": "bool-check", "default": True},
             _timeout_field(30),
             _var_field("saveToVar", "保存网页对象到"),
         ],
@@ -218,7 +218,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "newTab", "local": False}},
         "fields": [
             _window_var_field(),
-            {"name": "url", "label": "网址(可选)", "type": "text", "required": False, "placeholder": "https://..."},
+            {"name": "url", "label": "网址(可选)", "type": "str-input", "required": False, "placeholder": "https://..."},
         ],
     },
     "closeTab": {
@@ -302,14 +302,14 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             {
                 "name": "forceJs",
                 "label": "强制JS点击",
-                "type": "bool",
+                "type": "bool-check",
                 "default": False,
                 "description": "开启后直接调用元素的 el.click()，不触发鼠标移动和 mousedown/mouseup/click 事件序列。适合被反自动化拦截时使用。若同时开启，优先级高于“拟人化操作”。",
             },
             {
                 "name": "humanLike",
                 "label": "拟人化操作",
-                "type": "bool",
+                "type": "bool-check",
                 "default": True,
                 "group": "advanced",
                 "description": "开启时点击前会先平滑滚动到元素，并模拟鼠标移动轨迹，依次触发 mousedown → mouseup → click 事件；关闭后使用瞬时滚动并直接点击。若“强制JS点击”同时开启，本选项被忽略。",
@@ -366,18 +366,18 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [
             _window_var_field(),
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "clickCurrentLoopItem"},
-            {"name": "itemVar", "label": "循环元素变量名", "type": "varName", "default": "item", "description": "需要与外层 forEachElement 的元素变量名保持一致，仅影响 Python 导出。"},
+            {"name": "itemVar", "label": "循环元素变量名", "type": "str-var", "default": "item", "description": "需要与外层 forEachElement 的元素变量名保持一致，仅影响 Python 导出。"},
             {
                 "name": "forceJs",
                 "label": "强制JS点击",
-                "type": "bool",
+                "type": "bool-check",
                 "default": False,
                 "description": "开启后直接调用当前循环元素的 el.click()，不触发鼠标移动和 mousedown/mouseup/click 事件序列。",
             },
             {
                 "name": "humanLike",
                 "label": "拟人化操作",
-                "type": "bool",
+                "type": "bool-check",
                 "default": True,
                 "group": "advanced",
                 "description": "开启时点击前会先平滑滚动到当前循环元素，并模拟鼠标移动轨迹触发点击事件；关闭后使用瞬时滚动并直接点击。",
@@ -419,8 +419,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _element_name_field(),
             _scope_field(),
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "input"},
-            {"name": "text", "label": "输入内容", "type": "text", "required": True},
-            {"name": "clearFirst", "label": "先清空", "type": "bool", "default": True},
+            {"name": "text", "label": "输入内容", "type": "str-input", "required": True},
+            {"name": "clearFirst", "label": "先清空", "type": "bool-check", "default": True},
         ],
     },
     "inputAndPressEnter": {
@@ -439,8 +439,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _element_name_field(),
             _scope_field(),
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "inputAndPressEnter"},
-            {"name": "text", "label": "输入内容", "type": "text", "required": True},
-            {"name": "clearFirst", "label": "先清空", "type": "bool", "default": True},
+            {"name": "text", "label": "输入内容", "type": "str-input", "required": True},
+            {"name": "clearFirst", "label": "先清空", "type": "bool-check", "default": True},
         ],
     },
     "clearInput": {
@@ -473,7 +473,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "pressKey", "local": False}},
         "fields": [
             _window_var_field(),
-            {"name": "key", "label": "按键", "type": "select", "options": [{"label": "回车", "value": "Enter"}, {"label": "Tab", "value": "Tab"}, {"label": "Esc", "value": "Esc"}, {"label": "向下箭头", "value": "ArrowDown"}, {"label": "向上箭头", "value": "ArrowUp"}, {"label": "PageDown", "value": "PageDown"}, {"label": "PageUp", "value": "PageUp"}, {"label": "空格", "value": "Space"}, {"label": "退格", "value": "Backspace"}], "default": "Enter"},
+            {"name": "key", "label": "按键", "type": "str-dropdown", "options": [{"label": "回车", "value": "Enter"}, {"label": "Tab", "value": "Tab"}, {"label": "Esc", "value": "Esc"}, {"label": "向下箭头", "value": "ArrowDown"}, {"label": "向上箭头", "value": "ArrowUp"}, {"label": "PageDown", "value": "PageDown"}, {"label": "PageUp", "value": "PageUp"}, {"label": "空格", "value": "Space"}, {"label": "退格", "value": "Backspace"}], "default": "Enter"},
         ],
     },
     "selectOption": {
@@ -491,8 +491,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _window_var_field(),
             _element_name_field(),
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "selectOption"},
-            {"name": "by", "label": "选择方式", "type": "select", "options": [{"label": "值", "value": "value"}, {"label": "文本", "value": "label"}, {"label": "索引", "value": "index"}], "default": "label"},
-            {"name": "value", "label": "值", "type": "text", "required": True},
+            {"name": "by", "label": "选择方式", "type": "str-dropdown", "options": [{"label": "值", "value": "value"}, {"label": "文本", "value": "label"}, {"label": "索引", "value": "index"}], "default": "label"},
+            {"name": "value", "label": "值", "type": "str-input", "required": True},
         ],
     },
 
@@ -534,7 +534,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _element_name_field(),
             _scope_field(),
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "extract"},
-            {"name": "attrName", "label": "属性名", "type": "text", "required": True, "placeholder": "href / src / data-id"},
+            {"name": "attrName", "label": "属性名", "type": "str-input", "required": True, "placeholder": "href / src / data-id"},
             _var_field(),
         ],
     },
@@ -553,7 +553,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _window_var_field(),
             _element_name_field(),
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "extract"},
-            {"name": "mode", "label": "模式", "type": "select", "options": [{"label": "内部HTML", "value": "inner"}, {"label": "包含标签", "value": "outer"}], "default": "inner"},
+            {"name": "mode", "label": "模式", "type": "str-dropdown", "options": [{"label": "内部HTML", "value": "inner"}, {"label": "包含标签", "value": "outer"}], "default": "inner"},
             _var_field(),
         ],
     },
@@ -611,8 +611,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _window_var_field(),
             {**_element_name_field(required=False), "label": "目标元素(可选)", "description": "留空则滚动页面；指定元素则在元素内部滚动到底部"},
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "scroll"},
-            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
-            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
+            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool-check", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool-check", "default": True},
         ],
     },
     "scrollToTop": {
@@ -630,8 +630,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _window_var_field(),
             {**_element_name_field(required=False), "label": "目标元素(可选)", "description": "留空则滚动页面；指定元素则在元素内部滚动到顶部"},
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "scroll"},
-            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
-            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
+            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool-check", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool-check", "default": True},
         ],
     },
     "scrollOneScreen": {
@@ -649,8 +649,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _window_var_field(),
             {**_element_name_field(required=False), "label": "目标元素(可选)", "description": "留空则滚动页面；指定元素则在元素内部滚动一屏"},
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "scroll"},
-            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
-            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
+            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool-check", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool-check", "default": True},
         ],
     },
     "scrollBy": {
@@ -668,10 +668,10 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             _window_var_field(),
             {**_element_name_field(required=False), "label": "目标元素(可选)", "description": "留空则滚动页面；指定元素则在元素内部滚动指定距离"},
             {"name": "action", "label": "扩展动作", "type": "hidden", "default": "scroll"},
-            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
-            {"name": "x", "label": "水平距离(px)", "type": "number", "default": 0},
-            {"name": "y", "label": "垂直距离(px)", "type": "number", "default": 500},
-            {"name": "humanLike", "label": "平滑滚动", "type": "bool", "default": True},
+            {"name": "lookupScrollable", "label": "向上查找可滚动元素", "type": "bool-check", "default": False, "description": "开启时若选中元素本身不可滚动，会自动向上查找最近的可滚动父元素；关闭时严格滚动选中元素"},
+            {"name": "x", "label": "水平距离(px)", "type": "int-number", "default": 0},
+            {"name": "y", "label": "垂直距离(px)", "type": "int-number", "default": 500},
+            {"name": "humanLike", "label": "平滑滚动", "type": "bool-check", "default": True},
         ],
     },
 
@@ -691,7 +691,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "wait", "local": True}},
         "fields": [
             _window_var_field(),
-            {"name": "seconds", "label": "等待秒数", "type": "number", "default": 1.0},
+            {"name": "seconds", "label": "等待秒数", "type": "int-number", "default": 1.0},
         ],
     },
     "randomSleep": {
@@ -707,8 +707,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "runtimes": {"extension": {"handler": "randomWait", "local": True}},
         "fields": [
             _window_var_field(),
-            {"name": "minSeconds", "label": "最短等待(秒)", "type": "number", "default": 1.0},
-            {"name": "maxSeconds", "label": "最长等待(秒)", "type": "number", "default": 3.0},
+            {"name": "minSeconds", "label": "最短等待(秒)", "type": "int-number", "default": 1.0},
+            {"name": "maxSeconds", "label": "最长等待(秒)", "type": "int-number", "default": 3.0},
         ],
     },
     "waitForElement": {
@@ -759,7 +759,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [
             _window_var_field(),
             _element_name_field(),
-            {"name": "text", "label": "期望文本", "type": "text", "required": True},
+            {"name": "text", "label": "期望文本", "type": "str-input", "required": True},
             _timeout_field(10),
         ],
     },
@@ -775,7 +775,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "fields": [
             _window_var_field(),
-            {"name": "urlPattern", "label": "URL包含", "type": "text", "required": True},
+            {"name": "urlPattern", "label": "URL包含", "type": "str-input", "required": True},
             _timeout_field(10),
         ],
     },
@@ -791,7 +791,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "fields": [
             _window_var_field(),
-            {"name": "state", "label": "加载状态", "type": "select", "options": [{"label": "DOM就绪", "value": "domcontentloaded"}, {"label": "网络空闲", "value": "networkidle"}], "default": "networkidle"},
+            {"name": "state", "label": "加载状态", "type": "str-dropdown", "options": [{"label": "DOM就绪", "value": "domcontentloaded"}, {"label": "网络空闲", "value": "networkidle"}], "default": "networkidle"},
             _timeout_field(30),
         ],
     },
@@ -813,9 +813,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "closesWith": "endIf",
         "fields": [
             _element_name_field(),
-            {"name": "element_names", "label": "附加元素", "type": "elementNameList", "required": False},
+            {"name": "element_names", "label": "附加元素", "type": "str-element-list", "required": False},
             _scope_field(),
-            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "可见", "value": "visible"}, {"label": "不可见", "value": "notVisible"}], "default": "visible"},
+            {"name": "operator", "label": "条件", "type": "str-dropdown", "options": [{"label": "可见", "value": "visible"}, {"label": "不可见", "value": "notVisible"}], "default": "visible"},
             _visibility_mode_field(),
         ],
     },
@@ -833,8 +833,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "fields": [
             _element_name_field(),
             _scope_field(),
-            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "包含", "value": "contains"}, {"label": "不包含", "value": "notContains"}, {"label": "开头为", "value": "startsWith"}, {"label": "结尾为", "value": "endsWith"}], "default": "contains"},
-            {"name": "text", "label": "文本", "type": "text", "required": True},
+            {"name": "operator", "label": "条件", "type": "str-dropdown", "options": [{"label": "包含", "value": "contains"}, {"label": "不包含", "value": "notContains"}, {"label": "开头为", "value": "startsWith"}, {"label": "结尾为", "value": "endsWith"}], "default": "contains"},
+            {"name": "text", "label": "文本", "type": "str-input", "required": True},
         ],
     },
     "ifTextEquals": {
@@ -850,7 +850,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "closesWith": "endIf",
         "fields": [
             _element_name_field(),
-            {"name": "text", "label": "等于文本", "type": "text", "required": True},
+            {"name": "text", "label": "等于文本", "type": "str-input", "required": True},
         ],
     },
     "ifVarEquals": {
@@ -865,10 +865,10 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": True,
         "closesWith": "endIf",
         "fields": [
-            {"name": "varName", "label": "变量名", "type": "varName", "required": True},
-            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "等于", "value": "equals"}, {"label": "大于", "value": "greaterThan"}, {"label": "小于", "value": "lessThan"}], "default": "equals"},
-            {"name": "value", "label": "比较值", "type": "text", "required": True},
-            {"name": "valueType", "label": "值类型", "type": "select", "options": [{"label": "字符串", "value": "string"}, {"label": "数字", "value": "number"}, {"label": "布尔值", "value": "bool"}], "default": "string"},
+            {"name": "varName", "label": "变量名", "type": "str-var", "required": True},
+            {"name": "operator", "label": "条件", "type": "str-dropdown", "options": [{"label": "等于", "value": "equals"}, {"label": "大于", "value": "greaterThan"}, {"label": "小于", "value": "lessThan"}], "default": "equals"},
+            {"name": "value", "label": "比较值", "type": "str-input", "required": True},
+            {"name": "valueType", "label": "值类型", "type": "str-dropdown", "options": [{"label": "字符串", "value": "string"}, {"label": "数字", "value": "number"}, {"label": "布尔值", "value": "bool"}], "default": "string"},
         ],
     },
     "ifVarContains": {
@@ -883,9 +883,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": True,
         "closesWith": "endIf",
         "fields": [
-            {"name": "varName", "label": "变量名", "type": "varName", "required": True},
-            {"name": "operator", "label": "条件", "type": "select", "options": [{"label": "包含", "value": "contains"}, {"label": "不包含", "value": "notContains"}, {"label": "开头为", "value": "startsWith"}, {"label": "结尾为", "value": "endsWith"}], "default": "contains"},
-            {"name": "value", "label": "值", "type": "text", "required": True},
+            {"name": "varName", "label": "变量名", "type": "str-var", "required": True},
+            {"name": "operator", "label": "条件", "type": "str-dropdown", "options": [{"label": "包含", "value": "contains"}, {"label": "不包含", "value": "notContains"}, {"label": "开头为", "value": "startsWith"}, {"label": "结尾为", "value": "endsWith"}], "default": "contains"},
+            {"name": "value", "label": "值", "type": "str-input", "required": True},
         ],
     },
     "ifListContains": {
@@ -900,8 +900,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": True,
         "closesWith": "endIf",
         "fields": [
-            {"name": "listName", "label": "列表变量", "type": "varName", "required": True},
-            {"name": "value", "label": "包含值", "type": "text", "required": True},
+            {"name": "listName", "label": "列表变量", "type": "str-var", "required": True},
+            {"name": "value", "label": "包含值", "type": "str-input", "required": True},
         ],
     },
     "ifDictContains": {
@@ -916,8 +916,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": True,
         "closesWith": "endIf",
         "fields": [
-            {"name": "dictName", "label": "字典变量", "type": "varName", "required": True},
-            {"name": "key", "label": "键", "type": "text", "required": True},
+            {"name": "dictName", "label": "字典变量", "type": "str-var", "required": True},
+            {"name": "key", "label": "键", "type": "str-input", "required": True},
         ],
     },
     "else": {
@@ -968,7 +968,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
             {
                 "name": "visibilityMode",
                 "label": "元素可见性",
-                "type": "select",
+                "type": "str-dropdown",
                 "options": [
                     {"label": "匹配可见元素", "value": "visible"},
                     {"label": "匹配所有元素", "value": "any"},
@@ -977,8 +977,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
                 "group": "advanced",
                 "description": "匹配可见元素=过滤display:none/visibility:hidden/opacity:0/aria-hidden等渲染不可见元素；匹配所有元素=任意DOM元素都参与匹配。",
             },
-            {"name": "itemVar", "label": "元素变量名", "type": "varName", "default": "item"},
-            {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},
+            {"name": "itemVar", "label": "元素变量名", "type": "str-var", "default": "item"},
+            {"name": "indexVar", "label": "索引变量名", "type": "str-var", "default": "index"},
         ],
     },
     "forRange": {
@@ -993,10 +993,10 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": True,
         "closesWith": "endFor",
         "fields": [
-            {"name": "start", "label": "起始值", "type": "number", "default": 0},
-            {"name": "end", "label": "结束值", "type": "number", "default": 10},
-            {"name": "step", "label": "步长", "type": "number", "default": 1},
-            {"name": "varName", "label": "循环变量名", "type": "varName", "default": "i"},
+            {"name": "start", "label": "起始值", "type": "int-number", "default": 0},
+            {"name": "end", "label": "结束值", "type": "int-number", "default": 10},
+            {"name": "step", "label": "步长", "type": "int-number", "default": 1},
+            {"name": "varName", "label": "循环变量名", "type": "str-var", "default": "i"},
         ],
     },
     "forList": {
@@ -1011,9 +1011,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": True,
         "closesWith": "endFor",
         "fields": [
-            {"name": "listVar", "label": "列表变量", "type": "varName", "required": True},
-            {"name": "itemVar", "label": "元素变量名", "type": "varName", "default": "item"},
-            {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},
+            {"name": "listVar", "label": "列表变量", "type": "str-var", "required": True},
+            {"name": "itemVar", "label": "元素变量名", "type": "str-var", "default": "item"},
+            {"name": "indexVar", "label": "索引变量名", "type": "str-var", "default": "index"},
         ],
     },
     "forEachTableRow": {
@@ -1028,8 +1028,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": True,
         "closesWith": "endFor",
         "fields": [
-            {"name": "itemVar", "label": "行变量名", "type": "varName", "default": "row"},
-            {"name": "indexVar", "label": "索引变量名", "type": "varName", "default": "index"},
+            {"name": "itemVar", "label": "行变量名", "type": "str-var", "default": "row"},
+            {"name": "indexVar", "label": "索引变量名", "type": "str-var", "default": "index"},
         ],
     },
     "whileCondition": {
@@ -1044,14 +1044,14 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": True,
         "closesWith": "endFor",
         "fields": [
-            {"name": "conditionType", "label": "条件类型", "type": "select", "options": [{"label": "元素存在", "value": "elementExists"}, {"label": "元素不存在", "value": "elementNotExists"}, {"label": "URL包含", "value": "urlContains"}, {"label": "变量等于", "value": "varEquals"}, {"label": "变量包含", "value": "varContains"}], "default": "elementExists"},
+            {"name": "conditionType", "label": "条件类型", "type": "str-dropdown", "options": [{"label": "元素存在", "value": "elementExists"}, {"label": "元素不存在", "value": "elementNotExists"}, {"label": "URL包含", "value": "urlContains"}, {"label": "变量等于", "value": "varEquals"}, {"label": "变量包含", "value": "varContains"}], "default": "elementExists"},
             _element_name_field(required=False),
             _scope_field(),
-            {"name": "urlPattern", "label": "URL包含", "type": "text", "required": False},
-            {"name": "varName", "label": "变量名", "type": "varName", "required": False},
-            {"name": "varValue", "label": "变量值", "type": "text", "required": False},
-            {"name": "maxIterations", "label": "最大迭代次数", "type": "number", "default": 100},
-            {"name": "executeFirst", "label": "先执行循环体再判断条件", "type": "bool", "default": False, "description": "开启后变为 do-while：循环体至少执行一次，执行完再判断条件决定是否继续。"},
+            {"name": "urlPattern", "label": "URL包含", "type": "str-input", "required": False},
+            {"name": "varName", "label": "变量名", "type": "str-var", "required": False},
+            {"name": "varValue", "label": "变量值", "type": "str-input", "required": False},
+            {"name": "maxIterations", "label": "最大迭代次数", "type": "int-number", "default": 100},
+            {"name": "executeFirst", "label": "先执行循环体再判断条件", "type": "bool-check", "default": False, "description": "开启后变为 do-while：循环体至少执行一次，执行完再判断条件决定是否继续。"},
         ],
     },
     "break": {
@@ -1107,9 +1107,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "setVar", "local": True}},
         "fields": [
-            {"name": "name", "label": "变量名", "type": "varName", "required": True},
-            {"name": "value", "label": "值", "type": "text", "required": True},
-            {"name": "valueType", "label": "值类型", "type": "select", "options": [{"label": "字符串", "value": "string"}, {"label": "数字", "value": "number"}, {"label": "布尔值", "value": "bool"}, {"label": "列表", "value": "list"}, {"label": "字典", "value": "dict"}], "default": "string"},
+            {"name": "name", "label": "变量名", "type": "str-var", "required": True},
+            {"name": "value", "label": "值", "type": "str-input", "required": True},
+            {"name": "valueType", "label": "值类型", "type": "str-dropdown", "options": [{"label": "字符串", "value": "string"}, {"label": "数字", "value": "number"}, {"label": "布尔值", "value": "bool"}, {"label": "列表", "value": "list"}, {"label": "字典", "value": "dict"}], "default": "string"},
         ],
     },
     "appendToList": {
@@ -1124,8 +1124,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "appendToList", "local": True}},
         "fields": [
-            {"name": "listName", "label": "列表变量", "type": "varName", "required": True},
-            {"name": "value", "label": "值", "type": "text", "required": True},
+            {"name": "listName", "label": "列表变量", "type": "str-var", "required": True},
+            {"name": "value", "label": "值", "type": "str-input", "required": True},
         ],
     },
     "stringConcat": {
@@ -1140,10 +1140,10 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "stringConcat", "local": True}},
         "fields": [
-            {"name": "targetVar", "label": "目标变量", "type": "varName", "required": True},
-            {"name": "part1", "label": "片段1", "type": "text", "required": True},
-            {"name": "part2", "label": "片段2", "type": "text", "required": False},
-            {"name": "part3", "label": "片段3", "type": "text", "required": False},
+            {"name": "targetVar", "label": "目标变量", "type": "str-var", "required": True},
+            {"name": "part1", "label": "片段1", "type": "str-input", "required": True},
+            {"name": "part2", "label": "片段2", "type": "str-input", "required": False},
+            {"name": "part3", "label": "片段3", "type": "str-input", "required": False},
         ],
     },
     "increment": {
@@ -1158,8 +1158,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "increment", "local": True}},
         "fields": [
-            {"name": "varName", "label": "变量名", "type": "varName", "required": True},
-            {"name": "step", "label": "步长", "type": "number", "default": 1},
+            {"name": "varName", "label": "变量名", "type": "str-var", "required": True},
+            {"name": "step", "label": "步长", "type": "int-number", "default": 1},
         ],
     },
     "setDictValue": {
@@ -1174,9 +1174,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "setDictValue", "local": True}},
         "fields": [
-            {"name": "dictName", "label": "字典变量", "type": "varName", "required": True},
-            {"name": "key", "label": "键", "type": "text", "required": True},
-            {"name": "value", "label": "值", "type": "text", "required": True},
+            {"name": "dictName", "label": "字典变量", "type": "str-var", "required": True},
+            {"name": "key", "label": "键", "type": "str-input", "required": True},
+            {"name": "value", "label": "值", "type": "str-input", "required": True},
         ],
     },
     "getDictValue": {
@@ -1191,8 +1191,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "getDictValue", "local": True}},
         "fields": [
-            {"name": "dictName", "label": "字典变量", "type": "varName", "required": True},
-            {"name": "key", "label": "键", "type": "text", "required": True},
+            {"name": "dictName", "label": "字典变量", "type": "str-var", "required": True},
+            {"name": "key", "label": "键", "type": "str-input", "required": True},
             _var_field("varName", "保存到变量"),
         ],
     },
@@ -1208,8 +1208,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "removeDictKey", "local": True}},
         "fields": [
-            {"name": "dictName", "label": "字典变量", "type": "varName", "required": True},
-            {"name": "key", "label": "键", "type": "text", "required": True},
+            {"name": "dictName", "label": "字典变量", "type": "str-var", "required": True},
+            {"name": "key", "label": "键", "type": "str-input", "required": True},
         ],
     },
     "readTableCell": {
@@ -1224,8 +1224,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "readTableCell", "local": True}},
         "fields": [
-            {"name": "rowIndex", "label": "行号(从0开始)", "type": "number", "default": 0},
-            {"name": "columnName", "label": "列名", "type": "text", "required": True},
+            {"name": "rowIndex", "label": "行号(从0开始)", "type": "int-number", "default": 0},
+            {"name": "columnName", "label": "列名", "type": "str-input", "required": True},
             _var_field("varName", "保存到变量"),
         ],
     },
@@ -1241,9 +1241,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "writeTableCell", "local": True}},
         "fields": [
-            {"name": "rowIndex", "label": "行号(从0开始)", "type": "number", "default": 0},
-            {"name": "columnName", "label": "列名", "type": "text", "required": True},
-            {"name": "value", "label": "值", "type": "text", "required": True},
+            {"name": "rowIndex", "label": "行号(从0开始)", "type": "int-number", "default": 0},
+            {"name": "columnName", "label": "列名", "type": "str-input", "required": True},
+            {"name": "value", "label": "值", "type": "str-input", "required": True},
         ],
     },
     "getTableRowCount": {
@@ -1273,9 +1273,9 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "writeTableRow", "local": True}},
         "fields": [
-            {"name": "writeMode", "label": "写入方式", "type": "select", "options": [{"label": "追加一行", "value": "append"}, {"label": "插入一行", "value": "insert"}, {"label": "覆盖一行", "value": "overwrite"}], "default": "append"},
-            {"name": "rowIndex", "label": "行号(插入/覆盖时生效)", "type": "number", "default": 0},
-            {"name": "rowData", "label": "行数据(列表或字典)", "type": "textarea", "required": True},
+            {"name": "writeMode", "label": "写入方式", "type": "str-dropdown", "options": [{"label": "追加一行", "value": "append"}, {"label": "插入一行", "value": "insert"}, {"label": "覆盖一行", "value": "overwrite"}], "default": "append"},
+            {"name": "rowIndex", "label": "行号(插入/覆盖时生效)", "type": "int-number", "default": 0},
+            {"name": "rowData", "label": "行数据(列表或字典)", "type": "str-textarea", "required": True},
         ],
     },
 
@@ -1294,8 +1294,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "log", "local": True}},
         "fields": [
-            {"name": "message", "label": "日志内容", "type": "text", "required": True},
-            {"name": "level", "label": "级别", "type": "select", "options": [{"label": "信息", "value": "info"}, {"label": "警告", "value": "warn"}, {"label": "错误", "value": "error"}], "default": "info"},
+            {"name": "message", "label": "日志内容", "type": "str-input", "required": True},
+            {"name": "level", "label": "级别", "type": "str-dropdown", "options": [{"label": "信息", "value": "info"}, {"label": "警告", "value": "warn"}, {"label": "错误", "value": "error"}], "default": "info"},
         ],
     },
     "takeScreenshot": {
@@ -1310,8 +1310,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "fields": [
             _window_var_field(),
-            {"name": "savePath", "label": "保存路径", "type": "text", "required": True, "placeholder": "screenshots/001.png"},
-            {"name": "fullPage", "label": "整页截图", "type": "bool", "default": False},
+            {"name": "savePath", "label": "保存路径", "type": "str-input", "required": True, "placeholder": "screenshots/001.png"},
+            {"name": "fullPage", "label": "整页截图", "type": "bool-check", "default": False},
             _element_name_field(required=False),
         ],
     },
@@ -1330,7 +1330,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "bgColor": "bg-gray-50",
         "isContainer": False,
         "fields": [
-            {"name": "keys", "label": "按键组合", "type": "text", "required": True, "placeholder": "Ctrl+A 或 Ctrl+Shift+T"},
+            {"name": "keys", "label": "按键组合", "type": "str-input", "required": True, "placeholder": "Ctrl+A 或 Ctrl+Shift+T"},
         ],
     },
 
@@ -1349,10 +1349,10 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "httpRequest", "local": True}},
         "fields": [
-            {"name": "method", "label": "方法", "type": "select", "options": [{"label": "GET", "value": "GET"}, {"label": "POST", "value": "POST"}, {"label": "PUT", "value": "PUT"}, {"label": "DELETE", "value": "DELETE"}], "default": "GET"},
-            {"name": "url", "label": "URL", "type": "text", "required": True},
-            {"name": "headers", "label": "Headers(JSON)", "type": "textarea", "required": False},
-            {"name": "body", "label": "Body", "type": "textarea", "required": False},
+            {"name": "method", "label": "方法", "type": "str-dropdown", "options": [{"label": "GET", "value": "GET"}, {"label": "POST", "value": "POST"}, {"label": "PUT", "value": "PUT"}, {"label": "DELETE", "value": "DELETE"}], "default": "GET"},
+            {"name": "url", "label": "URL", "type": "str-input", "required": True},
+            {"name": "headers", "label": "Headers(JSON)", "type": "str-textarea", "required": False},
+            {"name": "body", "label": "Body", "type": "str-textarea", "required": False},
             _timeout_field(30),
             _var_field("resultVar", "保存响应到变量"),
         ],
@@ -1395,7 +1395,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isBranch": True,
         "closesWith": "endTry",
         "fields": [
-            {"name": "errorVar", "label": "错误变量名", "type": "varName", "default": "error"},
+            {"name": "errorVar", "label": "错误变量名", "type": "str-var", "default": "error"},
         ],
     },
     "endTry": {
@@ -1427,8 +1427,8 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "custom", "local": True}},
         "fields": [
-            {"name": "code", "label": "Python代码", "type": "textarea", "required": True, "rows": 6, "placeholder": "# 直接插入的Python代码\nprint('hello')"},
-            {"name": "description", "label": "描述", "type": "text", "required": False},
+            {"name": "code", "label": "Python代码", "type": "str-textarea", "required": True, "rows": 6, "placeholder": "# 直接插入的Python代码\nprint('hello')"},
+            {"name": "description", "label": "描述", "type": "str-input", "required": False},
             _var_field("resultVar", "返回值变量"),
         ],
     },
@@ -1444,7 +1444,7 @@ COMMAND_REGISTRY: dict[str, dict[str, Any]] = {
         "isContainer": False,
         "runtimes": {"extension": {"handler": "executeJs", "local": False}},
         "fields": [
-            {"name": "script", "label": "JavaScript代码", "type": "textarea", "required": True, "rows": 4},
+            {"name": "script", "label": "JavaScript代码", "type": "str-textarea", "required": True, "rows": 4},
             _var_field("resultVar", "返回值变量"),
         ],
     },

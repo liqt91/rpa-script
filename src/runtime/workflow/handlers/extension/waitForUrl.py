@@ -4,5 +4,5 @@ from ..registry import register_handler, Param
     icon="fa-link", icon_color="text-yellow-500", bg_color="bg-yellow-50", category_order=20, command_order=70)
 class WaitForUrlHandler:
     params = [
-        Param("expectedUrl", "目标URL包含", "text", placeholder="留空则等待任何变化"),
+        Param("expectedUrl", "目标URL包含", "str-input", placeholder="留空则等待任何变化"),
     ]

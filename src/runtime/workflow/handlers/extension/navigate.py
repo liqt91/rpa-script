@@ -5,8 +5,8 @@ from ..registry import register_handler, Param
     description="在指定窗口打开网页")
 class NavigateHandler:
     params = [
-        Param("windowVar", "窗口变量", "varName", default="browser1", group="input"),
-        Param("url", "网址", "text", required=True, placeholder="https://..."),
-        Param("waitLoad", "等待加载完成", "bool", default=True),
-        Param("saveToVar", "保存网页对象到", "varName", group="output"),
+        Param("windowVar", "窗口变量", "str-var", default="browser1", group="input"),
+        Param("url", "网址", "str-input", required=True, placeholder="https://..."),
+        Param("waitLoad", "等待加载完成", "bool-check", default=True),
+        Param("saveToVar", "保存网页对象到", "str-var", group="output"),
     ]

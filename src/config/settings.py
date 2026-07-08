@@ -5,6 +5,11 @@
 import os
 from datetime import timedelta
 
+from dotenv import load_dotenv
+
+# 自动加载项目根目录 .env 文件
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 数据库

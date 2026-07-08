@@ -5,6 +5,6 @@ from ..registry import register_handler, Param
     description="在当前浏览器中新建标签页")
 class NewTabHandler:
     params = [
-        Param("windowVar", "窗口变量", "varName", default="browser1", group="input"),
-        Param("url", "网址(可选)", "text", required=False, placeholder="https://..."),
+        Param("windowVar", "窗口变量", "str-var", default="browser1", group="input"),
+        Param("url", "网址(可选)", "str-input", required=False, placeholder="https://..."),
     ]

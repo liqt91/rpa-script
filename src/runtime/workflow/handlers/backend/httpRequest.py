@@ -1,6 +1,6 @@
 """HTTP 请求 + 表格操作 — httpRequest, writeTableRow, readTableCell, writeTableCell, getTableRowCount"""
 from ..registry import register_handler, Param
-from ..utils import resolve_vars
+from ..utils import resolve_vars, clean_var_ref
 import json, asyncio, logging
 
 logger = logging.getLogger(__name__)
@@ -9,12 +9,12 @@ logger = logging.getLogger(__name__)
     icon="fa-network-wired", icon_color="text-gray-700", bg_color="bg-gray-100", category_order=90, command_order=30)
 class HttpRequestHandler:
     params = [
-        Param("url", "请求地址", "text", required=True, placeholder="https://..."),
-        Param("method", "请求方法", "select",
+        Param("url", "请求地址", "str-input", required=True, placeholder="https://..."),
+        Param("method", "请求方法", "str-dropdown",
               options=["GET", "POST", "PUT", "DELETE", "PATCH"], default="GET"),
-        Param("headers", "请求头(JSON)", "code", default="{}", group="advanced"),
-        Param("body", "请求体", "code", group="advanced"),
-        Param("saveToVar", "保存结果到", "varName", group="output"),
+        Param("headers", "请求头(JSON)", "any-expr", default="{}", group="advanced"),
+        Param("body", "请求体", "any-expr", group="advanced"),
+        Param("saveToVar", "保存结果到", "str-var", group="output"),
     ]
 
     @staticmethod
@@ -24,7 +24,7 @@ class HttpRequestHandler:
         method = extra.get("method", "GET")
         url = resolve_vars(extra.get("url", ""), runner.vars)
         timeout = extra.get("timeout", 30)
-        save_to = extra.get("saveToVar") or extra.get("varName", "")
+        save_to = clean_var_ref(extra.get("saveToVar") or extra.get("varName", ""))
 
         headers = {}
         headers_str = extra.get("headers", "{}")

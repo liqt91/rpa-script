@@ -5,7 +5,7 @@ from ..registry import register_handler, Param
     description="获取当前页面 URL，保存到变量")
 class GetCurrentUrlHandler:
     params = [
-        Param("saveToVar", "保存到变量", "varName", required=True, group="output"),
+        Param("saveToVar", "保存到变量", "str-var", required=True, group="output"),
     ]
 
 

@@ -4,8 +4,8 @@ from ..registry import register_handler, Param
     icon="fa-code", icon_color="text-gray-700", bg_color="bg-gray-100", category_order=90, command_order=50)
 class ExecuteJsHandler:
     params = [
-        Param("code", "JS代码", "code", required=True),
-        Param("saveToVar", "保存返回值到", "varName", group="output"),
+        Param("code", "JS代码", "any-expr", required=True),
+        Param("saveToVar", "保存返回值到", "str-var", group="output"),
     ]
 
 
