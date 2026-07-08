@@ -15,8 +15,8 @@ export default function CommandEditor() {
 
   async function loadDefinitions() {
     try {
-      const res = await api.request({ method: 'GET', url: '/api/commands/definitions' });
-      setDefs(res.data);
+      const res = await api.request('/api/commands/definitions');
+      setDefs(res);
     } catch (e) {
       setError('加载失败: ' + e.message);
     }
@@ -58,10 +58,9 @@ export default function CommandEditor() {
     if (!selected) return;
     try {
       const parsed = JSON.parse(editorText);
-      await api.request({
+      await api.request(`/api/commands/definitions/${parsed.type}`, {
         method: 'PUT',
-        url: `/api/commands/definitions/${parsed.type}`,
-        data: parsed,
+        body: JSON.stringify(parsed),
       });
       setStatus('已保存');
       setError('');
@@ -77,11 +76,10 @@ export default function CommandEditor() {
   async function runBuild() {
     try {
       setStatus('构建中...');
-      const res = await api.request({
+      const res = await api.request('/api/commands/definitions/build', {
         method: 'POST',
-        url: '/api/commands/definitions/build',
       });
-      setBuildResult(res.data);
+      setBuildResult(res);
       setStatus('构建完成');
       setError('');
     } catch (e) {
