@@ -92,7 +92,7 @@ export default function CommandEditor() {
   const navGroupStyle = 'text-[10px] text-gray-500 uppercase tracking-wider mb-1 mt-3 px-1';
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex-1 flex min-h-0">
       {/* Left panel — list */}
       <div className="w-56 bg-[#0f172a] border-r border-gray-700 flex flex-col shrink-0">
         <div className="px-3 py-3 border-b border-gray-700 flex items-center justify-between">
