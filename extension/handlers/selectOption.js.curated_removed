@@ -1,0 +1,3 @@
+
+
+registerHandler('selectOption', async function selectOption(args) { return doSelectOption(args); });

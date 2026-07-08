@@ -1,59 +1,43 @@
 """
-Tests for legacy workflow type support.
-
-Ensures that old type names (e.g. 'click', 'input') still produce valid
-instructions through the LEGACY_MAP fallback in extension_emitter.
+Tests for extension handler resolution with curated command set.
 """
 
 import pytest
 from src.repo import models
 from src.runtime.workflow.extension_emitter import build_instructions, _get_extension_runtime
 
-# Every old type name mapped in LEGACY_MAP
-LEGACY_TYPES = [
-    "click", "input", "clearInput", "doubleClick", "rightClick", "hover",
-    "unhover", "selectOption", "getAttr", "getHtml", "getText", "getValue",
-    "scrollToBottom", "scrollToTop", "scrollBy", "scrollOneScreen",
-    "inputAndPressEnter", "clickCurrentLoopItem",
-    "pressKey", "keyCombo",
-    "getPageTitle", "getElementCount",
-    "takeScreenshot", "executeJs",
-    "waitForElement", "waitForText", "waitForUrl", "waitForLoad",
-    "waitForElementHide",
+# Curated extension handlers (16 from our selected subset)
+CURATED_EXTENSION = [
+    "checkElementExists", "clickElement", "closeBrowser", "executeJs",
+    "getAttribute", "getText", "getValue", "hover", "inputText",
+    "navigate", "newTab", "pressKey", "scrollIntoView", "scrollToBottom",
+    "takeScreenshot", "waitForElement",
 ]
 
 
-def test_legacy_map_covers_all_old_types():
-    """LEGACY_MAP must map every known old type to a handler."""
-    for old_type in LEGACY_TYPES:
-        runtime = _get_extension_runtime(old_type)
-        assert runtime is not None, f"LEGACY_MAP missing: {old_type!r}"
-        assert "handler" in runtime, f"LEGACY_MAP entry for {old_type!r} has no handler"
-        assert isinstance(runtime["handler"], str) and runtime["handler"], \
-            f"LEGACY_MAP handler for {old_type!r} is empty"
+def test_curated_handlers_all_resolve():
+    """Every curated extension handler resolves to a valid runtime."""
+    for htype in CURATED_EXTENSION:
+        runtime = _get_extension_runtime(htype)
+        assert runtime is not None, f"'{htype}' not found in registry or LEGACY_MAP"
+        handler = runtime.get("handler")
+        assert handler, f"'{htype}' has no handler name: {runtime}"
 
 
-def test_build_instructions_no_loss_for_legacy_types(db_session):
-    """Nodes with legacy type names should not be lost in build_instructions()."""
-    wf = models.Workflow(name="legacy-test", url="https://example.com")
+def test_curated_handlers_produce_instructions(db_session):
+    """All curated handlers must produce build_instructions output."""
+    wf = models.Workflow(name="curated-test", url="https://example.com")
     db_session.add(wf)
     db_session.flush()
 
-    nodes = []
-    for i, old_type in enumerate(LEGACY_TYPES):
+    for i, htype in enumerate(CURATED_EXTENSION):
         node = models.WorkflowNode(
-            workflow_id=wf.id,
-            type=old_type,
-            order=i,
-            extra="{}",
-            enabled=1,
+            workflow_id=wf.id, type=htype, order=i,
+            extra="{}", enabled=1,
         )
         db_session.add(node)
-        nodes.append(node)
-
     db_session.flush()
 
-    # Load from DB to ensure we get real ORM objects
     loaded = (
         db_session.query(models.WorkflowNode)
         .filter(models.WorkflowNode.workflow_id == wf.id)
@@ -61,26 +45,37 @@ def test_build_instructions_no_loss_for_legacy_types(db_session):
         .all()
     )
 
-    assert len(loaded) == len(LEGACY_TYPES), "Not all legacy nodes persisted"
-
     instructions = build_instructions(loaded)
-    instruction_count = len(instructions)
+    assert len(instructions) == len(CURATED_EXTENSION), \
+        f"Expected {len(CURATED_EXTENSION)} instructions, got {len(instructions)}"
 
-    # Every legacy type that maps to a valid handler should produce an
-    # instruction. Types mapped to container-only handlers may still produce
-    # output if the handler exists.
-    assert instruction_count > 0, "build_instructions produced zero instructions"
-    assert instruction_count == len(LEGACY_TYPES), \
-        f"Expected {len(LEGACY_TYPES)} instructions, got {instruction_count}"
+    type_order = [i["cmdType"] for i in instructions]
+    assert type_order == CURATED_EXTENSION, \
+        f"Order mismatch: {type_order}"
+
+
+# ── Legacy type support ──────────────────────────────────────
+
+LEGACY_TYPES = [
+    "click", "input", "hover", "getText", "getValue",
+    "scrollToBottom", "executeJs", "waitForElement",
+]
+
+
+def test_legacy_map_covers_basic_types():
+    """LEGACY_MAP must cover common old type names."""
+    for old_type in LEGACY_TYPES:
+        runtime = _get_extension_runtime(old_type)
+        assert runtime is not None, f"LEGACY_MAP missing: {old_type!r}"
 
 
 def test_legacy_workflow_realistic(db_session):
-    """Simulate a realistic old workflow: open page, click, input, wait, get text."""
+    """Old workflow: navigate, click, input, wait, getText — all resolve."""
+    import json
     wf = models.Workflow(name="legacy-realistic", url="https://example.com")
     db_session.add(wf)
     db_session.flush()
 
-    # Old-style nodes (typical RPA flow)
     node_data = [
         ("navigate", 1, {}),
         ("click", 2, {"elementName": "search-btn"}),
@@ -89,238 +84,23 @@ def test_legacy_workflow_realistic(db_session):
         ("getText", 5, {"elementName": "result-title"}),
     ]
 
-    nodes = []
     for ntype, order, extra_dict in node_data:
-        import json
         node = models.WorkflowNode(
-            workflow_id=wf.id,
-            type=ntype,
-            order=order,
-            extra=json.dumps(extra_dict),
-            enabled=1,
-        )
-        db_session.add(node)
-        nodes.append(node)
-
-    db_session.flush()
-
-    loaded = (
-        db_session.query(models.WorkflowNode)
-        .filter(models.WorkflowNode.workflow_id == wf.id)
-        .order_by(models.WorkflowNode.order)
-        .all()
-    )
-
-    instructions = build_instructions(loaded)
-
-    # navigate should produce an instruction (it's a modern type)
-    # click, input, waitForElement, getText should all be covered by LEGACY_MAP
-    assert len(instructions) == 5, \
-        f"Expected 5 instructions, got {len(instructions)}: {[i['cmdType'] for i in instructions]}"
-
-    # Verify order: original node order should be preserved
-    type_order = [i["cmdType"] for i in instructions]
-    assert type_order == ["navigate", "click", "input", "waitForElement", "getText"], \
-        f"Unexpected instruction order: {type_order}"
-
-
-# ── B1: waitForElement / waitForElementHide ──────────────────────
-
-def test_wait_for_element_handler_resolves():
-    """waitForElement type resolves to an extension runtime handler."""
-    runtime = _get_extension_runtime("waitForElement")
-    assert runtime is not None, "waitForElement should resolve via registry or LEGACY_MAP"
-    assert runtime.get("handler") == "waitForElement", \
-        f"Expected handler 'waitForElement', got {runtime.get('handler')}"
-
-
-def test_wait_for_element_hide_handler_resolves():
-    """waitForElementHide type resolves to an extension runtime handler."""
-    runtime = _get_extension_runtime("waitForElementHide")
-    assert runtime is not None, "waitForElementHide should resolve via registry or LEGACY_MAP"
-    assert runtime.get("handler") == "waitForElementHide", \
-        f"Expected handler 'waitForElementHide', got {runtime.get('handler')}"
-
-
-def test_wait_handlers_produce_instructions(db_session):
-    """Both wait handlers produce valid build_instructions output."""
-    wf = models.Workflow(name="wait-test", url="https://example.com")
-    db_session.add(wf)
-    db_session.flush()
-
-    node1 = models.WorkflowNode(
-        workflow_id=wf.id, type="waitForElement", order=1,
-        extra='{"element_name":"btn"}', enabled=1,
-    )
-    node2 = models.WorkflowNode(
-        workflow_id=wf.id, type="waitForElementHide", order=2,
-        extra='{"element_name":"modal"}', enabled=1,
-    )
-    db_session.add_all([node1, node2])
-    db_session.flush()
-
-    loaded = (
-        db_session.query(models.WorkflowNode)
-        .filter(models.WorkflowNode.workflow_id == wf.id)
-        .order_by(models.WorkflowNode.order)
-        .all()
-    )
-
-    instructions = build_instructions(loaded)
-    assert len(instructions) == 2, \
-        f"Expected 2 instructions, got {len(instructions)}"
-    assert [i["cmdType"] for i in instructions] == ["waitForElement", "waitForElementHide"]
-
-
-# ── B2: waitForLoad / waitForUrl / waitForText ────────────────────
-
-B2_WAIT_TYPES = ["waitForLoad", "waitForUrl", "waitForText"]
-
-
-def test_b2_handlers_all_resolve():
-    """Each B2 handler type resolves to an extension runtime."""
-    for htype in B2_WAIT_TYPES:
-        runtime = _get_extension_runtime(htype)
-        assert runtime is not None, f"{htype} should resolve via registry or LEGACY_MAP"
-        assert runtime.get("handler") == htype, \
-            f"{htype} expected handler '{htype}', got {runtime.get('handler')}"
-
-
-def test_b2_handlers_produce_instructions(db_session):
-    """All B2 wait handlers produce valid build_instructions output."""
-    wf = models.Workflow(name="b2-wait-test", url="https://example.com")
-    db_session.add(wf)
-    db_session.flush()
-
-    nodes = []
-    for i, htype in enumerate(B2_WAIT_TYPES, start=1):
-        node = models.WorkflowNode(
-            workflow_id=wf.id, type=htype, order=i,
-            extra='{}', enabled=1,
-        )
-        db_session.add(node)
-        nodes.append(node)
-
-    db_session.flush()
-
-    loaded = (
-        db_session.query(models.WorkflowNode)
-        .filter(models.WorkflowNode.workflow_id == wf.id)
-        .order_by(models.WorkflowNode.order)
-        .all()
-    )
-
-    instructions = build_instructions(loaded)
-    assert len(instructions) == len(B2_WAIT_TYPES), \
-        f"Expected {len(B2_WAIT_TYPES)}, got {len(instructions)}"
-    assert [i["cmdType"] for i in instructions] == B2_WAIT_TYPES
-
-
-# ── B3: scrollToTop / scrollOneScreen / scrollBy ──────────────────
-
-B3_SCROLL_TYPES = ["scrollToTop", "scrollOneScreen", "scrollBy"]
-
-
-def test_b3_handlers_all_resolve():
-    """Each B3 scroll handler type resolves to an extension runtime."""
-    from src.runtime.workflow.extension_emitter import _get_extension_runtime
-    for htype in B3_SCROLL_TYPES:
-        runtime = _get_extension_runtime(htype)
-        assert runtime is not None, f"{htype} should resolve"
-        assert runtime.get("handler"), f"{htype} should have handler name"
-
-
-def test_b3_handlers_produce_instructions(db_session):
-    """All B3 scroll handlers produce valid build_instructions output."""
-    from src.repo import models
-    from src.runtime.workflow.extension_emitter import build_instructions
-    wf = models.Workflow(name="b3-scroll-test", url="https://example.com")
-    db_session.add(wf)
-    db_session.flush()
-    for i, htype in enumerate(B3_SCROLL_TYPES, start=1):
-        node = models.WorkflowNode(
-            workflow_id=wf.id, type=htype, order=i,
-            extra='{}', enabled=1,
+            workflow_id=wf.id, type=ntype, order=order,
+            extra=json.dumps(extra_dict), enabled=1,
         )
         db_session.add(node)
     db_session.flush()
+
     loaded = (
         db_session.query(models.WorkflowNode)
         .filter(models.WorkflowNode.workflow_id == wf.id)
         .order_by(models.WorkflowNode.order)
         .all()
     )
+
     instructions = build_instructions(loaded)
-    assert len(instructions) == len(B3_SCROLL_TYPES),         f"Expected {len(B3_SCROLL_TYPES)}, got {len(instructions)}"
-
-
-# ── B4: takeScreenshot ───────────────────────────────────────────
-
-def test_take_screenshot_handler_resolves():
-    """takeScreenshot type resolves to an extension runtime."""
-    from src.runtime.workflow.extension_emitter import _get_extension_runtime
-    runtime = _get_extension_runtime("takeScreenshot")
-    assert runtime is not None, "takeScreenshot should resolve"
-    assert runtime.get("handler") == "takeScreenshot",         f"Expected handler 'takeScreenshot', got {runtime.get('handler')}"
-
-
-def test_take_screenshot_produces_instruction(db_session):
-    """takeScreenshot produces valid build_instructions output."""
-    from src.repo import models
-    from src.runtime.workflow.extension_emitter import build_instructions
-    wf = models.Workflow(name="screenshot-test", url="https://example.com")
-    db_session.add(wf)
-    db_session.flush()
-    node = models.WorkflowNode(
-        workflow_id=wf.id, type="takeScreenshot", order=1,
-        extra='{}', enabled=1,
-    )
-    db_session.add(node)
-    db_session.flush()
-    loaded = (
-        db_session.query(models.WorkflowNode)
-        .filter(models.WorkflowNode.workflow_id == wf.id)
-        .all()
-    )
-    instructions = build_instructions(loaded)
-    assert len(instructions) == 1,         f"Expected 1 instruction, got {len(instructions)}"
-    assert instructions[0]["cmdType"] == "takeScreenshot"
-
-
-# ── B5: keyCombo / getPageTitle / getElementCount / clickIfExists ──
-
-B5_TYPES = ["keyCombo", "getPageTitle", "getElementCount", "clickIfExists"]
-
-
-def test_b5_handlers_all_resolve():
-    """Each B5 handler type resolves to an extension runtime."""
-    from src.runtime.workflow.extension_emitter import _get_extension_runtime
-    for htype in B5_TYPES:
-        runtime = _get_extension_runtime(htype)
-        assert runtime is not None, f"{htype} should resolve"
-        assert runtime.get("handler"), f"{htype} should have handler name"
-
-
-def test_b5_handlers_produce_instructions(db_session):
-    """All B5 handlers produce valid build_instructions output."""
-    from src.repo import models
-    from src.runtime.workflow.extension_emitter import build_instructions
-    wf = models.Workflow(name="b5-test", url="https://example.com")
-    db_session.add(wf)
-    db_session.flush()
-    for i, htype in enumerate(B5_TYPES, start=1):
-        node = models.WorkflowNode(
-            workflow_id=wf.id, type=htype, order=i,
-            extra='{}', enabled=1,
-        )
-        db_session.add(node)
-    db_session.flush()
-    loaded = (
-        db_session.query(models.WorkflowNode)
-        .filter(models.WorkflowNode.workflow_id == wf.id)
-        .order_by(models.WorkflowNode.order)
-        .all()
-    )
-    instructions = build_instructions(loaded)
-    assert len(instructions) == len(B5_TYPES),         f"Expected {len(B5_TYPES)}, got {len(instructions)}"
-    assert [i["cmdType"] for i in instructions] == B5_TYPES
+    assert len(instructions) == 5
+    assert [i["cmdType"] for i in instructions] == [
+        "navigate", "click", "input", "waitForElement", "getText",
+    ]

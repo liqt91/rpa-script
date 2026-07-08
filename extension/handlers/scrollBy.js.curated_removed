@@ -1,0 +1,6 @@
+
+
+registerHandler('scrollBy', async (args) => {
+    args.extra = { ...(args.extra || {}), action: 'scrollBy' };
+    return doScroll(args);
+  });

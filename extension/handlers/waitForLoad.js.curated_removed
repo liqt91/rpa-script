@@ -1,0 +1,16 @@
+// ─── waitForLoad / waitForUrl / waitForText ──────────────────────
+
+registerHandler('waitForLoad', async function waitForLoadHandler({ extra }) {
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    const start = Date.now();
+    while (document.readyState !== 'complete') {
+      if (Date.now() - start >= timeoutMs) {
+        throw new Error(`页面未在 ${timeoutMs}ms 内加载完成`);
+      }
+      await sleep(100);
+    }
+    const extraDelay = (extra?.delay ?? 0) * 1000;
+    if (extraDelay > 0) await sleep(extraDelay);
+    console.log(`[RPA waitForLoad] done after ${Date.now() - start}ms`);
+    return { loaded: true };
+  });

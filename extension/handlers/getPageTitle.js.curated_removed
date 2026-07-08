@@ -1,0 +1,5 @@
+
+
+registerHandler('getPageTitle', function getPageTitleHandler() {
+    return { title: document.title, url: location.href };
+  });

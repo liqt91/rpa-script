@@ -1,0 +1,3 @@
+
+
+registerHandler('doubleClick', async (args) => doClick(args));

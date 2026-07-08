@@ -1,0 +1,3 @@
+
+
+registerHandler('clearInput', async function clearInput(args) { return doClearInput(args); });

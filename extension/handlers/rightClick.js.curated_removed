@@ -1,0 +1,3 @@
+
+
+registerHandler('rightClick', async (args) => doClick(args));

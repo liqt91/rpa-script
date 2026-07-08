@@ -1,0 +1,34 @@
+// ─── keyCombo / getPageTitle / getElementCount / clickIfExists ───
+
+registerHandler('keyCombo', async function keyComboHandler({ extra }) {
+    const keysStr = extra?.keys;
+    if (!keysStr) throw new Error('keyCombo: keys is required');
+    const parts = keysStr.split('+').map(s => s.trim());
+    const key = parts.pop();
+    const modifiers = parts;
+    const opts = { key, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false };
+    for (const m of modifiers) {
+      const lower = m.toLowerCase();
+      if (lower === 'ctrl' || lower === 'control') opts.ctrlKey = true;
+      else if (lower === 'alt') opts.altKey = true;
+      else if (lower === 'shift') opts.shiftKey = true;
+      else if (lower === 'meta' || lower === 'cmd' || lower === 'win') opts.metaKey = true;
+    }
+    const humanLike = extra?.humanLike ?? true;
+    if (humanLike) {
+      for (const m of modifiers) {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: m, ctrlKey: m === 'Ctrl', altKey: m === 'Alt', shiftKey: m === 'Shift', metaKey: m === 'Meta', bubbles: true }));
+        await sleep(rand(30, 80));
+      }
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { ...opts, bubbles: true }));
+    if (humanLike) await sleep(rand(30, 100));
+    document.dispatchEvent(new KeyboardEvent('keyup', { ...opts, bubbles: true }));
+    if (humanLike) {
+      for (const m of [...modifiers].reverse()) {
+        document.dispatchEvent(new KeyboardEvent('keyup', { key: m, ctrlKey: m === 'Ctrl', altKey: m === 'Alt', shiftKey: m === 'Shift', metaKey: m === 'Meta', bubbles: true }));
+        await sleep(rand(30, 60));
+      }
+    }
+    return { keyCombo: keysStr };
+  });

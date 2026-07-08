@@ -1213,451 +1213,47 @@ console.log({
     _bannerTimer = setTimeout(hideRunningUI, 8000);
   }
 
-  // ─── Step handlers ───────────────────────────────────────────────
 
-  const handlers = {};
+  // ── checkElementExists ──
+// ─── Condition check handlers ───────────────────────────────────
 
-  function registerHandler(name, fn) {
-    handlers[name] = fn;
-  }
-
-  // Generic element-action implementations used by both legacy handlers and elementAction.
-
-  // A "soft not found" is a loop-context miss where the loop-item parent exists
-  // but this child is genuinely absent inside it (heterogeneous lists are normal).
-  // Such cases warn + skip + continue; they are NOT subject to the node's onError
-  // policy. A missing anchor/parent (broken selector) is a HARD failure and throws.
-  function isSoftNotFound(e) {
-    return !!(e?.contextNotFound || e?.message?.includes('按循环序号对齐失败'));
-  }
-
-  async function doClick({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const humanLike = extra?.humanLike ?? true;
-    const forceJs = extra?.forceJs ?? false;
-    const clickType = extra?.clickType || extra?.action || 'click';
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-    let el;
-    try {
-      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-    } catch (e) {
-      // Soft "not found" inside a loop item → warn + skip this iteration's click,
-      // mirroring doExtract. Hard failures (broken selector / missing context)
-      // still propagate to the node's onError policy.
-      if (isSoftNotFound(e)) {
-        const warning = `元素在当前循环项中未找到，跳过点击并继续: ${locator}`;
-        console.log(`[RPA click] ${warning} (${e.message})`);
-        addRunLog(`警告: ${warning}`);
-        return { clicked: false, skipped: true, warning, contextNotFound: true };
-      }
-      throw e;
-    }
-
-    await visualConfirmDelay();
-
-    const fresh = reResolveWithContext(locator, selectorFamily, extra, mode);
-    if (fresh && fresh !== document) el = fresh;
-
-    return performClick(el, { humanLike, forceJs, clickType });
-  }
-
-  async function doClickCurrentLoopItem({ extra }) {
-    const ctxLocator = extra?.contextLocator;
-    const ctxLocatorType = extra?.contextLocatorType;
-    const ctxIndex = extra?.contextIndex ?? 0;
-    const ctxTotal = extra?.contextTotal;
-
-    if (!ctxLocator) {
-      throw new Error('点击当前循环元素 必须在 forEachElement 循环体内使用');
-    }
-
-    const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-    const parent = parents[ctxIndex];
-    if (!parent) {
-      throw new Error(`当前循环元素未找到 (第 ${ctxIndex + 1}/${ctxTotal || '?'} 个)`);
-    }
-
-    await visualConfirmDelay();
-
-    const humanLike = extra?.humanLike ?? true;
-    const forceJs = extra?.forceJs ?? false;
-    const clickType = extra?.clickType || 'click';
-    return performClick(parent, { humanLike, forceJs, clickType });
-  }
-
-  async function performClick(el, { humanLike, forceJs, clickType }) {
-    if (forceJs) {
-      el.scrollIntoView({ block: 'center', behavior: 'instant' });
-      if (el.focus) el.focus();
-      if (clickType === 'doubleClick') {
-        el.click(); el.click();
-      } else if (clickType === 'rightClick') {
-        el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window, button: 2 }));
-      } else {
-        el.click();
-      }
-    } else {
-      await humanClick(el, humanLike, clickType);
-    }
-    return { clicked: true, clickType, tagName: el.tagName };
-  }
-
-  async function doInput({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const humanLike = extra?.humanLike ?? true;
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-    let el;
-    try {
-      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-    } catch (e) {
-      if (isSoftNotFound(e)) {
-        const warning = `元素在当前循环项中未找到，跳过输入并继续: ${locator}`;
-        console.log(`[RPA input] ${warning} (${e.message})`);
-        addRunLog(`警告: ${warning}`);
-        return { input: false, skipped: true, warning, contextNotFound: true };
-      }
-      throw e;
-    }
-
-    const text = extra?.text ?? '';
-    const clearFirst = extra?.clearFirst !== false;
-
-    if (clearFirst) {
-      setInputValue(el, '');
-    }
-
-    await humanType(el, text, humanLike);
-
-    if (extra?.pressEnter) {
-      if (humanLike) await sleep(rand(200, 600));
-      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      if (humanLike) await sleep(rand(30, 100));
-      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
-    }
-
-    return { input: true, length: text.length };
-  }
-
-  async function doExtract({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-    try {
-      const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-      const attr = extra?.attribute;
-      let value;
-      if (attr === 'innerHTML') {
-        value = el.innerHTML;
-      } else if (attr === 'value') {
-        value = el.value;
-      } else if (attr) {
-        value = el.getAttribute(attr);
-      } else {
-        value = el.textContent?.trim() ?? '';
-      }
-      return { extracted: value };
-    } catch (e) {
-      // Soft "not found": the loop-item parent exists but this child is genuinely
-      // absent inside it (heterogeneous lists are normal — e.g. some comment cards
-      // have no reply). Return empty + a warning and let the run continue, instead
-      // of either silently collecting blanks or hard-failing the whole loop.
-      if (isSoftNotFound(e)) {
-        const warning = `元素在当前循环项中未找到: ${locator}`;
-        console.log(`[RPA extract] ${warning} (${e.message})`);
-        addRunLog(`警告: ${warning}`);
-        return { extracted: '', warning, contextNotFound: true };
-      }
-      // Hard failure (anchor/context element itself missing → selector is broken):
-      // propagate so the node's onError policy (default stop) applies.
-      throw e;
-    }
-  }
-
-  function isScrollableElement(el) {
-    if (!el || el.nodeType !== 1) return false;
-    const style = window.getComputedStyle(el);
-    const overflowY = style.overflowY;
-    const overflow = style.overflow;
-    const canOverflow = overflowY === 'auto' || overflowY === 'scroll' || overflow === 'auto' || overflow === 'scroll';
-    return canOverflow && el.scrollHeight > el.clientHeight + 1;
-  }
-
-  function findLargestScrollableElement() {
-    const all = document.querySelectorAll('*');
-    let best = null;
-    let bestDiff = 0;
-    for (const el of all) {
-      if (isScrollableElement(el)) {
-        const diff = el.scrollHeight - el.clientHeight;
-        if (diff > bestDiff) {
-          bestDiff = diff;
-          best = el;
-        }
-      }
-    }
-    return best;
-  }
-
-  function findScrollableElement(el) {
-    // 1. try ancestors of the captured element
-    let current = el;
-    while (current && current !== document.body && current !== document.documentElement) {
-      if (isScrollableElement(current)) return current;
-      current = current.parentElement;
-    }
-    // 2. fall back to body/html if they scroll
-    if (isScrollableElement(document.documentElement)) return document.documentElement;
-    if (isScrollableElement(document.body)) return document.body;
-    // 3. last resort: the largest scrollable element on the page
-    return findLargestScrollableElement();
-  }
-
-  async function elementHumanScroll(el, delta, smooth) {
-    if (!smooth || document.hidden) {
-      el.scrollTop += delta;
-      return;
-    }
-    const startTop = el.scrollTop;
-    const maxTop = el.scrollHeight - el.clientHeight;
-    const targetTop = Math.max(0, Math.min(maxTop, startTop + delta));
-    const distance = targetTop - startTop;
-    if (Math.abs(distance) < 5) return;
-
-    const duration = rand(600, 1400);
-    const startTime = performance.now();
-    const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-    await new Promise((resolve) => {
-      function tick(now) {
-        const elapsed = now - startTime;
-        const p = Math.min(elapsed / duration, 1);
-        el.scrollTop = startTop + distance * ease(p);
-        if (p < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          if (Math.random() < 0.1) {
-            el.scrollTop += distance > 0 ? randInt(3, 10) : randInt(-10, -3);
-          }
-          resolve();
-        }
-      }
-      requestAnimationFrame(tick);
-    });
-  }
-
-  async function doScroll({ locator, selectorFamily, extra }) {
-    const scrollType = extra?.scrollType || 'toBottom';
-    const humanLike = extra?.humanLike ?? true;
-    const smooth = extra?.smooth ?? true;
-
-    if (locator) {
+registerHandler('checkElementExists', async function checkElementExists({ locator, selectorFamily, extra }) {
       const mode = getVisibilityMode(extra);
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, mode, timeoutMs);
-
-      if (scrollType === 'intoView') {
-        if (humanLike) {
-          const rect = el.getBoundingClientRect();
-          const targetY = rect.top + window.scrollY;
-          const currentY = window.scrollY;
-          const diff = targetY - currentY - window.innerHeight / 2;
-          await humanScroll(diff > 0 ? 'down' : 'up', Math.abs(diff), true);
-        } else {
-          const block = extra?.block || 'center';
-          el.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block });
-        }
-        return { scrolled: 'intoView', element: true };
-      }
-
-      const scrollEl = extra?.lookupScrollable ? (findScrollableElement(el) || el) : el;
-      const usingAncestor = scrollEl !== el;
-      console.log(`[RPA scroll] lookup=${extra?.lookupScrollable} captured=${el.tagName}.${el.className} scrollable=${scrollEl.tagName}.${scrollEl.className} sh=${scrollEl.scrollHeight} ch=${scrollEl.clientHeight}`);
-
-      if (!humanLike) {
-        if (scrollType === 'oneScreen') {
-          scrollEl.scrollTop += scrollEl.clientHeight;
-          return { scrolled: 'oneScreen', element: !usingAncestor, ancestor: usingAncestor };
-        }
-        if (scrollType === 'toBottom') {
-          scrollEl.scrollTop = scrollEl.scrollHeight;
-          return { scrolled: 'toBottom', element: !usingAncestor, ancestor: usingAncestor };
-        }
-        if (scrollType === 'toTop') {
-          scrollEl.scrollTop = 0;
-          return { scrolled: 'toTop', element: !usingAncestor, ancestor: usingAncestor };
-        }
-        if (scrollType === 'by') {
-          scrollEl.scrollBy(0, extra?.y || 500);
-          return { scrolled: 'by', y: extra?.y || 500, element: !usingAncestor, ancestor: usingAncestor };
-        }
-        return { scrolled: 'unknown', scrollType, element: !usingAncestor, ancestor: usingAncestor };
-      }
-
-      if (scrollType === 'oneScreen') {
-        await elementHumanScroll(scrollEl, scrollEl.clientHeight, smooth);
-        return { scrolled: 'oneScreen', element: !usingAncestor, ancestor: usingAncestor };
-      }
-      if (scrollType === 'toBottom') {
-        await elementHumanScroll(scrollEl, scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight, smooth);
-        return { scrolled: 'toBottom', element: !usingAncestor, ancestor: usingAncestor };
-      }
-      if (scrollType === 'toTop') {
-        await elementHumanScroll(scrollEl, -scrollEl.scrollTop, smooth);
-        return { scrolled: 'toTop', element: !usingAncestor, ancestor: usingAncestor };
-      }
-      if (scrollType === 'by') {
-        await elementHumanScroll(scrollEl, extra?.y || 500, smooth);
-        return { scrolled: 'by', y: extra?.y || 500, element: !usingAncestor, ancestor: usingAncestor };
-      }
-      return { scrolled: 'unknown', scrollType, element: !usingAncestor, ancestor: usingAncestor };
-    }
-
-    if (scrollType === 'oneScreen') {
-      const amount = window.innerHeight * 3;
-      await humanScroll('down', amount, humanLike);
-      return { scrolled: 'oneScreen', amount };
-    }
-
-    const direction = {
-      'toBottom': 'bottom',
-      'toTop': 'top',
-      'by': (extra?.y || 500) >= 0 ? 'down' : 'up',
-    }[scrollType] || 'bottom';
-    const amount = scrollType === 'by' ? Math.abs(extra?.y || 500) : 0;
-    await humanScroll(direction, amount, humanLike);
-    return { scrolled: direction, amount };
-  }
-
-  async function doHover({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const humanLike = extra?.humanLike ?? true;
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-    let el;
-    try {
-      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-    } catch (e) {
-      if (isSoftNotFound(e)) {
-        const warning = `元素在当前循环项中未找到，跳过悬停并继续: ${locator}`;
-        console.log(`[RPA hover] ${warning} (${e.message})`);
-        addRunLog(`警告: ${warning}`);
-        return { hovered: false, skipped: true, warning, contextNotFound: true };
-      }
-      throw e;
-    }
-
-    const point = getClickPoint(el, humanLike);
-    const rect = el.getBoundingClientRect();
-    const startX = rect.left + rect.width / 2;
-    const startY = rect.top + rect.height / 2;
-    if (humanLike) {
-      await moveMouseBezier(startX, startY, point.x, point.y, true);
-      await hoverWiggle(point.x, point.y);
-    }
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
-    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
-    _lastHoveredElement = el;
-    return { hovered: true, tagName: el.tagName };
-  }
-
-  async function doUnhover({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-
-    let el;
-    if (locator) {
       try {
-        el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+        await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+        return { exists: true };
       } catch (e) {
-        if (isSoftNotFound(e)) {
-          const warning = `元素在当前循环项中未找到，跳过取消悬停并继续: ${locator}`;
-          console.log(`[RPA unhover] ${warning} (${e.message})`);
-          addRunLog(`警告: ${warning}`);
-          return { unhovered: false, skipped: true, warning, contextNotFound: true };
-        }
-        throw e;
+        return { exists: false };
       }
-    } else {
-      el = _lastHoveredElement;
-    }
-    if (!el) throw new Error('unhover: 未指定元素且无最近悬停记录');
+    });
 
-    const rect = el.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-    el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
-    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, cancelable: true, view: window, clientX: x, clientY: y, relatedTarget: document.body }));
-    if (_lastHoveredElement === el) _lastHoveredElement = null;
-    return { unhovered: true, tagName: el.tagName };
-  }
 
-  async function doClearInput({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const humanLike = extra?.humanLike ?? true;
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+  // ── click ──
 
-    let el;
-    try {
-      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-    } catch (e) {
-      if (isSoftNotFound(e)) {
-        const warning = `元素在当前循环项中未找到，跳过清空并继续: ${locator}`;
-        console.log(`[RPA clearInput] ${warning} (${e.message})`);
-        addRunLog(`警告: ${warning}`);
-        return { cleared: false, skipped: true, warning, contextNotFound: true };
-      }
-      throw e;
-    }
 
-    if (humanLike) await visualConfirmDelay();
-    setInputValue(el, '');
-    return { cleared: true };
-  }
+registerHandler('click', async function click(args) { return doClick(args); });
 
-  async function doSelectOption({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const humanLike = extra?.humanLike ?? true;
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
 
-    let el;
-    try {
-      el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-    } catch (e) {
-      if (isSoftNotFound(e)) {
-        const warning = `元素在当前循环项中未找到，跳过下拉选择并继续: ${locator}`;
-        console.log(`[RPA selectOption] ${warning} (${e.message})`);
-        addRunLog(`警告: ${warning}`);
-        return { selected: null, skipped: true, warning, contextNotFound: true };
-      }
-      throw e;
-    }
+  // ── clickElement ──
 
-    const value = extra?.value;
-    if (!value) throw new Error('selectOption: value required');
-    if (humanLike) await visualConfirmDelay();
 
-    let option = el.querySelector(`option[value="${CSS.escape(value)}"]`);
-    if (!option) {
-      option = Array.from(el.options).find(o => o.textContent.trim() === value);
-    }
-    if (option) {
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
-      if (descriptor && descriptor.set) {
-        descriptor.set.call(el, option.value);
-      } else {
-        el.value = option.value;
-      }
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      return { selected: option.value, text: option.textContent };
-    }
-    throw new Error(`selectOption: option "${value}" not found`);
-  }
+registerHandler('clickElement', async (args) => doClick(args));
 
-  // Unified elementAction handler: routes by extra.action so new element commands
-  // can reuse existing browser logic without adding a dedicated handler.
-  registerHandler('elementAction', async function elementAction({ locator, selectorFamily, extra }) {
+
+  // ── closeBrowser ──
+
+
+registerHandler('closeBrowser', function closeBrowser() {
+      // handled by background.js (chrome.windows.remove)
+      return {};
+    });
+
+
+  // ── elementAction ──
+
+
+registerHandler('elementAction', async function elementAction({ locator, selectorFamily, extra }) {
     const action = extra?.action;
     if (!action) throw new Error('elementAction: extra.action is required');
     switch (action) {
@@ -1696,98 +1292,29 @@ console.log({
     }
   });
 
-  registerHandler('navigate', function navigate({ extra }) {
-      const url = extra?.url;
-      if (!url) throw new Error('navigate: url required');
-      window.location.href = url;
-      return { navigatedTo: url };
-    });
-  registerHandler('click', async function click(args) { return doClick(args); });
-  registerHandler('input', async function input(args) { return doInput(args); });
-  registerHandler('extract', async function extract(args) { return doExtract(args); });
-  registerHandler('scroll', async function scroll(args) { return doScroll(args); });
-  registerHandler('pressKey', async function pressKey({ extra }) {
-      const key = extra?.key || 'Enter';
-      const humanLike = extra?.humanLike ?? true;
-      const modifiers = ['Control', 'Alt', 'Shift', 'Meta'];
-      const isModifier = modifiers.includes(key);
-      const hasModifier = extra?.modifiers?.some(m => modifiers.includes(m));
 
-      if (humanLike && (isModifier || hasModifier)) {
-        await sleep(rand(30, 100));
-      }
-      if (humanLike && (key === 'Enter' || key === 'Tab')) {
-        await sleep(rand(200, 600));
-      }
+  // ── executeJs ──
 
-      document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
-      if (humanLike && !isModifier) await sleep(rand(80, 200));
-      document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
-      return { pressed: key };
-    });
-  registerHandler('hover', async function hover(args) { return doHover(args); });
-  registerHandler('unhover', async function unhover(args) { return doUnhover(args); });
-  registerHandler('clearInput', async function clearInput(args) { return doClearInput(args); });
-  registerHandler('selectOption', async function selectOption(args) { return doSelectOption(args); });
-  registerHandler('newTab', function newTab({ extra }) {
-      const url = extra?.url;
-      if (!url) throw new Error('newTab: url required');
-      window.open(url, '_blank');
-      return { opened: url };
-    });
-  registerHandler('executeJs', function executeJs({ extra }) {
+
+registerHandler('executeJs', function executeJs({ extra }) {
       const script = extra?.script;
       if (!script) throw new Error('executeJs: script required');
       // eslint-disable-next-line no-eval
       const result = eval(script);
       return { executed: true, result: String(result) };
     });
-// ─── Condition check handlers ───────────────────────────────────
-  registerHandler('checkElementExists', async function checkElementExists({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      try {
-        await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-        return { exists: true };
-      } catch (e) {
-        return { exists: false };
-      }
-    });
-  registerHandler('checkElementVisible', async function checkElementVisible({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const ctxLocator = extra?.contextLocator;
-      console.log(`[RPA checkElementVisible] start locator=${JSON.stringify(locator)} type=${selectorFamily} ctx=${ctxLocator ? 'yes' : 'no'} mode=${mode} timeout=${timeoutMs}`);
-      try {
-        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-        const vis = checkVisibility(el, mode);
-        console.log(`[RPA checkElementVisible] result tag=${el?.tagName} visible=${vis}`);
-        return { visible: vis };
-      } catch (e) {
-        console.log(`[RPA checkElementVisible] ERROR: ${e.message}`);
-        return { visible: false };
-      }
-    });
-  registerHandler('getElementText', async function getElementText({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      try {
-        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-        const text = el.textContent?.trim() ?? '';
-        console.log(`[RPA getElementText] mode=${mode} tag=${el?.tagName} textLen=${text.length} locator=${JSON.stringify(locator)}`);
-        return { text };
-      } catch (e) {
-        if (e?.contextNotFound || e?.message?.includes('按循环序号对齐失败')) {
-          console.log(`[RPA getElementText] element not found in loop context, returning empty: ${e.message}`);
-          return { text: '' };
-        }
-        throw e;
-      }
-    });
-  registerHandler('getCurrentUrl', function getCurrentUrl() {
-      return window.location.href;
-    });
-  registerHandler('findElements', async function findElements({ locator, selectorFamily, extra }) {
+
+
+  // ── extract ──
+
+
+registerHandler('extract', async function extract(args) { return doExtract(args); });
+
+
+  // ── findElements ──
+
+
+registerHandler('findElements', async function findElements({ locator, selectorFamily, extra }) {
       const timeoutMs = (extra?.timeout ?? 10) * 1000;
       const mode = getVisibilityMode(extra);
       const ctxLocator = extra?.contextLocator;
@@ -1833,162 +1360,127 @@ console.log({
       }));
       return { count: items.length, items };
     });
-  registerHandler('closeBrowser', function closeBrowser() {
-      // handled by background.js (chrome.windows.remove)
-      return {};
-    });
 
-  // ─── New architecture: 1 handler = 1 instruction ──────────────
-  // Aliases: each command type has its own handler, mapped to existing impl.
-  registerHandler('clickElement', async (args) => doClick(args));
-  registerHandler('inputText', async (args) => doInput(args));
-  registerHandler('getText', async (args) => {
-      args.extra = { ...(args.extra || {}), action: 'getText' };
-      return doExtract(args);
-  });
-  registerHandler('getAttribute', async (args) => {
+
+  // ── getAttribute ──
+
+
+registerHandler('getAttribute', async (args) => {
       args.extra = { ...(args.extra || {}), action: 'getAttr' };
       return doExtract(args);
   });
-  registerHandler('getHtml', async (args) => {
-      args.extra = { ...(args.extra || {}), action: 'getHtml' };
+
+
+  // ── getText ──
+
+
+registerHandler('getText', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getText' };
       return doExtract(args);
   });
-  registerHandler('getValue', async (args) => {
+
+
+  // ── getValue ──
+
+
+registerHandler('getValue', async (args) => {
       args.extra = { ...(args.extra || {}), action: 'getValue' };
       return doExtract(args);
   });
-  registerHandler('scrollIntoView', async (args) => {
+
+
+  // ── hover ──
+
+
+registerHandler('hover', async function hover(args) { return doHover(args); });
+
+
+  // ── input ──
+
+
+registerHandler('input', async function input(args) { return doInput(args); });
+
+
+  // ── inputText ──
+
+
+registerHandler('inputText', async (args) => doInput(args));
+
+
+  // ── navigate ──
+
+
+registerHandler('navigate', function navigate({ extra }) {
+      const url = extra?.url;
+      if (!url) throw new Error('navigate: url required');
+      window.location.href = url;
+      return { navigatedTo: url };
+    });
+
+
+  // ── newTab ──
+
+
+registerHandler('newTab', function newTab({ extra }) {
+      const url = extra?.url;
+      if (!url) throw new Error('newTab: url required');
+      window.open(url, '_blank');
+      return { opened: url };
+    });
+
+
+  // ── pressKey ──
+
+
+registerHandler('pressKey', async function pressKey({ extra }) {
+      const key = extra?.key || 'Enter';
+      const humanLike = extra?.humanLike ?? true;
+      const modifiers = ['Control', 'Alt', 'Shift', 'Meta'];
+      const isModifier = modifiers.includes(key);
+      const hasModifier = extra?.modifiers?.some(m => modifiers.includes(m));
+
+      if (humanLike && (isModifier || hasModifier)) {
+        await sleep(rand(30, 100));
+      }
+      if (humanLike && (key === 'Enter' || key === 'Tab')) {
+        await sleep(rand(200, 600));
+      }
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      if (humanLike && !isModifier) await sleep(rand(80, 200));
+      document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+      return { pressed: key };
+    });
+
+
+  // ── scroll ──
+
+
+registerHandler('scroll', async function scroll(args) { return doScroll(args); });
+
+
+  // ── scrollIntoView ──
+
+
+registerHandler('scrollIntoView', async (args) => {
       args.extra = { ...(args.extra || {}), action: 'scrollIntoView' };
       return doScroll(args);
   });
-  registerHandler('scrollToBottom', async (args) => {
+
+
+  // ── scrollToBottom ──
+
+
+registerHandler('scrollToBottom', async (args) => {
       args.extra = { ...(args.extra || {}), action: 'scrollToBottom' };
       return doScroll(args);
   });
-  registerHandler('doubleClick', async (args) => doClick(args));
-  registerHandler('rightClick', async (args) => doClick(args));
-  registerHandler('inputAndPressEnter', async (args) => doInput(args));
 
-  // ─── waitForElement / waitForElementHide ─────────────────────────
 
-  registerHandler('waitForElement', async function waitForElementHandler({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-    await waitForElement(locator, selectorFamily, mode, timeoutMs);
-    return { appeared: true };
-  });
+  // ── takeScreenshot ──
+// ─── takeScreenshot ──────────────────────────────────────────────
 
-  registerHandler('waitForElementHide', async function waitForElementHideHandler({ locator, selectorFamily, extra }) {
-    locator = normalizeLocator(locator);
-    selectorFamily = normalizeSelectorFamily(locator, selectorFamily);
-    const mode = getVisibilityMode(extra);
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-    const pollMs = 200;
-    const start = Date.now();
-    let ticks = 0;
-    return new Promise((resolve, reject) => {
-      const tick = () => {
-        ticks++;
-        const el = resolveLocator(locator, selectorFamily, 'any');
-        if (!el || el === document || (mode !== 'any' && !checkVisibility(el, mode))) {
-          console.log(`[RPA waitForElementHide] GONE after ${ticks} ticks, ${Date.now() - start}ms`);
-          return resolve({ disappeared: true });
-        }
-        if (Date.now() - start >= timeoutMs) {
-          return reject(new Error(`元素未在 ${timeoutMs}ms 内消失: ${locator}`));
-        }
-        setTimeout(tick, pollMs);
-      };
-      tick();
-    });
-  });
-
-  // ─── waitForLoad / waitForUrl / waitForText ──────────────────────
-
-  registerHandler('waitForLoad', async function waitForLoadHandler({ extra }) {
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-    const start = Date.now();
-    while (document.readyState !== 'complete') {
-      if (Date.now() - start >= timeoutMs) {
-        throw new Error(`页面未在 ${timeoutMs}ms 内加载完成`);
-      }
-      await sleep(100);
-    }
-    const extraDelay = (extra?.delay ?? 0) * 1000;
-    if (extraDelay > 0) await sleep(extraDelay);
-    console.log(`[RPA waitForLoad] done after ${Date.now() - start}ms`);
-    return { loaded: true };
-  });
-
-  registerHandler('waitForUrl', async function waitForUrlHandler({ extra }) {
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-    const expectedUrl = extra?.expectedUrl || '';
-    const start = Date.now();
-    const initialUrl = location.href;
-    const pollMs = 200;
-    let ticks = 0;
-    return new Promise((resolve, reject) => {
-      const tick = () => {
-        ticks++;
-        const currentUrl = location.href;
-        const matched = expectedUrl
-          ? currentUrl.includes(expectedUrl)
-          : currentUrl !== initialUrl;
-        if (matched) {
-          console.log(`[RPA waitForUrl] matched after ${ticks} ticks, ${Date.now() - start}ms`);
-          return resolve({ url: currentUrl });
-        }
-        if (Date.now() - start >= timeoutMs) {
-          return reject(new Error(`URL未在 ${timeoutMs}ms 内变为包含 "${expectedUrl}"`));
-        }
-        setTimeout(tick, pollMs);
-      };
-      tick();
-    });
-  });
-
-  registerHandler('waitForText', async function waitForTextHandler({ extra }) {
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-    const text = extra?.text;
-    if (!text) throw new Error('waitForText: text is required');
-    const start = Date.now();
-    const pollMs = 200;
-    let ticks = 0;
-    return new Promise((resolve, reject) => {
-      const tick = () => {
-        ticks++;
-        if (document.body?.innerText?.includes(text)) {
-          console.log(`[RPA waitForText] found "${text}" after ${ticks} ticks, ${Date.now() - start}ms`);
-          return resolve({ textFound: text });
-        }
-        if (Date.now() - start >= timeoutMs) {
-          return reject(new Error(`文本 "${text}" 未在 ${timeoutMs}ms 内出现`));
-        }
-        setTimeout(tick, pollMs);
-      };
-      tick();
-    });
-  });
-
-  // ─── scrollToTop / scrollOneScreen / scrollBy ────────────────────
-
-  registerHandler('scrollToTop', async (args) => {
-    args.extra = { ...(args.extra || {}), action: 'scrollToTop' };
-    return doScroll(args);
-  });
-  registerHandler('scrollOneScreen', async (args) => {
-    args.extra = { ...(args.extra || {}), action: 'scrollOneScreen' };
-    return doScroll(args);
-  });
-  registerHandler('scrollBy', async (args) => {
-    args.extra = { ...(args.extra || {}), action: 'scrollBy' };
-    return doScroll(args);
-  });
-
-  // ─── takeScreenshot ──────────────────────────────────────────────
-
-  registerHandler('takeScreenshot', async function takeScreenshotHandler({ locator, selectorFamily, extra }) {
+registerHandler('takeScreenshot', async function takeScreenshotHandler({ locator, selectorFamily, extra }) {
     const mode = getVisibilityMode(extra);
     if (locator) {
       // Screenshot of a specific element
@@ -2012,66 +1504,15 @@ console.log({
     return { dataUrl: resp.dataUrl, elementScreenshot: false };
   });
 
-  // ─── keyCombo / getPageTitle / getElementCount / clickIfExists ───
 
-  registerHandler('keyCombo', async function keyComboHandler({ extra }) {
-    const keysStr = extra?.keys;
-    if (!keysStr) throw new Error('keyCombo: keys is required');
-    const parts = keysStr.split('+').map(s => s.trim());
-    const key = parts.pop();
-    const modifiers = parts;
-    const opts = { key, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false };
-    for (const m of modifiers) {
-      const lower = m.toLowerCase();
-      if (lower === 'ctrl' || lower === 'control') opts.ctrlKey = true;
-      else if (lower === 'alt') opts.altKey = true;
-      else if (lower === 'shift') opts.shiftKey = true;
-      else if (lower === 'meta' || lower === 'cmd' || lower === 'win') opts.metaKey = true;
-    }
-    const humanLike = extra?.humanLike ?? true;
-    if (humanLike) {
-      for (const m of modifiers) {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: m, ctrlKey: m === 'Ctrl', altKey: m === 'Alt', shiftKey: m === 'Shift', metaKey: m === 'Meta', bubbles: true }));
-        await sleep(rand(30, 80));
-      }
-    }
-    document.dispatchEvent(new KeyboardEvent('keydown', { ...opts, bubbles: true }));
-    if (humanLike) await sleep(rand(30, 100));
-    document.dispatchEvent(new KeyboardEvent('keyup', { ...opts, bubbles: true }));
-    if (humanLike) {
-      for (const m of [...modifiers].reverse()) {
-        document.dispatchEvent(new KeyboardEvent('keyup', { key: m, ctrlKey: m === 'Ctrl', altKey: m === 'Alt', shiftKey: m === 'Shift', metaKey: m === 'Meta', bubbles: true }));
-        await sleep(rand(30, 60));
-      }
-    }
-    return { keyCombo: keysStr };
-  });
+  // ── waitForElement ──
+// ─── waitForElement / waitForElementHide ─────────────────────────
 
-  registerHandler('getPageTitle', function getPageTitleHandler() {
-    return { title: document.title, url: location.href };
-  });
-
-  registerHandler('getElementCount', async function getElementCountHandler({ locator, selectorFamily, extra }) {
+registerHandler('waitForElement', async function waitForElementHandler({ locator, selectorFamily, extra }) {
     const mode = getVisibilityMode(extra);
-    const normLocator = normalizeLocator(locator);
-    const normFamily = normalizeSelectorFamily(locator, selectorFamily);
-    const all = resolveAllLocators(normLocator, normFamily, mode);
-    return { count: all.length };
-  });
-
-  registerHandler('clickIfExists', async function clickIfExistsHandler({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const normLocator = normalizeLocator(locator);
-    const normFamily = normalizeSelectorFamily(locator, selectorFamily);
-    const el = resolveLocator(normLocator, normFamily, mode);
-    if (!el || el === document) {
-      console.log(`[RPA clickIfExists] element not found, skipping: ${normLocator}`);
-      return { clicked: false, skipped: true };
-    }
-    await visualConfirmDelay();
-    const humanLike = extra?.humanLike ?? true;
-    const forceJs = extra?.forceJs ?? false;
-    return performClick(el, { humanLike, forceJs, clickType: 'click' });
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    await waitForElement(locator, selectorFamily, mode, timeoutMs);
+    return { appeared: true };
   });
 
 
@@ -2186,3 +1627,4 @@ console.log({
 
   console.log(`[RPA Agent] Content script injected v${AGENT_VERSION}`);
 })();
+

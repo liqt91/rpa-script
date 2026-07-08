@@ -1,0 +1,6 @@
+
+
+registerHandler('getHtml', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getHtml' };
+      return doExtract(args);
+  });

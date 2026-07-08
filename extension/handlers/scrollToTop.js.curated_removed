@@ -1,0 +1,6 @@
+// ─── scrollToTop / scrollOneScreen / scrollBy ────────────────────
+
+registerHandler('scrollToTop', async (args) => {
+    args.extra = { ...(args.extra || {}), action: 'scrollToTop' };
+    return doScroll(args);
+  });

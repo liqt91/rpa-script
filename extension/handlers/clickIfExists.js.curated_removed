@@ -1,0 +1,16 @@
+
+
+registerHandler('clickIfExists', async function clickIfExistsHandler({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const normLocator = normalizeLocator(locator);
+    const normFamily = normalizeSelectorFamily(locator, selectorFamily);
+    const el = resolveLocator(normLocator, normFamily, mode);
+    if (!el || el === document) {
+      console.log(`[RPA clickIfExists] element not found, skipping: ${normLocator}`);
+      return { clicked: false, skipped: true };
+    }
+    await visualConfirmDelay();
+    const humanLike = extra?.humanLike ?? true;
+    const forceJs = extra?.forceJs ?? false;
+    return performClick(el, { humanLike, forceJs, clickType: 'click' });
+  });

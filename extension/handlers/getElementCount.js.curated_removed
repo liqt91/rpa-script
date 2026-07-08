@@ -1,0 +1,9 @@
+
+
+registerHandler('getElementCount', async function getElementCountHandler({ locator, selectorFamily, extra }) {
+    const mode = getVisibilityMode(extra);
+    const normLocator = normalizeLocator(locator);
+    const normFamily = normalizeSelectorFamily(locator, selectorFamily);
+    const all = resolveAllLocators(normLocator, normFamily, mode);
+    return { count: all.length };
+  });

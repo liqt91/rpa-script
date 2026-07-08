@@ -1,0 +1,18 @@
+
+
+registerHandler('getElementText', async function getElementText({ locator, selectorFamily, extra }) {
+      const mode = getVisibilityMode(extra);
+      const timeoutMs = (extra?.timeout ?? 10) * 1000;
+      try {
+        const el = await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
+        const text = el.textContent?.trim() ?? '';
+        console.log(`[RPA getElementText] mode=${mode} tag=${el?.tagName} textLen=${text.length} locator=${JSON.stringify(locator)}`);
+        return { text };
+      } catch (e) {
+        if (e?.contextNotFound || e?.message?.includes('按循环序号对齐失败')) {
+          console.log(`[RPA getElementText] element not found in loop context, returning empty: ${e.message}`);
+          return { text: '' };
+        }
+        throw e;
+      }
+    });
