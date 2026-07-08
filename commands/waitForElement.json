@@ -1,0 +1,23 @@
+{
+  "type": "waitForElement",
+  "label": "等待元素出现",
+  "category": "等待",
+  "runtime": "extension",
+  "icon": "fa-eye",
+  "iconColor": "text-yellow-500",
+  "bgColor": "bg-yellow-50",
+  "categoryOrder": 20,
+  "commandOrder": 40,
+  "description": "等待页面上的元素出现，超时则失败",
+  "enabled": true,
+  "params": [
+    {"name": "element_name", "label": "元素", "type": "elementName", "required": true},
+    {"name": "visibilityMode", "label": "元素可见性", "type": "select",
+     "options": [{"label": "仅可见", "value": "visible"}, {"label": "所有", "value": "any"}],
+     "default": "visible"}
+  ],
+  "handler": {
+    "kind": "custom",
+    "source": "extension/handlers/waitForElement.js"
+  }
+}

@@ -427,3 +427,66 @@ def enable_all_commands(db: Session = Depends(get_db), user=Depends(auth.get_cur
     db.query(models.WorkflowCommand).update({"enabled": 1})
     db.commit()
     return {"success": True, "count": count}
+
+
+# ── Command definition JSON editing ──────────────────────────
+
+import os as _os
+from pathlib import Path as _Path
+
+_COMMANDS_DIR = _Path(__file__).resolve().parent.parent.parent.parent / "commands"
+
+
+@router.get("/definitions")
+def list_definitions(user=Depends(auth.get_current_user)):
+    """List all command definition JSON files."""
+    if not _COMMANDS_DIR.exists():
+        return []
+    result = []
+    for fp in sorted(_COMMANDS_DIR.glob("*.json")):
+        with open(fp, encoding="utf-8") as f:
+            data = json.load(f)
+        data["_file"] = fp.name
+        result.append(data)
+    return result
+
+
+@router.get("/definitions/{type_name}")
+def get_definition(type_name: str, user=Depends(auth.get_current_user)):
+    """Get a single command definition JSON."""
+    fp = _COMMANDS_DIR / f"{type_name}.json"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"Definition '{type_name}' not found")
+    with open(fp, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@router.put("/definitions/{type_name}")
+def save_definition(type_name: str, payload: dict, user=Depends(auth.get_current_user)):
+    """Save a command definition JSON. Creates if not exists."""
+    fp = _COMMANDS_DIR / f"{type_name}.json"
+    _os.makedirs(_COMMANDS_DIR, exist_ok=True)
+    with open(fp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    return {"success": True, "file": fp.name}
+
+
+@router.post("/definitions/build")
+def build_definitions(user=Depends(auth.get_current_user)):
+    """Run generate_commands.py and build_content_js.py."""
+    import subprocess, sys
+    root = _COMMANDS_DIR.parent
+    results = []
+    for script in ["scripts/generate_commands.py", "scripts/build_content_js.py"]:
+        sp = subprocess.run(
+            [sys.executable, str(root / script)],
+            capture_output=True, text=True, cwd=str(root),
+        )
+        results.append({
+            "script": script,
+            "returncode": sp.returncode,
+            "stdout": sp.stdout[-500:],
+            "stderr": sp.stderr[-500:],
+        })
+    all_ok = all(r["returncode"] == 0 for r in results)
+    return {"success": all_ok, "results": results}

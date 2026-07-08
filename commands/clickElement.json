@@ -1,0 +1,27 @@
+{
+  "type": "clickElement",
+  "label": "点击元素",
+  "category": "元素操作",
+  "runtime": "extension",
+  "icon": "fa-hand-pointer",
+  "iconColor": "text-blue-500",
+  "bgColor": "bg-blue-50",
+  "categoryOrder": 40,
+  "commandOrder": 10,
+  "description": "点击页面上的一个元素",
+  "enabled": true,
+  "params": [
+    {"name": "element_name", "label": "元素", "type": "str-element", "required": true},
+    {"name": "scope", "label": "匹配范围", "type": "str-dropdown",
+     "options": [{"label": "当前外层元素内", "value": "local"}, {"label": "全页面", "value": "global"}],
+     "default": "local", "group": "advanced"},
+    {"name": "loopAnchor", "label": "锚点元素", "type": "str-var", "default": "", "group": "anchor"},
+    {"name": "visibilityMode", "label": "元素可见性", "type": "str-dropdown",
+     "options": [{"label": "仅可见", "value": "visible"}, {"label": "所有", "value": "any"}],
+     "default": "visible", "group": "advanced"}
+  ],
+  "handler": {
+    "kind": "delegate",
+    "function": "doClick"
+  }
+}
