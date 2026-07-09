@@ -11,6 +11,6 @@
 
 def auto_register():
     """导入所有子包，触发 @register_handler 装饰器自注册。"""
-    from . import backend_commands
-    from . import extension_commands
-    from . import control_commands
+    from . import backend_commands  # noqa: F401
+    from . import extension_commands  # noqa: F401
+    from . import control_commands  # noqa: F401

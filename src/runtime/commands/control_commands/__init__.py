@@ -1,5 +1,6 @@
 """本地端控制指令 — 容器/流程控制，runtime="emitter"，无 execute 方法。"""
-import os as _os, importlib as _importlib
+import os as _os
+import importlib as _importlib
 
 _dir = _os.path.dirname(__file__)
 for _f in sorted(_os.listdir(_dir)):

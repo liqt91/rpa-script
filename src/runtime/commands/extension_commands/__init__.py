@@ -1,5 +1,6 @@
 """扩展端执行指令 — Python 注册桩，声明参数 schema + js_handler 指向。"""
-import os as _os, importlib as _importlib
+import os as _os
+import importlib as _importlib
 
 _dir = _os.path.dirname(__file__)
 for _f in sorted(_os.listdir(_dir)):
