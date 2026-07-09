@@ -75,6 +75,7 @@ export const api = {
   resumeRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/resume`, { method: 'POST' }),
   stopRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/stop`, { method: 'POST' }),
   getCommands: () => request('/api/workflows/commands'),
+  getNewCommands: () => request('/api/workflows/commands-new'),
 
   // Workflow Elements (per-workflow element library)
   getWorkflowElements: (wfId) => request(`/api/workflows/${wfId}/elements`),

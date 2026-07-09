@@ -16,6 +16,8 @@ const initialState = {
   saving: false,
   commands: null,
   commandsLoading: true,
+  newCommands: null,
+  newCommandsLoading: true,
   isDirty: false,
   runStatus: 'idle', // 'idle' | 'running' | 'error' | 'completed'
   runningStepId: null,
@@ -213,6 +215,9 @@ function reducer(state, action) {
     case 'SET_COMMANDS':
       console.log(`[reducer] SET_COMMANDS categories=${action.payload?.categories?.length || 0}`);
       return { ...state, commands: action.payload, commandsLoading: false };
+    case 'SET_NEW_COMMANDS':
+      console.log(`[reducer] SET_NEW_COMMANDS categories=${action.payload?.categories?.length || 0}`);
+      return { ...state, newCommands: action.payload, newCommandsLoading: false };
     case 'SET_DIRTY':
       return { ...state, isDirty: action.payload };
     case 'UPDATE_NODE_LOCAL': {
@@ -542,9 +547,20 @@ export function WorkflowProvider({ children, wfId }) {
     }
   }, []);
 
+  const loadNewCommands = useCallback(async () => {
+    try {
+      const data = await api.getNewCommands();
+      dispatch({ type: 'SET_NEW_COMMANDS', payload: data });
+    } catch (e) {
+      console.error('[WorkflowContext] loadNewCommands failed:', e.message);
+      dispatch({ type: 'SET_NEW_COMMANDS', payload: null });
+    }
+  }, []);
+
   useEffect(() => {
     loadCommands();
-  }, [loadCommands]);
+    loadNewCommands();
+  }, [loadCommands, loadNewCommands]);
 
   const STORAGE_KEY = (id) => `workflow_editor_nodes_${id}`;
 
@@ -896,6 +912,11 @@ export function WorkflowProvider({ children, wfId }) {
   const containerTypes = getContainerTypes(state.commands);
   const containerNodes = state.nodes.filter(n => containerTypes.includes(n.type));
 
+  const NEW_NODE_TYPES = getNodeTypes(state.newCommands);
+  const NEW_CATEGORIES = getCategories(state.newCommands);
+  const NEW_NODE_TYPE_MAP = getNodeTypeMap(NEW_NODE_TYPES);
+  const newContainerTypes = getContainerTypes(state.newCommands);
+
   const value = {
     ...state,
     NODE_TYPES,
@@ -904,6 +925,10 @@ export function WorkflowProvider({ children, wfId }) {
     selectedNode,
     containerNodes,
     containerTypes,
+    NEW_NODE_TYPES,
+    NEW_CATEGORIES,
+    NEW_NODE_TYPE_MAP,
+    newContainerTypes,
     findAncestorNodes,
     buildElementTree,
     getElementChain,

@@ -18,6 +18,7 @@ from src.repo import runtime_models as models
 from src.config import runtime_config as config
 from ..workflow.commands import get_command, enrich_command_meta
 from ..workflow.handlers.registry import get_all_handlers
+from ..workflow.new_catalog import load_new_catalog
 from ..workflow.exporter import build_python
 from ..workflow.extension_runner import (
     run_workflow_extension,
@@ -225,6 +226,16 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
         "containerTypes": container_types,
         "branchTypes": branch_types,
     }
+
+
+@router.get("/commands-new")
+def list_new_commands(user=Depends(auth.get_current_user)):
+    """Return new-system commands defined in commands/*.json.
+
+    The workflow editor renders these separately and marks them as 'new'
+    during the migration period.
+    """
+    return load_new_catalog()
 
 
 @router.get("/{wf_id}", response_model=schemas.WorkflowOut)

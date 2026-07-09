@@ -40,7 +40,27 @@ const CATEGORY_COLORS = {
 };
 
 export default function CommandPanel() {
-  const { commands, commandsLoading, NODE_TYPES, CATEGORIES, saveNode, wfId, nodes, NODE_TYPE_MAP } = useWorkflow();
+  const {
+    commands,
+    commandsLoading,
+    newCommands,
+    newCommandsLoading,
+    NODE_TYPES,
+    CATEGORIES,
+    NEW_NODE_TYPES,
+    NEW_CATEGORIES,
+    NEW_NODE_TYPE_MAP,
+    saveNode,
+    nodes,
+    NODE_TYPE_MAP,
+  } = useWorkflow();
+
+  // Unified lookup maps (old + new) for drag images and parent derivation
+  const unifiedTypeMap = { ...NODE_TYPE_MAP, ...NEW_NODE_TYPE_MAP };
+  const allCommandsByCat = {
+    ...(commands?.commands || {}),
+    ...(newCommands?.commands || {}),
+  };
 
   // 阻止浏览器默认 drop 行为，避免拖拽到非画布区域时打开页面
   useEffect(() => {
@@ -54,7 +74,7 @@ export default function CommandPanel() {
   }, []);
 
   const createDragImage = (cmd) => {
-    const typeInfo = NODE_TYPE_MAP[cmd.type] || {};
+    const typeInfo = unifiedTypeMap[cmd.type] || {};
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;left:-9999px;top:0;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.15);border:1px solid #1677ff;width:240px;font-size:12px;pointer-events:none;z-index:99999;';
     const iconHtml = `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;background:${typeInfo.bgColor ? '' : '#f5f5f5'};color:${typeInfo.iconColor || '#9ca3af'};font-size:10px;"><i class="fas ${typeInfo.icon || 'fa-circle'}"></i></span>`;
@@ -63,10 +83,12 @@ export default function CommandPanel() {
     document.body.appendChild(el);
     return el;
   };
+
   const [search, setSearch] = useState('');
   const [expandedCats, setExpandedCats] = useState(() =>
     Object.fromEntries(CATEGORIES.map(c => [c, true]))
   );
+  const [newExpanded, setNewExpanded] = useState(true);
 
   const toggleCategory = (cat) => {
     setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }));
@@ -76,7 +98,7 @@ export default function CommandPanel() {
     console.log(`[CommandPanel] add nodeType=${nodeType.type}`);
     try {
       // Build default extra from command schema
-      const cmd = commands?.commands?.[nodeType.category]?.find(c => c.type === nodeType.type);
+      const cmd = allCommandsByCat[nodeType.category]?.find(c => c.type === nodeType.type);
       const defaultExtra = {};
       if (cmd?.fields) {
         for (const f of cmd.fields) {
@@ -87,7 +109,7 @@ export default function CommandPanel() {
       }
 
       // Auto derive parent_id based on list position
-      const parentId = deriveParentId(nodes, nodeType.type, NODE_TYPE_MAP);
+      const parentId = deriveParentId(nodes, nodeType.type, unifiedTypeMap);
 
       await saveNode({
         type: nodeType.type,
@@ -99,9 +121,14 @@ export default function CommandPanel() {
     }
   };
 
-  const filteredTypes = search
+  const newTypeSet = new Set(NEW_NODE_TYPES.map(n => n.type));
+  const filteredOldTypes = (search
     ? NODE_TYPES.filter(n => (n.label || '').includes(search) || (n.type || '').includes(search))
-    : NODE_TYPES;
+    : NODE_TYPES
+  ).filter(n => !newTypeSet.has(n.type));
+  const filteredNewTypes = search
+    ? NEW_NODE_TYPES.filter(n => (n.label || '').includes(search) || (n.type || '').includes(search))
+    : NEW_NODE_TYPES;
 
   if (commandsLoading) {
     return (
@@ -118,6 +145,70 @@ export default function CommandPanel() {
       </aside>
     );
   }
+
+  const renderCommandItem = (cmd) => (
+    <div
+      key={cmd.type}
+      className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-grab text-xs text-gray-600 draggable-item ${cmd.isNew ? 'border-l-2 border-l-blue-400' : ''}`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', JSON.stringify({ type: cmd.type, category: cmd.category }));
+        e.target.classList.add('dragging');
+        const img = createDragImage(cmd);
+        e.dataTransfer.setDragImage(img, 10, 18);
+        requestAnimationFrame(() => document.body.removeChild(img));
+        document.body.classList.add('dragging-node');
+      }}
+      onDragEnd={(e) => {
+        e.target.classList.remove('dragging');
+        document.body.classList.remove('dragging-node');
+      }}
+      onClick={() => handleAdd(cmd)}
+      title={cmd.description || cmd.label}
+    >
+      <i className="fas fa-grip-vertical text-gray-300 text-[10px] mr-1"></i>
+      <span className="truncate flex-1">{cmd.label}</span>
+      {cmd.isNew && (
+        <span className="shrink-0 text-[10px] px-1 py-0 rounded bg-blue-100 text-blue-600" title="JSON 定义的新指令">
+          新
+        </span>
+      )}
+      {cmd.hasRuntime && (
+        <span
+          className={`shrink-0 text-[10px] px-1 py-0 rounded ${cmd.local ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600'}`}
+          title={cmd.local ? '本地执行（后端）' : '扩展执行（浏览器）'}
+        >
+          {cmd.local ? '本地' : '扩展'}
+        </span>
+      )}
+    </div>
+  );
+
+  const renderCategory = (cat, types, isSearch) => {
+    const catTypes = isSearch
+      ? types
+      : types.filter(n => n.category === cat);
+    if (catTypes.length === 0) return null;
+    const isExpanded = isSearch ? true : expandedCats[cat];
+
+    return (
+      <div key={cat} className="category-group mb-0.5">
+        {!isSearch && (
+          <div
+            className="category-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer"
+            onClick={() => toggleCategory(cat)}
+          >
+            <i className={`fas fa-chevron-right text-gray-400 text-[10px] w-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}></i>
+            <i className={`fas ${CATEGORY_ICONS[cat] || 'fa-folder'} ${CATEGORY_COLORS[cat] || 'text-gray-500'} text-xs w-4 text-center`}></i>
+            <span className="text-xs text-gray-700 flex-1 truncate">{cat}</span>
+          </div>
+        )}
+        <div className={`ml-4 space-y-0.5 ${isExpanded ? '' : 'hidden'}`}>
+          {catTypes.map(renderCommandItem)}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <aside className="w-[250px] bg-white border-r border-[#e8e8e8] flex flex-col shrink-0 select-none">
@@ -144,60 +235,46 @@ export default function CommandPanel() {
 
       {/* 指令分类列表 */}
       <div className="flex-1 overflow-y-auto px-1 pb-2">
-        {(search ? ['搜索结果'] : CATEGORIES).map(cat => {
-          const catTypes = search
-            ? filteredTypes
-            : filteredTypes.filter(n => n.category === cat);
-          if (catTypes.length === 0) return null;
-          const isExpanded = search ? true : expandedCats[cat];
-
-          return (
-            <div key={cat} className="category-group mb-0.5">
-              {!search && (
-                <div
-                  className="category-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer"
-                  onClick={() => toggleCategory(cat)}
-                >
-                  <i className={`fas fa-chevron-right text-gray-400 text-[10px] w-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}></i>
-                  <i className={`fas ${CATEGORY_ICONS[cat] || 'fa-folder'} ${CATEGORY_COLORS[cat] || 'text-gray-500'} text-xs w-4 text-center`}></i>
-                  <span className="text-xs text-gray-700 flex-1 truncate">{cat}</span>
-                </div>
-              )}
-              <div className={`ml-4 space-y-0.5 ${isExpanded ? '' : 'hidden'}`}>
-                {catTypes.map(cmd => (
-                  <div
-                    key={cmd.type}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-grab text-xs text-gray-600 draggable-item"
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', JSON.stringify({ type: cmd.type, category: cmd.category }));
-                      e.target.classList.add('dragging');
-                      const img = createDragImage(cmd);
-                      e.dataTransfer.setDragImage(img, 10, 18);
-                      requestAnimationFrame(() => document.body.removeChild(img));
-                      document.body.classList.add('dragging-node');
-                    }}
-                    onDragEnd={(e) => {
-                      e.target.classList.remove('dragging');
-                      document.body.classList.remove('dragging-node');
-                    }}
-                  >
-                    <i className="fas fa-grip-vertical text-gray-300 text-[10px] mr-1"></i>
-                    <span className="truncate flex-1">{cmd.label}</span>
-                    {cmd.hasRuntime && (
-                      <span
-                        className={`shrink-0 text-[10px] px-1 py-0 rounded ${cmd.local ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600'}`}
-                        title={cmd.local ? '本地执行（后端）' : '扩展执行（浏览器）'}
-                      >
-                        {cmd.local ? '本地' : '扩展'}
-                      </span>
-                    )}
-                  </div>
-                ))}
+        {/* 新指令区 */}
+        {newCommands && (search ? filteredNewTypes.length > 0 : NEW_CATEGORIES.length > 0) && (
+          <div className="mb-2">
+            {!search && (
+              <div
+                className="category-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer bg-blue-50/50"
+                onClick={() => setNewExpanded(v => !v)}
+              >
+                <i className={`fas fa-chevron-right text-blue-400 text-[10px] w-3 transition-transform ${newExpanded ? 'rotate-90' : ''}`}></i>
+                <i className="fas fa-bolt text-blue-500 text-xs w-4 text-center"></i>
+                <span className="text-xs font-medium text-blue-700 flex-1 truncate">新指令</span>
+                <span className="text-[10px] px-1 py-0 rounded bg-blue-100 text-blue-600">JSON</span>
               </div>
+            )}
+            {(search || newExpanded) && (
+              <div className="ml-4 space-y-0.5 mt-0.5">
+                {search
+                  ? filteredNewTypes.map(renderCommandItem)
+                  : NEW_CATEGORIES.map(cat => renderCategory(cat, filteredNewTypes, false))}
+              </div>
+            )}
+          </div>
+        )}
+        {newCommandsLoading && (
+          <div className="px-3 py-2 text-[10px] text-gray-400">
+            <i className="fas fa-circle-notch fa-spin mr-1"></i>加载新指令...
+          </div>
+        )}
+
+        {/* 老指令区 */}
+        <div className="border-t border-[#e8e8e8] pt-1">
+          {!search && (
+            <div className="px-2 py-1 text-[10px] text-gray-400 font-medium">
+              现有指令
             </div>
-          );
-        })}
+          )}
+          {search
+            ? filteredOldTypes.map(renderCommandItem)
+            : CATEGORIES.map(cat => renderCategory(cat, filteredOldTypes, false))}
+        </div>
       </div>
     </aside>
   );
