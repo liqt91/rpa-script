@@ -1,0 +1,34 @@
+{
+  "type": "launchBrowser",
+  "label": "打开浏览器",
+  "runtime": "backend",
+  "icon": "fa-globe",
+  "iconColor": "text-blue-500",
+  "bgColor": "bg-blue-50",
+  "commandOrder": 0,
+  "description": "启动指定浏览器并打开目标网址",
+  "enabled": true,
+  "params": [
+    {
+      "name": "browser_type",
+      "label": "浏览器类型",
+      "type": "str-dropdown",
+      "options": [{"label": "Chrome", "value": "chrome"}, {"label": "Edge", "value": "edge"}]
+    },
+    {
+      "name": "url",
+      "label": "目标网址",
+      "type": "str-input",
+      "default": "about:blank"
+    },
+    {
+      "name": "window",
+      "label": "窗口",
+      "type": "str-var",
+      "group": "output",
+      "default": "browser1",
+      "description": "浏览器窗口句柄存储变量名"
+    }
+  ],
+  "categories": ["browser"]
+}

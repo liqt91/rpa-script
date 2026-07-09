@@ -78,6 +78,19 @@ class AIAppConfig(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class AILLMConfig(Base):
+    __tablename__ = "ai_llm_configs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    provider = Column(String(16), default="deepseek", nullable=False)
+    model = Column(String(64), default="deepseek-v4-flash")
+    api_key = Column(String(256), default="")
+    # JSON: [{"id": "command_code_gen", "name": "指令代码生成", "prompt": "...", "enabled": true}, ...]
+    scenarios = Column(Text, default="[]")
+    enabled = Column(Integer, default=1)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class Workflow(Base):
     __tablename__ = "workflows"
     __table_args__ = {"sqlite_autoincrement": True}
@@ -183,6 +196,18 @@ class WorkflowCommand(Base):
     category_order = Column(Integer, default=0)
     command_order = Column(Integer, default=0)
     reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class CommandCategory(Base):
+    __tablename__ = "command_categories"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(String(64), unique=True, nullable=False)
+    name = Column(String(64), nullable=False)
+    icon = Column(String(32), default="fa-folder")
+    sort_order = Column(Integer, default=0)
+    description = Column(Text, default="")
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 

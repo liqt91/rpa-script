@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine
 
-_SCHEMA_VERSION = 11  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 13  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -427,6 +427,54 @@ def _migrate_011():
         conn.commit()
 
 
+def _migrate_012():
+    """Add model column to ai_llm_configs for LLM model selection."""
+    inspector = inspect(engine)
+    if "ai_llm_configs" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("ai_llm_configs")}
+    with engine.connect() as conn:
+        if "model" not in cols:
+            conn.execute(text("ALTER TABLE ai_llm_configs ADD COLUMN model VARCHAR(64) DEFAULT 'deepseek-v4-flash'"))
+        conn.commit()
+
+
+def _migrate_013():
+    """Create command_categories table for the new command definition system."""
+    inspector = inspect(engine)
+    if "command_categories" not in inspector.get_table_names():
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE command_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    slug VARCHAR(64) NOT NULL UNIQUE,
+                    name VARCHAR(64) NOT NULL,
+                    icon VARCHAR(32) DEFAULT 'fa-folder',
+                    sort_order INTEGER DEFAULT 0,
+                    description TEXT DEFAULT '',
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )
+            """))
+            # Seed default categories
+            defaults = [
+                ("browser", "浏览器", "fa-globe", 10),
+                ("element", "元素操作", "fa-mouse-pointer", 20),
+                ("variable", "变量操作", "fa-equals", 30),
+                ("table", "数据表格", "fa-table", 40),
+                ("wait", "等待", "fa-clock", 50),
+                ("advanced", "高级", "fa-cog", 90),
+                ("flow", "流程控制", "fa-code-branch", 60),
+                ("http", "HTTP请求", "fa-cloud-arrow-up", 80),
+            ]
+            for slug, name, icon, order in defaults:
+                conn.execute(
+                    text("INSERT INTO command_categories (slug, name, icon, sort_order) VALUES (:slug, :name, :icon, :order)"),
+                    {"slug": slug, "name": name, "icon": icon, "order": order},
+                )
+            conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
@@ -441,6 +489,8 @@ _MIGRATIONS = {
     9: _migrate_009,
     10: _migrate_010,
     11: _migrate_011,
+    12: _migrate_012,
+    13: _migrate_013,
 }
 
 

@@ -1,7 +1,6 @@
 {
   "type": "setVar",
   "label": "设置变量",
-  "category": "变量操作",
   "runtime": "backend",
   "icon": "fa-equals",
   "iconColor": "text-green-500",
@@ -12,22 +11,59 @@
   "enabled": true,
   "isNew": true,
   "params": [
-    {"name": "name", "label": "变量名", "type": "str-var", "required": true},
-    {"name": "value", "label": "值", "type": "any-input"},
-    {"name": "valueType", "label": "值类型", "type": "str-dropdown",
-     "options": [
-       {"label": "自动", "value": "any-input"},
-       {"label": "文本", "value": "str-input"},
-       {"label": "数字", "value": "int-number"},
-       {"label": "布尔", "value": "bool-check"},
-       {"label": "列表", "value": "list-input"},
-       {"label": "字典", "value": "dict-input"},
-       {"label": "表达式", "value": "any-expr"}
-     ],
-     "default": "any-input"}
+    {
+      "name": "name",
+      "label": "变量名",
+      "type": "str-var",
+      "required": true
+    },
+    {
+      "name": "value",
+      "label": "值",
+      "type": "any-input"
+    },
+    {
+      "name": "valueType",
+      "label": "值类型",
+      "type": "str-dropdown",
+      "options": [
+        {
+          "label": "自动",
+          "value": "any-input"
+        },
+        {
+          "label": "文本",
+          "value": "str-input"
+        },
+        {
+          "label": "数字",
+          "value": "int-number"
+        },
+        {
+          "label": "布尔",
+          "value": "bool-check"
+        },
+        {
+          "label": "列表",
+          "value": "list-input"
+        },
+        {
+          "label": "字典",
+          "value": "dict-input"
+        },
+        {
+          "label": "表达式",
+          "value": "any-expr"
+        }
+      ],
+      "default": "any-input"
+    }
   ],
   "handler": {
     "kind": "backend",
     "source": "handlers/backend/set_var_impl.py"
-  }
+  },
+  "categories": [
+    "variable"
+  ]
 }

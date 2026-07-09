@@ -3,6 +3,41 @@
 from unittest.mock import patch, MagicMock
 
 
+# ---------- /api/ai/llm-config ----------
+
+def test_get_llm_config_defaults(client, auth_headers):
+    """首次获取 LLM 配置应返回默认值，包含 model 字段。"""
+    r = client.get("/api/ai/llm-config", headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["provider"] == "deepseek"
+    assert data["model"] == "deepseek-v4-flash"
+    assert data["apiKey"] == ""
+    assert data["enabled"] is True
+    assert any(s["id"] == "command_code_gen" for s in data["scenarios"])
+
+
+def test_update_llm_config_model(client, auth_headers):
+    """更新 LLM 配置时应保存 model。"""
+    r = client.put(
+        "/api/ai/llm-config",
+        headers=auth_headers,
+        json={
+            "provider": "deepseek",
+            "model": "deepseek-v4-pro",
+            "apiKey": "sk-test",
+            "enabled": True,
+            "scenarios": [],
+        },
+    )
+    assert r.status_code == 200
+
+    r = client.get("/api/ai/llm-config", headers=auth_headers)
+    data = r.json()
+    assert data["model"] == "deepseek-v4-pro"
+    assert data["apiKey"] == "sk-test"
+
+
 # ---------- /api/ai/invoke 透传 ----------
 
 def test_invoke_without_dify_config(client, auth_headers):

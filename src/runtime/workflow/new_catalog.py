@@ -64,16 +64,22 @@ def load_new_catalog() -> dict[str, Any]:
         if not d.get("enabled", True):
             continue
 
-        cat = d.get("category", "其他")
-        if cat not in commands_by_cat:
-            commands_by_cat[cat] = []
-            categories.append(cat)
+        # Support new `categories` array (slugs) with fallback to old `category` string
+        cats = d.get("categories") or []
+        if not cats and d.get("category"):
+            cats = [d["category"]]
+        if not cats:
+            cats = ["其他"]
+        for cat in cats:
+            if cat not in commands_by_cat:
+                commands_by_cat[cat] = []
+                categories.append(cat)
 
         runtime = _runtime_info(d)
         cmd = {
             "type": d["type"],
             "label": d.get("label", d["type"]),
-            "category": cat,
+            "category": cats[0] if cats else "其他",
             "icon": d.get("icon", "fa-circle"),
             "iconColor": d.get("iconColor", "text-gray-500"),
             "bgColor": d.get("bgColor", "bg-gray-50"),
@@ -90,7 +96,8 @@ def load_new_catalog() -> dict[str, Any]:
             "isNew": True,
             **runtime,
         }
-        commands_by_cat[cat].append(cmd)
+        for cat in cats:
+            commands_by_cat[cat].append(cmd)
 
         if cmd["isContainer"]:
             container_types.append(cmd["type"])

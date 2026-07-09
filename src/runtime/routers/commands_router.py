@@ -471,6 +471,20 @@ def save_definition(type_name: str, payload: dict, user=Depends(auth.get_current
     return {"success": True, "file": fp.name}
 
 
+@router.delete("/definitions/{type_name}")
+def delete_definition(type_name: str, user=Depends(auth.get_current_user)):
+    """Delete a command definition JSON and its handler file."""
+    fp = _COMMANDS_DIR / f"{type_name}.json"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"Definition '{type_name}' not found")
+    fp.unlink()
+    # Also delete handler file if it exists
+    hfp = _Path(__file__).resolve().parent.parent.parent.parent / "src" / "runtime" / "commands" / "backend_commands" / f"{type_name}.py"
+    if hfp.exists():
+        hfp.unlink()
+    return {"success": True}
+
+
 @router.post("/definitions/build")
 def build_definitions(user=Depends(auth.get_current_user)):
     """Run generate_commands.py and build_content_js.py."""
@@ -490,3 +504,103 @@ def build_definitions(user=Depends(auth.get_current_user)):
         })
     all_ok = all(r["returncode"] == 0 for r in results)
     return {"success": all_ok, "results": results}
+
+
+_HANDLERS_NEW_DIR = _Path(__file__).resolve().parent.parent.parent.parent / "src" / "runtime" / "commands" / "backend_commands"
+
+
+@router.get("/definitions/{type_name}/source")
+def get_handler_source(type_name: str, user=Depends(auth.get_current_user)):
+    """Return the saved Python handler source for a new-system command."""
+    fp = _HANDLERS_NEW_DIR / f"{type_name}.py"
+    if not fp.exists():
+        return {"type": type_name, "code": "", "exists": False}
+    return {"type": type_name, "code": fp.read_text(encoding="utf-8"), "exists": True}
+
+
+@router.post("/definitions/{type_name}/save-handler")
+def save_handler_code(type_name: str, payload: dict, user=Depends(auth.get_current_user)):
+    """Save AI-generated Python handler code for a new-system command."""
+    code = payload.get("code", "")
+    if not code:
+        raise HTTPException(status_code=400, detail="code is required")
+    try:
+        compile(code, f"{type_name}.py", "exec")
+    except SyntaxError as e:
+        raise HTTPException(status_code=400, detail=f"Syntax error: {e}")
+
+    _HANDLERS_NEW_DIR.mkdir(parents=True, exist_ok=True)
+    fp = _HANDLERS_NEW_DIR / f"{type_name}.py"
+    with open(fp, "w", encoding="utf-8") as f:
+        f.write(code)
+    return {"success": True, "file": fp.name}
+
+
+# ─── Command Categories (for new command definition system) ─────────────
+
+cat_router = APIRouter(prefix="/api/command-categories", tags=["command-categories"])
+
+
+@cat_router.get("")
+def list_categories(db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """List all command categories, ordered by sort_order."""
+    rows = db.query(models.CommandCategory).order_by(models.CommandCategory.sort_order).all()
+    return [{
+        "id": r.id,
+        "slug": r.slug,
+        "name": r.name,
+        "icon": r.icon or "fa-folder",
+        "sortOrder": r.sort_order,
+        "description": r.description or "",
+    } for r in rows]
+
+
+@cat_router.post("")
+def create_category(payload: dict, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Create a new command category."""
+    slug = (payload.get("slug") or "").strip().lower()
+    name = (payload.get("name") or "").strip()
+    if not slug or not name:
+        raise HTTPException(status_code=400, detail="slug and name are required")
+    if db.query(models.CommandCategory).filter(models.CommandCategory.slug == slug).first():
+        raise HTTPException(status_code=409, detail=f"Category '{slug}' already exists")
+    row = models.CommandCategory(
+        slug=slug,
+        name=name,
+        icon=payload.get("icon", "fa-folder"),
+        sort_order=payload.get("sortOrder", 0),
+        description=payload.get("description", ""),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"ok": True, "id": row.id, "slug": row.slug}
+
+
+@cat_router.put("/{slug}")
+def update_category(slug: str, payload: dict, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Update a command category."""
+    row = db.query(models.CommandCategory).filter(models.CommandCategory.slug == slug).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Category '{slug}' not found")
+    if "name" in payload:
+        row.name = payload["name"].strip()
+    if "icon" in payload:
+        row.icon = payload["icon"]
+    if "sortOrder" in payload:
+        row.sort_order = payload["sortOrder"]
+    if "description" in payload:
+        row.description = payload["description"]
+    db.commit()
+    return {"ok": True}
+
+
+@cat_router.delete("/{slug}")
+def delete_category(slug: str, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Delete a command category."""
+    row = db.query(models.CommandCategory).filter(models.CommandCategory.slug == slug).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Category '{slug}' not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}

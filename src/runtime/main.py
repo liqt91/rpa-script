@@ -21,7 +21,7 @@ from .routers.auth_router import router as auth_router
 from .routers.tasks_router import router as tasks_router
 from .routers.workflows_router import router as workflows_router
 from .routers.extension_router import router as extension_router
-from .routers.commands_router import router as commands_router
+from .routers.commands_router import router as commands_router, cat_router
 from .routers.data_tables_router import router as data_tables_router
 from .routers.other_routers import (
     result_router, script_router, client_router, ai_router, system_router, admin_api_router,
@@ -130,6 +130,10 @@ async def lifespan(app: FastAPI):
     from src.repo.migrations import run_migrations
     run_migrations()
 
+    # Auto-register new-system command handlers
+    from src.runtime.commands import auto_register
+    auto_register()
+
     from . import auth
     db = models.SessionLocal()
     try:
@@ -181,6 +185,7 @@ app.include_router(workflows_router)
 app.include_router(data_tables_router)
 app.include_router(extension_router)
 app.include_router(commands_router)
+app.include_router(cat_router)
 app.include_router(result_router)
 app.include_router(script_router)
 app.include_router(client_router)

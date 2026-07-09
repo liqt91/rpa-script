@@ -1,6 +1,7 @@
 """结果 + 脚本 + 客户端 + AI 路由"""
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -28,6 +29,16 @@ from src.repo.browser_utils import (
     focus_browser_window,
 )
 from ..utils import utcnow
+
+logger = logging.getLogger(__name__)
+
+
+def get_db():
+    db = models.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 from ..job_registry import get_registry
 from ..dify_client import get_dify_client
 
@@ -704,6 +715,269 @@ def ai_invoke(req: schemas.AIInvokeRequest, _user=Depends(auth.get_current_user)
         raise HTTPException(500, f"AI 调用失败: {e}")
 
     return result
+
+
+# ─── LLM direct configuration (DeepSeek/OpenAI) ─────────────────────
+
+DEFAULT_COMMAND_CODE_GEN_PROMPT = """你是 RPA 后端开发专家。下面是一份已经写好的 Python handler 代码，import、注册、参数读取、结果上报都已正确。你只需要把其中的 `# TODO: 业务逻辑` 区域替换成真实可执行的业务代码，然后输出完整文件。
+
+=== 当前代码（你只能修改 # TODO 区域）===
+
+```python
+{{scaffold}}
+```
+
+=== 可用 API ===
+- runner.vars: dict — 读写流程变量，如 runner.vars["key"] = value
+- runner.results: list — 已完成的步骤结果
+- runner._emit(dict): 发送步骤事件到前端
+- instr.get("nodeId"): 当前节点 ID
+- instr.get("extra"): dict — 用户填写的参数值
+- ⚠️ _send_and_wait 是 extension 指令专用，backend 指令禁止使用
+
+=== 要求 ===
+1. 只替换 # TODO 区域，其余代码一字不改
+2. 不要修改 import、@register_handler、params、参数读取、结果上报部分
+3. 业务逻辑必须真实可执行，不要写 pass 或注释占位
+4. 完成后的 result_summary 必须是一个 dict
+5. 直接输出完整 Python 代码，不要 markdown 代码块，不要说明文字
+"""
+
+
+def _build_handler_scaffold(definition: dict) -> str:
+    """Build a complete handler file with TODO body, ready for AI to fill."""
+    type_name = definition.get("type", "example")
+    label = definition.get("label", type_name)
+    category = definition.get("category", "其他")
+    class_name = "".join(p.capitalize() for p in type_name.replace("-", "_").split("_")) + "Handler"
+    icon = definition.get("icon", "fa-circle")
+    icon_color = definition.get("iconColor", "text-gray-500")
+    bg_color = definition.get("bgColor", "bg-gray-50")
+    description = definition.get("description", "")
+
+    params = definition.get("params", [])
+    param_lines = []
+    param_read_lines = []
+    for p in params:
+        pname = p.get("name", "")
+        plabel = p.get("label", pname)
+        ptype = p.get("type", "str-input")
+        pgroup = p.get("group", "主属性")
+        parts = [f'        Param("{pname}", "{plabel}", "{ptype}"']
+        if p.get("required"):
+            parts.append(", required=True")
+        if p.get("options"):
+            parts.append(f", options={json.dumps(p['options'], ensure_ascii=False)}")
+        if "default" in p and p["default"] is not None and p["default"] != "":
+            parts.append(f", default={json.dumps(p['default'], ensure_ascii=False)}")
+        if pgroup != "主属性":
+            parts.append(f', group="{pgroup}"')
+        if p.get("placeholder"):
+            parts.append(f', placeholder="{p["placeholder"]}"')
+        if p.get("description"):
+            parts.append(f', description="{p["description"]}"')
+        parts.append("),")
+        param_lines.append("".join(parts))
+        default = p.get("default")
+        if default is not None and default != "":
+            param_read_lines.append(f"        {pname} = extra.get(\"{pname}\", {json.dumps(default, ensure_ascii=False)})")
+        elif p.get("required"):
+            param_read_lines.append(f"        {pname} = extra[\"{pname}\"]  # 必填")
+        else:
+            param_read_lines.append(f"        {pname} = extra.get(\"{pname}\")")
+
+    params_block = "\n".join(param_lines) if param_lines else "        pass"
+    param_reads_block = "\n".join(param_read_lines) if param_read_lines else "        pass"
+
+    return f'''# {label}
+from src.runtime.workflow.handlers.registry import register_handler, Param
+
+@register_handler(
+    type="{type_name}",
+    label="{label}",
+    category="{category}",
+    runtime="backend",
+    icon="{icon}",
+    icon_color="{icon_color}",
+    bg_color="{bg_color}",
+{', description="' + description + '"' if description else ''}
+)
+class {class_name}:
+    params = [
+{params_block}
+    ]
+
+    @staticmethod
+    async def execute(runner, cmd_type, step_id, instr):
+        extra = instr.get("extra") or {{}}
+{param_reads_block}
+
+        # TODO: 业务逻辑 — 在下方编写真实可执行的代码
+
+        result_summary = {{"{type_name}": True}}
+
+        runner.completed += 1
+        runner.results.append({{"stepId": step_id, "nodeId": instr.get("nodeId"), "status": "success", "result": result_summary}})
+        await runner._emit({{"type": "stepComplete", "stepId": step_id, "nodeId": instr.get("nodeId"), "result": result_summary}})
+        return True
+'''
+
+DEFAULT_LLM_SCENARIOS = [
+    {
+        "id": "command_code_gen",
+        "name": "指令代码生成",
+        "prompt": DEFAULT_COMMAND_CODE_GEN_PROMPT,
+        "enabled": True,
+    }
+]
+
+_PROVIDER_ENDPOINTS = {
+    "deepseek": "https://api.deepseek.com/v1/chat/completions",
+}
+
+_PROVIDER_DEFAULT_MODELS = {
+    "deepseek": "deepseek-v4-flash",
+}
+
+
+def _get_or_create_llm_config(db: Session):
+    row = db.query(models.AILLMConfig).first()
+    if not row:
+        row = models.AILLMConfig(
+            provider="deepseek",
+            api_key="",
+            scenarios=json.dumps(DEFAULT_LLM_SCENARIOS, ensure_ascii=False),
+            enabled=1,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+@ai_router.get("/llm-config")
+def get_llm_config(db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Return the singleton LLM config (provider, apiKey masked, scenarios)."""
+    row = _get_or_create_llm_config(db)
+    scenarios = json.loads(row.scenarios or "[]")
+    return {
+        "provider": row.provider,
+        "model": row.model or _PROVIDER_DEFAULT_MODELS.get(row.provider, "deepseek-v4-flash"),
+        "apiKey": row.api_key or "",
+        "enabled": bool(row.enabled),
+        "scenarios": scenarios,
+    }
+
+
+@ai_router.put("/llm-config")
+def update_llm_config(payload: dict, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Update LLM config and scenarios."""
+    row = _get_or_create_llm_config(db)
+    if "provider" in payload:
+        row.provider = payload["provider"]
+    if "model" in payload:
+        row.model = payload["model"]
+    if "apiKey" in payload:
+        row.api_key = payload["apiKey"].strip() if payload["apiKey"] else ""
+    if "enabled" in payload:
+        row.enabled = 1 if payload["enabled"] else 0
+    if "scenarios" in payload:
+        row.scenarios = json.dumps(payload["scenarios"], ensure_ascii=False)
+    row.updated_at = utcnow()
+    db.commit()
+    db.refresh(row)
+    return {"success": True}
+
+
+@ai_router.post("/llm-config/scenarios/{scenario_id}/generate")
+def generate_with_scenario(
+    scenario_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user),
+):
+    """Run a configured scenario prompt against an LLM.
+
+    payload: {"definition": {...}}  or other context fields.
+    """
+    row = _get_or_create_llm_config(db)
+    if not row.api_key:
+        raise HTTPException(400, "LLM API Key 未配置")
+    if not row.enabled:
+        raise HTTPException(400, "LLM 功能已禁用")
+
+    scenarios = json.loads(row.scenarios or "[]")
+    scenario = next((s for s in scenarios if s.get("id") == scenario_id), None)
+    if not scenario:
+        raise HTTPException(404, f"未知场景: {scenario_id}")
+    if not scenario.get("enabled", True):
+        raise HTTPException(400, f"场景 {scenario_id} 已禁用")
+
+    prompt_template = scenario.get("prompt", "")
+    if not prompt_template:
+        raise HTTPException(400, "场景 prompt 为空")
+
+    # Build complete handler scaffold, then inject into prompt
+    definition = payload.get("definition", {})
+    scaffold = _build_handler_scaffold(definition)
+
+    prompt = prompt_template.replace("{{scaffold}}", scaffold)
+
+    provider = row.provider or "deepseek"
+    endpoint = _PROVIDER_ENDPOINTS.get(provider)
+    model = row.model or _PROVIDER_DEFAULT_MODELS.get(provider)
+    if not endpoint:
+        raise HTTPException(400, f"不支持的 provider: {provider}")
+
+    try:
+        resp = httpx.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {row.api_key}", "Content-Type": "application/json"},
+            json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"LLM API 调用失败: {e}")
+    except (KeyError, IndexError) as e:
+        raise HTTPException(502, f"LLM 响应格式异常: {e}")
+
+    # LLMs often wrap code in markdown fences; strip them.
+    code = _extract_code_from_markdown(content)
+    logger.info("[ai generate] scenario=%s model=%s raw_len=%d code_len=%d", scenario_id, model, len(content), len(code))
+    logger.info("[ai generate] raw response:\n%s", content)
+    logger.info("[ai generate] extracted code:\n%s", code)
+
+    # Safety: syntax check if it looks like Python
+    if "class " in code or "def " in code:
+        try:
+            compile(code, f"<ai-generated-{scenario_id}>", "exec")
+        except SyntaxError as e:
+            logger.error("[ai generate] syntax error: %s\n%s", e, code)
+            raise HTTPException(400, f"生成代码语法错误: {e}")
+
+    return {"code": code, "provider": provider, "model": model, "scenario": scenario_id}
+
+
+def _extract_code_from_markdown(text: str) -> str:
+    """Strip markdown code fences and leading/trailing explanation text."""
+    text = text.strip()
+    # fenced code block: ```python ... ```
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # drop opening fence
+        if lines and lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        # drop closing fence
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        return "\n".join(lines).strip()
+    # inline single backtick
+    if text.startswith("`") and text.endswith("`"):
+        return text[1:-1].strip()
+    return text
 
 
 def _app_to_dict(row: models.AIAppConfig) -> dict:

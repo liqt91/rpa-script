@@ -1,7 +1,6 @@
 {
   "type": "inputElement",
   "label": "输入文本",
-  "category": "元素操作",
   "runtime": "extension",
   "icon": "fa-keyboard",
   "iconColor": "text-blue-500",
@@ -12,20 +11,72 @@
   "enabled": true,
   "isNew": true,
   "params": [
-    {"name": "element_name", "label": "元素", "type": "str-element", "required": true},
-    {"name": "text", "label": "输入内容", "type": "str-input", "required": true},
-    {"name": "pressEnter", "label": "输入后按回车", "type": "bool-check", "default": false},
-    {"name": "scope", "label": "匹配范围", "type": "str-dropdown",
-     "options": [{"label": "当前外层元素内", "value": "local"}, {"label": "全页面", "value": "global"}],
-     "default": "local", "group": "advanced"},
-    {"name": "loopAnchor", "label": "锚点元素", "type": "str-var", "default": "", "group": "anchor"},
-    {"name": "visibilityMode", "label": "元素可见性", "type": "str-dropdown",
-     "options": [{"label": "仅可见", "value": "visible"}, {"label": "所有", "value": "any"}],
-     "default": "visible", "group": "advanced"}
+    {
+      "name": "element_name",
+      "label": "元素",
+      "type": "str-element",
+      "required": true
+    },
+    {
+      "name": "text",
+      "label": "输入内容",
+      "type": "str-input",
+      "required": true
+    },
+    {
+      "name": "pressEnter",
+      "label": "输入后按回车",
+      "type": "bool-check",
+      "default": false
+    },
+    {
+      "name": "scope",
+      "label": "匹配范围",
+      "type": "str-dropdown",
+      "options": [
+        {
+          "label": "当前外层元素内",
+          "value": "local"
+        },
+        {
+          "label": "全页面",
+          "value": "global"
+        }
+      ],
+      "default": "local",
+      "group": "advanced"
+    },
+    {
+      "name": "loopAnchor",
+      "label": "锚点元素",
+      "type": "str-var",
+      "default": "",
+      "group": "anchor"
+    },
+    {
+      "name": "visibilityMode",
+      "label": "元素可见性",
+      "type": "str-dropdown",
+      "options": [
+        {
+          "label": "仅可见",
+          "value": "visible"
+        },
+        {
+          "label": "所有",
+          "value": "any"
+        }
+      ],
+      "default": "visible",
+      "group": "advanced"
+    }
   ],
   "pythonAction": "input",
   "handler": {
     "kind": "delegate",
     "function": "doInput"
-  }
+  },
+  "categories": [
+    "element"
+  ]
 }

@@ -124,6 +124,28 @@ export const api = {
   getAdminDashboard: () => request('/api/admin/dashboard'),
   changePassword: (payload) => request('/api/auth/password', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // AI LLM config
+  getLLMConfig: () => request('/api/ai/llm-config'),
+  updateLLMConfig: (payload) => request('/api/ai/llm-config', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  generateWithScenario: (scenarioId, payload) => request(`/api/ai/llm-config/scenarios/${encodeURIComponent(scenarioId)}/generate`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  getHandlerSource: (typeName) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/source`),
+  saveHandlerCode: (typeName, code) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/save-handler`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  }),
+  deleteDefinition: (typeName) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}`, {
+    method: 'DELETE',
+  }),
+
+  // Command categories
+  getCategories: () => request('/api/command-categories'),
+
   // Run logs
   listAllRuns: () => request('/api/workflows/runs'),
   getActiveRuns: () => request('/api/workflows/runs/active'),

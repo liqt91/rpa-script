@@ -118,3 +118,44 @@
 ## 已记录 / 低优先级
 
 - [ ] **循环变量作用域设计**
+
+---
+
+## 2025-07-10 进度：新指令架构 + AI 代码生成
+
+### 指令定义编辑器 (CommandEditor)
+- [x] 4 列并排布局：指令配置 | JSON 预览 | Python Handler 预览 | JS Handler 预览
+- [x] 3 种指令类型：扩展端执行 (extension) / 本地端操作 (backend) / 本地端控制 (emitter)
+- [x] 分类改为多对多（`command_categories` 表），下拉多选
+- [x] 图标选择：120+ Font Awesome 图标网格预览，颜色实时反映
+- [x] 图标颜色 + 背景颜色：Tailwind 22 色调色板，点选
+- [x] bgColor、commandOrder、enabled、isContainer、closesWith 等配置项
+- [x] 参数编辑：name/label/type/group(下拉)/required/default/placeholder/description/options
+- [x] 保存时过滤 UI 内部字段（_catOpen, _iconOpen 等）和旧 handler 字段
+- [x] 删除指令（确认弹窗 → 删除 JSON + handler 文件）
+
+### 新指令文件架构
+```
+src/runtime/commands/
+  backend_commands/     ← 本地端操作指令 (Python handler, @register_handler + execute)
+  extension_commands/   ← 扩展端执行指令 (Python 注册桩, @register_handler)
+  control_commands/     ← 本地端控制指令 (emitter, 待搬入)
+  tools/                ← handler_template.py 等代码生成工具
+```
+- [x] 自注册：`__init__.py` 扫描 .py 文件 → `importlib.import_module`
+- [x] 启动时 `main.py` → `auto_register()`
+- [x] 清理旧 `handlers_new/` 目录
+- [x] API 读写路径指向 `commands/backend_commands/`
+
+### AI 代码生成
+- [x] AI 配置页 (`/#/ai-config`)：DeepSeek 配置、场景编辑、测试生成
+- [x] LLM API：`POST /api/ai/llm-config/scenarios/{id}/generate`
+- [x] Prompt 模板改为 scaffold 注入：后端预生成完整骨架代码，AI 只填 TODO 区域
+- [x] `_build_handler_scaffold()`：从 JSON 定义生成 import/注册/params/参数读取/结果上报
+- [x] 数据库 `ai_llm_configs` 表 + migration
+- [x] 分类 `command_categories` 表 + migration + 8 个默认分类
+- [x] 旧 JSON 文件迁移（category → categories slug）
+
+### 数据库
+- 路径：`C:\Users\Administrator\AppData\Roaming\RPA Script\data.db`
+- Prompt 以数据库 `ai_llm_configs.scenarios` 为准，代码中 `DEFAULT_COMMAND_CODE_GEN_PROMPT` 仅首次种子
