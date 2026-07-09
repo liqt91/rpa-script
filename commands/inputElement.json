@@ -73,7 +73,7 @@
   ],
   "pythonAction": "input",
   "handler": {
-    "kind": "delegate",
+    "kind": "extension",
     "function": "doInput"
   },
   "categories": [

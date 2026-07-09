@@ -134,6 +134,10 @@ async def lifespan(app: FastAPI):
     from src.runtime.commands import auto_register
     auto_register()
 
+    # Re-populate LOCAL_HANDLERS now that new handlers are registered
+    from src.runtime.workflow.extension_runner import _populate_local_handlers
+    _populate_local_handlers()
+
     from . import auth
     db = models.SessionLocal()
     try:

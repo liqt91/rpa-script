@@ -61,13 +61,16 @@ LOCAL_HANDLERS: dict[str, Callable[["ExtensionRunner", str, dict], Any]] = {}
 
 
 def _populate_local_handlers():
-    """Auto-populate LOCAL_HANDLERS from handler registry."""
+    """Auto-populate LOCAL_HANDLERS from handler registry.
+
+    Any handler with an execute() method is eligible — this includes backend
+    handlers and extension handlers that do Python-side pre-work (e.g. launchBrowser).
+    """
     from .handlers.registry import get_all_handlers
     for htype, hdef in get_all_handlers().items():
-        if hdef.get("runtime") == "backend":
-            cls = hdef.get("handler_class")
-            if cls and hasattr(cls, "execute"):
-                LOCAL_HANDLERS[htype] = cls.execute
+        cls = hdef.get("handler_class")
+        if cls and hasattr(cls, "execute"):
+            LOCAL_HANDLERS[htype] = cls.execute
 
 _populate_local_handlers()
 
@@ -168,16 +171,6 @@ class LoopBreak(Exception):
 class LoopContinue(Exception):
     """Raised by continue instruction to skip to next loop iteration."""
     pass
-
-
-def _is_local_command(cmd_type: str) -> bool:
-    """Return True if the command should be handled locally (backend) rather than sent to extension."""
-    # 1. Check new handler registry
-    from .handlers.registry import get_handler
-    h = get_handler(cmd_type)
-    if h:
-        return h["runtime"] == "backend"
-    return False
 
 
 class _TableAccessor:
@@ -1372,11 +1365,21 @@ class ExtensionRunner:
                     return True
                 return False
 
-        # Schema-driven local command routing
+        # Schema-driven command routing
+        # - has execute() → call local handler first (pre-work or full work)
+        # - runtime=="extension" → then dispatch to extension
+        # - runtime=="backend" (with execute) → local only, done
         cmd_type = instr.get("cmdType") or step_type
-        if _is_local_command(cmd_type):
+        from .handlers.registry import get_handler as _gh2
+        _hdef = _gh2(cmd_type)
+        _has_local = _hdef and hasattr(_hdef.get("handler_class", object), "execute") if _hdef else False
+        _is_extension = _hdef and _hdef.get("runtime") == "extension" if _hdef else False
+
+        if _has_local:
             try:
-                return await self._handle_local(cmd_type, step_id, instr)
+                local_ok = await self._handle_local(cmd_type, step_id, instr)
+                if not local_ok:
+                    return False
             except LoopBreak:
                 raise
             except LoopContinue:
@@ -1384,22 +1387,16 @@ class ExtensionRunner:
             except Exception as e:
                 logger.error(f"[ExtensionRunner] local {cmd_type} failed: {e}")
                 self.failed_steps.append({
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "instruction": instr,
-                    "error": str(e),
+                    "stepId": step_id, "nodeId": instr.get("nodeId"),
+                    "instruction": instr, "error": str(e),
                 })
                 self.results.append({
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "status": "error",
-                    "error": str(e),
+                    "stepId": step_id, "nodeId": instr.get("nodeId"),
+                    "status": "error", "error": str(e),
                 })
                 await self._emit({
-                    "type": "stepError",
-                    "stepId": step_id,
-                    "nodeId": instr.get("nodeId"),
-                    "error": str(e),
+                    "type": "stepError", "stepId": step_id,
+                    "nodeId": instr.get("nodeId"), "error": str(e),
                 })
                 if on_error == "stop":
                     return False
@@ -1407,6 +1404,8 @@ class ExtensionRunner:
                     self.completed += 1
                     return True
                 return False
+            if not _is_extension:
+                return True  # backend: local handler did everything; done
 
         # Resolve variable placeholders in the instruction before sending
         resolved_instr = self._resolve_vars(instr, self.vars)
@@ -1488,27 +1487,44 @@ class ExtensionRunner:
                     self.vars[save_to_var] = value
                     logger.info(f"[ExtensionRunner] saved result to var {save_to_var}: {value!r}")
 
-                # Update window variable tabId when navigation creates/switches tabs
-                window_var = (resolved_instr.get("extra") or {}).get("windowVar")
-                if window_var and isinstance(result, dict) and result.get("tabId") is not None:
-                    window_val = self.vars.get(window_var)
-                    tab_id = result["tabId"]
-                    window_id = result.get("windowId")
-                    if isinstance(window_val, dict):
-                        window_val["tabId"] = tab_id
-                        if window_id is not None:
-                            window_val["windowId"] = window_id
-                        logger.info(f"[ExtensionRunner] updated {window_var} tabId={tab_id}")
-                    elif window_val is not None:
-                        try:
-                            wid = int(window_val)
-                        except (ValueError, TypeError):
-                            wid = window_val
-                        self.vars[window_var] = {
-                            "windowId": window_id if window_id is not None else wid,
-                            "tabId": tab_id,
-                        }
-                        logger.info(f"[ExtensionRunner] upgraded {window_var} to dict with tabId={tab_id}")
+                # Update / create window variable from extension result.
+                # Find handler params tagged "output" + "str-var" — if the result
+                # contains windowId/tabId, write or update the corresponding var.
+                from .handlers.registry import get_handler as _gh
+                _hdef = _gh(cmd_type)
+                if _hdef:
+                    for _p in (_hdef.get("params") or []):
+                        if _p.get("group") == "output" and _p.get("type") == "str-var":
+                            _wname = (resolved_instr.get("extra") or {}).get(_p["name"])
+                            if _wname and isinstance(result, dict) and (result.get("windowId") or result.get("tabId")):
+                                window_val = self.vars.get(_wname)
+                                window_id = result.get("windowId")
+                                tab_id = result.get("tabId")
+                                if isinstance(window_val, dict):
+                                    # Update existing window object
+                                    if tab_id is not None:
+                                        window_val["tabId"] = tab_id
+                                    if window_id is not None:
+                                        window_val["windowId"] = window_id
+                                    logger.info(f"[ExtensionRunner] updated {_wname} tabId={tab_id}")
+                                elif window_val is not None:
+                                    # Upgrade scalar to dict
+                                    try:
+                                        wid = int(window_val)
+                                    except (ValueError, TypeError):
+                                        wid = window_val
+                                    self.vars[_wname] = {
+                                        "windowId": window_id if window_id is not None else wid,
+                                        "tabId": tab_id,
+                                    }
+                                    logger.info(f"[ExtensionRunner] upgraded {_wname} to dict with tabId={tab_id}")
+                                else:
+                                    # Create new window variable (e.g. launchBrowser)
+                                    self.vars[_wname] = {
+                                        "windowId": window_id,
+                                        "tabId": tab_id,
+                                    }
+                                    logger.info(f"[ExtensionRunner] created {_wname} windowId={window_id} tabId={tab_id}")
 
                 return True
             except Exception as e:
@@ -1564,26 +1580,39 @@ class ExtensionRunner:
         if not conn:
             raise RuntimeError(f"Extension {self.client_id} is not connected")
 
-        # Resolve explicit window variable -> windowId/tabId for extension routing
-        # openBrowser 的 windowVar 是输出变量（浏览器创建后才赋值），不是输入引用，跳过查找
+        # Resolve explicit window variable -> windowId/tabId for extension routing.
+        # Skip params tagged as "output" in the handler definition —
+        # output variables are created by the handler, not referenced as input.
         extra = dict(instr.get("extra") or {})
         cmd_type = instr.get("cmdType", instr.get("type", ""))
-        window_var = extra.get("windowVar")
-        if window_var and cmd_type != "openBrowser":
-            window_val = self.vars.get(window_var)
-            if window_val is None:
-                raise RuntimeError(f"窗口变量 '{window_var}' 未定义，请先执行打开浏览器指令")
-            if isinstance(window_val, dict):
-                if window_val.get("windowId") is not None:
-                    extra["windowId"] = window_val.get("windowId")
-                if window_val.get("tabId") is not None:
-                    extra["tabId"] = window_val.get("tabId")
-            else:
-                try:
-                    extra["windowId"] = int(window_val)
-                except (ValueError, TypeError):
-                    extra["windowId"] = window_val
-            instr = {**instr, "extra": extra}
+        from .handlers.registry import get_handler
+        h = get_handler(cmd_type)
+        output_names = set()
+        if h:
+            for p in h.get("params", []):
+                if p.get("group") == "output" and p.get("type") == "str-var":
+                    output_names.add(p["name"])
+
+        # Resolve non-output str-var params to windowId/tabId
+        for key, val in list(extra.items()):
+            if key in output_names:
+                continue
+            pdef = next((p for p in (h.get("params") or []) if p.get("name") == key), None)
+            if pdef and pdef.get("type") == "str-var" and isinstance(val, str) and val in self.vars:
+                window_val = self.vars.get(val)
+                if window_val is None:
+                    raise RuntimeError(f"窗口变量 '{val}' 未定义，请先执行打开浏览器指令")
+                if isinstance(window_val, dict):
+                    if window_val.get("windowId") is not None:
+                        extra["windowId"] = window_val.get("windowId")
+                    if window_val.get("tabId") is not None:
+                        extra["tabId"] = window_val.get("tabId")
+                else:
+                    try:
+                        extra["windowId"] = int(window_val)
+                    except (ValueError, TypeError):
+                        extra["windowId"] = window_val
+        instr = {**instr, "extra": extra}
 
         # Inject loop context into extra so content.js resolves locators by index alignment
         ctx = self._resolve_loop_context(extra)

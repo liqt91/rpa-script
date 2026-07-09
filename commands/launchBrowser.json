@@ -1,34 +1,56 @@
 {
   "type": "launchBrowser",
   "label": "打开浏览器",
-  "runtime": "backend",
-  "icon": "fa-globe",
+  "runtime": "extension",
+  "category": "浏览器",
+  "icon": "fa-chrome",
   "iconColor": "text-blue-500",
   "bgColor": "bg-blue-50",
-  "commandOrder": 0,
-  "description": "启动指定浏览器并打开目标网址",
+  "categoryOrder": 10,
+  "commandOrder": 10,
+  "description": "启动浏览器并加载RPA扩展",
   "enabled": true,
+  "isNew": true,
   "params": [
     {
-      "name": "browser_type",
-      "label": "浏览器类型",
+      "name": "browserType",
+      "label": "浏览器",
       "type": "str-dropdown",
-      "options": [{"label": "Chrome", "value": "chrome"}, {"label": "Edge", "value": "edge"}]
+      "options": [
+        {"label": "Chrome", "value": "chrome"},
+        {"label": "Edge", "value": "edge"}
+      ],
+      "default": "chrome"
     },
     {
       "name": "url",
-      "label": "目标网址",
+      "label": "启动后打开网址",
       "type": "str-input",
-      "default": "about:blank"
+      "placeholder": "留空则打开 about:blank"
     },
     {
-      "name": "window",
-      "label": "窗口",
+      "name": "windowState",
+      "label": "窗口状态",
+      "type": "str-dropdown",
+      "options": [
+        {"label": "普通", "value": "normal"},
+        {"label": "最大化", "value": "maximized"},
+        {"label": "最小化", "value": "minimized"}
+      ],
+      "default": "normal",
+      "group": "advanced"
+    },
+    {
+      "name": "windowVar",
+      "label": "保存窗口对象到",
       "type": "str-var",
-      "group": "output",
       "default": "browser1",
-      "description": "浏览器窗口句柄存储变量名"
+      "group": "output"
     }
   ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/background_handlers/launchBrowser.js"
+  },
   "categories": ["browser"]
 }

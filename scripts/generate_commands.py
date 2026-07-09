@@ -7,19 +7,25 @@ JSON format (commands/<type>.json):
 {
   "type": "clickElement",
   "label": "点击元素",
-  "runtime": "extension",        // extension | backend | emitter
+  "runtime": "extension",        // extension | backend | control
   "params": [...],
   "handler": {
-    "kind": "delegate",          // delegate | custom | backend
-    "function": "doClick"        // for delegate
-    "source": "path/to/impl"     // for custom/backend, relative to project root
+    "kind": "extension",         // extension | backend | control
+    "function": "doClick"        // extension: JS function name to delegate to
+    "source": "path/to/impl"     // extension/backend: path to hand-written impl
   }
 }
 
+Three command types (matching src/runtime/commands/ subdirectories):
+  extension:  Python stub + JS handler. function=delegate, source=custom JS.
+  backend:    Python handler with execute(). AI/hand-written, skipped here.
+  control:    Python flow-control handler. AI/hand-written, skipped here.
+
 Output:
-  extension:  handlers/extension/<type>.py  +  extension/handlers/<type>.js
-  backend:    handlers/backend/<type>.py
-  emitter:    handlers/flow/<type>.py
+  extension:  src/runtime/commands/extension_commands/<type>.py
+              extension/handlers/<type>.js
+  backend:    src/runtime/commands/backend_commands/<type>.py
+  control:    src/runtime/commands/control_commands/<type>.py
 """
 
 import json
@@ -30,10 +36,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 COMMANDS_DIR = ROOT / "commands"
 HANDLERS_DIR = ROOT / "src" / "runtime" / "workflow" / "handlers"
-HANDLERS_NEW_DIR = HANDLERS_DIR / "handlers_new"
-EXT_JS_DIR = ROOT / "extension" / "handlers"
-EXT_JS_NEW_DIR = ROOT / "extension" / "handlers_new"
-CONTENT_BASE = ROOT / "extension" / "content_base.js"
+EXT_DOM_DIR = ROOT / "extension" / "dom_handlers"
+EXT_DOM_NEW_DIR = ROOT / "extension" / "dom_handlers_new"
 
 
 def load_definitions() -> list[dict]:
@@ -78,11 +82,22 @@ def param_js_type(ptype: str) -> str:
     return ptype
 
 
+def _category(d: dict) -> str:
+    """Resolve category from either 'category' (string) or 'categories' (list)."""
+    cat = d.get("category", "")
+    if not cat:
+        cats = d.get("categories", [])
+        if cats:
+            cat = cats[0]
+    return cat
+
+
 def generate_py(d: dict) -> str:
     """Generate the Python handler declaration file."""
     rtype = d["runtime"]
     params = d.get("params", [])
     handler = d.get("handler", {})
+    category = _category(d)
 
     # Build class name
     class_name = f"{d['type'][0].upper()}{d['type'][1:]}Handler"
@@ -92,16 +107,12 @@ def generate_py(d: dict) -> str:
     for p in params:
         param_lines.append(f"        {param_to_py(p)},")
 
-    # Category order mapping
-    cat_map = {"extension": "extension", "backend": "backend", "emitter": "flow"}
-    sub_dir = cat_map.get(rtype, rtype)
-
     lines = [
         f'"""Command: {d["label"]}"""',
         "from ..registry import register_handler, Param",
         "",
         f'@register_handler(type="{d["type"]}", label="{d["label"]}",',
-        f'    category="{d["category"]}", runtime="{rtype}",',
+        f'    category="{category}", runtime="{rtype}",',
         f'    icon="{d.get("icon", "fa-circle")}", icon_color="{d.get("iconColor", "text-gray-500")}",',
         f'    bg_color="{d.get("bgColor", "bg-gray-50")}",',
     ]
@@ -125,68 +136,89 @@ def generate_py(d: dict) -> str:
         lines.extend(param_lines)
         lines.append("    ]")
 
-    # Backend handler: reference impl file
-    if rtype == "backend" and handler.get("kind") == "backend":
+    # Backend/control handlers are hand-written or AI-generated — nothing extra to generate
+    if handler.get("kind") in ("backend", "control"):
         source = handler.get("source", "")
-        lines.append("")
-        lines.append(f"    # Implementation loaded from: {source}")
+        if source:
+            lines.append("")
+            lines.append(f"    # Implementation: {source}")
 
     return "\n".join(lines)
 
 
 def generate_js(d: dict) -> str:
-    """Generate the JS handler registration file."""
-    handler = d.get("handler", {})
-    kind = handler.get("kind")
+    """Generate the JS handler for extension commands.
 
-    if kind == "delegate":
-        func = handler.get("function", "doClick")
+    - function given → delegate: one-liner forwarding to a named JS function.
+    - source given    → custom: read JS from the referenced source file.
+    - neither         → TODO stub.
+    """
+    handler = d.get("handler", {})
+    kind = handler.get("kind", "")
+
+    if kind != "extension":
+        return ""
+
+    func = handler.get("function", "")
+    source = handler.get("source", "")
+
+    if func:
         return f"\nregisterHandler('{d['type']}', async (args) => {func}(args));\n"
 
-    if kind == "custom":
-        source = handler.get("source", "")
-        if source:
-            src_path = ROOT / source
-            if src_path.exists():
-                return src_path.read_text(encoding="utf-8")
-        # Fallback: minimal stub
+    if source:
+        src_path = ROOT / source
+        if src_path.exists():
+            return src_path.read_text(encoding="utf-8")
+        # Source file not found — generate a stub
         return (
             f"\nregisterHandler('{d['type']}', async function handler(args) {{\n"
-            f"  // TODO: implement {d['label']}\n"
+            f"  // Source file not found: {source}\n"
             f"  return {{ ok: true }};\n"
             f"}});\n"
         )
 
-    return ""
+    # Neither function nor source — generate TODO stub
+    return (
+        f"\nregisterHandler('{d['type']}', async function handler(args) {{\n"
+        f"  // TODO: implement {d['label']}\n"
+        f"  return {{ ok: true }};\n"
+        f"}});\n"
+    )
 
 
 def _choose_output_dirs(d: dict) -> tuple[Path, Path]:
     """Return (python_dir, js_dir) for a definition.
 
-    New-system commands (isNew=True) go to isolated directories so they can be
-    visually distinguished during development and migrated independently.
+    New-system commands (isNew=True) go to the canonical src/runtime/commands/ dirs.
+    Legacy commands without isNew go to old handlers/ dirs.
     """
     if d.get("isNew"):
-        return HANDLERS_NEW_DIR, EXT_JS_NEW_DIR
-    rtype = d["runtime"]
-    cat_map = {"extension": "extension", "backend": "backend", "emitter": "flow"}
-    sub_dir = cat_map.get(rtype, rtype)
-    return HANDLERS_DIR / sub_dir, EXT_JS_DIR
+        # New system: src/runtime/commands/{extension,backend,control}_commands/
+        rtype = d["runtime"]
+        py_dir = ROOT / "src" / "runtime" / "commands" / f"{rtype}_commands"
+    else:
+        # Legacy: src/runtime/workflow/handlers/{extension,backend,flow}/
+        cat_map = {"extension": "extension", "backend": "backend", "control": "flow"}
+        sub_dir = cat_map.get(d["runtime"], d["runtime"])
+        py_dir = HANDLERS_DIR / sub_dir
+
+    js_dir = EXT_DOM_NEW_DIR if d.get("isNew") else EXT_DOM_DIR
+    return py_dir, js_dir
 
 
 def write_outputs(defs: list[dict]):
     """Write generated .py and .js files."""
     for d in defs:
         handler = d.get("handler", {})
-        kind = handler.get("kind", "delegate")
+        kind = handler.get("kind", "")
         py_dir, js_dir = _choose_output_dirs(d)
 
-        # Python handler — only generate for delegate; custom/backend are hand-written
+        # Python handler — extension generates stub; backend/control are hand-written
         py_code = generate_py(d)
         py_path = py_dir / f"{d['type']}.py"
         os.makedirs(py_path.parent, exist_ok=True)
 
-        if kind == "delegate":
+        if kind in ("", "extension"):
             if py_path.exists():
                 print(f"  KEEP {py_path} (exists)")
             else:
@@ -195,19 +227,16 @@ def write_outputs(defs: list[dict]):
         else:
             print(f"  SKIP {py_path} ({kind} — hand-written)")
 
-        # JS part
+        # JS part — only for extension commands
         if d["runtime"] == "extension":
             js_code = generate_js(d)
             js_path = js_dir / f"{d['type']}.js"
             os.makedirs(js_path.parent, exist_ok=True)
-            if kind == "delegate":
-                if js_path.exists():
-                    print(f"  KEEP {js_path} (exists)")
-                else:
-                    js_path.write_text(js_code, encoding="utf-8")
-                    print(f"  GEN  {js_path}")
+            if js_path.exists():
+                print(f"  KEEP {js_path} (exists)")
             else:
-                print(f"  SKIP {js_path} ({kind} — hand-written)")
+                js_path.write_text(js_code, encoding="utf-8")
+                print(f"  GEN  {js_path}")
 
 
 def main():

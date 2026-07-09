@@ -61,7 +61,7 @@
   ],
   "pythonAction": "click",
   "handler": {
-    "kind": "delegate",
+    "kind": "extension",
     "function": "doClick"
   },
   "categories": [
