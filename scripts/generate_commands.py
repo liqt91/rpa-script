@@ -30,7 +30,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 COMMANDS_DIR = ROOT / "commands"
 HANDLERS_DIR = ROOT / "src" / "runtime" / "workflow" / "handlers"
+HANDLERS_NEW_DIR = HANDLERS_DIR / "handlers_new"
 EXT_JS_DIR = ROOT / "extension" / "handlers"
+EXT_JS_NEW_DIR = ROOT / "extension" / "handlers_new"
 CONTENT_BASE = ROOT / "extension" / "content_base.js"
 
 
@@ -44,15 +46,22 @@ def load_definitions() -> list[dict]:
     return defs
 
 
+def _py_literal(value) -> str:
+    """Render a JSON-like value as valid Python literal."""
+    if isinstance(value, bool):
+        return str(value)
+    return json.dumps(value, ensure_ascii=False)
+
+
 def param_to_py(p: dict) -> str:
     """Convert a param dict to a Param(...) constructor string."""
     parts = [f'"{p["name"]}"', f'"{p.get("label", "")}"', f'"{p.get("type", "text")}"']
     if p.get("required"):
         parts.append("required=True")
     if p.get("default") is not None:
-        parts.append(f'default={json.dumps(p["default"])}')
+        parts.append(f"default={_py_literal(p['default'])}")
     if p.get("options"):
-        opts = json.dumps(p["options"])
+        opts = json.dumps(p["options"], ensure_ascii=False)
         parts.append(f"options={opts}")
     if p.get("group"):
         parts.append(f'group="{p["group"]}"')
@@ -78,10 +87,10 @@ def generate_py(d: dict) -> str:
     # Build class name
     class_name = f"{d['type'][0].upper()}{d['type'][1:]}Handler"
 
-    # Build params list
+    # Build params list (8-space indent for class body)
     param_lines = []
     for p in params:
-        param_lines.append(f"    {param_to_py(p)},")
+        param_lines.append(f"        {param_to_py(p)},")
 
     # Category order mapping
     cat_map = {"extension": "extension", "backend": "backend", "emitter": "flow"}
@@ -151,18 +160,30 @@ def generate_js(d: dict) -> str:
     return ""
 
 
+def _choose_output_dirs(d: dict) -> tuple[Path, Path]:
+    """Return (python_dir, js_dir) for a definition.
+
+    New-system commands (isNew=True) go to isolated directories so they can be
+    visually distinguished during development and migrated independently.
+    """
+    if d.get("isNew"):
+        return HANDLERS_NEW_DIR, EXT_JS_NEW_DIR
+    rtype = d["runtime"]
+    cat_map = {"extension": "extension", "backend": "backend", "emitter": "flow"}
+    sub_dir = cat_map.get(rtype, rtype)
+    return HANDLERS_DIR / sub_dir, EXT_JS_DIR
+
+
 def write_outputs(defs: list[dict]):
     """Write generated .py and .js files."""
     for d in defs:
-        rtype = d["runtime"]
         handler = d.get("handler", {})
         kind = handler.get("kind", "delegate")
-        cat_map = {"extension": "extension", "backend": "backend", "emitter": "flow"}
-        sub_dir = cat_map.get(rtype, rtype)
+        py_dir, js_dir = _choose_output_dirs(d)
 
         # Python handler — only generate for delegate; custom/backend are hand-written
         py_code = generate_py(d)
-        py_path = HANDLERS_DIR / sub_dir / f"{d['type']}.py"
+        py_path = py_dir / f"{d['type']}.py"
         os.makedirs(py_path.parent, exist_ok=True)
 
         if kind == "delegate":
@@ -173,10 +194,11 @@ def write_outputs(defs: list[dict]):
                 print(f"  GEN  {py_path}")
         else:
             print(f"  SKIP {py_path} ({kind} — hand-written)")
-        # ... JS part
-        if rtype == "extension":
+
+        # JS part
+        if d["runtime"] == "extension":
             js_code = generate_js(d)
-            js_path = EXT_JS_DIR / f"{d['type']}.js"
+            js_path = js_dir / f"{d['type']}.js"
             os.makedirs(js_path.parent, exist_ok=True)
             if kind == "delegate":
                 if js_path.exists():

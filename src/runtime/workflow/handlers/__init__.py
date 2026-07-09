@@ -3,9 +3,10 @@ Handler system — auto-discovery entry point.
 
 Architecture:
   handlers/
-    backend/     — Python handler classes (local execution, @register_handler)
-    extension/   — manifest declaring extension-side handlers (content.js)
-    flow/        — 流程控制指令声明（容器 / 分支 / 结束标记 / 跳转）
+    backend/      — Python handler classes (local execution, @register_handler)
+    extension/    — manifest declaring extension-side handlers (content.js)
+    flow/         — 流程控制指令声明（容器 / 分支 / 结束标记 / 跳转）
+    handlers_new/ — JSON 定义生成的新指令（开发期隔离，逐步迁移）
 
 How it works:
   1. Importing this package auto-scans all three directories for .py files.
@@ -40,3 +41,4 @@ def _auto_import_subpackage(subpackage_name: str):
 _auto_import_subpackage("backend")
 _auto_import_subpackage("extension")
 _auto_import_subpackage("flow")
+_auto_import_subpackage("handlers_new")
