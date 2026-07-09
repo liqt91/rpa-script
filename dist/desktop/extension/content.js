@@ -1235,12 +1235,6 @@ registerHandler('checkElementExists', async function checkElementExists({ locato
 registerHandler('click', async function click(args) { return doClick(args); });
 
 
-  // ── clickElement ──
-
-
-registerHandler('clickElement', async (args) => doClick(args));
-
-
   // ── closeBrowser ──
 
 
@@ -1514,6 +1508,16 @@ registerHandler('waitForElement', async function waitForElementHandler({ locator
     await waitForElement(locator, selectorFamily, mode, timeoutMs);
     return { appeared: true };
   });
+
+
+  // ── clickElement ──
+
+registerHandler('clickElement', async (args) => doClick(args));
+
+
+  // ── inputElement ──
+
+registerHandler('inputElement', async (args) => doInput(args));
 
 
   // ─── Message listener ────────────────────────────────────────────

@@ -8,7 +8,8 @@ const RUNTIME_OPTIONS = [
 ];
 
 const PARAM_TYPES = [
-  'text', 'number', 'bool', 'select', 'varName', 'elementName', 'textarea', 'code',
+  'str-input', 'str-textarea', 'str-var', 'str-dropdown', 'str-element',
+  'int-number', 'bool-check', 'list-input', 'dict-input', 'any-expr', 'any-input',
 ];
 
 const ICONS = [

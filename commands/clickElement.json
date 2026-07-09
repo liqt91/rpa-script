@@ -10,6 +10,7 @@
   "commandOrder": 10,
   "description": "点击页面上的一个元素",
   "enabled": true,
+  "isNew": true,
   "params": [
     {"name": "element_name", "label": "元素", "type": "str-element", "required": true},
     {"name": "scope", "label": "匹配范围", "type": "str-dropdown",
@@ -20,6 +21,7 @@
      "options": [{"label": "仅可见", "value": "visible"}, {"label": "所有", "value": "any"}],
      "default": "visible", "group": "advanced"}
   ],
+  "pythonAction": "click",
   "handler": {
     "kind": "delegate",
     "function": "doClick"

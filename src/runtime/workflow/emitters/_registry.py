@@ -160,8 +160,13 @@ def _loc_call(
     element_map: dict | None = None,
     method: str | None = None,
 ) -> str:
-    """Build tab.ele('...') style locator call."""
-    return _loc_call_by_name(node.element_name, extra, element_map, method=method)
+    """Build tab.ele('...') style locator call.
+
+    New-system commands store the target element name in extra.element_name;
+    legacy commands store it in node.element_name.
+    """
+    element_name = node.element_name or extra.get("element_name")
+    return _loc_call_by_name(element_name, extra, element_map, method=method)
 
 
 def _loc_call_by_name(
@@ -341,6 +346,11 @@ def _emit_dispatch(node: models.WorkflowNode, extra: dict, depth: int,
     handler = _EMIT_HANDLERS.get(node.type)
 
     if not handler:
+        # Fallback: try generic emitter for new-system JSON-defined commands
+        generic = _EMIT_HANDLERS.get("__generic__")
+        if generic:
+            generic(node, extra, depth, prefix, by_parent, lines, element_map)
+            return
         loc = _loc_call(node, extra, element_map)
         lines.append(f"{prefix}# TODO: {node.type} -> {loc}")
         return

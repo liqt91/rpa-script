@@ -10,10 +10,11 @@
   "commandOrder": 10,
   "description": "设置一个变量，支持文本、数字、布尔、列表、字典、表达式",
   "enabled": true,
+  "isNew": true,
   "params": [
-    {"name": "name", "label": "变量名", "type": "varName", "required": true},
-    {"name": "value", "label": "值", "type": "text"},
-    {"name": "valueType", "label": "值类型", "type": "select",
+    {"name": "name", "label": "变量名", "type": "str-var", "required": true},
+    {"name": "value", "label": "值", "type": "any-input"},
+    {"name": "valueType", "label": "值类型", "type": "str-dropdown",
      "options": [
        {"label": "自动", "value": "any-input"},
        {"label": "文本", "value": "str-input"},

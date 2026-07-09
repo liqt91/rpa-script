@@ -10,12 +10,14 @@
   "commandOrder": 40,
   "description": "等待页面上的元素出现，超时则失败",
   "enabled": true,
+  "isNew": true,
   "params": [
-    {"name": "element_name", "label": "元素", "type": "elementName", "required": true},
-    {"name": "visibilityMode", "label": "元素可见性", "type": "select",
+    {"name": "element_name", "label": "元素", "type": "str-element", "required": true},
+    {"name": "visibilityMode", "label": "元素可见性", "type": "str-dropdown",
      "options": [{"label": "仅可见", "value": "visible"}, {"label": "所有", "value": "any"}],
      "default": "visible"}
   ],
+  "pythonAction": "wait",
   "handler": {
     "kind": "custom",
     "source": "extension/handlers/waitForElement.js"
