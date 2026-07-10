@@ -115,9 +115,8 @@ def launch_browser(browser_type: str) -> bool:
 
 
 def find_extension_dir() -> Optional[str]:
-    """定位扩展文件夹：开发模式用 extension/，打包后用 dist/desktop/extension/。"""
+    """定位扩展文件夹：统一用 dist/desktop/extension/。"""
     candidates = [
-        os.path.join(config.REPO_DIR, "extension"),
         os.path.join(config.REPO_DIR, "dist", "desktop", "extension"),
     ]
     for path in candidates:
