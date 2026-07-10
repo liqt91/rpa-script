@@ -719,50 +719,98 @@ def ai_invoke(req: schemas.AIInvokeRequest, _user=Depends(auth.get_current_user)
 
 # ─── LLM direct configuration (DeepSeek/OpenAI) ─────────────────────
 
-DEFAULT_COMMAND_CODE_GEN_PROMPT = """你是 RPA 后端开发专家。下面是一份已经写好的 Python handler 代码，import、注册、参数读取、结果上报都已正确。你只需要把其中的 `# TODO: 业务逻辑` 区域替换成真实可执行的业务代码，然后输出完整文件。
 
-=== 当前代码（你只能修改 # TODO 区域）===
+# --- AI Prompt Templates ---
+# NOTE: use chr(10) for newlines to avoid backslash-escape corruption
+
+PROMPT_BACKEND = """
+你是 RPA 后端开发专家。下面是一份已写好的 Python handler 代码。
+IMPORTANT: 你只能修改 # TODO 之后的内容。不要改 import、class、params、extra 读取、结果上报。
+
+=== 当前代码 ===
 
 ```python
 {{scaffold}}
 ```
 
-=== 可用 API ===
-- runner.vars: dict — 读写流程变量，如 runner.vars["key"] = value
-- runner.results: list — 已完成的步骤结果
-- runner._emit(dict): 发送步骤事件到前端
-- instr.get("nodeId"): 当前节点 ID
-- instr.get("extra"): dict — 用户填写的参数值
-- ⚠️ _send_and_wait 是 extension 指令专用，backend 指令禁止使用
+=== RPA 内部 API ===
+- browser_utils.launch_browser_with_extension(browser_type) -> bool: 启动浏览器并加载 RPA 扩展
+- browser_utils.is_browser_running(browser_type) -> bool: 检查是否已运行
+- extension_runner.wait_for_extension_connection(browser_type, ext_manager, timeout) -> str: 等待扩展 WebSocket
+- extension_runner.ext_manager.send_to(client_id, type, payload): 发消息到扩展
+- runner.vars[name] = value: 读写变量
+- runner.logger.info/warning/error(msg): 日志
 
-=== 要求 ===
-1. 只替换 # TODO 区域，其余代码一字不改
-2. 不要修改 import、@register_handler、params、参数读取、结果上报部分
-3. 业务逻辑必须真实可执行，不要写 pass 或注释占位
-4. 完成后的 result_summary 必须是一个 dict
-5. 直接输出完整 Python 代码，不要 markdown 代码块，不要说明文字
+=== 架构 ===
+- backend 指令: execute() 完成全部工作
+- extension 指令: execute() 只做前置（启动浏览器、建 WebSocket），Runner 转发到扩展端 JS handler
+
+=== 硬性要求 ===
+1. 只能改 # TODO 之后、result_summary 之前的代码，其他地方一个字符都不准动
+2. 保留 result_summary、runner.completed、runner.results、runner._emit 结果上报代码
+3. 不要重写整个文件，不要改 import/register/params/extra 读取
+4. 直接输出完整文件，不要代码块包裹，不要说明文字
 """
 
+PROMPT_EXTENSION_JS = """
+你是 Chrome 扩展开发专家。请根据下面的指令定义，编写浏览器扩展的 JS handler。
 
-def _build_handler_scaffold(definition: dict) -> str:
-    """Build a complete handler file with TODO body, ready for AI to fill."""
-    type_name = definition.get("type", "example")
-    label = definition.get("label", type_name)
-    category = definition.get("category", "其他")
-    class_name = "".join(p.capitalize() for p in type_name.replace("-", "_").split("_")) + "Handler"
-    icon = definition.get("icon", "fa-circle")
-    icon_color = definition.get("iconColor", "text-gray-500")
-    bg_color = definition.get("bgColor", "bg-gray-50")
-    description = definition.get("description", "")
+=== 指令定义 ===
+{{definition_json}}
 
-    params = definition.get("params", [])
+=== Handler 上下文 ===
+{{context}}
+
+=== 可用 API ===
+- registerHandler(name, handler) — DOM handler（content script 上下文）
+- registerBackgroundHandler(name, handler) — background handler（Service Worker 上下文）
+- args.elements: dict — 用户选择的前端元素
+- args.extra: dict — 用户填写的参数值
+- findElement(query, scope): 在页面中查找元素
+- chrome.windows / chrome.tabs — 扩展后台 API（仅 background handler）
+- agent.workWindowId / agent.workTabId — 当前工作窗口/标签
+- agent._send(type, payload): 通过 WebSocket 发送消息到后端
+
+=== 要求 ===
+1. 根据上下文选择正确的注册方式（registerHandler 或 registerBackgroundHandler）
+2. 代码必须真实可执行，正确处理错误情况
+3. 返回 { ok: true } 表示成功，或抛出有意义错误
+4. 直接输出完整 JS 代码，不要 markdown 代码块，不要说明文字
+"""
+
+PROMPT_CONTROL = """
+你是 RPA 工作流引擎开发专家。请填充控制流 handler 的 # TODO 区域。
+
+=== 当前代码 ===
+
+```python
+{{scaffold}}
+```
+
+=== Runner 可用 API ===
+- runner.vars: dict — 工作流变量空间
+- runner.current_loop_index: int | None — 循环索引
+- runner.abort(reason): 中止工作流
+- runner.pause(): 暂停工作流
+- runner.get_parent_vars() -> dict: 父级变量
+- instr.get("extra"): dict — 用户填写的参数值
+
+=== 要求 ===
+1. 只能改 # TODO 区域，不能改其他地方
+2. 控制流逻辑必须正确处理嵌套场景
+3. 直接输出完整代码，不要代码块，不要说明文字
+"""
+
+NL = chr(10)
+
+def _build_params_and_reads(params):
     param_lines = []
     param_read_lines = []
     for p in params:
         pname = p.get("name", "")
         plabel = p.get("label", pname)
         ptype = p.get("type", "str-input")
-        pgroup = p.get("group", "主属性")
+        pgroup = p.get("group", "默认属性")
         parts = [f'        Param("{pname}", "{plabel}", "{ptype}"']
         if p.get("required"):
             parts.append(", required=True")
@@ -770,7 +818,7 @@ def _build_handler_scaffold(definition: dict) -> str:
             parts.append(f", options={json.dumps(p['options'], ensure_ascii=False)}")
         if "default" in p and p["default"] is not None and p["default"] != "":
             parts.append(f", default={json.dumps(p['default'], ensure_ascii=False)}")
-        if pgroup != "主属性":
+        if pgroup and pgroup != "默认属性":
             parts.append(f', group="{pgroup}"')
         if p.get("placeholder"):
             parts.append(f', placeholder="{p["placeholder"]}"')
@@ -780,55 +828,92 @@ def _build_handler_scaffold(definition: dict) -> str:
         param_lines.append("".join(parts))
         default = p.get("default")
         if default is not None and default != "":
-            param_read_lines.append(f"        {pname} = extra.get(\"{pname}\", {json.dumps(default, ensure_ascii=False)})")
+            param_read_lines.append(f'        {pname} = extra.get("{pname}", {json.dumps(default, ensure_ascii=False)})')
         elif p.get("required"):
-            param_read_lines.append(f"        {pname} = extra[\"{pname}\"]  # 必填")
+            param_read_lines.append(f'        {pname} = extra["{pname}"]  # 必填')
         else:
-            param_read_lines.append(f"        {pname} = extra.get(\"{pname}\")")
+            param_read_lines.append(f'        {pname} = extra.get("{pname}")')
+    pb = NL.join(param_lines) if param_lines else "        pass"
+    pr = NL.join(param_read_lines) if param_read_lines else "        pass"
+    return pb, pr
 
-    params_block = "\n".join(param_lines) if param_lines else "        pass"
-    param_reads_block = "\n".join(param_read_lines) if param_read_lines else "        pass"
 
-    return f'''# {label}
+def _build_backend_scaffold(definition):
+    type_name = definition.get("type", "example")
+    label = definition.get("label", type_name)
+    category = definition.get("category", "其他")
+    class_name = "".join(p.capitalize() for p in type_name.replace("-", "_").split("_")) + "Handler"
+    icon = definition.get("icon", "fa-circle")
+    icon_color = definition.get("iconColor", "text-gray-500")
+    bg_color = definition.get("bgColor", "bg-gray-50")
+    description = definition.get("description", "")
+    runtime = definition.get("runtime", "backend")
+    params_block, param_reads_block = _build_params_and_reads(definition.get("params", []))
+    desc_line = f', description="{description}"' if description else ""
+    return f"""# {label}
 from src.runtime.workflow.handlers.registry import register_handler, Param
-
+{NL}
 @register_handler(
     type="{type_name}",
     label="{label}",
     category="{category}",
-    runtime="backend",
+    runtime="{runtime}",
     icon="{icon}",
     icon_color="{icon_color}",
-    bg_color="{bg_color}",
-{', description="' + description + '"' if description else ''}
+    bg_color="{bg_color}"{desc_line}
 )
 class {class_name}:
     params = [
 {params_block}
     ]
-
+{NL}
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
         extra = instr.get("extra") or {{}}
 {param_reads_block}
-
+{NL}
         # TODO: 业务逻辑 — 在下方编写真实可执行的代码
-
+{NL}
         result_summary = {{"{type_name}": True}}
-
+{NL}
         runner.completed += 1
         runner.results.append({{"stepId": step_id, "nodeId": instr.get("nodeId"), "status": "success", "result": result_summary}})
         await runner._emit({{"type": "stepComplete", "stepId": step_id, "nodeId": instr.get("nodeId"), "result": result_summary}})
         return True
-'''
+"""
+
+
+def _build_extension_js_context(definition):
+    handler = definition.get("handler", {})
+    source = handler.get("source", "")
+    is_background = "background_handlers" in source
+    context = "[background handler — Service Worker 中运行]" if is_background else "[DOM handler — content script 中运行]"
+    if is_background:
+        context += f"{NL}使用 registerBackgroundHandler 注册。可访问 chrome.windows、chrome.tabs、agent 对象。"
+    else:
+        context += f"{NL}使用 registerHandler 注册。可访问 DOM API、findElement、args.elements。"
+    return context, json.dumps(definition, ensure_ascii=False, indent=2)
+
 
 DEFAULT_LLM_SCENARIOS = [
     {
-        "id": "command_code_gen",
-        "name": "指令代码生成",
-        "prompt": DEFAULT_COMMAND_CODE_GEN_PROMPT,
+        "id": "command_backend",
+        "name": "backend — Python handler 生成",
+        "prompt": PROMPT_BACKEND,
         "enabled": True,
-    }
+    },
+    {
+        "id": "command_extension_js",
+        "name": "extension — JS handler 生成",
+        "prompt": PROMPT_EXTENSION_JS,
+        "enabled": True,
+    },
+    {
+        "id": "command_control",
+        "name": "control — 控制流 handler 生成",
+        "prompt": PROMPT_CONTROL,
+        "enabled": True,
+    },
 ]
 
 _PROVIDER_ENDPOINTS = {
@@ -919,7 +1004,15 @@ def generate_with_scenario(
 
     # Build complete handler scaffold, then inject into prompt
     definition = payload.get("definition", {})
-    scaffold = _build_handler_scaffold(definition)
+    if scenario_id in ("command_backend", "command_control"):
+        scaffold = _build_backend_scaffold(definition)
+        prompt = prompt_template.replace("{{scaffold}}", scaffold)
+    elif scenario_id == "command_extension_js":
+        context, def_json = _build_extension_js_context(definition)
+        prompt = prompt_template.replace("{{definition_json}}", def_json).replace("{{context}}", context)
+    else:
+        scaffold = _build_backend_scaffold(definition)
+        prompt = prompt_template.replace("{{scaffold}}", scaffold)
 
     prompt = prompt_template.replace("{{scaffold}}", scaffold)
 
@@ -958,7 +1051,7 @@ def generate_with_scenario(
             logger.error("[ai generate] syntax error: %s\n%s", e, code)
             raise HTTPException(400, f"生成代码语法错误: {e}")
 
-    return {"code": code, "provider": provider, "model": model, "scenario": scenario_id}
+    return {"code": code, "prompt": prompt, "provider": provider, "model": model, "scenario": scenario_id}
 
 
 def _extract_code_from_markdown(text: str) -> str:
