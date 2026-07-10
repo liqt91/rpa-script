@@ -1,6 +1,6 @@
 """
 Build background.js by concatenating base infrastructure + background handler files.
-Run during development to keep extension/background.js and dist/ in sync.
+Output to dist/desktop/extension/ only. Chrome loads extension from this directory.
 """
 import os, glob
 
@@ -8,7 +8,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE_FILE = os.path.join(ROOT, "extension", "background_base.js")
 HANDLERS_DIR = os.path.join(ROOT, "extension", "background_handlers")
 OUTPUT_PATHS = [
-    os.path.join(ROOT, "extension", "background.js"),
     os.path.join(ROOT, "dist", "desktop", "extension", "background.js"),
 ]
 

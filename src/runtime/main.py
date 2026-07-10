@@ -69,6 +69,17 @@ def _load_ai_apps_from_db(db):
         }
 
 
+
+
+def _read_handler_from_json(type_name):
+    import json as _json2
+    from pathlib import Path as _Path2
+    jp = _Path2(__file__).resolve().parent.parent / "commands" / f"{type_name}.json"
+    if jp.exists():
+        with open(jp, encoding="utf-8") as f2:
+            return _json2.load(f2).get("handler")
+    return None
+
 def _seed_commands_to_db(db):
     """将 handler 系统中的内置指令种子同步到数据库。
 
@@ -100,7 +111,7 @@ def _seed_commands_to_db(db):
             "description": cmd.get("description", ""),
             "is_builtin": 1,
             "enabled": 1 if cmd.get("enabled", True) else 0,
-            "handler": ext.get("handler") if ext else None,
+            "handler": json.dumps(_read_handler_from_json(type_name)) if _read_handler_from_json(type_name) else ext.get("handler") if ext else None,
             "local": 1 if ext and ext.get("local") else 0,
             "category_order": cmd.get("categoryOrder", 0),
             "command_order": cmd.get("commandOrder", 0),

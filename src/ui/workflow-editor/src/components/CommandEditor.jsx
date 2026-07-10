@@ -13,10 +13,10 @@ const PARAM_TYPES = [
 ];
 
 const PARAM_GROUPS = [
-  { v: '主属性', l: '主属性' },
+  { v: '默认属性', l: '默认属性' },
   { v: 'advanced', l: '高级' },
-  { v: 'output', l: '输出' },
-  { v: 'input', l: '输入' },
+  { v: '输出变量', l: '输出变量' },
+  { v: '输入变量', l: '输入变量' },
   { v: 'anchor', l: '锚点' },
 ];
 
@@ -89,6 +89,14 @@ export default function CommandEditor() {
     }
   }
 
+  async function loadJsSource(typeName) {
+    if (!typeName) { setJsCode(''); return; }
+    try {
+      const data = await api.getJsHandlerSource(typeName);
+      setJsCode(data.code || '');
+    } catch (e) { setJsCode(''); }
+  }
+
   function selectDef(d) {
     setSelected(d);
     setForm(structuredClone(d));
@@ -98,6 +106,7 @@ export default function CommandEditor() {
     setPythonCode('');
     setJsCode('');
     loadPythonSource(d.type);
+    loadJsSource(d.type);
   }
 
   function createNew() {
@@ -162,6 +171,7 @@ export default function CommandEditor() {
       setError('');
       loadDefinitions();
       loadPythonSource(form.type);
+      loadJsSource(form.type);
     } catch (e) {
       setError('保存失败: ' + (e.message || ''));
     }
@@ -194,29 +204,18 @@ export default function CommandEditor() {
 
   async function generateHandlerWithAI() {
     if (!form) return;
-    if (form.runtime !== 'backend') {
-      setError('AI 生成仅支持本地端操作指令（backend）');
-      return;
-    }
-    setAiLoading(true);
-    setError('');
+    setAiLoading(true); setError('');
     try {
       const definition = {
-        type: form.type,
-        label: form.label,
-        category: form.category,
-        runtime: form.runtime,
-        description: form.description,
+        type: form.type, label: form.label, category: form.category,
+        runtime: form.runtime, description: form.description,
         params: form.params || [],
       };
-      const res = await api.generateWithScenario('command_code_gen', { definition });
+      const res = await api.generateWithScenario('command_backend', { definition });
       setPythonCode(res.code || '');
       setStatus('AI 生成完成');
-    } catch (e) {
-      setError('AI 生成失败: ' + e.message);
-    } finally {
-      setAiLoading(false);
-    }
+    } catch (e) { setError('AI 生成失败: ' + e.message); }
+    finally { setAiLoading(false); }
   }
 
   async function savePythonCode() {
@@ -641,14 +640,14 @@ export default function CommandEditor() {
                 <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0">
                   Python Handler 预览
                 </div>
-                {isBackend && (
+                {!isEmitter && (
                   <div className="px-3 py-1.5 border-b border-gray-700/50 bg-[#0a0f1a] shrink-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-gray-400">操作</span>
                       <div className="flex items-center gap-1.5">
                         <button onClick={generateHandlerWithAI} disabled={aiLoading}
                           className="text-[10px] px-2 py-1 rounded bg-purple-600/80 text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                          {aiLoading ? '生成中…' : '生成代码'}
+                          {aiLoading ? '生成中…' : 'AI 生成'}
                         </button>
                         <button onClick={savePythonCode} disabled={!pythonCode}
                           className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -656,16 +655,16 @@ export default function CommandEditor() {
                         </button>
                       </div>
                     </div>
-                    <div className="text-[10px] text-gray-500 font-mono">commands/backend_commands/{form.type}.py</div>
+                    <span className="text-[10px] text-gray-500 font-mono">commands/{isBackend ? 'backend' : 'extension'}_commands/{form.type}.py</span>
                   </div>
                 )}
                 <textarea
                   value={pythonCode}
                   onChange={e => setPythonCode(e.target.value)}
-                  disabled={!isBackend}
+                  disabled={isEmitter}
                   className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-gray-300 outline-none resize-none disabled:opacity-50"
                   spellCheck={false}
-                  placeholder={isEmitter ? '控制指令无需 Python handler' : isBackend ? '# Python handler 代码 — 点击「AI 生成」或手动编写' : '仅本地端操作指令支持 Python handler'}
+                  placeholder={isEmitter ? '控制指令无需 Python handler' : '# Python handler 代码 — 点击「AI 生成」或手动编写'}
                 />
               </div>
 
@@ -676,7 +675,29 @@ export default function CommandEditor() {
                 </div>
                 {isExtension && (
                   <div className="px-3 py-1 border-b border-gray-700/50 bg-[#0a0f1a] shrink-0">
-                    <span className="text-[10px] text-gray-500 font-mono">commands/extension_commands/{form.type}.py</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-gray-400">操作</span>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={async () => {
+                          setAiLoading(true); setError('');
+                          try {
+                            const definition = { type: form.type, label: form.label, category: form.category, runtime: form.runtime, description: form.description, params: form.params || [] };
+                            const res = await api.generateWithScenario('command_extension_js', { definition });
+                            setJsCode(res.code || '');
+                            setStatus('AI 生成完成');
+                          } catch (e) { setError('AI 生成失败: ' + e.message); }
+                          finally { setAiLoading(false); }
+                        }} disabled={aiLoading}
+                          className="text-[10px] px-2 py-1 rounded bg-purple-600/80 text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                          {aiLoading ? '生成中…' : 'AI 生成'}
+                        </button>
+                        <button onClick={async () => { try { await api.saveJsHandlerCode(form.type, jsCode); setStatus('JS 代码已保存'); } catch(e) { setError('保存失败: ' + e.message); } }} disabled={!jsCode}
+                          className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                          保存
+                        </button>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500 font-mono">{(form.handler && form.handler.source) || `extension/dom_handlers_new/${form.type}.js`}</span>
                   </div>
                 )}
                 <textarea

@@ -12,12 +12,21 @@ from .commands import _attach_common_advanced
 REQUIRED_KEYS = {"label", "category", "icon", "iconColor", "bgColor", "fields"}
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-CONTENT_JS = REPO_ROOT / "extension" / "content.js"
+CONTENT_JS = REPO_ROOT / "dist" / "desktop" / "extension" / "content.js"
+BACKGROUND_JS = REPO_ROOT / "dist" / "desktop" / "extension" / "background.js"
 COMMANDS_TABLE_MD = REPO_ROOT / "commands_table.md"
 
 
 def extract_js_handler_names() -> set[str]:
-    """Parse extension/content.js for registered handler names.
+    """Parse content.js + background.js for all registered handler names."""
+    names: set[str] = set()
+    names.update(_extract_content_handlers())
+    names.update(_extract_background_handlers())
+    return names
+
+
+def _extract_content_handlers() -> set[str]:
+    """Parse content.js for registerHandler patterns.
 
     Supports both the current registerHandler('name', fn) pattern and the
     legacy ``const handlers = {...}`` object for backwards compatibility.

@@ -1,6 +1,6 @@
 """
 Build content.js by concatenating base utilities + dom handler files.
-Run during development to keep extension/content.js and dist/ in sync.
+Output to dist/desktop/extension/ only. Chrome loads extension from this directory.
 """
 import os, glob
 
@@ -9,7 +9,6 @@ DOM_HANDLERS_DIR = os.path.join(ROOT, "extension", "dom_handlers")
 DOM_HANDLERS_NEW_DIR = os.path.join(ROOT, "extension", "dom_handlers_new")
 BASE_FILE = os.path.join(ROOT, "extension", "dom_shared", "content_base.js")
 OUTPUT_PATHS = [
-    os.path.join(ROOT, "extension", "content.js"),
     os.path.join(ROOT, "dist", "desktop", "extension", "content.js"),
 ]
 

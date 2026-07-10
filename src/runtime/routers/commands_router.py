@@ -506,16 +506,19 @@ def build_definitions(user=Depends(auth.get_current_user)):
     return {"success": all_ok, "results": results}
 
 
-_HANDLERS_NEW_DIR = _Path(__file__).resolve().parent.parent.parent.parent / "src" / "runtime" / "commands" / "backend_commands"
+_HANDLERS_BASE_DIR = _Path(__file__).resolve().parent.parent.parent.parent / "src" / "runtime" / "commands"
+
+_RUNTIME_DIRS = ["backend_commands", "extension_commands", "control_commands"]
 
 
 @router.get("/definitions/{type_name}/source")
 def get_handler_source(type_name: str, user=Depends(auth.get_current_user)):
     """Return the saved Python handler source for a new-system command."""
-    fp = _HANDLERS_NEW_DIR / f"{type_name}.py"
-    if not fp.exists():
-        return {"type": type_name, "code": "", "exists": False}
-    return {"type": type_name, "code": fp.read_text(encoding="utf-8"), "exists": True}
+    for sub in _RUNTIME_DIRS:
+        fp = _HANDLERS_BASE_DIR / sub / f"{type_name}.py"
+        if fp.exists():
+            return {"type": type_name, "code": fp.read_text(encoding="utf-8"), "exists": True}
+    return {"type": type_name, "code": "", "exists": False}
 
 
 @router.post("/definitions/{type_name}/save-handler")
@@ -529,10 +532,58 @@ def save_handler_code(type_name: str, payload: dict, user=Depends(auth.get_curre
     except SyntaxError as e:
         raise HTTPException(status_code=400, detail=f"Syntax error: {e}")
 
-    _HANDLERS_NEW_DIR.mkdir(parents=True, exist_ok=True)
-    fp = _HANDLERS_NEW_DIR / f"{type_name}.py"
+    # Determine target directory from the definition's runtime field
+    def_fp = _COMMANDS_DIR / f"{type_name}.json"
+    if def_fp.exists():
+        with open(def_fp, encoding="utf-8") as f2:
+            definition = json.load(f2)
+        runtime = definition.get("runtime", "backend")
+    else:
+        runtime = "backend"
+    target_dir = _HANDLERS_BASE_DIR / f"{runtime}_commands"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    fp = target_dir / f"{type_name}.py"
     with open(fp, "w", encoding="utf-8") as f:
         f.write(code)
+    return {"success": True, "file": fp.name}
+
+
+@router.get("/definitions/{type_name}/js-source")
+def get_js_handler_source(type_name: str, user=Depends(auth.get_current_user)):
+    """Return the JS handler source for an extension command."""
+    def_fp = _COMMANDS_DIR / f"{type_name}.json"
+    if not def_fp.exists():
+        return {"type": type_name, "code": "", "exists": False}
+    with open(def_fp, encoding="utf-8") as f2:
+        definition = json.load(f2)
+    handler = definition.get("handler", {})
+    source_path = handler.get("source", "")
+    if not source_path:
+        return {"type": type_name, "code": "", "exists": False}
+    fp = _Path(__file__).resolve().parent.parent.parent.parent / source_path
+    if not fp.exists():
+        return {"type": type_name, "code": "", "exists": False, "path": source_path}
+    return {"type": type_name, "code": fp.read_text(encoding="utf-8"), "exists": True, "path": source_path}
+
+
+@router.post("/definitions/{type_name}/save-js-handler")
+def save_js_handler_code(type_name: str, payload: dict, user=Depends(auth.get_current_user)):
+    """Save JS handler code for an extension command."""
+    code = payload.get("code", "")
+    if not code:
+        raise HTTPException(status_code=400, detail="code is required")
+    def_fp = _COMMANDS_DIR / f"{type_name}.json"
+    if not def_fp.exists():
+        raise HTTPException(status_code=404, detail=f"Definition '{type_name}' not found")
+    with open(def_fp, encoding="utf-8") as f2:
+        definition = json.load(f2)
+    handler = definition.get("handler", {})
+    source_path = handler.get("source", "")
+    if not source_path:
+        raise HTTPException(status_code=400, detail="handler.source not defined")
+    fp = _Path(__file__).resolve().parent.parent.parent.parent / source_path
+    fp.parent.mkdir(parents=True, exist_ok=True)
+    fp.write_text(code, encoding="utf-8")
     return {"success": True, "file": fp.name}
 
 

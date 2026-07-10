@@ -10,15 +10,20 @@
   "commandOrder": 10,
   "description": "启动浏览器并加载RPA扩展",
   "enabled": true,
-  "isNew": true,
   "params": [
     {
       "name": "browserType",
       "label": "浏览器",
       "type": "str-dropdown",
       "options": [
-        {"label": "Chrome", "value": "chrome"},
-        {"label": "Edge", "value": "edge"}
+        {
+          "label": "Chrome",
+          "value": "chrome"
+        },
+        {
+          "label": "Edge",
+          "value": "edge"
+        }
       ],
       "default": "chrome"
     },
@@ -33,9 +38,18 @@
       "label": "窗口状态",
       "type": "str-dropdown",
       "options": [
-        {"label": "普通", "value": "normal"},
-        {"label": "最大化", "value": "maximized"},
-        {"label": "最小化", "value": "minimized"}
+        {
+          "label": "普通",
+          "value": "normal"
+        },
+        {
+          "label": "最大化",
+          "value": "maximized"
+        },
+        {
+          "label": "最小化",
+          "value": "minimized"
+        }
       ],
       "default": "normal",
       "group": "advanced"
@@ -45,12 +59,15 @@
       "label": "保存窗口对象到",
       "type": "str-var",
       "default": "browser1",
-      "group": "output"
+      "group": "输出变量"
     }
   ],
   "handler": {
     "kind": "extension",
     "source": "extension/background_handlers/launchBrowser.js"
   },
-  "categories": ["browser"]
+  "categories": [
+    "browser"
+  ],
+  "featureFlag": "core"
 }

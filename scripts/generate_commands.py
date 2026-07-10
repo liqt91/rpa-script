@@ -188,21 +188,11 @@ def generate_js(d: dict) -> str:
 
 def _choose_output_dirs(d: dict) -> tuple[Path, Path]:
     """Return (python_dir, js_dir) for a definition.
-
-    New-system commands (isNew=True) go to the canonical src/runtime/commands/ dirs.
-    Legacy commands without isNew go to old handlers/ dirs.
+    Always outputs to new-system paths.
     """
-    if d.get("isNew"):
-        # New system: src/runtime/commands/{extension,backend,control}_commands/
-        rtype = d["runtime"]
-        py_dir = ROOT / "src" / "runtime" / "commands" / f"{rtype}_commands"
-    else:
-        # Legacy: src/runtime/workflow/handlers/{extension,backend,flow}/
-        cat_map = {"extension": "extension", "backend": "backend", "control": "flow"}
-        sub_dir = cat_map.get(d["runtime"], d["runtime"])
-        py_dir = HANDLERS_DIR / sub_dir
-
-    js_dir = EXT_DOM_NEW_DIR if d.get("isNew") else EXT_DOM_DIR
+    rtype = d["runtime"]
+    py_dir = ROOT / "src" / "runtime" / "commands" / f"{rtype}_commands"
+    js_dir = EXT_DOM_NEW_DIR
     return py_dir, js_dir
 
 
@@ -228,15 +218,21 @@ def write_outputs(defs: list[dict]):
             print(f"  SKIP {py_path} ({kind} — hand-written)")
 
         # JS part — only for extension commands
+        # Background handlers (source in background_handlers/) are compiled
+        # by build_background_js.py — skip DOM handler generation.
         if d["runtime"] == "extension":
-            js_code = generate_js(d)
-            js_path = js_dir / f"{d['type']}.js"
-            os.makedirs(js_path.parent, exist_ok=True)
-            if js_path.exists():
-                print(f"  KEEP {js_path} (exists)")
+            source = handler.get("source", "")
+            if "background_handlers" in source:
+                print(f"  SKIP JS (background handler: {source})")
             else:
-                js_path.write_text(js_code, encoding="utf-8")
-                print(f"  GEN  {js_path}")
+                js_code = generate_js(d)
+                js_path = js_dir / f"{d['type']}.js"
+                os.makedirs(js_path.parent, exist_ok=True)
+                if js_path.exists():
+                    print(f"  KEEP {js_path} (exists)")
+                else:
+                    js_path.write_text(js_code, encoding="utf-8")
+                    print(f"  GEN  {js_path}")
 
 
 def main():

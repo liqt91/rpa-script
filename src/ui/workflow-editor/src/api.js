@@ -135,7 +135,12 @@ export const api = {
     body: JSON.stringify(payload),
   }),
   getHandlerSource: (typeName) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/source`),
+  getJsHandlerSource: (typeName) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/js-source`),
   saveHandlerCode: (typeName, code) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/save-handler`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  }),
+  saveJsHandlerCode: (typeName, code) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/save-js-handler`, {
     method: 'POST',
     body: JSON.stringify({ code }),
   }),

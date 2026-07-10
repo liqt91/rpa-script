@@ -15,7 +15,7 @@ class LaunchBrowserHandler:
         Param("windowState", "窗口状态", "str-dropdown",
               options=[{"label": "普通", "value": "normal"}, {"label": "最大化", "value": "maximized"}, {"label": "最小化", "value": "minimized"}],
               default="normal", group="advanced"),
-        Param("windowVar", "保存窗口对象到", "str-var", default="browser1", group="output"),
+        Param("windowVar", "保存窗口对象到", "str-var", default="browser1", group="输出变量"),
     ]
 
     @staticmethod

@@ -39,7 +39,7 @@ function SidebarLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-gray-200 flex">
+    <div className="h-screen bg-[#0f172a] text-gray-200 flex overflow-hidden">
       {/* 侧边栏 */}
       <div className="w-52 bg-[#1e293b] border-r border-gray-700 flex flex-col shrink-0">
         <div className="px-4 py-5 flex items-center gap-2 border-b border-gray-700">
@@ -149,7 +149,7 @@ function SidebarLayout({ children }) {
       </div>
 
       {/* 主内容区 */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {children}
       </div>
     </div>
