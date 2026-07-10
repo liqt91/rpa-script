@@ -96,7 +96,7 @@
     {
       "name": "paramName",
       "label": "参数显示名",
-      "type": "str-input",
+      "type": "string",
       "required": true,
       "default": "默认值",
       "group": "主属性",
@@ -136,9 +136,26 @@
 
 ### 参数类型
 
-`str-input` `str-textarea` `str-var` `str-dropdown` `str-element` `int-number` `bool-check` `list-input` `dict-input` `any-expr` `any-input`
+类型注册表统一在 `commands/value_types.json` 中定义。前端和 Runner 均从此加载，是一致性的唯一保障。
 
-命名规则：`<Python类型>-<前端展示类型>`。`-` 左侧为值在 Python 中的类型，右侧为前端编辑器的展示控件。例如 `str-dropdown` = Python 侧期望字符串值 + 前端以下拉框展示。
+| 类型名 | UI 控件 | 变量引用 | 表达式 | 说明 |
+|---|---|---|---|---|
+| `string` | 单行文本框 | ✅ `{{var}}` | — | 短文本、URL、变量名 |
+| `text` | 多行文本框 | ✅ `{{var}}` | — | 长文本 |
+| `number` | 数字输入 | ✅ `{{var}}` | — | 整数 |
+| `boolean` | 开关/复选框 | ✅ `{{var}}` | — | 真/假 |
+| `select` | 下拉选择 | ✅ `{{var}}` | — | 预定义选项，需配置 `options` |
+| `code` | 代码编辑器 | ✅ `{{var}}` | ✅ `=expr` | Python 表达式、JSON、列表 |
+| `element` | 元素选择器 | — | — | 从元素库选取页面元素 |
+| `hidden` | 不渲染 | — | — | 运行时隐式注入 |
+
+**变量引用语法：** 所有标注 ✅ 的类型均支持 `{{varName}}` 花括号语法。花括号内可以是中文、英文、数字。Runner 自动解析。
+
+**表达式语法：** `code` 类型额外支持 `=expr` 前缀。以 `=` 开头时跳过 JSON 推断，直接进行安全的 Python eval。可用内置函数：`range`、`len`、`min`、`max`、`int`、`float`、`str`、`bool`、`list`、`dict` 等。
+
+**旧名兼容：** `str-input`→`string`、`int-number`→`number`、`any-expr`→`code` 等自动映射，参见 `value_types.json` 中的 `legacyMap`。
+
+**值类型：** 当参数引用变量时，可通过 `valueType` 字段声明变量的期望格式，Runner 据此校验。当前仅有 `"window"` 一种值类型（`{windowId: int, tabId: int}`）。定义在 `value_types.json` 的 `valueTypes` 节。
 
 ### 参数分组语义
 
@@ -172,7 +189,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
 )
 class LaunchBrowserHandler:
     params = [
-        Param("windowVar", "保存窗口对象到", "str-var", default="browser1", group="output"),
+        Param("windowVar", "保存窗口对象到", "string", default="browser1", group="output"),
     ]
 
     @staticmethod
@@ -303,7 +320,7 @@ const tabId = await this._ensureWorkTab(step);
 
 执行后阶段，遍历 handler params：
 
-- `group == "output" && type == "str-var"` → 如果 result 含 `windowId`/`tabId`：
+- `group == "output" && type == "string"` → 如果 result 含 `windowId`/`tabId`：
   - 变量不存在 → **创建** `{windowId, tabId}`（launchBrowser 等首次创建）
   - 变量已是 dict → **更新** tabId（navigate 等切换标签页）
   - 变量是标量 → **升级**为 dict
