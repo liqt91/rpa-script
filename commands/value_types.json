@@ -1,0 +1,15 @@
+{
+  "$schema": "value_types.schema.json",
+  "description": "项目级值类型定义。当指令参数 type=var 时，可引用此处的 valueType 声明变量的期望格式。Runner 可据此在读写时校验。",
+  "types": {
+    "window": {
+      "label": "浏览器窗口句柄",
+      "shape": {
+        "windowId": "int",
+        "tabId": "int"
+      },
+      "setBy": ["launchBrowser"],
+      "description": "浏览器窗口引用，含窗口 ID 和标签页 ID"
+    }
+  }
+}

@@ -655,3 +655,16 @@ def delete_category(slug: str, db: Session = Depends(get_db), user=Depends(auth.
     db.delete(row)
     db.commit()
     return {"ok": True}
+
+
+# ─── Value Types ─────────────────────────────────────────────
+
+
+@router.get("/value-types")
+def get_value_types(user=Depends(auth.get_current_user)):
+    """Return project-level value type definitions."""
+    fp = _COMMANDS_DIR / "value_types.json"
+    if not fp.exists():
+        return {"types": {}}
+    with open(fp, encoding="utf-8") as f:
+        return json.load(f)

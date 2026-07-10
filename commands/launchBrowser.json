@@ -59,7 +59,8 @@
       "label": "保存窗口对象到",
       "type": "str-var",
       "default": "browser1",
-      "group": "输出变量"
+      "group": "output",
+      "valueType": "window"
     }
   ],
   "handler": {

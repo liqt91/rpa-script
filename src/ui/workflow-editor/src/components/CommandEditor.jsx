@@ -59,8 +59,16 @@ export default function CommandEditor() {
   const [jsCode, setJsCode] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [valueTypes, setValueTypes] = useState({});
 
-  useEffect(() => { loadDefinitions(); loadCategories(); }, []);
+  useEffect(() => { loadDefinitions(); loadCategories(); loadValueTypes(); }, []);
+
+  async function loadValueTypes() {
+    try {
+      const data = await api.request('/api/commands/value-types');
+      setValueTypes(data.types || {});
+    } catch (e) { /* ignore */ }
+  }
 
   async function loadCategories() {
     try {
@@ -573,6 +581,21 @@ export default function CommandEditor() {
                               </label>
                             </div>
                           </div>
+                          {(p.type || '').includes('var') && Object.keys(valueTypes).length > 0 && (
+                            <div className="mb-1.5">
+                              <div className="text-[9px] text-gray-500 mb-0.5">期望值类型</div>
+                              <select
+                                value={p.valueType || ''}
+                                onChange={e => updateParam(i, 'valueType', e.target.value || undefined)}
+                                className={`${selectCls} text-[10px]`}
+                              >
+                                <option value="">— 不指定 —</option>
+                                {Object.entries(valueTypes).map(([k, v]) => (
+                                  <option key={k} value={k}>{v.label || k}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                             <div>
                               <div className="text-[9px] text-gray-500 mb-0.5">默认值</div>
