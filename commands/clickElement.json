@@ -14,13 +14,13 @@
     {
       "name": "element_name",
       "label": "元素",
-      "type": "str-element",
+      "type": "element",
       "required": true
     },
     {
       "name": "scope",
       "label": "匹配范围",
-      "type": "str-dropdown",
+      "type": "select",
       "options": [
         {
           "label": "当前外层元素内",
@@ -37,14 +37,14 @@
     {
       "name": "loopAnchor",
       "label": "锚点元素",
-      "type": "str-var",
+      "type": "string",
       "default": "",
       "group": "anchor"
     },
     {
       "name": "visibilityMode",
       "label": "元素可见性",
-      "type": "str-dropdown",
+      "type": "select",
       "options": [
         {
           "label": "仅可见",

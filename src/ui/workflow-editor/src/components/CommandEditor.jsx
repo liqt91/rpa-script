@@ -7,10 +7,7 @@ const CMD_TYPES = [
   { value: 'control', label: '本地端控制指令', desc: '流程控制（if / for / trycatch 等），无需 handler' },
 ];
 
-const PARAM_TYPES = [
-  'str-input', 'str-textarea', 'str-var', 'str-dropdown', 'str-element',
-  'int-number', 'bool-check', 'list-input', 'dict-input', 'any-expr', 'any-input',
-];
+const PARAM_TYPES = []; // populated from value_types.json
 
 const PARAM_GROUPS = [
   { v: '默认属性', l: '默认属性' },
@@ -60,13 +57,16 @@ export default function CommandEditor() {
   const [aiLoading, setAiLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [valueTypes, setValueTypes] = useState({});
+  const [paramTypes, setParamTypes] = useState([]);
 
   useEffect(() => { loadDefinitions(); loadCategories(); loadValueTypes(); }, []);
 
   async function loadValueTypes() {
     try {
       const data = await api.request('/api/commands/value-types');
-      setValueTypes(data.types || {});
+      const pt = data.paramTypes || {};
+      setParamTypes(Object.keys(pt));
+      setValueTypes(data.valueTypes || {});
     } catch (e) { /* ignore */ }
   }
 
@@ -581,7 +581,7 @@ export default function CommandEditor() {
                               </label>
                             </div>
                           </div>
-                          {(p.type || '').includes('var') && Object.keys(valueTypes).length > 0 && (
+                          {Object.keys(valueTypes).length > 0 && (
                             <div className="mb-1.5">
                               <div className="text-[9px] text-gray-500 mb-0.5">期望值类型</div>
                               <select

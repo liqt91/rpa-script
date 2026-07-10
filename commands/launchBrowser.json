@@ -14,7 +14,7 @@
     {
       "name": "browserType",
       "label": "浏览器",
-      "type": "str-dropdown",
+      "type": "select",
       "options": [
         {
           "label": "Chrome",
@@ -30,13 +30,13 @@
     {
       "name": "url",
       "label": "启动后打开网址",
-      "type": "str-input",
+      "type": "string",
       "placeholder": "留空则打开 about:blank"
     },
     {
       "name": "windowState",
       "label": "窗口状态",
-      "type": "str-dropdown",
+      "type": "select",
       "options": [
         {
           "label": "普通",
@@ -57,7 +57,7 @@
     {
       "name": "windowVar",
       "label": "保存窗口对象到",
-      "type": "str-var",
+      "type": "string",
       "default": "browser1",
       "group": "output",
       "valueType": "window"

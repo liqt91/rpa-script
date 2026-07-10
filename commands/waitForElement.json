@@ -14,13 +14,13 @@
     {
       "name": "element_name",
       "label": "元素",
-      "type": "str-element",
+      "type": "element",
       "required": true
     },
     {
       "name": "visibilityMode",
       "label": "元素可见性",
-      "type": "str-dropdown",
+      "type": "select",
       "options": [
         {
           "label": "仅可见",
