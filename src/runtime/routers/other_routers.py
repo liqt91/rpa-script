@@ -724,32 +724,47 @@ def ai_invoke(req: schemas.AIInvokeRequest, _user=Depends(auth.get_current_user)
 # NOTE: use chr(10) for newlines to avoid backslash-escape corruption
 
 PROMPT_BACKEND = """
-你是 RPA 后端开发专家。下面是一份已写好的 Python handler 代码。
-IMPORTANT: 你只能修改 # TODO 之后的内容。不要改 import、class、params、extra 读取、结果上报。
+你是 RPA 后端开发专家。下面是一份已经写好的 Python handler 代码，import、注册、参数读取、结果上报都已正确。
+你只需要把 `# TODO: 业务逻辑` 区域替换成真实可执行的业务代码，然后输出完整文件。
 
-=== 当前代码 ===
+=== 当前代码（你只能修改 # TODO 区域）===
 
 ```python
 {{scaffold}}
 ```
 
-=== RPA 内部 API ===
-- browser_utils.launch_browser_with_extension(browser_type) -> bool: 启动浏览器并加载 RPA 扩展
-- browser_utils.is_browser_running(browser_type) -> bool: 检查是否已运行
-- extension_runner.wait_for_extension_connection(browser_type, ext_manager, timeout) -> str: 等待扩展 WebSocket
-- extension_runner.ext_manager.send_to(client_id, type, payload): 发消息到扩展
-- runner.vars[name] = value: 读写变量
-- runner.logger.info/warning/error(msg): 日志
+=== 项目 API 清单（按需选用，不要编造）===
 
-=== 架构 ===
-- backend 指令: execute() 完成全部工作
-- extension 指令: execute() 只做前置（启动浏览器、建 WebSocket），Runner 转发到扩展端 JS handler
+浏览器操作：
+  from src.repo.browser_utils import is_browser_running, launch_browser_with_extension
+  # launch_browser_with_extension(browser_type) -> bool  自动加载 RPA 扩展启动浏览器
+
+  from src.runtime.workflow.extension_runner import wait_for_extension_connection, ext_manager
+  # client_id = await wait_for_extension_connection(browser_type, ext_manager, timeout=10.0)
+  # 连接建立后必须设置: runner.client_id = client_id
+
+工具函数：
+  from src.runtime.workflow.handlers.utils import clean_var_ref, convert_value
+  # clean_var_ref("${var}") -> "var"
+  # convert_value(value, type, runner.vars) -> 转换后的值
+
+HTTP 请求：
+  import httpx  # 项目已安装
+  async with httpx.AsyncClient() as client:
+      resp = await client.get(url, headers={...})
+
+=== 架构规则 ===
+- backend 指令: execute() 完成全部工作，不涉及浏览器扩展
+- extension 指令: execute() 只做前置工作（启动浏览器、建立 WebSocket 连接）。扩展通信和窗口管理由 Runner 负责，不要在 execute() 里调用 _send_and_wait
+- 输出变量：如果参数 group="output" 且 type="str-var"，其值代表写入 runner.vars 的键名，执行后写入 runner.vars[键名]
 
 === 硬性要求 ===
 1. 只能改 # TODO 之后、result_summary 之前的代码，其他地方一个字符都不准动
 2. 保留 result_summary、runner.completed、runner.results、runner._emit 结果上报代码
 3. 不要重写整个文件，不要改 import/register/params/extra 读取
-4. 直接输出完整文件，不要代码块包裹，不要说明文字
+4. result_summary 必须是 dict
+5. 不确定的 API 不要编造，说明"需确认"
+6. 直接输出完整文件，不要代码块包裹，不要说明文字
 """
 
 PROMPT_EXTENSION_JS = """
@@ -762,19 +777,38 @@ PROMPT_EXTENSION_JS = """
 {{context}}
 
 === 可用 API ===
-- registerHandler(name, handler) — DOM handler（content script 上下文）
-- registerBackgroundHandler(name, handler) — background handler（Service Worker 上下文）
-- args.elements: dict — 用户选择的前端元素
-- args.extra: dict — 用户填写的参数值
-- findElement(query, scope): 在页面中查找元素
-- chrome.windows / chrome.tabs — 扩展后台 API（仅 background handler）
-- agent.workWindowId / agent.workTabId — 当前工作窗口/标签
-- agent._send(type, payload): 通过 WebSocket 发送消息到后端
+注册方式（根据上下文选择其一）：
+  registerHandler(name, handler)          — DOM handler（content script 中运行）
+  registerBackgroundHandler(name, handler) — background handler（Service Worker 中运行）
+
+DOM handler 可用工具（content.js 中已定义）：
+  findElement(elementDef, scope, visibilityMode) → DOM Element | null
+    elementDef: args.elements[elementName]
+    scope: "local" | "global"
+    visibilityMode: "visible" | "any"
+  resolveSelector(selectors) → 最佳选择器字符串
+  sleep(ms) → Promise
+
+参数读取：
+  args.extra — 用户填写的参数 {paramName: value}，参数名与 JSON 定义一致
+  args.elements — 元素选择器 {elementName: {selectors: [...]}}
+
+Background handler 可用：
+  chrome.windows / chrome.tabs — 扩展后台 API
+  agent.workWindowId / agent.workTabId — 当前工作窗口/标签
+  agent._injectContentScript(tabId) — 注入 content script
+  agent._send(type, payload) — 通过 WebSocket 发送消息到后端
+
+=== 返回值规范 ===
+  { ok: true }                           — 成功
+  { ok: true, result: {...} }            — 带结果
+  { ok: true, vars: {key: val} }         — 写变量
+  { ok: false, error: "原因" }            — 失败
 
 === 要求 ===
 1. 根据上下文选择正确的注册方式（registerHandler 或 registerBackgroundHandler）
 2. 代码必须真实可执行，正确处理错误情况
-3. 返回 { ok: true } 表示成功，或抛出有意义错误
+3. DOM 操作前检查元素是否存在（findElement 可能返回 null）
 4. 直接输出完整 JS 代码，不要 markdown 代码块，不要说明文字
 """
 
@@ -787,18 +821,23 @@ PROMPT_CONTROL = """
 {{scaffold}}
 ```
 
+=== 控制流语义 ===
+- is_container=True — 容器指令（for/if/try），子节点由 emitter 展开执行
+- is_structural=True — 结束标记（endFor/endIf），仅语法闭合
+- is_branch=True — 分支路径（else/catch）
+- 控制流 handler 的 execute() 只做条件判断/状态更新，不需要 I/O 或浏览器通信
+
 === Runner 可用 API ===
 - runner.vars: dict — 工作流变量空间
 - runner.current_loop_index: int | None — 循环索引
-- runner.abort(reason): 中止工作流
-- runner.pause(): 暂停工作流
 - runner.get_parent_vars() -> dict: 父级变量
 - instr.get("extra"): dict — 用户填写的参数值
 
 === 要求 ===
 1. 只能改 # TODO 区域，不能改其他地方
 2. 控制流逻辑必须正确处理嵌套场景
-3. 直接输出完整代码，不要代码块，不要说明文字
+3. 不写 pass 或占位代码
+4. 直接输出完整代码，不要代码块，不要说明文字
 """
 
 NL = chr(10)
@@ -810,7 +849,7 @@ def _build_params_and_reads(params):
         pname = p.get("name", "")
         plabel = p.get("label", pname)
         ptype = p.get("type", "str-input")
-        pgroup = p.get("group", "默认属性")
+        pgroup = p.get("group", "主属性")
         parts = [f'        Param("{pname}", "{plabel}", "{ptype}"']
         if p.get("required"):
             parts.append(", required=True")
@@ -818,7 +857,7 @@ def _build_params_and_reads(params):
             parts.append(f", options={json.dumps(p['options'], ensure_ascii=False)}")
         if "default" in p and p["default"] is not None and p["default"] != "":
             parts.append(f", default={json.dumps(p['default'], ensure_ascii=False)}")
-        if pgroup and pgroup != "默认属性":
+        if pgroup and pgroup != "主属性":
             parts.append(f', group="{pgroup}"')
         if p.get("placeholder"):
             parts.append(f', placeholder="{p["placeholder"]}"')
