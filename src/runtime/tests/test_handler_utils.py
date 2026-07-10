@@ -100,6 +100,13 @@ class TestConvertValue:
         # any-expr → code
         assert convert_value("len(x)", "any-expr", {"x": [1, 2, 3]}) == 3
 
+    def test_explicit_expression(self):
+        # =expr prefix bypasses JSON inference
+        assert convert_value("=range(5)", "code") == list(range(5))
+        assert convert_value("=len(x)", "code", {"x": [1, 2]}) == 2
+        # = with {{}} variable
+        assert convert_value("=len({{x}})", "code", {"x": [1, 2, 3]}) == 3
+
     def test_legacy_type_names(self):
         assert convert_value("42", "number") == 42
         assert convert_value('["a"]', "code") == ["a"]

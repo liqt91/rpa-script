@@ -65,12 +65,18 @@ def convert_value(value, value_type: str, vars: dict | None = None):
     elif value_type == "boolean":
         return str(value).lower() in ("true", "1", "yes")
     elif value_type == "code":
+        s = str(value)
+        # 显式表达式：=expr 前缀，跳过 JSON 推断，直接求值
+        if s.startswith("="):
+            resolved = resolve_vars(s[1:], vars or {})
+            return _eval_expression(resolved, vars or {})
+        # 否则：{{}} 替换 → JSON 推断 → 兜底表达式求值
         import json as _json
-        resolved = resolve_vars_json(str(value), vars or {})
+        resolved = resolve_vars_json(s, vars or {})
         try:
             return _json.loads(resolved)
         except Exception:
-            return _eval_expression(str(value), vars or {})
+            return _eval_expression(s, vars or {})
     elif value_type == "element":
         return value
     else:
