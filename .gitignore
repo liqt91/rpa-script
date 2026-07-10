@@ -48,3 +48,5 @@ css-xpath-selector-strategy.html
 command-consistency-proposal.html
 capture-module-redesign.html
 anchor-first-capture-plan.md
+extension/content.js
+extension/background.js
