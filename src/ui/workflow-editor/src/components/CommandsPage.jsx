@@ -108,15 +108,15 @@ export default function CommandsPage() {
           <thead><tr className="border-b border-gray-700/50"><th className="text-left px-3 py-2 font-medium text-gray-500">类型</th><th className="text-left px-3 py-2 font-medium text-gray-500">标签</th><th className="text-center px-3 py-2 font-medium text-gray-500">状态</th><th className="text-center px-3 py-2 font-medium text-gray-500">类别</th><th className="text-center px-3 py-2 font-medium text-gray-500">控制身份</th><th className="text-center px-3 py-2 font-medium text-gray-500">参数</th><th className="text-left px-3 py-2 font-medium text-gray-500">运行时</th><th className="text-left px-3 py-2 font-medium text-gray-500">说明</th></tr></thead>
           <tbody>{cmds.map(cmd=>{
             const ctrl=controlLabel(cmd);
-            const isEmitter=!!ctrl;
+            const isControl=!!ctrl;
             return(<tr key={cmd.type} className="border-b border-gray-700/30 hover:bg-[#252f47] cursor-pointer" onClick={()=>setEditCmd({...cmd,fields:JSON.parse(JSON.stringify(cmd.fields||[]))})}>
             <td className="px-3 py-2 font-mono text-blue-300 truncate">{cmd.type}</td>
             <td className="px-3 py-2 text-gray-300 truncate">{cmd.label||'-'}</td>
             <td className="px-3 py-2 text-center">{cmd.enabled!==false?<span className="px-1.5 py-0.5 bg-green-900/40 text-green-300 rounded text-[10px]">启用</span>:<span className="px-1.5 py-0.5 bg-gray-700/50 text-gray-400 rounded text-[10px]">禁用</span>}</td>
-            <td className="px-3 py-2 text-center">{isEmitter?<span className="px-1.5 py-0.5 bg-yellow-900/40 text-yellow-300 rounded text-[10px]">控制</span>:<span className="px-1.5 py-0.5 bg-blue-900/40 text-blue-300 rounded text-[10px]">操作</span>}</td>
+            <td className="px-3 py-2 text-center">{isControl?<span className="px-1.5 py-0.5 bg-yellow-900/40 text-yellow-300 rounded text-[10px]">控制</span>:<span className="px-1.5 py-0.5 bg-blue-900/40 text-blue-300 rounded text-[10px]">操作</span>}</td>
             <td className="px-3 py-2 text-center">{ctrl?<span className={`px-1.5 py-0.5 ${ctrl.bg} ${ctrl.color} rounded text-[10px]`}>{ctrl.text}</span>:'—'}</td>
             <td className="px-3 py-2 text-center">{(cmd.fields||[]).length===0?<span className="text-gray-500">—</span>:<span className="text-[#1677ff]">{(cmd.fields||[]).length}</span>}</td>
-            <td className="px-3 py-2">{isEmitter?<span className="px-1 py-0.5 bg-yellow-900/40 text-yellow-300 rounded text-[10px]">emitter</span>:cmd.hasRuntime?<div className="flex items-center gap-1.5"><span className="text-gray-300 font-mono text-[10px] truncate">{cmd.handler||'—'}</span><span className={`shrink-0 px-1 rounded text-[10px] whitespace-nowrap ${cmd.local?'bg-purple-900/40 text-purple-300':'bg-blue-900/40 text-blue-300'}`}>{cmd.local?'后端':'扩展'}</span></div>:<span className="text-gray-500">—</span>}</td>
+            <td className="px-3 py-2">{isControl?<span className="px-1 py-0.5 bg-yellow-900/40 text-yellow-300 rounded text-[10px]">emitter</span>:cmd.hasRuntime?<div className="flex items-center gap-1.5"><span className="text-gray-300 font-mono text-[10px] truncate">{cmd.handler||'—'}</span><span className={`shrink-0 px-1 rounded text-[10px] whitespace-nowrap ${cmd.local?'bg-purple-900/40 text-purple-300':'bg-blue-900/40 text-blue-300'}`}>{cmd.local?'后端':'扩展'}</span></div>:<span className="text-gray-500">—</span>}</td>
             <td className="px-3 py-2 text-gray-400 truncate">{(cmd.description||'')}</td>
           </tr>);})}</tbody>
         </table></div>
@@ -124,14 +124,14 @@ export default function CommandsPage() {
     </div>)}
 
     {/* Edit Modal */}
-    {editCmd&&(()=>{const ctrl=controlLabel(editCmd);const isEmitter=!!ctrl;return(
+    {editCmd&&(()=>{const ctrl=controlLabel(editCmd);const isControl=!!ctrl;return(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={()=>setEditCmd(null)}>
       <div className="bg-[#1e293b] rounded-xl border border-gray-700 w-[740px] max-w-[95vw] max-h-[90vh] flex flex-col" onClick={e=>e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-gray-700 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <h3 className="text-base font-semibold text-white font-mono">{editCmd.type}</h3>
             <span className="text-xs text-gray-400">{editCmd.label}</span>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] ${isEmitter?'bg-yellow-900/40 text-yellow-300':'bg-blue-900/40 text-blue-300'}`}>{isEmitter?'控制指令':'操作指令'}</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] ${isControl?'bg-yellow-900/40 text-yellow-300':'bg-blue-900/40 text-blue-300'}`}>{isControl?'控制指令':'操作指令'}</span>
           </div>
           <button onClick={()=>setEditCmd(null)} className="text-gray-400 hover:text-white"><i className="fas fa-times"></i></button>
         </div>
@@ -139,7 +139,7 @@ export default function CommandsPage() {
         <div className="flex-1 overflow-auto p-5 space-y-4">
 
           {/* ═══ 操作指令（handler） ═══ */}
-          {!isEmitter&&(<>
+          {!isControl&&(<>
             {/* ① 执行位置 */}
             <div className="border border-gray-700/50 rounded-lg p-4 bg-[#0f172a]/50">
               <div className="flex items-center gap-2 mb-3">
@@ -192,7 +192,7 @@ export default function CommandsPage() {
           </>)}
 
           {/* ═══ 控制指令（emitter） ═══ */}
-          {isEmitter&&(
+          {isControl&&(
             <div className="border border-gray-700/50 rounded-lg p-4 bg-[#0f172a]/50">
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-5 h-5 rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">①</span>
@@ -207,13 +207,13 @@ export default function CommandsPage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className={`w-5 h-5 rounded-full ${isEmitter?'bg-green-600':'bg-blue-600'} text-white text-[10px] font-bold flex items-center justify-center shrink-0`}>{isEmitter?'②':'③'}</span>
+                <span className={`w-5 h-5 rounded-full ${isControl?'bg-green-600':'bg-blue-600'} text-white text-[10px] font-bold flex items-center justify-center shrink-0`}>{isControl?'②':'③'}</span>
                 <span className="text-xs font-medium text-gray-300">参数字段</span>
-                <span className="text-[10px] text-gray-500">— 变量名由 {isEmitter?'emitter':'handler'} 定义，不可改</span>
+                <span className="text-[10px] text-gray-500">— 变量名由 {isControl?'emitter':'handler'} 定义，不可改</span>
               </div>
               {!editCmd.isBuiltin && <button onClick={()=>setEditCmd({...editCmd,fields:[...editCmd.fields,{name:'',label:'',type:'text',group:'主属性'}]})} className="text-[10px] text-[#1677ff] hover:text-blue-400 shrink-0">+ 添加字段</button>}
             </div>
-            <p className="text-[10px] text-yellow-400/70 mb-2">⚠ 变量名与{isEmitter?'emitter 代码':<>handler 中 <code className="text-yellow-300 bg-yellow-900/30 px-1 rounded">extra.get("变量名")</code></>}绑定，必须一致</p>
+            <p className="text-[10px] text-yellow-400/70 mb-2">⚠ 变量名与{isControl?'emitter 代码':<>handler 中 <code className="text-yellow-300 bg-yellow-900/30 px-1 rounded">extra.get("变量名")</code></>}绑定，必须一致</p>
             <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-gray-500 bg-[#0f172a]/50 rounded-t"><span className="w-[74px] shrink-0">变量名</span><span className="w-[64px] shrink-0">显示名</span><span className="w-[74px] shrink-0">类型 <button type="button" onClick={e=>{e.stopPropagation();setShowTypeHelp(!showTypeHelp);}} className="inline text-gray-500 hover:text-gray-300 ml-0.5" title="字段类型说明">?</button></span><span className="w-[58px] shrink-0">分组</span><span className="w-[28px] shrink-0 text-center">必填</span><span className="flex-1">默认值</span></div>
             <div className="space-y-1 max-h-48 overflow-y-auto">{editCmd.fields.map((f,i)=>(<Fragment key={i}>
               <div className="flex items-center gap-1.5 bg-[#0f172a] rounded px-2 py-1">
@@ -274,7 +274,7 @@ export default function CommandsPage() {
 
           {/* ④/③ 基本信息 */}
           <div>
-            <div className="flex items-center gap-2 mb-3"><span className={`w-5 h-5 rounded-full ${isEmitter?'bg-green-600':'bg-blue-600'} text-white text-[10px] font-bold flex items-center justify-center shrink-0`}>{isEmitter?'③':'④'}</span><span className="text-xs font-medium text-gray-300">基本信息</span><span className="text-[10px] text-gray-500">— 可修改</span></div>
+            <div className="flex items-center gap-2 mb-3"><span className={`w-5 h-5 rounded-full ${isControl?'bg-green-600':'bg-blue-600'} text-white text-[10px] font-bold flex items-center justify-center shrink-0`}>{isControl?'③':'④'}</span><span className="text-xs font-medium text-gray-300">基本信息</span><span className="text-[10px] text-gray-500">— 可修改</span></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-[10px] text-gray-500 mb-1">类型标识（唯一ID，不可改）</label><input value={editCmd.type} disabled className="w-full px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-400 text-xs font-mono"/></div>
               <div><label className="block text-[10px] text-gray-500 mb-1">中文显示名</label><input value={editCmd.label||''} onChange={e=>setEditCmd({...editCmd,label:e.target.value})} className="w-full px-2 py-1.5 bg-[#0f172a] border border-gray-600 rounded text-white text-xs outline-none focus:border-blue-500"/></div>

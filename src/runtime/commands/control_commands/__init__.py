@@ -1,4 +1,4 @@
-"""本地端控制指令 — 容器/流程控制，runtime="emitter"，无 execute 方法。"""
+"""本地端控制指令 — 容器/流程控制，runtime="control"，无 execute 方法。"""
 import os as _os
 import importlib as _importlib
 

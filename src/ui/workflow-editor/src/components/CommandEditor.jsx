@@ -4,7 +4,7 @@ import { api } from '../api';
 const CMD_TYPES = [
   { value: 'extension', label: '扩展端执行指令', desc: '浏览器扩展中执行，每个指令一个 JS handler 文件' },
   { value: 'backend', label: '本地端操作指令', desc: '后端 Python 执行，每个指令一个 Python handler 文件' },
-  { value: 'emitter', label: '本地端控制指令', desc: '流程控制（if / for / trycatch 等），无需 handler' },
+  { value: 'control', label: '本地端控制指令', desc: '流程控制（if / for / trycatch 等），无需 handler' },
 ];
 
 const PARAM_TYPES = [
@@ -235,7 +235,7 @@ export default function CommandEditor() {
 
   const isBackend = form && form.runtime === 'backend';
   const isExtension = form && form.runtime === 'extension';
-  const isEmitter = form && form.runtime === 'emitter';
+  const isControl = form && form.runtime === 'control';
 
   // ── color palette ──
   // Each entry: name, hex (500 shade for icons), hex50 (50 shade for bg)
@@ -493,7 +493,7 @@ export default function CommandEditor() {
                             className="accent-blue-500" />
                           启用
                         </label>
-                        {!isEmitter && (
+                        {!isControl && (
                           <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer">
                             <input type="checkbox" checked={form.isContainer || false} onChange={e => updateField('isContainer', e.target.checked)}
                               className="accent-green-500" />
@@ -516,7 +516,7 @@ export default function CommandEditor() {
                   {/* Handler info (derived from instruction type) */}
                   <div className="border border-gray-700 rounded p-2.5 bg-[#0a0f1a]/50">
                     <div className="text-[10px] font-medium text-gray-400 mb-1.5">Handler 文件</div>
-                    {isEmitter ? (
+                    {isControl ? (
                       <div className="text-[10px] text-gray-500">无需 handler，由流程引擎直接解释执行</div>
                     ) : isBackend ? (
                       <div className="text-[10px] text-gray-300 font-mono">commands/backend_commands/{form.type}.py</div>
@@ -640,7 +640,7 @@ export default function CommandEditor() {
                 <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0">
                   Python Handler 预览
                 </div>
-                {!isEmitter && (
+                {!isControl && (
                   <div className="px-3 py-1.5 border-b border-gray-700/50 bg-[#0a0f1a] shrink-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-gray-400">操作</span>
@@ -661,10 +661,10 @@ export default function CommandEditor() {
                 <textarea
                   value={pythonCode}
                   onChange={e => setPythonCode(e.target.value)}
-                  disabled={isEmitter}
+                  disabled={isControl}
                   className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-gray-300 outline-none resize-none disabled:opacity-50"
                   spellCheck={false}
-                  placeholder={isEmitter ? '控制指令无需 Python handler' : '# Python handler 代码 — 点击「AI 生成」或手动编写'}
+                  placeholder={isControl ? '控制指令无需 Python handler' : '# Python handler 代码 — 点击「AI 生成」或手动编写'}
                 />
               </div>
 
@@ -706,7 +706,7 @@ export default function CommandEditor() {
                   disabled={!isExtension}
                   className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-gray-300 outline-none resize-none disabled:opacity-50"
                   spellCheck={false}
-                  placeholder={isEmitter ? '控制指令无需 JS handler' : isExtension ? '// JS handler 代码' : '仅扩展端执行指令支持 JS handler'}
+                  placeholder={isControl ? '控制指令无需 JS handler' : isExtension ? '// JS handler 代码' : '仅扩展端执行指令支持 JS handler'}
                 />
               </div>
             </div>

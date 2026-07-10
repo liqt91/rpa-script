@@ -75,7 +75,7 @@ def register_handler(
     type: str,
     label: str,
     category: str,
-    runtime: str = "extension",  # "extension" | "backend" | "emitter"
+    runtime: str = "extension",  # "extension" | "backend" | "control"
     icon: str = "fa-circle",
     icon_color: str = "text-gray-500",
     bg_color: str = "bg-gray-50",
@@ -93,7 +93,7 @@ def register_handler(
     runtime 值:
       - "extension": 浏览器扩展执行 (content.js)
       - "backend": 后端本地执行 (extension_runner.py LOCAL_HANDLERS)
-      - "emitter": 由 emitter 展开，不经过 handler 执行（容器/结构指令）
+      - "control": 由 emitter 展开，不经过 handler 执行（容器/结构指令）
     """
     def decorator(cls):
         params = []

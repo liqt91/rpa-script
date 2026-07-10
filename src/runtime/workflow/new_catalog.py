@@ -38,7 +38,7 @@ def _runtime_info(d: dict) -> dict:
     rtype = d.get("runtime", "extension")
     handler = d.get("handler", {})
 
-    if rtype == "emitter":
+    if rtype == "control":
         return {"hasRuntime": False, "local": False, "handler": None}
 
     # backend / extension both carry a runtime handler

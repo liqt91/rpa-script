@@ -1506,7 +1506,7 @@ def get_command(type_name: str) -> dict | None:
     if h:
         from .handler_registry import GENERIC_PARAMS
         is_structural = h.get("isStructural") or h.get("isContainer") or h.get("isBranch")
-        is_emitter = h["runtime"] == "emitter"
+        is_emitter = h["runtime"] == "control"
         fields = h["params"] if is_structural else h["params"] + GENERIC_PARAMS
         return {
             "type": h["type"], "label": h["label"], "category": h["category"],
