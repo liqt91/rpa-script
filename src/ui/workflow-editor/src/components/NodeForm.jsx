@@ -692,7 +692,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
               />
               {vars.length > 0 && (
                 <div>
-                  <div className="text-[11px] text-gray-400 mb-1.5">可用变量（点击插入 ${'{变量名}'}）</div>
+                  <div className="text-[11px] text-gray-400 mb-1.5">可用变量（点击插入 {'{{变量名}}'}）</div>
                   <div className="flex flex-wrap gap-1">
                     {vars.map(v => (
                       <button
@@ -701,7 +701,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
                         onClick={() => {
                           const el = fullscreenRef.current;
                           if (!el) return;
-                          const insert = `\${${v.name}}`;
+                          const insert = `{{${v.name}}}`;
                           const start = el.selectionStart;
                           const end = el.selectionEnd;
                           const newVal = fullscreenValue.slice(0, start) + insert + fullscreenValue.slice(end);

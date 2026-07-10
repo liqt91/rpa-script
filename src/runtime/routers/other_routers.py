@@ -745,7 +745,7 @@ PROMPT_BACKEND = """
 
 工具函数：
   from src.runtime.workflow.handlers.utils import clean_var_ref, convert_value
-  # clean_var_ref("${var}") -> "var"
+  # clean_var_ref("{{var}}") -> "var"
   # convert_value(value, type, runner.vars) -> 转换后的值
 
 HTTP 请求：

@@ -9,26 +9,26 @@ from .handler_test_utils import make_runner, run_handler, run_sequence
 class TestSetVar:
     async def test_set_string(self):
         r = await run_handler("setVar", {
-            "name": "${x}", "value": "hello", "valueType": "str-input",
+            "name": "{{x}}", "value": "hello", "valueType": "str-input",
         })
         assert r.vars["x"] == "hello"
 
     async def test_set_int(self):
         r = await run_handler("setVar", {
-            "name": "${x}", "value": "42", "valueType": "int-number",
+            "name": "{{x}}", "value": "42", "valueType": "int-number",
         })
         assert r.vars["x"] == 42
 
     async def test_set_list_with_any_input(self):
         r = await run_handler("setVar", {
-            "name": "${x}", "value": '["a", "b"]', "valueType": "any-input",
+            "name": "{{x}}", "value": '["a", "b"]', "valueType": "any-input",
         })
         assert r.vars["x"] == ["a", "b"]
 
     async def test_set_with_reference_to_other_var(self):
         r = make_runner(vars={"source": "hello"})
         r = await run_handler("setVar", {
-            "name": "${x}", "value": "${source}", "valueType": "any-input",
+            "name": "{{x}}", "value": "{{source}}", "valueType": "any-input",
         }, r)
         assert r.vars["x"] == "hello"
 
@@ -45,7 +45,7 @@ class TestWriteTableRow:
     async def test_with_variables(self):
         r = make_runner(vars={"a": "hello", "b": "world"})
         r = await run_handler("writeTableRow", {
-            "rowData": '[${a}, ${b}]',
+            "rowData": '[{{a}}, {{b}}]',
             "writeMode": "append",
         }, r)
         assert r._table_data["rows"][0] == {"A": "hello", "B": "world"}
@@ -53,7 +53,7 @@ class TestWriteTableRow:
     async def test_comma_in_value_no_split(self):
         r = make_runner(vars={"text": "hello, world"})
         r = await run_handler("writeTableRow", {
-            "rowData": '[${text}]',
+            "rowData": '[{{text}}]',
             "writeMode": "append",
         }, r)
         assert r._table_data["rows"][0] == {"A": "hello, world"}
@@ -63,9 +63,9 @@ class TestSequence:
     async def test_setvar_then_writetablerow(self):
         """模拟知乎竞品统计的核心流程：设变量 → 写表格"""
         r = await run_sequence([
-            ("setVar", {"name": "${kws}", "value": '["知乎", "同花顺"]', "valueType": "any-input"}),
-            ("setVar", {"name": "${title}", "value": "如何学习", "valueType": "any-input"}),
-            ("writeTableRow", {"rowData": '[${kws}, ${title}]', "writeMode": "append"}),
+            ("setVar", {"name": "{{kws}}", "value": '["知乎", "同花顺"]', "valueType": "any-input"}),
+            ("setVar", {"name": "{{title}}", "value": "如何学习", "valueType": "any-input"}),
+            ("writeTableRow", {"rowData": '[{{kws}}, {{title}}]', "writeMode": "append"}),
         ])
         assert len(r._table_data["rows"]) == 1
         row = r._table_data["rows"][0]
@@ -86,23 +86,23 @@ class TestSequence:
 class TestLog:
     async def test_log_with_vars(self):
         r = make_runner(vars={"name": "test"})
-        await run_handler("log", {"message": "processing ${name}"}, r)
+        await run_handler("log", {"message": "processing {{name}}"}, r)
         # log 不修改状态，只验证不报错
         assert r.completed == 1
 
     async def test_log_any_input(self):
         r = make_runner(vars={"count": 5})
-        await run_handler("log", {"message": "count=${count}"}, r)
+        await run_handler("log", {"message": "count={{count}}"}, r)
         assert r.completed == 1
 
 
 class TestIncrement:
     async def test_increment_existing(self):
         r = make_runner(vars={"i": 0})
-        r = await run_handler("increment", {"varName": "${i}", "step": 1}, r)
+        r = await run_handler("increment", {"varName": "{{i}}", "step": 1}, r)
         assert r.vars["i"] == 1
 
     async def test_increment_negative(self):
         r = make_runner(vars={"i": 10})
-        r = await run_handler("increment", {"varName": "${i}", "step": -3}, r)
+        r = await run_handler("increment", {"varName": "{{i}}", "step": -3}, r)
         assert r.vars["i"] == 7

@@ -12,13 +12,13 @@ from src.runtime.workflow.handlers.utils import (
 
 class TestResolveVars:
     def test_basic_replacement(self):
-        assert resolve_vars("hello ${name}", {"name": "world"}) == "hello world"
+        assert resolve_vars("hello {{name}}", {"name": "world"}) == "hello world"
 
     def test_missing_var_keeps_placeholder(self):
-        assert resolve_vars("hello ${missing}", {}) == "hello ${missing}"
+        assert resolve_vars("hello {{missing}}", {}) == "hello {{missing}}"
 
     def test_multiple_vars(self):
-        result = resolve_vars("${a} and ${b}", {"a": "1", "b": "2"})
+        result = resolve_vars("{{a}} and {{b}}", {"a": "1", "b": "2"})
         assert result == "1 and 2"
 
     def test_chinese_var_names(self):
@@ -26,39 +26,39 @@ class TestResolveVars:
 
     def test_list_var_to_string(self):
         # resolve_vars 用 str()，列表变成 Python repr
-        result = resolve_vars("${items}", {"items": ["a", "b"]})
+        result = resolve_vars("{{items}}", {"items": ["a", "b"]})
         assert result == "['a', 'b']"
 
 
 class TestResolveVarsJson:
     def test_string_gets_quoted(self):
-        result = resolve_vars_json("${name}", {"name": "hello"})
+        result = resolve_vars_json("{{name}}", {"name": "hello"})
         assert result == '"hello"'
 
     def test_number_stays_number(self):
-        result = resolve_vars_json("${n}", {"n": 42})
+        result = resolve_vars_json("{{n}}", {"n": 42})
         assert result == "42"
 
     def test_list_gets_json(self):
-        result = resolve_vars_json("${items}", {"items": ["a", "b"]})
+        result = resolve_vars_json("{{items}}", {"items": ["a", "b"]})
         assert result == '["a", "b"]'
 
     def test_dict_gets_json(self):
-        result = resolve_vars_json("${d}", {"d": {"k": "v"}})
+        result = resolve_vars_json("{{d}}", {"d": {"k": "v"}})
         assert result == '{"k": "v"}'
 
     def test_in_array_template(self):
-        result = resolve_vars_json("[${a}, ${b}]", {"a": "hello, world", "b": "foo"})
+        result = resolve_vars_json("[{{a}}, {{b}}]", {"a": "hello, world", "b": "foo"})
         assert result == '["hello, world", "foo"]'
 
     def test_missing_var_keeps_placeholder(self):
-        result = resolve_vars_json("[${a}, ${missing}]", {"a": "x"})
-        assert result == '["x", ${missing}]'
+        result = resolve_vars_json("[{{a}}, {{missing}}]", {"a": "x"})
+        assert result == '["x", {{missing}}]'
 
 
 class TestConvertValue:
     def test_str_input(self):
-        assert convert_value("hello ${n}", "str-input", {"n": "x"}) == "hello x"
+        assert convert_value("hello {{n}}", "str-input", {"n": "x"}) == "hello x"
 
     def test_int_number(self):
         assert convert_value("42", "int-number") == 42
@@ -76,11 +76,11 @@ class TestConvertValue:
         assert result == ["a", "b"]
 
     def test_list_input_with_vars(self):
-        result = convert_value("[${a}, ${b}]", "list-input", {"a": "hello", "b": "world"})
+        result = convert_value("[{{a}}, {{b}}]", "list-input", {"a": "hello", "b": "world"})
         assert result == ["hello", "world"]
 
     def test_list_input_comma_in_value(self):
-        result = convert_value('[${a}, ${b}]', "list-input", {"a": "hello, world", "b": "foo"})
+        result = convert_value('[{{a}}, {{b}}]', "list-input", {"a": "hello, world", "b": "foo"})
         assert result == ["hello, world", "foo"]
 
     def test_list_input_invalid_json_fallback(self):
@@ -105,7 +105,7 @@ class TestConvertValue:
 
 class TestCleanVarRef:
     def test_strips_dollar_brace(self):
-        assert clean_var_ref("${statistic}") == "statistic"
+        assert clean_var_ref("{{statistic}}") == "statistic"
 
     def test_strips_double_brace(self):
         assert clean_var_ref("{{statistic}}") == "statistic"

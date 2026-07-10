@@ -5,7 +5,7 @@ Handler 单元测试辅助工具。
     from .handler_test_utils import make_runner, run_handler
 
     runner = make_runner(vars={"a": "hello"})
-    result = await run_handler("setVar", {"name": "${x}", "value": "42", "valueType": "int-number"}, runner)
+    result = await run_handler("setVar", {"name": "{{x}}", "value": "42", "valueType": "int-number"}, runner)
     assert runner.vars["x"] == 42
 """
 
@@ -52,7 +52,7 @@ async def run_handler(cmd_type, extra, runner=None, step_id="s1"):
 
     Args:
         cmd_type: 指令类型，如 "setVar" "writeTableRow"
-        extra: 参数字典，如 {"name": "${x}", "value": "42"}
+        extra: 参数字典，如 {"name": "{{x}}", "value": "42"}
         runner: 模拟 runner，不传则自动创建
         step_id: 步骤 ID
 
@@ -89,9 +89,9 @@ async def run_sequence(steps, vars=None, table=None):
 
     例:
         runner = await run_sequence([
-            ("setVar", {"name": "${x}", "value": "10", "valueType": "int-number"}),
-            ("setVar", {"name": "${y}", "value": "20", "valueType": "int-number"}),
-            ("log", {"message": "x=${x}, y=${y}"}),
+            ("setVar", {"name": "{{x}}", "value": "10", "valueType": "int-number"}),
+            ("setVar", {"name": "{{y}}", "value": "20", "valueType": "int-number"}),
+            ("log", {"message": "x={{x}}, y={{y}}"}),
         ])
         assert runner.vars["x"] == 10
         assert runner.vars["y"] == 20

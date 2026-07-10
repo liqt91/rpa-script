@@ -253,18 +253,18 @@ export default function CommandsPage() {
                       </tr>
                     </thead>
                     <tbody className="text-gray-300">
-                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">文本</td><td className="py-1 pr-2">任意字符串</td><td className="py-1 pr-2 text-green-400">{'${var}→文本'}</td><td className="py-1 font-mono">https://...</td></tr>
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">文本</td><td className="py-1 pr-2">任意字符串</td><td className="py-1 pr-2 text-green-400">{'{{var}}→文本'}</td><td className="py-1 font-mono">https://...</td></tr>
                       <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">数字</td><td className="py-1 pr-2">数值</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">30</td></tr>
                       <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">开关</td><td className="py-1 pr-2">布尔</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">true</td></tr>
                       <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">下拉</td><td className="py-1 pr-2">枚举选一</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">chrome</td></tr>
                       <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">变量</td><td className="py-1 pr-2">变量名引用</td><td className="py-1 pr-2 text-amber-400">原类型传递</td><td className="py-1 font-mono">browser1 → {'{windowId,tabId}'}</td></tr>
                       <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">元素</td><td className="py-1 pr-2">元素库选择</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">login_btn</td></tr>
-                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">多行</td><td className="py-1 pr-2">多行文本</td><td className="py-1 pr-2 text-green-400">{'${var}→文本'}</td><td className="py-1">长文本内容</td></tr>
+                      <tr className="border-b border-gray-700/50"><td className="py-1 pr-2 text-blue-300">多行</td><td className="py-1 pr-2">多行文本</td><td className="py-1 pr-2 text-green-400">{'{{var}}→文本'}</td><td className="py-1">长文本内容</td></tr>
                       <tr><td className="py-1 pr-2 text-blue-300">代码</td><td className="py-1 pr-2">Python/JS</td><td className="py-1 pr-2 text-gray-500">—</td><td className="py-1 font-mono">print('hi')</td></tr>
                     </tbody>
                   </table>
                   <div className="mt-2 text-gray-500 text-[10px]">
-                    <span className="text-green-400">变量替换</span> = 文本/多行会把 <code className="text-yellow-300 bg-yellow-900/30 px-1 rounded">{'${name}'}</code> 替换为变量值并转字符串；
+                    <span className="text-green-400">变量替换</span> = 文本/多行会把 <code className="text-yellow-300 bg-yellow-900/30 px-1 rounded">{'{{name}}'}</code> 替换为变量值并转字符串；
                     <span className="text-amber-400 ml-1">原类型传递</span> = 变量类型保留原始类型（字典/列表等）
                   </div>
                 </div>
