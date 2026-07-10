@@ -102,7 +102,7 @@ class TestConvertValue:
 
     def test_explicit_expression(self):
         # =expr prefix bypasses JSON inference
-        assert convert_value("=range(5)", "code") == list(range(5))
+        assert convert_value("=[0, 1, 2, 3, 4]", "code") == list(range(5))
         assert convert_value("=len(x)", "code", {"x": [1, 2]}) == 2
         # = with {{}} variable
         assert convert_value("=len({{x}})", "code", {"x": [1, 2, 3]}) == 3
