@@ -90,6 +90,7 @@ def _eval_expression(expr: str, vars: dict):
         "True": True, "False": False, "None": None,
         "int": int, "float": float, "str": str, "bool": bool,
         "len": len, "abs": abs, "round": round, "min": min, "max": max,
+        "range": range, "list": list, "dict": dict,
         "isinstance": isinstance,
     }
     safe_vars = {**safe_builtins, **vars}
