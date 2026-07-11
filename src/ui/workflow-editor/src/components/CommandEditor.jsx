@@ -325,20 +325,6 @@ export default function CommandEditor() {
             <i className="fas fa-database text-[10px] w-4 text-center"></i>
             类型注册表
           </button>
-          {/* Type Registry entry */}
-          <button
-            onClick={() => { setSelected({ _type: "__type_registry__" }); setForm(null); }}
-            className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
-              selected && selected._type === "__type_registry__"
-                ? "bg-amber-600/30 text-amber-200"
-                : "text-gray-400 hover:bg-gray-800 hover:text-gray-200"
-            }`}>
-            <i className="fas fa-database text-[10px] w-4 text-center"></i>
-            类型注册表
-          </button>
-          {defs.map((d, i) => {
-            const isCur = selected && selected.type === d.type;
-            return (
               <button key={d.type || d.label || i} onClick={() => selectDef(d)}
                 className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
                   isCur ? 'bg-blue-600/30 text-blue-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
