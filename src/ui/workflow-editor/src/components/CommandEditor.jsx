@@ -361,7 +361,7 @@ export default function CommandEditor() {
                 </div>
               ))}
             </div>
-          )}
+          ))}$
         </div>
       </div>
 
@@ -398,7 +398,7 @@ export default function CommandEditor() {
               </div>
             </div>
           </div>
-        ) : !form ? (
+        ) : (!form ? (
           <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
             选择一个指令定义或新建
           </div>
@@ -471,7 +471,7 @@ export default function CommandEditor() {
                                 );
                               })}
                             </div>
-                          )}
+                          ))}$
                         </div>
                       </div>
                       <div>
@@ -521,7 +521,7 @@ export default function CommandEditor() {
                               </button>
                             ))}
                           </div>
-                        )}
+                        ))}$
                       </div>
                       <div>
                         <div className={labelCls}>图标颜色</div>
@@ -547,7 +547,7 @@ export default function CommandEditor() {
                               />
                             ))}
                           </div>
-                        )}
+                        ))}$
                       </div>
                       <div>
                         <div className={labelCls}>背景颜色</div>
@@ -573,7 +573,7 @@ export default function CommandEditor() {
                               />
                             ))}
                           </div>
-                        )}
+                        ))}$
                       </div>
                       <div>
                         <div className={labelCls}>指令排序</div>
@@ -592,11 +592,11 @@ export default function CommandEditor() {
                               className="accent-green-500" />
                             容器指令
                           </label>
-                        )}
+                        ))}$
                         {form.isContainer && (
                           <input value={form.closesWith || ''} onChange={e => updateField('closesWith', e.target.value)}
                             className={`${inputCls} w-28 text-[10px]`} placeholder="闭合标记如 endFor" />
-                        )}
+                        ))}$
                       </div>
                       <div>
                         <div className={labelCls}>描述</div>
@@ -615,7 +615,7 @@ export default function CommandEditor() {
                       <div className="text-[10px] text-gray-300 font-mono">commands/backend_commands/{form.type}.py</div>
                     ) : (
                       <div className="text-[10px] text-gray-300 font-mono">commands/extension_commands/{form.type}.py</div>
-                    )}
+                    ))}$
                   </div>
 
                   {/* Params */}
@@ -680,7 +680,7 @@ export default function CommandEditor() {
                                 ))}
                               </select>
                             </div>
-                          )}
+                          ))}$
                           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                             <div>
                               <div className="text-[9px] text-gray-500 mb-0.5">默认值</div>
@@ -725,7 +725,7 @@ export default function CommandEditor() {
                                 </div>
                               ))}
                             </div>
-                          )}
+                          ))}$
                         </div>
                       ))}
                     </div>
@@ -784,9 +784,9 @@ export default function CommandEditor() {
                           </div>
                         ))}
                       </div>
-                    )}
+                    ))}$
                   </div>
-                )}
+                ))}$
                 <textarea
                   value={pythonCode}
                   onChange={e => setPythonCode(e.target.value)}
@@ -828,7 +828,7 @@ export default function CommandEditor() {
                     </div>
                     <span className="text-[10px] text-gray-500 font-mono">{(form.handler && form.handler.source) || `extension/dom_handlers_new/${form.type}.js`}</span>
                   </div>
-                )}
+                ))}$
                 <textarea
                   value={jsCode}
                   onChange={e => setJsCode(e.target.value)}
@@ -840,7 +840,7 @@ export default function CommandEditor() {
               </div>
             </div>
           </>
-        )}
+        ))}$
     </div>
     </div>
   );
