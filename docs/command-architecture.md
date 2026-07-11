@@ -2,7 +2,82 @@
 
 > **基石文档。** 本文档是指令系统的唯一架构真相源。任何指令的新增、修改、重构必须以本文档为参考依据。出现不一致时，以本文档为准。
 >
-> 最后更新：2026-07-09
+> 最后更新：2026-07-10
+
+---
+
+## 0. 架构全景图
+
+```
+                               commands/value_types.json
+                              (类型注册表 · 唯一真相源)
+                                       │
+          ┌────────────────────────────┼────────────────────────────┐
+          ▼                            ▼                            ▼
+   前端 CommandEditor            后端 Scaffold 生成器           AI Prompt 模板
+   (加载 paramTypes/              (_build_backend_scaffold)     ({{scaffold}} 注入)
+    valueTypes 渲染 UI)
+          │                            │                            │
+          └────────────────────────────┼────────────────────────────┘
+                                       ▼
+                              commands/<type>.json
+                            (指令定义 · 唯一真相源)
+                                       │
+                    ┌──────────────────┼──────────────────┐
+                    ▼                  ▼                  ▼
+           generate_commands.py   build_content_js.py  build_background_js.py
+                    │                  │                  │
+         ┌─────────┼─────────┐        │                  │
+         ▼         ▼         ▼        ▼                  ▼
+    ext_commands  backend   control  content.js      background.js
+    /  .py 桩     /  .py     /  .py   (DOM handlers)   (bg handlers)
+         │         │         │
+         │    (手写/AI生成)    (手写/AI生成)
+         │         │         │
+         └─────────┼─────────┘
+                   ▼
+          @register_handler 自注册
+                   │
+                   ▼
+          _HANDLER_REGISTRY
+                   │
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+   LOCAL_HANDLERS  commands.py  new_catalog.py
+   (backend + ext  (旧系统兼容)  (新指令面板)
+    前置 execute)
+        │
+        ▼
+   ╔══════════════════════════════════════════════════════╗
+   ║              Runner 运行时调度                         ║
+   ╠══════════════════════════════════════════════════════╣
+   ║                                                      ║
+   ║  instr ──► has execute()? ──YES──► _handle_local()   ║
+   ║                │                    (前置工作)         ║
+   ║                NO                                   ║
+   ║                │                    runtime==ext?     ║
+   ║                ▼                    ──YES──► 继续 ▼   ║
+   ║         extension path:             ──NO───► 结束    ║
+   ║                                                      ║
+   ║  resolve_vars({{var}} → 值)                          ║
+   ║       │                                              ║
+   ║       ▼                                              ║
+   ║  _send_and_wait ──WebSocket──► background.js         ║
+   ║       │                         │                    ║
+   ║       │                    _backgroundHandlers[type]  ║
+   ║       │                         │                    ║
+   ║       │                    ┌────┴────┐               ║
+   ║       │                    ▼         ▼               ║
+   ║       │              bg handler   _ensureWorkTab     ║
+   ║       │              (窗口管理)   → content.js       ║
+   ║       │                         (DOM 操作)           ║
+   ║       │                         │                    ║
+   ║       ▼◄──────── 返回 ──────────┘                    ║
+   ║  写入 result → runner.results                        ║
+   ║  写入 output vars → runner.vars                      ║
+   ║                                                      ║
+   ╚══════════════════════════════════════════════════════╝
+```
 
 ---
 
