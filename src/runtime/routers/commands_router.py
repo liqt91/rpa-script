@@ -451,6 +451,8 @@ def list_definitions(user=Depends(auth.get_current_user)):
         return []
     result = []
     for fp in sorted(_COMMANDS_DIR.glob("*.json")):
+        if fp.name in ("value_types.json", "value_types.schema.json"):
+            continue
         with open(fp, encoding="utf-8") as f:
             data = json.load(f)
         data["_file"] = fp.name

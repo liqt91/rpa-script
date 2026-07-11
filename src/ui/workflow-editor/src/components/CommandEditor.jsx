@@ -305,36 +305,7 @@ export default function CommandEditor() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      {/* Type Registry — project-level, always at top */}
-      <div className="shrink-0">
-        <div className="px-4 py-1.5 bg-[#0f172a] border-b border-gray-700 flex items-center gap-3">
-          <button onClick={() => setShowTypeRegistry(v => !v)}
-            className="text-[11px] px-2 py-1 rounded bg-gray-700/50 text-gray-400 hover:bg-gray-600 hover:text-gray-200">
-            <i className={`fas fa-${showTypeRegistry ? 'times' : 'database'} mr-1.5`}></i>
-            {showTypeRegistry ? '关闭类型注册表' : '类型注册表'}
-          </button>
-          <span className="text-[10px] text-gray-600">commands/value_types.json</span>
-        </div>
-        {showTypeRegistry && (
-          <div className="border-b border-gray-700 bg-[#0a0f1a]">
-            <div className="px-4 py-2">
-              <textarea
-                value={typeRegistryJson}
-                onChange={e => setTypeRegistryJson(e.target.value)}
-                className="w-full h-40 p-2 text-[10px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
-                spellCheck={false}
-              />
-              <div className="mt-2 flex justify-end">
-                <button onClick={saveTypeRegistry}
-                  className="text-[10px] px-3 py-1 rounded bg-green-700/60 text-green-300 hover:bg-green-700">
-                  <i className="fas fa-save mr-1"></i>保存
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+    <div className="flex-1 flex min-h-0">
       <div className="flex-1 flex min-h-0">
       {/* Left panel — list */}
       <div className="w-56 bg-[#0f172a] border-r border-gray-700 flex flex-col shrink-0">
@@ -343,6 +314,28 @@ export default function CommandEditor() {
           <button onClick={createNew} className="text-xs text-blue-400 hover:text-blue-300">+ 新建</button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+          {/* Type Registry entry */}
+          <button
+            onClick={() => { setSelected({ _type: '__type_registry__' }); setForm(null); }}
+            className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
+              selected && selected._type === '__type_registry__'
+                ? 'bg-amber-600/30 text-amber-200'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+            }`}>
+            <i className="fas fa-database text-[10px] w-4 text-center"></i>
+            类型注册表
+          </button>
+          {/* Type Registry entry */}
+          <button
+            onClick={() => { setSelected({ _type: "__type_registry__" }); setForm(null); }}
+            className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
+              selected && selected._type === "__type_registry__"
+                ? "bg-amber-600/30 text-amber-200"
+                : "text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+            }`}>
+            <i className="fas fa-database text-[10px] w-4 text-center"></i>
+            类型注册表
+          </button>
           {defs.map((d, i) => {
             const isCur = selected && selected.type === d.type;
             return (
@@ -374,7 +367,38 @@ export default function CommandEditor() {
 
       {/* Right panel */}
       <div className="flex-1 flex flex-col min-w-0">
-        {!form ? (
+        {selected && selected._type === '__type_registry__' ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-[#0f172a] shrink-0">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-database text-amber-400 text-sm"></i>
+                <span className="text-sm font-medium text-gray-200">类型注册表</span>
+                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">commands/value_types.json</code>
+              </div>
+              <div className="flex items-center gap-2">
+                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
+                {error && <span className="text-xs text-red-400">{error}</span>}
+                <button onClick={saveTypeRegistry}
+                  className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">
+                  <i className="fas fa-save mr-1"></i>保存
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 p-4">
+                <textarea
+                  value={typeRegistryJson}
+                  onChange={e => setTypeRegistryJson(e.target.value)}
+                  className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
+                编辑 commands/value_types.json。此文件是参数类型和值类型的唯一真相源。
+              </div>
+            </div>
+          </div>
+        ) : !form ? (
           <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
             选择一个指令定义或新建
           </div>
@@ -817,7 +841,6 @@ export default function CommandEditor() {
             </div>
           </>
         )}
-      </div>
     </div>
     </div>
   );
