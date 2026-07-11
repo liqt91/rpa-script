@@ -1,7 +1,69 @@
 {
   "$schema": "value_types.schema.json",
-  "description": "项目级值类型定义。当指令参数 type=var 时，可引用此处的 valueType 声明变量的期望格式。Runner 可据此在读写时校验。",
-  "types": {
+  "description": "项目级类型注册表——参数类型和值类型的唯一真相源。前端据此渲染控件，Runner 据此校验。",
+
+  "paramTypes": {
+    "string": {
+      "label": "文本",
+      "pythonType": "str",
+      "ui": "text-input",
+      "allowVariable": true,
+      "description": "单行文本，支持 {{var}} 变量引用"
+    },
+    "text": {
+      "label": "多行文本",
+      "pythonType": "str",
+      "ui": "textarea",
+      "allowVariable": true,
+      "description": "多行文本，支持 {{var}} 变量引用"
+    },
+    "number": {
+      "label": "数字",
+      "pythonType": "int",
+      "ui": "number-input",
+      "allowVariable": true,
+      "description": "整数，支持 {{var}} 变量引用"
+    },
+    "boolean": {
+      "label": "开关",
+      "pythonType": "bool",
+      "ui": "checkbox",
+      "allowVariable": true,
+      "description": "布尔值，支持 {{var}} 变量引用"
+    },
+    "select": {
+      "label": "下拉选择",
+      "pythonType": "str",
+      "ui": "dropdown",
+      "allowVariable": true,
+      "requiresOptions": true,
+      "description": "从预定义选项中选取"
+    },
+    "code": {
+      "label": "代码",
+      "pythonType": "any",
+      "ui": "code-editor",
+      "allowVariable": true,
+      "allowExpression": true,
+      "description": "Python 代码表达式，支持 {{var}} 和 = 表达式"
+    },
+    "element": {
+      "label": "元素",
+      "pythonType": "dict",
+      "ui": "element-picker",
+      "allowVariable": false,
+      "description": "从元素库选择页面元素"
+    },
+    "hidden": {
+      "label": "隐藏",
+      "pythonType": "any",
+      "ui": "hidden",
+      "allowVariable": false,
+      "description": "不展示给用户，运行时隐式注入"
+    }
+  },
+
+  "valueTypes": {
     "window": {
       "label": "浏览器窗口句柄",
       "shape": {
@@ -11,5 +73,19 @@
       "setBy": ["launchBrowser"],
       "description": "浏览器窗口引用，含窗口 ID 和标签页 ID"
     }
+  },
+
+  "legacyMap": {
+    "str-input": "string",
+    "str-textarea": "text",
+    "str-var": "string",
+    "str-dropdown": "select",
+    "str-element": "element",
+    "int-number": "number",
+    "bool-check": "boolean",
+    "any-expr": "code",
+    "any-input": "string",
+    "list-input": "code",
+    "dict-input": "code"
   }
 }
