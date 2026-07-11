@@ -1,6 +1,6 @@
 """Extension handler 声明 — 参数定义，实现在 content.js"""
 from ..registry import register_handler, Param
-@register_handler(type="getAttribute", label="获取属性", category="数据提取", runtime="extension",
+@register_handler(cmd="getAttribute", label="获取属性", category="数据提取", runtime="extension",
     icon="fa-code", icon_color="text-green-500", bg_color="bg-green-50", category_order=50, command_order=20)
 class GetAttributeHandler:
     params = [

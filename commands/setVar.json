@@ -1,5 +1,4 @@
 {
-  "type": "setVar",
   "label": "设置变量",
   "runtime": "backend",
   "icon": "fa-equals",
@@ -65,5 +64,6 @@
   },
   "categories": [
     "variable"
-  ]
+  ],
+  "cmd": "setVar"
 }

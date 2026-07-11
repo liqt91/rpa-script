@@ -1,6 +1,6 @@
 """Extension handler 声明 — 参数定义，实现在 content.js"""
 from ..registry import register_handler, Param
-@register_handler(type="executeJs", label="执行JavaScript", category="高级", runtime="extension",
+@register_handler(cmd="executeJs", label="执行JavaScript", category="高级", runtime="extension",
     icon="fa-code", icon_color="text-gray-700", bg_color="bg-gray-100", category_order=90, command_order=50)
 class ExecuteJsHandler:
     params = [

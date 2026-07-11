@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@register_handler(type="log", label="打印日志", category="高级", runtime="backend",
+@register_handler(cmd="log", label="打印日志", category="高级", runtime="backend",
     icon="fa-terminal", icon_color="text-gray-700", bg_color="bg-gray-100",
     category_order=90, command_order=20)
 class LogHandler:

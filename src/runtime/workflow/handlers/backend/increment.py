@@ -3,7 +3,7 @@ from ..registry import register_handler, Param
 from ..utils import clean_var_ref
 
 
-@register_handler(type="increment", label="递增/递减", category="变量操作", runtime="backend",
+@register_handler(cmd="increment", label="递增/递减", category="变量操作", runtime="backend",
     icon="fa-sort-numeric-up", icon_color="text-green-500", bg_color="bg-green-50", category_order=30, command_order=30)
 class IncrementHandler:
     params = [

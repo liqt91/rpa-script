@@ -2,7 +2,7 @@
 from ..registry import register_handler, Param
 from ..utils import resolve_vars, clean_var_ref
 
-@register_handler(type="stringConcat", label="字符串拼接", category="变量操作", runtime="backend",
+@register_handler(cmd="stringConcat", label="字符串拼接", category="变量操作", runtime="backend",
     icon="fa-plus", icon_color="text-green-500", bg_color="bg-green-50", category_order=30, command_order=70)
 class StringConcatHandler:
     params = [

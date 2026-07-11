@@ -1,5 +1,4 @@
 {
-  "type": "inputElement",
   "label": "输入文本",
   "runtime": "extension",
   "icon": "fa-keyboard",
@@ -78,5 +77,6 @@
   },
   "categories": [
     "element"
-  ]
+  ],
+  "cmd": "inputElement"
 }

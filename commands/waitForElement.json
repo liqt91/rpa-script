@@ -1,5 +1,4 @@
 {
-  "type": "waitForElement",
   "label": "等待元素出现",
   "runtime": "extension",
   "icon": "fa-eye",
@@ -41,5 +40,6 @@
   },
   "categories": [
     "wait"
-  ]
+  ],
+  "cmd": "waitForElement"
 }

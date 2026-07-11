@@ -5,7 +5,7 @@ import json, asyncio, logging
 
 logger = logging.getLogger(__name__)
 
-@register_handler(type="writeTableRow", label="写入数据行", category="数据表格", runtime="backend",
+@register_handler(cmd="writeTableRow", label="写入数据行", category="数据表格", runtime="backend",
     icon="fa-table", icon_color="text-orange-500", bg_color="bg-orange-50", category_order=70, command_order=10)
 class WriteTableRowHandler:
     params = [

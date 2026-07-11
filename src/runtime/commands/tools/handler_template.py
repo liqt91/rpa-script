@@ -15,7 +15,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
 
 
 @register_handler(
-    type="{{type}}",
+    cmd=
+    cmd="{{type}}",
     label="{{label}}",
     category="{{category}}",
     runtime="backend",

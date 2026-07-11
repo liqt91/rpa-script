@@ -659,7 +659,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
             >
               <span className="font-mono">${v.name}</span>
               <span className="text-[11px] text-gray-400 ml-2">
-                {v.node ? `#${v.node.order} ${v.node.type}` : (v.source || '流程参数')}
+                {v.node ? `#${v.node.order} ${v.node.cmd}` : (v.source || '流程参数')}
               </span>
             </div>
           ))}
@@ -712,7 +712,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
                           });
                         }}
                         className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-[11px] text-blue-600 hover:bg-blue-100 font-mono"
-                        title={v.node ? `#${v.node.order} ${v.node.type}` : (v.source || '流程参数')}
+                        title={v.node ? `#${v.node.order} ${v.node.cmd}` : (v.source || '流程参数')}
                       >
                         {v.name}
                       </button>

@@ -3,7 +3,7 @@ from ..registry import register_handler, Param
 from ..utils import clean_var_ref
 
 
-@register_handler(type="openBrowser", label="打开浏览器", category="浏览器", runtime="backend",
+@register_handler(cmd="openBrowser", label="打开浏览器", category="浏览器", runtime="backend",
     icon="fa-chrome", icon_color="text-blue-500", bg_color="bg-blue-50",
     category_order=1, command_order=10,
     description="启动浏览器并加载RPA扩展")

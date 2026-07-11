@@ -3,7 +3,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
 from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
 
 
-@register_handler(type="setVar", label="设置变量", category="变量操作", runtime="backend",
+@register_handler(
+    cmd="setVar", label="设置变量", category="变量操作", runtime="backend",
     icon="fa-equals", icon_color="text-green-500", bg_color="bg-green-50",
     category_order=30, command_order=10)
 class SetVarHandler:

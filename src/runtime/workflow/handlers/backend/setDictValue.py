@@ -2,7 +2,7 @@
 from ..registry import register_handler, Param
 from ..utils import resolve_vars, clean_var_ref
 
-@register_handler(type="setDictValue", label="设置字典值", category="变量操作", runtime="backend",
+@register_handler(cmd="setDictValue", label="设置字典值", category="变量操作", runtime="backend",
     icon="fa-book", icon_color="text-green-500", bg_color="bg-green-50", category_order=30, command_order=40)
 class SetDictValueHandler:
     params = [

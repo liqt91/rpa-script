@@ -1,5 +1,4 @@
 {
-  "type": "launchBrowser",
   "label": "打开浏览器",
   "runtime": "extension",
   "category": "浏览器",
@@ -70,5 +69,6 @@
   "categories": [
     "browser"
   ],
-  "featureFlag": "core"
+  "featureFlag": "core",
+  "cmd": "launchBrowser"
 }

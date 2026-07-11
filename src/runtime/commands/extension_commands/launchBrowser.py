@@ -2,7 +2,8 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 
-@register_handler(type="launchBrowser", label="打开浏览器", category="浏览器", runtime="extension",
+@register_handler(
+    cmd="launchBrowser", label="打开浏览器", category="浏览器", runtime="extension",
     icon="fa-chrome", icon_color="text-blue-500", bg_color="bg-blue-50",
     category_order=10, command_order=10,
     description="启动浏览器并加载RPA扩展")

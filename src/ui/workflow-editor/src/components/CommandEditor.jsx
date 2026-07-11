@@ -128,8 +128,8 @@ export default function CommandEditor() {
     setBuildResult(null);
     setPythonCode('');
     setJsCode('');
-    loadPythonSource(d.type);
-    loadJsSource(d.type);
+    loadPythonSource(d.cmd);
+    loadJsSource(d.cmd);
   }
 
   function createNew() {
@@ -185,7 +185,7 @@ export default function CommandEditor() {
         if (k.startsWith('_') || k === '_file' || k === 'handler') continue;
         clean[k] = v;
       }
-      await api.request(`/api/commands/definitions/${form.type}`, {
+      await api.request(`/api/commands/definitions/${form.cmd}`, {
         method: 'PUT',
         body: JSON.stringify(clean),
       });
@@ -193,8 +193,8 @@ export default function CommandEditor() {
       setStatus('已保存');
       setError('');
       loadDefinitions();
-      loadPythonSource(form.type);
-      loadJsSource(form.type);
+      loadPythonSource(form.cmd);
+      loadJsSource(form.cmd);
     } catch (e) {
       setError('保存失败: ' + (e.message || ''));
     }
@@ -202,9 +202,9 @@ export default function CommandEditor() {
 
   async function deleteDef() {
     if (!form) return;
-    if (!confirm(`确认删除指令 "${form.type}"？也会删除对应的 handler 文件。`)) return;
+    if (!confirm(`确认删除指令 "${form.cmd}"？也会删除对应的 handler 文件。`)) return;
     try {
-      await api.deleteDefinition(form.type);
+      await api.deleteDefinition(form.cmd);
       setForm(null);
       setSelected(null);
       setStatus('');
@@ -230,7 +230,7 @@ export default function CommandEditor() {
     setAiLoading(true); setError('');
     try {
       const definition = {
-        type: form.type, label: form.label, category: form.category,
+        type: form.cmd, label: form.label, category: form.category,
         runtime: form.runtime, description: form.description,
         params: form.params || [],
       };
@@ -246,7 +246,7 @@ export default function CommandEditor() {
     setAiLoading(true); setError(''); setReviewFindings(null);
     try {
       const definition = {
-        type: form.type, label: form.label, category: form.category,
+        type: form.cmd, label: form.label, category: form.category,
         runtime: form.runtime, description: form.description,
         params: form.params || [],
       };
@@ -260,7 +260,7 @@ export default function CommandEditor() {
   async function savePythonCode() {
     if (!form || !pythonCode) return;
     try {
-      await api.saveHandlerCode(form.type, pythonCode);
+      await api.saveHandlerCode(form.cmd, pythonCode);
       setStatus('Python 代码已保存');
     } catch (e) {
       setError('保存失败: ' + e.message);
@@ -323,13 +323,13 @@ export default function CommandEditor() {
             类型注册表
           </button>
           {defs.map((d, i) => {
-            const isCur = selected && selected.type === d.type;
+            const isCur = selected && selected.cmd === d.cmd;
             return (
-              <button key={d.type || d.label || i} onClick={() => selectDef(d)}
+              <button key={d.cmd || d.label || i} onClick={() => selectDef(d)}
                 className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
                   isCur ? 'bg-blue-600/30 text-blue-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
                 {d.label}
-                <span className="text-gray-600 ml-1">{d.type}</span>
+                <span className="text-gray-600 ml-1">{d.cmd}</span>
               </button>
             );
           })}
@@ -391,8 +391,8 @@ export default function CommandEditor() {
             {/* Toolbar */}
             <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-[#0f172a] shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-200">{form.label || form.type}</span>
-                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{form.type}</code>
+                <span className="text-sm font-medium text-gray-200">{form.label || form.cmd}</span>
+                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{form.cmd}</code>
               </div>
               <div className="flex items-center gap-2">
                 {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
@@ -418,7 +418,7 @@ export default function CommandEditor() {
                     <div className="space-y-2">
                       <div>
                         <div className={labelCls}>类型名</div>
-                        <input value={form.type} onChange={e => updateField('type', e.target.value)} className={inputCls} />
+                        <input value={form.cmd} onChange={e => updateField('type', e.target.value)} className={inputCls} />
                       </div>
                       <div>
                         <div className={labelCls}>显示名称</div>
@@ -596,9 +596,9 @@ export default function CommandEditor() {
                     {isControl ? (
                       <div className="text-[10px] text-gray-500">无需 handler，由流程引擎直接解释执行</div>
                     ) : isBackend ? (
-                      <div className="text-[10px] text-gray-300 font-mono">commands/backend_commands/{form.type}.py</div>
+                      <div className="text-[10px] text-gray-300 font-mono">commands/backend_commands/{form.cmd}.py</div>
                     ) : (
-                      <div className="text-[10px] text-gray-300 font-mono">commands/extension_commands/{form.type}.py</div>
+                      <div className="text-[10px] text-gray-300 font-mono">commands/extension_commands/{form.cmd}.py</div>
                     )}
                   </div>
 
@@ -772,7 +772,7 @@ export default function CommandEditor() {
                         </button>
                       </div>
                     </div>
-                    <span className="text-[10px] text-gray-500 font-mono">commands/{isBackend ? 'backend' : 'extension'}_commands/{form.type}.py</span>
+                    <span className="text-[10px] text-gray-500 font-mono">commands/{isBackend ? 'backend' : 'extension'}_commands/{form.cmd}.py</span>
                     {/* Review findings */}
                     {reviewFindings && reviewFindings.length > 0 && (
                       <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
@@ -815,7 +815,7 @@ export default function CommandEditor() {
                         <button onClick={async () => {
                           setAiLoading(true); setError('');
                           try {
-                            const definition = { type: form.type, label: form.label, category: form.category, runtime: form.runtime, description: form.description, params: form.params || [] };
+                            const definition = { type: form.cmd, label: form.label, category: form.category, runtime: form.runtime, description: form.description, params: form.params || [] };
                             const res = await api.generateWithScenario('command_extension_js', { definition });
                             setJsCode(res.code || '');
                             setStatus('AI 生成完成');
@@ -825,13 +825,13 @@ export default function CommandEditor() {
                           className="text-[10px] px-2 py-1 rounded bg-purple-600/80 text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed">
                           {aiLoading ? '生成中…' : 'AI 生成'}
                         </button>
-                        <button onClick={async () => { try { await api.saveJsHandlerCode(form.type, jsCode); setStatus('JS 代码已保存'); } catch(e) { setError('保存失败: ' + e.message); } }} disabled={!jsCode}
+                        <button onClick={async () => { try { await api.saveJsHandlerCode(form.cmd, jsCode); setStatus('JS 代码已保存'); } catch(e) { setError('保存失败: ' + e.message); } }} disabled={!jsCode}
                           className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
                           保存
                         </button>
                       </div>
                     </div>
-                    <span className="text-[10px] text-gray-500 font-mono">{(form.handler && form.handler.source) || `extension/dom_handlers_new/${form.type}.js`}</span>
+                    <span className="text-[10px] text-gray-500 font-mono">{(form.handler && form.handler.source) || `extension/dom_handlers_new/${form.cmd}.js`}</span>
                   </div>
                 )}
                 <textarea

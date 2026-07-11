@@ -3,7 +3,7 @@ from ..registry import register_handler, Param
 import asyncio
 
 
-@register_handler(type="sleep", label="等待", category="等待", runtime="backend",
+@register_handler(cmd="sleep", label="等待", category="等待", runtime="backend",
     icon="fa-clock", icon_color="text-yellow-500", bg_color="bg-yellow-50", category_order=20, command_order=10)
 class SleepHandler:
     params = [

@@ -111,7 +111,7 @@ def generate_py(d: dict) -> str:
         f'"""Command: {d["label"]}"""',
         "from ..registry import register_handler, Param",
         "",
-        f'@register_handler(type="{d["type"]}", label="{d["label"]}",',
+        f'@register_handler(type="{d["cmd"]}", label="{d["label"]}",',
         f'    category="{category}", runtime="{rtype}",',
         f'    icon="{d.get("icon", "fa-circle")}", icon_color="{d.get("iconColor", "text-gray-500")}",',
         f'    bg_color="{d.get("bgColor", "bg-gray-50")}",',

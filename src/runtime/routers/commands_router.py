@@ -153,7 +153,7 @@ def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=
     db.add(cmd)
     db.commit()
     db.refresh(cmd)
-    return {"id": cmd.id, "type": cmd.type}
+    return {"id": cmd.id, "type": cmd.cmd}
 
 
 @router.put("/{cmd_id}")
@@ -225,20 +225,20 @@ def get_command_source(cmd_id: int, db: Session = Depends(get_db), user=Depends(
         raise HTTPException(status_code=404, detail="Command not found")
 
     from ..workflow.handlers.registry import get_handler
-    h = get_handler(cmd.type)
+    h = get_handler(cmd.cmd)
     if h and h.get("handler_class"):
         try:
             source = inspect.getsource(h["handler_class"])
-            return {"type": cmd.type, "source": source}
+            return {"type": cmd.cmd, "source": source}
         except Exception:
             pass
 
     # Fallback: try emitter source
     emitter = h.get("emitter_handler")
     if emitter:
-        return {"type": cmd.type, "source": f"# Emitter ({cmd.type})\n# Source not available via inspect", "fallback": True}
+        return {"type": cmd.cmd, "source": f"# Emitter ({cmd.cmd})\n# Source not available via inspect", "fallback": True}
 
-    return {"type": cmd.type, "source": None, "fallback": True}
+    return {"type": cmd.cmd, "source": None, "fallback": True}
 
 
 @router.delete("/{cmd_id}")

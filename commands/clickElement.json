@@ -1,5 +1,4 @@
 {
-  "type": "clickElement",
   "label": "点击元素",
   "runtime": "extension",
   "icon": "fa-hand-pointer",
@@ -66,5 +65,6 @@
   },
   "categories": [
     "element"
-  ]
+  ],
+  "cmd": "clickElement"
 }

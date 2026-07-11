@@ -1,6 +1,6 @@
 """Extension handler 声明 — 参数定义，实现在 content.js"""
 from ..registry import register_handler, Param
-@register_handler(type="navigate", label="打开网页", category="页面导航", runtime="extension",
+@register_handler(cmd="navigate", label="打开网页", category="页面导航", runtime="extension",
     icon="fa-globe", icon_color="text-blue-500", bg_color="bg-blue-50", category_order=10, command_order=10,
     description="在指定窗口打开网页")
 class NavigateHandler:

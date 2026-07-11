@@ -938,7 +938,7 @@ def _build_params_and_reads(params):
 
 
 def _build_backend_scaffold(definition):
-    type_name = definition.get("type", "example")
+    type_name = definition.get("cmd", "example")
     label = definition.get("label", type_name)
     category = definition.get("category", "其他")
     class_name = "".join(p.capitalize() for p in type_name.replace("-", "_").split("_")) + "Handler"

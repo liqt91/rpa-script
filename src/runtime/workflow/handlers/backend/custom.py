@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@register_handler(type="custom", label="自定义代码", category="高级", runtime="backend",
+@register_handler(cmd="custom", label="自定义代码", category="高级", runtime="backend",
     icon="fa-code", icon_color="text-gray-700", bg_color="bg-gray-100", category_order=90, command_order=10,
     description="执行自定义 Python 代码，可访问 runner.vars / _table / _table_data / logger 等上下文")
 class CustomHandler:

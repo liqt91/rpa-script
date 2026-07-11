@@ -5,7 +5,7 @@ import json, asyncio, logging
 
 logger = logging.getLogger(__name__)
 
-@register_handler(type="httpRequest", label="HTTP请求", category="高级", runtime="backend",
+@register_handler(cmd="httpRequest", label="HTTP请求", category="高级", runtime="backend",
     icon="fa-network-wired", icon_color="text-gray-700", bg_color="bg-gray-100", category_order=90, command_order=30)
 class HttpRequestHandler:
     params = [

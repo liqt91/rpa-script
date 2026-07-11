@@ -953,7 +953,7 @@ class ExtensionRunner:
     @staticmethod
     def _summarize(instr: dict) -> str:
         """生成指令输入摘要，用于调试日志。"""
-        cmd = instr.get("cmdType", instr.get("type", ""))
+        cmd = instr.get("cmdType", instr.get("cmd", ""))
         extra = instr.get("extra") or {}
         if cmd == "setVar":
             return f'name={extra.get("name","?")} value={str(extra.get("value",""))[:60]}'
@@ -1323,7 +1323,7 @@ class ExtensionRunner:
 
     async def _execute_instruction(self, instr: dict) -> bool:
         step_id = instr["stepId"]
-        step_type = instr.get("type", "")
+        step_type = instr.get("cmd", "")
         extra = instr.get("extra") or {}
         on_error = extra.get("onError", "stop")
         retry_count = extra.get("retryCount", 0)
@@ -1584,7 +1584,7 @@ class ExtensionRunner:
         # Skip params tagged as "output" in the handler definition —
         # output variables are created by the handler, not referenced as input.
         extra = dict(instr.get("extra") or {})
-        cmd_type = instr.get("cmdType", instr.get("type", ""))
+        cmd_type = instr.get("cmdType", instr.get("cmd", ""))
         from .handlers.registry import get_handler
         h = get_handler(cmd_type)
         output_names = set()

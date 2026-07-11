@@ -3,7 +3,7 @@ Emitter handler definitions — container/structural commands.
 These are expanded by the Python emitter, not executed by a handler.
 """
 from ..registry import register_handler, Param
-@register_handler(type="ifDictContains", label="如果字典包含键", category="条件判断", runtime="control",
+@register_handler(cmd="ifDictContains", label="如果字典包含键", category="条件判断", runtime="control",
     is_container=True, closes_with="endIf",
     icon="fa-book", icon_color="text-cyan-500", bg_color="bg-cyan-50", category_order=85, command_order=70)
 class IfDictContainsHandler:

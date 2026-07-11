@@ -72,7 +72,7 @@ _HANDLER_REGISTRY: dict[str, dict] = {}  # type -> handler definition
 
 
 def register_handler(
-    type: str,
+    cmd: str,
     label: str,
     category: str,
     runtime: str = "extension",  # "extension" | "backend" | "control"
@@ -101,8 +101,8 @@ def register_handler(
             for p in cls.params:
                 params.append(p.to_dict() if isinstance(p, Param) else p)
 
-        _HANDLER_REGISTRY[type] = {
-            "type": type,
+        _HANDLER_REGISTRY[cmd] = {
+            "cmd": type,
             "label": label,
             "category": category,
             "runtime": runtime,
@@ -152,7 +152,7 @@ def build_command_registry() -> dict[str, dict]:
         is_structural = hdef.get("isContainer") or hdef.get("isBranch") or hdef.get("isStructural")
 
         entry = {
-            "type": handler_type,
+            "cmd": handler_type,
             "label": hdef["label"],
             "category": hdef["category"],
             "icon": hdef["icon"],
@@ -184,7 +184,7 @@ def get_command(type_name: str) -> dict | None:
     fields = h["params"] if is_structural else h["params"] + GENERIC_PARAMS
 
     return {
-        "type": h["type"], "label": h["label"], "category": h["category"],
+        "cmd": h["cmd"], "label": h["label"], "category": h["category"],
         "icon": h["icon"], "iconColor": h["iconColor"], "bgColor": h["bgColor"],
         "isContainer": h["isContainer"], "isBranch": h["isBranch"],
         "isStructural": h["isStructural"], "closesWith": h["closesWith"],
@@ -192,7 +192,7 @@ def get_command(type_name: str) -> dict | None:
         "categoryOrder": h["categoryOrder"], "commandOrder": h["commandOrder"],
         "enabled": h.get("enabled", True), "isBuiltin": True,
         "runtimes": {"extension": {
-            "handler": None if is_control else h["type"],
+            "handler": None if is_control else h["cmd"],
             "local": h["runtime"] == "backend",
             "emitter": is_control,
         }},

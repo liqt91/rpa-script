@@ -171,8 +171,8 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
     enabled_types = set()
 
     for row in rows:
-        enabled_types.add(row.type)
-        reg_cmd = get_command(row.type)
+        enabled_types.add(row.cmd)
+        reg_cmd = get_command(row.cmd)
         if not reg_cmd:
             continue
 
@@ -194,8 +194,8 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
         cmd = {
             **reg_cmd,
             "id": row.id,
-            "type": row.type,
-            "label": row.label or reg_cmd.get("label", row.type),
+            "type": row.cmd,
+            "label": row.label or reg_cmd.get("label", row.cmd),
             "category": cat,
             "icon": row.icon or reg_cmd.get("icon", "fa-circle"),
             "iconColor": row.icon_color or reg_cmd.get("iconColor", "text-gray-500"),
@@ -205,9 +205,9 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
             "fields": handler_fields,
         }
 
-        db_row = {"type": row.type, "handler": row.handler, "local": row.local}
+        db_row = {"type": row.cmd, "handler": row.handler, "local": row.local}
         # 从 handler 注册表补充运行时元数据
-        h = get_command(row.type)
+        h = get_command(row.cmd)
         cmd["handler"] = db_row.get("handler") or (h["runtimes"]["extension"]["handler"] if h else None)
         cmd["local"] = db_row.get("local") or (h["runtimes"]["extension"]["local"] if h else None)
         cmd["hasRuntime"] = h["runtimes"]["extension"]["handler"] is not None if h else False
