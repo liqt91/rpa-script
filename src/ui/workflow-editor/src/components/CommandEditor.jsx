@@ -306,7 +306,6 @@ export default function CommandEditor() {
 
   return (
     <div className="flex-1 flex min-h-0">
-      <div className="flex-1 flex min-h-0">
       {/* Left panel — list */}
       <div className="w-56 bg-[#0f172a] border-r border-gray-700 flex flex-col shrink-0">
         <div className="px-3 py-3 border-b border-gray-700 flex items-center justify-between">
@@ -314,24 +313,11 @@ export default function CommandEditor() {
           <button onClick={createNew} className="text-xs text-blue-400 hover:text-blue-300">+ 新建</button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-          {/* Type Registry entry */}
+          {/* 类型注册表入口 */}
           <button
             onClick={() => { setSelected({ _type: '__type_registry__' }); setForm(null); }}
             className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
-              selected && selected._type === '__type_registry__'
-                ? 'bg-amber-600/30 text-amber-200'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
-            }`}>
-            <i className="fas fa-database text-[10px] w-4 text-center"></i>
-            类型注册表
-          </button>
-          {/* Type Registry entry */}
-          <button
-            onClick={() => { setSelected({ _type: "__type_registry__" }); setForm(null); }}
-            className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
-              selected && selected._type === "__type_registry__"
-                ? "bg-amber-600/30 text-amber-200"
-                : "text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+              selected && selected._type === '__type_registry__' ? 'bg-amber-600/30 text-amber-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
             }`}>
             <i className="fas fa-database text-[10px] w-4 text-center"></i>
             类型注册表
@@ -361,7 +347,7 @@ export default function CommandEditor() {
                 </div>
               ))}
             </div>
-          ))}$
+          )}
         </div>
       </div>
 
@@ -384,21 +370,19 @@ export default function CommandEditor() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className="flex-1 p-4">
-                <textarea
-                  value={typeRegistryJson}
-                  onChange={e => setTypeRegistryJson(e.target.value)}
-                  className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
-                  spellCheck={false}
-                />
-              </div>
-              <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
-                编辑 commands/value_types.json。此文件是参数类型和值类型的唯一真相源。
-              </div>
+            <div className="flex-1 p-4">
+              <textarea
+                value={typeRegistryJson}
+                onChange={e => setTypeRegistryJson(e.target.value)}
+                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
+                spellCheck={false}
+              />
+            </div>
+            <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
+              编辑 commands/value_types.json。此文件是参数类型和值类型的唯一真相源。
             </div>
           </div>
-        ) : (!form ? (
+        ) : !form ? (
           <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
             选择一个指令定义或新建
           </div>
@@ -471,7 +455,7 @@ export default function CommandEditor() {
                                 );
                               })}
                             </div>
-                          ))}$
+                          )}
                         </div>
                       </div>
                       <div>
@@ -521,7 +505,7 @@ export default function CommandEditor() {
                               </button>
                             ))}
                           </div>
-                        ))}$
+                        )}
                       </div>
                       <div>
                         <div className={labelCls}>图标颜色</div>
@@ -547,7 +531,7 @@ export default function CommandEditor() {
                               />
                             ))}
                           </div>
-                        ))}$
+                        )}
                       </div>
                       <div>
                         <div className={labelCls}>背景颜色</div>
@@ -573,7 +557,7 @@ export default function CommandEditor() {
                               />
                             ))}
                           </div>
-                        ))}$
+                        )}
                       </div>
                       <div>
                         <div className={labelCls}>指令排序</div>
@@ -592,11 +576,11 @@ export default function CommandEditor() {
                               className="accent-green-500" />
                             容器指令
                           </label>
-                        ))}$
+                        )}
                         {form.isContainer && (
                           <input value={form.closesWith || ''} onChange={e => updateField('closesWith', e.target.value)}
                             className={`${inputCls} w-28 text-[10px]`} placeholder="闭合标记如 endFor" />
-                        ))}$
+                        )}
                       </div>
                       <div>
                         <div className={labelCls}>描述</div>
@@ -615,7 +599,7 @@ export default function CommandEditor() {
                       <div className="text-[10px] text-gray-300 font-mono">commands/backend_commands/{form.type}.py</div>
                     ) : (
                       <div className="text-[10px] text-gray-300 font-mono">commands/extension_commands/{form.type}.py</div>
-                    ))}$
+                    )}
                   </div>
 
                   {/* Params */}
@@ -680,7 +664,7 @@ export default function CommandEditor() {
                                 ))}
                               </select>
                             </div>
-                          ))}$
+                          )}
                           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                             <div>
                               <div className="text-[9px] text-gray-500 mb-0.5">默认值</div>
@@ -725,7 +709,7 @@ export default function CommandEditor() {
                                 </div>
                               ))}
                             </div>
-                          ))}$
+                          )}
                         </div>
                       ))}
                     </div>
@@ -733,14 +717,35 @@ export default function CommandEditor() {
                 </div>
               </div>
 
-              {/* Col 2: JSON 预览 */}
-<div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0">
-                  JSON 预览
+              {/* Col 2: JSON 预览 / 类型注册表 */}
+              <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
+                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0 flex items-center justify-between">
+                  <span>{showTypeRegistry ? '类型注册表' : 'JSON 预览'}</span>
+                  <button
+                    onClick={() => setShowTypeRegistry(v => !v)}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-300 hover:bg-gray-600"
+                  >{showTypeRegistry ? 'JSON' : '类型'}</button>
                 </div>
-                <pre className="flex-1 overflow-auto p-3 text-[10px] text-gray-300 font-mono bg-[#0a0f1a] whitespace-pre-wrap m-0 leading-relaxed">
-                  {JSON.stringify(form, null, 2)}
-                </pre>
+                {showTypeRegistry ? (
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <textarea
+                      value={typeRegistryJson}
+                      onChange={e => setTypeRegistryJson(e.target.value)}
+                      className="flex-1 p-3 text-[10px] font-mono bg-[#0a0f1a] text-gray-300 outline-none resize-none"
+                      spellCheck={false}
+                    />
+                    <div className="px-2 py-1.5 border-t border-gray-700 bg-[#0a0f1a] shrink-0">
+                      <button onClick={saveTypeRegistry}
+                        className="text-[10px] px-2 py-1 rounded bg-green-700/60 text-green-300 hover:bg-green-700 w-full">
+                        保存类型注册表
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <pre className="flex-1 overflow-auto p-3 text-[10px] text-gray-300 font-mono bg-[#0a0f1a] whitespace-pre-wrap m-0 leading-relaxed">
+                    {JSON.stringify(form, null, 2)}
+                  </pre>
+                )}
               </div>
 
               {/* Col 3: Python Handler 预览 */}
@@ -784,9 +789,9 @@ export default function CommandEditor() {
                           </div>
                         ))}
                       </div>
-                    ))}$
+                    )}
                   </div>
-                ))}$
+                )}
                 <textarea
                   value={pythonCode}
                   onChange={e => setPythonCode(e.target.value)}
@@ -828,7 +833,7 @@ export default function CommandEditor() {
                     </div>
                     <span className="text-[10px] text-gray-500 font-mono">{(form.handler && form.handler.source) || `extension/dom_handlers_new/${form.type}.js`}</span>
                   </div>
-                ))}$
+                )}
                 <textarea
                   value={jsCode}
                   onChange={e => setJsCode(e.target.value)}
@@ -840,8 +845,8 @@ export default function CommandEditor() {
               </div>
             </div>
           </>
-        ))}$
-    </div>
+        )}
+      </div>
     </div>
   );
 }
