@@ -8,75 +8,57 @@
 
 ## 0. 架构全景图
 
-```
-                               commands/value_types.json
-                              (类型注册表 · 唯一真相源)
-                                       │
-          ┌────────────────────────────┼────────────────────────────┐
-          ▼                            ▼                            ▼
-   前端 CommandEditor            后端 Scaffold 生成器           AI Prompt 模板
-   (加载 paramTypes/              (_build_backend_scaffold)     ({{scaffold}} 注入)
-    valueTypes 渲染 UI)
-          │                            │                            │
-          └────────────────────────────┼────────────────────────────┘
-                                       ▼
-                              commands/<type>.json
-                            (指令定义 · 唯一真相源)
-                                       │
-                    ┌──────────────────┼──────────────────┐
-                    ▼                  ▼                  ▼
-           generate_commands.py   build_content_js.py  build_background_js.py
-                    │                  │                  │
-         ┌─────────┼─────────┐        │                  │
-         ▼         ▼         ▼        ▼                  ▼
-    ext_commands  backend   control  content.js      background.js
-    /  .py 桩     /  .py     /  .py   (DOM handlers)   (bg handlers)
-         │         │         │
-         │    (手写/AI生成)    (手写/AI生成)
-         │         │         │
-         └─────────┼─────────┘
-                   ▼
-          @register_handler 自注册
-                   │
-                   ▼
-          _HANDLER_REGISTRY
-                   │
-        ┌──────────┼──────────┐
-        ▼          ▼          ▼
-   LOCAL_HANDLERS  commands.py  new_catalog.py
-   (backend + ext  (旧系统兼容)  (新指令面板)
-    前置 execute)
-        │
-        ▼
-   ╔══════════════════════════════════════════════════════╗
-   ║              Runner 运行时调度                         ║
-   ╠══════════════════════════════════════════════════════╣
-   ║                                                      ║
-   ║  instr ──► has execute()? ──YES──► _handle_local()   ║
-   ║                │                    (前置工作)         ║
-   ║                NO                                   ║
-   ║                │                    runtime==ext?     ║
-   ║                ▼                    ──YES──► 继续 ▼   ║
-   ║         extension path:             ──NO───► 结束    ║
-   ║                                                      ║
-   ║  resolve_vars({{var}} → 值)                          ║
-   ║       │                                              ║
-   ║       ▼                                              ║
-   ║  _send_and_wait ──WebSocket──► background.js         ║
-   ║       │                         │                    ║
-   ║       │                    _backgroundHandlers[type]  ║
-   ║       │                         │                    ║
-   ║       │                    ┌────┴────┐               ║
-   ║       │                    ▼         ▼               ║
-   ║       │              bg handler   _ensureWorkTab     ║
-   ║       │              (窗口管理)   → content.js       ║
-   ║       │                         (DOM 操作)           ║
-   ║       │                         │                    ║
-   ║       ▼◄──────── 返回 ──────────┘                    ║
-   ║  写入 result → runner.results                        ║
-   ║  写入 output vars → runner.vars                      ║
-   ║                                                      ║
-   ╚══════════════════════════════════════════════════════╝
+```mermaid
+flowchart TB
+    VT["commands/value_types.json<br/>类型注册表"]
+    VT -.->|加载 paramTypes| CE["前端 CommandEditor"]
+    VT -.->|加载| SC["Scaffold 生成器<br/>_build_backend_scaffold()"]
+    VT -.->|加载| AI["AI Prompt 模板<br/>{{scaffold}} 注入"]
+
+    CE --> JSON["commands/&lt;type&gt;.json<br/>指令定义 · 唯一真相源"]
+    SC --> JSON
+    AI --> JSON
+
+    JSON -->|读取| GEN["generate_commands.py<br/>生成 Python 桩"]
+    JSON -->|读取| BC["build_content_js.py<br/>拼接 DOM handlers"]
+    JSON -->|读取| BB["build_background_js.py<br/>拼接 bg handlers"]
+
+    GEN --> EXT["extension_commands/*.py<br/>(手写/AI 生成)"]
+    GEN --> BE["backend_commands/*.py<br/>(手写/AI 生成)"]
+    GEN --> CTL["control_commands/*.py<br/>(手写/AI 生成)"]
+
+    BC --> CONTENT["content.js<br/>(DOM handlers 合集)"]
+    BB --> BGS["background.js<br/>(bg handlers 合集)"]
+
+    EXT -->|@register_handler| REG["_HANDLER_REGISTRY"]
+    BE -->|@register_handler| REG
+    CTL -->|@register_handler| REG
+
+    REG --> LOCAL["LOCAL_HANDLERS<br/>(有 execute() 方法的)"]
+    REG --> CAT["commands.py<br/>(旧系统兼容层)"]
+
+    LOCAL --> RUNNER
+    CAT --> RUNNER
+
+    subgraph RUNNER["Runner 运行时调度"]
+        direction TB
+        INSTR["instr 到达"]
+        INSTR --> HAS{"has execute() ?"}
+        HAS -->|YES| HL["_handle_local()<br/>执行前置工作"]
+        HAS -->|NO| ISEXT
+        HL --> ISEXT{"runtime == extension ?"}
+        ISEXT -->|NO| DONE["✅ 完成"]
+        ISEXT -->|YES| RESOLVE["resolve_vars()<br/>{{var}} → 实际值"]
+        RESOLVE -->|JSON 序列化| SEND["_send_and_wait()"]
+    end
+
+    SEND -->|WebSocket| BGS
+    BGS --> BG["_backgroundHandlers['type']<br/>窗口管理"]
+    BG --> AC["_ensureWorkTab()<br/>注入 content script"]
+    AC --> CONTENT
+    CONTENT -->|返回 result / vars| SEND
+
+    SEND --> OUT["📤 runner.results.append()<br/>📤 runner.vars[key] = value<br/>📤 runner._emit('stepComplete')"]
 ```
 
 ---
