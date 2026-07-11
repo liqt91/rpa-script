@@ -826,7 +826,7 @@ export default function CommandEditor() {
               </div>
             </div>
           </>
-        )}
+        ))}$
     </div>
     </div>
   );
