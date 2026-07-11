@@ -442,6 +442,7 @@ import os as _os
 from pathlib import Path as _Path
 
 _COMMANDS_DIR = _Path(__file__).resolve().parent.parent.parent.parent / "commands"
+_VALUE_TYPES_PATH = _Path(__file__).resolve().parent.parent / "commands" / "types" / "value_types.json"
 
 
 @router.get("/definitions")
@@ -451,8 +452,6 @@ def list_definitions(user=Depends(auth.get_current_user)):
         return []
     result = []
     for fp in sorted(_COMMANDS_DIR.glob("*.json")):
-        if fp.name in ("value_types.json", "value_types.schema.json"):
-            continue
         with open(fp, encoding="utf-8") as f:
             data = json.load(f)
         data["_file"] = fp.name
@@ -672,18 +671,17 @@ def delete_category(slug: str, db: Session = Depends(get_db), user=Depends(auth.
 @router.get("/value-types")
 def get_value_types(user=Depends(auth.get_current_user)):
     """Return project-level value type definitions."""
-    fp = _COMMANDS_DIR / "value_types.json"
-    if not fp.exists():
+    if not _VALUE_TYPES_PATH.exists():
         return {"paramTypes": {}, "valueTypes": {}}
-    with open(fp, encoding="utf-8") as f:
+    with open(_VALUE_TYPES_PATH, encoding="utf-8") as f:
         return json.load(f)
+
 
 @router.put("/value-types")
 async def save_value_types(request: Request, user=Depends(auth.get_current_user)):
-    fp = _COMMANDS_DIR / "value_types.json"
+    _VALUE_TYPES_PATH.parent.mkdir(parents=True, exist_ok=True)
     body = json.loads(await request.body())
-    _COMMANDS_DIR.mkdir(parents=True, exist_ok=True)
-    with open(fp, "w", encoding="utf-8") as f:
+    with open(_VALUE_TYPES_PATH, "w", encoding="utf-8") as f:
         json.dump(body, f, ensure_ascii=False, indent=2)
     return {"ok": True}
 

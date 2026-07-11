@@ -359,7 +359,7 @@ export default function CommandEditor() {
               <div className="flex items-center gap-2">
                 <i className="fas fa-database text-amber-400 text-sm"></i>
                 <span className="text-sm font-medium text-gray-200">类型注册表</span>
-                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">commands/value_types.json</code>
+                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">src/runtime/commands/types/value_types.json</code>
               </div>
               <div className="flex items-center gap-2">
                 {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
@@ -379,7 +379,7 @@ export default function CommandEditor() {
               />
             </div>
             <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
-              编辑 commands/value_types.json。此文件是参数类型和值类型的唯一真相源。
+              编辑 src/runtime/commands/types/value_types.json。此文件是参数类型和值类型的唯一真相源。
             </div>
           </div>
         ) : !form ? (

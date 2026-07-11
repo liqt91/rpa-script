@@ -43,8 +43,6 @@ EXT_DOM_NEW_DIR = ROOT / "extension" / "dom_handlers_new"
 def load_definitions() -> list[dict]:
     defs = []
     for fp in sorted(COMMANDS_DIR.glob("*.json")):
-        if fp.name in ("value_types.json", "value_types.schema.json"):
-            continue
         with open(fp, encoding="utf-8") as f:
             d = json.load(f)
             d["_file"] = fp.stem

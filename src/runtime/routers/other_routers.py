@@ -882,13 +882,11 @@ NL = chr(10)
 
 
 def _load_value_types_json() -> str:
-    """Load commands/value_types.json as string for review prompts."""
-    import os as _os
-    root = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))))
-    fp = _os.path.join(root, "commands", "value_types.json")
-    if _os.path.exists(fp):
-        with open(fp, encoding="utf-8") as f:
-            return f.read()
+    """Load value_types.json as string for review prompts."""
+    from pathlib import Path as _Path
+    fp = _Path(__file__).resolve().parent.parent / "commands" / "types" / "value_types.json"
+    if fp.exists():
+        return fp.read_text(encoding="utf-8")
     return "{}"
 
 
