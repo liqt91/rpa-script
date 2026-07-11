@@ -55,6 +55,7 @@ export default function CommandEditor() {
   const [pythonCode, setPythonCode] = useState('');
   const [jsCode, setJsCode] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [reviewFindings, setReviewFindings] = useState(null);
   const [categories, setCategories] = useState([]);
   const [valueTypes, setValueTypes] = useState({});
   const [paramTypes, setParamTypes] = useState([]);
@@ -223,6 +224,22 @@ export default function CommandEditor() {
       setPythonCode(res.code || '');
       setStatus('AI 生成完成');
     } catch (e) { setError('AI 生成失败: ' + e.message); }
+    finally { setAiLoading(false); }
+  }
+
+  async function reviewHandler() {
+    if (!form || !pythonCode) return;
+    setAiLoading(true); setError(''); setReviewFindings(null);
+    try {
+      const definition = {
+        type: form.type, label: form.label, category: form.category,
+        runtime: form.runtime, description: form.description,
+        params: form.params || [],
+      };
+      const res = await api.generateWithScenario('command_review', { definition, source: pythonCode });
+      setReviewFindings(res.findings || []);
+      setStatus(res.findings?.length ? `发现 ${res.findings.length} 个问题` : '未发现问题');
+    } catch (e) { setError('Review 失败: ' + e.message); }
     finally { setAiLoading(false); }
   }
 
@@ -672,6 +689,10 @@ export default function CommandEditor() {
                           className="text-[10px] px-2 py-1 rounded bg-purple-600/80 text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed">
                           {aiLoading ? '生成中…' : 'AI 生成'}
                         </button>
+                        <button onClick={reviewHandler} disabled={aiLoading || !pythonCode}
+                          className="text-[10px] px-2 py-1 rounded bg-emerald-600/80 text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                          Review
+                        </button>
                         <button onClick={savePythonCode} disabled={!pythonCode}
                           className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
                           保存
@@ -679,6 +700,23 @@ export default function CommandEditor() {
                       </div>
                     </div>
                     <span className="text-[10px] text-gray-500 font-mono">commands/{isBackend ? 'backend' : 'extension'}_commands/{form.type}.py</span>
+                    {/* Review findings */}
+                    {reviewFindings && reviewFindings.length > 0 && (
+                      <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
+                        {reviewFindings.map((f, i) => (
+                          <div key={i} className={`text-[10px] px-2 py-1 rounded ${
+                            f.level === 'error' ? 'bg-red-900/30 text-red-300 border border-red-800' :
+                            f.level === 'warning' ? 'bg-yellow-900/30 text-yellow-300 border border-yellow-800' :
+                            'bg-blue-900/30 text-blue-300 border border-blue-800'
+                          }`}>
+                            <span className="font-medium">{f.check}</span>
+                            {f.line && <span className="text-gray-500 ml-1">L{f.line}</span>}
+                            <span className="mx-1">—</span>
+                            {f.message}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 <textarea

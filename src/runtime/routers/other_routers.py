@@ -840,7 +840,69 @@ PROMPT_CONTROL = """
 4. 直接输出完整代码，不要代码块，不要说明文字
 """
 
+REVIEW_PROMPT = """
+你是 RPA 代码审查专家。请审查下面的 handler 代码，逐项检查以下规则，返回 JSON 格式的问题清单。
+
+=== JSON 定义 ===
+{{definition_json}}
+
+=== Handler 源码 ===
+{{source_code}}
+
+=== value_types.json ===
+{{value_types_json}}
+
+=== 检查清单 ===
+1. @register_handler 的 type/label/category/runtime 是否与 JSON 定义一致
+2. params 列表是否与 JSON 定义完全匹配（name、type、default、group）
+3. execute() 签名是否正确：@staticmethod async def execute(runner, cmd_type, step_id, instr)
+4. 参数是否从 instr.get("extra") 读取（不是 instr.get("paramName")）
+5. group="output" 的参数是否正确跳过预执行解析
+6. extension 指令的 execute() 是否没有调用 _send_and_wait（由 Runner 负责）
+7. backend 指令的 execute() 是否完成全部工作且有结果上报
+8. result_summary 是否是 dict
+9. 是否编造了不存在的模块或 API
+10. 输出变量是否写入了 runner.vars[键名]
+
+=== 返回格式 ===
+只返回 JSON 数组，不要任何其他文字：
+[
+  {
+    "level": "error|warning|info",
+    "line": 行号或null,
+    "check": "检查项名称",
+    "message": "具体问题和建议"
+  }
+]
+
+没有问题时返回空数组 []
+"""
+
 NL = chr(10)
+
+
+def _load_value_types_json() -> str:
+    """Load commands/value_types.json as string for review prompts."""
+    import os as _os
+    root = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))))
+    fp = _os.path.join(root, "commands", "value_types.json")
+    if _os.path.exists(fp):
+        with open(fp, encoding="utf-8") as f:
+            return f.read()
+    return "{}"
+
+
+def _extract_json_from_text(text: str) -> list:
+    """Try to extract a JSON array from LLM text response."""
+    import re
+    m = re.search(r"\[[\s\S]*\]", text)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except json.JSONDecodeError:
+            pass
+    return []
+
 
 def _build_params_and_reads(params):
     param_lines = []
@@ -953,6 +1015,12 @@ DEFAULT_LLM_SCENARIOS = [
         "prompt": PROMPT_CONTROL,
         "enabled": True,
     },
+    {
+        "id": "command_review",
+        "name": "handler 代码审查",
+        "prompt": REVIEW_PROMPT,
+        "enabled": True,
+    },
 ]
 
 _PROVIDER_ENDPOINTS = {
@@ -1049,11 +1117,14 @@ def generate_with_scenario(
     elif scenario_id == "command_extension_js":
         context, def_json = _build_extension_js_context(definition)
         prompt = prompt_template.replace("{{definition_json}}", def_json).replace("{{context}}", context)
+    elif scenario_id == "command_review":
+        def_json = json.dumps(definition, ensure_ascii=False, indent=2)
+        source = payload.get("source", "")
+        vt = _load_value_types_json()
+        prompt = prompt_template.replace("{{definition_json}}", def_json).replace("{{source_code}}", source).replace("{{value_types_json}}", vt)
     else:
         scaffold = _build_backend_scaffold(definition)
         prompt = prompt_template.replace("{{scaffold}}", scaffold)
-
-    prompt = prompt_template.replace("{{scaffold}}", scaffold)
 
     provider = row.provider or "deepseek"
     endpoint = _PROVIDER_ENDPOINTS.get(provider)
@@ -1089,6 +1160,16 @@ def generate_with_scenario(
         except SyntaxError as e:
             logger.error("[ai generate] syntax error: %s\n%s", e, code)
             raise HTTPException(400, f"生成代码语法错误: {e}")
+
+    # LLM response specific to review
+    if scenario_id == "command_review":
+        try:
+            findings = json.loads(content)
+            if not isinstance(findings, list):
+                findings = []
+        except json.JSONDecodeError:
+            findings = _extract_json_from_text(content)
+        return {"findings": findings, "provider": provider, "model": model}
 
     return {"code": code, "prompt": prompt, "provider": provider, "model": model, "scenario": scenario_id}
 

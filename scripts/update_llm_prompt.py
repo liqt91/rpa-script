@@ -132,6 +132,44 @@ CONTROL_PROMPT = """
 4. 直接输出完整代码，不要代码块，不要说明文字
 """
 
+REVIEW_PROMPT = """
+你是 RPA 代码审查专家。请审查下面的 handler 代码，逐项检查以下规则，返回 JSON 格式的问题清单。
+
+=== JSON 定义 ===
+{{definition_json}}
+
+=== Handler 源码 ===
+{{source_code}}
+
+=== value_types.json ===
+{{value_types_json}}
+
+=== 检查清单 ===
+1. @register_handler 的 type/label/category/runtime 是否与 JSON 定义一致
+2. params 列表是否与 JSON 定义完全匹配（name、type、default、group）
+3. execute() 签名是否正确：@staticmethod async def execute(runner, cmd_type, step_id, instr)
+4. 参数是否从 instr.get("extra") 读取（不是 instr.get("paramName")）
+5. group="output" 的参数是否正确跳过预执行解析
+6. extension 指令的 execute() 是否没有调用 _send_and_wait（由 Runner 负责）
+7. backend 指令的 execute() 是否完成全部工作且有结果上报
+8. result_summary 是否是 dict
+9. 是否编造了不存在的模块或 API
+10. 输出变量是否写入了 runner.vars[键名]
+
+=== 返回格式 ===
+只返回 JSON 数组，不要任何其他文字：
+[
+  {
+    "level": "error|warning|info",
+    "line": 行号或null,
+    "check": "检查项名称",
+    "message": "具体问题和建议"
+  }
+]
+
+没有问题时返回空数组 []
+"""
+
 DEFAULT_SCENARIOS = [
     {
         "id": "command_backend",
@@ -152,6 +190,13 @@ DEFAULT_SCENARIOS = [
         "name": "控制流指令代码生成",
         "description": "生成 control_commands Python handler，含流程控制逻辑",
         "prompt": CONTROL_PROMPT,
+        "enabled": True,
+    },
+    {
+        "id": "command_review",
+        "name": "handler 代码审查",
+        "description": "审查 Python handler 代码，逐项检查注册、参数、边界规则",
+        "prompt": REVIEW_PROMPT,
         "enabled": True,
     },
 ]
