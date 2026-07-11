@@ -177,7 +177,7 @@ class WorkflowElement(Base):
 class WorkflowCommand(Base):
     __tablename__ = "workflow_commands"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    type = Column(String(32), unique=True, nullable=False)
+    cmd = Column("type", String(32), unique=True, nullable=False)
     label = Column(String(64), nullable=False)
     category = Column(String(32), nullable=False)
     icon = Column(String(32), default="fa-circle")

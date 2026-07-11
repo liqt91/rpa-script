@@ -126,7 +126,7 @@ def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=
     type_name = payload.get("type", "").strip()
     if not type_name:
         raise HTTPException(status_code=400, detail="type is required")
-    existing = db.query(models.WorkflowCommand).filter(models.WorkflowCommand.type == type_name).first()
+    existing = db.query(models.WorkflowCommand).filter(models.WorkflowCommand.cmd == type_name).first()
     if existing:
         raise HTTPException(status_code=409, detail=f"Command '{type_name}' already exists")
 
