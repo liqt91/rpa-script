@@ -305,7 +305,37 @@ export default function CommandEditor() {
   }
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
+      {/* Type Registry — project-level, always at top */}
+      <div className="shrink-0">
+        <div className="px-4 py-1.5 bg-[#0f172a] border-b border-gray-700 flex items-center gap-3">
+          <button onClick={() => setShowTypeRegistry(v => !v)}
+            className="text-[11px] px-2 py-1 rounded bg-gray-700/50 text-gray-400 hover:bg-gray-600 hover:text-gray-200">
+            <i className={`fas fa-${showTypeRegistry ? 'times' : 'database'} mr-1.5`}></i>
+            {showTypeRegistry ? '关闭类型注册表' : '类型注册表'}
+          </button>
+          <span className="text-[10px] text-gray-600">commands/value_types.json</span>
+        </div>
+        {showTypeRegistry && (
+          <div className="border-b border-gray-700 bg-[#0a0f1a]">
+            <div className="px-4 py-2">
+              <textarea
+                value={typeRegistryJson}
+                onChange={e => setTypeRegistryJson(e.target.value)}
+                className="w-full h-40 p-2 text-[10px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
+                spellCheck={false}
+              />
+              <div className="mt-2 flex justify-end">
+                <button onClick={saveTypeRegistry}
+                  className="text-[10px] px-3 py-1 rounded bg-green-700/60 text-green-300 hover:bg-green-700">
+                  <i className="fas fa-save mr-1"></i>保存
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex-1 flex min-h-0">
       {/* Left panel — list */}
       <div className="w-56 bg-[#0f172a] border-r border-gray-700 flex flex-col shrink-0">
         <div className="px-3 py-3 border-b border-gray-700 flex items-center justify-between">
@@ -357,44 +387,7 @@ export default function CommandEditor() {
                 <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{form.type}</code>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setShowTypeRegistry(v => !v)}
-                  className={`text-xs px-2 py-1 rounded ${showTypeRegistry ? 'bg-amber-700/60 text-amber-200' : 'bg-gray-700 text-gray-400'} hover:opacity-80`}>
-                  <i className="fas fa-database mr-1"></i>类型注册表
-                </button>
-                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
-                {error && <span className="text-xs text-red-400">{error}</span>}
-                <button onClick={saveDef}
-                  className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">保存</button>
-                <button onClick={deleteDef}
-                  className="text-xs px-3 py-1 rounded bg-red-700/60 text-red-200 hover:bg-red-700">删除</button>
-              </div>
-            </div>
-            {/* Type Registry panel */}
-            {showTypeRegistry && (
-              <div className="mx-4 mt-3 mb-1 border border-gray-700 rounded-lg bg-[#0a0f1a] overflow-hidden shrink-0">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] flex items-center justify-between">
-                  <span>类型注册表 (commands/value_types.json)</span>
-                  <button onClick={() => setShowTypeRegistry(false)}
-                    className="text-gray-400 hover:text-white text-[10px]">
-                    <i className="fas fa-times"></i>
-                  </button>
-                </div>
-                <div className="flex">
-                  <textarea
-                    value={typeRegistryJson}
-                    onChange={e => setTypeRegistryJson(e.target.value)}
-                    className="flex-1 p-3 text-[10px] font-mono bg-[#0a0f1a] text-gray-300 outline-none resize-none h-48"
-                    spellCheck={false}
-                  />
-                </div>
-                <div className="px-3 py-1.5 border-t border-gray-700 flex justify-end gap-2">
-                  <button onClick={saveTypeRegistry}
-                    className="text-[10px] px-3 py-1 rounded bg-green-700/60 text-green-300 hover:bg-green-700">
-                    <i className="fas fa-save mr-1"></i>保存
-                  </button>
-                </div>
-              </div>
-            )}
+      )}
 
             {/* 4-column layout */}
             <div className="flex-1 flex min-h-0">
@@ -818,6 +811,7 @@ export default function CommandEditor() {
           </>
         )}
       </div>
+    </div>
     </div>
   );
 }
