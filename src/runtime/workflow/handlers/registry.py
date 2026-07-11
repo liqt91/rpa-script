@@ -149,6 +149,8 @@ def build_command_registry() -> dict[str, dict]:
             # emitter / flow-control 指令没有运行时 handler
             runtimes = {}
 
+        is_structural = hdef.get("isContainer") or hdef.get("isBranch") or hdef.get("isStructural")
+
         entry = {
             "type": handler_type,
             "label": hdef["label"],
@@ -160,7 +162,7 @@ def build_command_registry() -> dict[str, dict]:
             "isBranch": hdef["isBranch"],
             "isStructural": hdef["isStructural"],
             "closesWith": hdef["closesWith"],
-            "fields": hdef["params"],  # handler params = command fields
+            "fields": hdef["params"],
             "description": hdef["description"],
             "categoryOrder": hdef["categoryOrder"],
             "commandOrder": hdef["commandOrder"],
@@ -169,6 +171,70 @@ def build_command_registry() -> dict[str, dict]:
         }
         registry[handler_type] = entry
     return registry
+
+
+def get_command(type_name: str) -> dict | None:
+    """从 handler 注册表获取指令定义。"""
+    h = get_handler(type_name)
+    if not h:
+        return None
+
+    is_structural = h.get("isContainer") or h.get("isBranch") or h.get("isStructural")
+    is_control = h["runtime"] == "control"
+    fields = h["params"] if is_structural else h["params"] + GENERIC_PARAMS
+
+    return {
+        "type": h["type"], "label": h["label"], "category": h["category"],
+        "icon": h["icon"], "iconColor": h["iconColor"], "bgColor": h["bgColor"],
+        "isContainer": h["isContainer"], "isBranch": h["isBranch"],
+        "isStructural": h["isStructural"], "closesWith": h["closesWith"],
+        "fields": fields, "description": h["description"],
+        "categoryOrder": h["categoryOrder"], "commandOrder": h["commandOrder"],
+        "enabled": h.get("enabled", True), "isBuiltin": True,
+        "runtimes": {"extension": {
+            "handler": None if is_control else h["type"],
+            "local": h["runtime"] == "backend",
+            "emitter": is_control,
+        }},
+    }
+
+
+def list_categories() -> list[str]:
+    """返回所有分类名称（去重且保持注册顺序）"""
+    seen = set()
+    result = []
+    for cmd in _HANDLER_REGISTRY.values():
+        cat = cmd.get("category", "其他")
+        if cat not in seen:
+            seen.add(cat)
+            result.append(cat)
+    return result
+
+
+def list_commands_by_category() -> dict[str, list[dict]]:
+    """按分类分组返回指令列表"""
+    result: dict[str, list[dict]] = {}
+    for type_name, cmd in _HANDLER_REGISTRY.items():
+        entry = get_command(type_name)
+        if not entry:
+            continue
+        cat = entry.get("category", "其他")
+        if cat not in result:
+            result[cat] = []
+        result[cat].append(entry)
+    return result
+
+
+def get_container_types() -> list[str]:
+    return [t for t, h in _HANDLER_REGISTRY.items() if h.get("isContainer")]
+
+
+def get_structural_types() -> list[str]:
+    return [t for t, h in _HANDLER_REGISTRY.items() if h.get("isStructural")]
+
+
+def get_branch_types() -> list[str]:
+    return [t for t, h in _HANDLER_REGISTRY.items() if h.get("isBranch")]
 
 
 # ─── Migrate existing commands to handler format ──────────────────

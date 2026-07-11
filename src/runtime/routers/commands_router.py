@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from .. import auth
 from src.repo import runtime_models as models
 from src.shared.datetime_utils import parse_iso_datetime
-from ..workflow.commands import enrich_command_meta, reload_commands
+from src.runtime.workflow.handlers.registry import get_command, list_categories, get_container_types
 from ..workflow.validation import validate, extract_js_handler_names
 
 router = APIRouter(prefix="/api/commands", tags=["commands"])
@@ -69,7 +69,15 @@ def list_commands(
             "createdAt": r.created_at.isoformat() if r.created_at else None,
             "updatedAt": r.updated_at.isoformat() if r.updated_at else None,
         }
-        enrich_command_meta(row)
+        # 从 handler 注册表补充运行时元数据
+        from src.runtime.workflow.handlers.registry import get_handler
+        h = get_handler(r.type)
+        if h:
+            row["hasRuntime"] = h["runtime"] != "control"
+            row["isContainer"] = h.get("isContainer")
+            row["isBranch"] = h.get("isBranch")
+            row["isStructural"] = h.get("isStructural")
+            row["closesWith"] = h.get("closesWith")
         result.append(row)
     return result
 
@@ -84,9 +92,10 @@ def reload_emitters(user=Depends(auth.get_current_user)):
 
 @router.post("/reload")
 def reload_commands_endpoint(user=Depends(auth.get_current_user)):
-    """Runtime reload of command catalog from database."""
-    reload_commands()
-    return {"success": True}
+    """Runtime reload — handler registry is auto-reloaded on import."""
+    from src.runtime.workflow.emitters import reload_handlers
+    reload_handlers()
+    return {"success": True, "note": "handler registry auto-reloads on module reimport"}
 
 
 @router.post("/validate")
@@ -224,10 +233,8 @@ def get_command_source(cmd_id: int, db: Session = Depends(get_db), user=Depends(
         except Exception:
             pass
 
-    # Fallback: try to find source from emitter or commands.py
-    from ..workflow.commands import COMMAND_REGISTRY_SEED
-    seed = COMMAND_REGISTRY_SEED.get(cmd.type, {})
-    emitter = seed.get("emitter")
+    # Fallback: try emitter source
+    emitter = h.get("emitter_handler")
     if emitter:
         return {"type": cmd.type, "source": f"# Emitter ({cmd.type})\n# Source not available via inspect", "fallback": True}
 

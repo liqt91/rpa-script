@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 from .handlers.registry import build_command_registry
-from .commands import _attach_common_advanced
+from .commands_helpers import _attach_common_advanced
 
 REQUIRED_KEYS = {"label", "category", "icon", "iconColor", "bgColor", "fields"}
 

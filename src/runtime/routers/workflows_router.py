@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from .. import schemas, auth
 from src.repo import runtime_models as models
 from src.config import runtime_config as config
-from ..workflow.commands import get_command, enrich_command_meta
+from src.runtime.workflow.handlers.registry import get_command
 from ..workflow.handlers.registry import get_all_handlers
 from ..workflow.new_catalog import load_new_catalog
 from ..workflow.exporter import build_python
@@ -206,10 +206,11 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
         }
 
         db_row = {"type": row.type, "handler": row.handler, "local": row.local}
-        enrich_command_meta(db_row)
-        cmd["handler"] = db_row.get("handler")
-        cmd["local"] = db_row.get("local")
-        cmd["hasRuntime"] = db_row.get("hasRuntime", False)
+        # 从 handler 注册表补充运行时元数据
+        h = get_command(row.type)
+        cmd["handler"] = db_row.get("handler") or (h["runtimes"]["extension"]["handler"] if h else None)
+        cmd["local"] = db_row.get("local") or (h["runtimes"]["extension"]["local"] if h else None)
+        cmd["hasRuntime"] = h["runtimes"]["extension"]["handler"] is not None if h else False
 
         if cat not in commands_by_cat:
             commands_by_cat[cat] = []

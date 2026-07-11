@@ -336,7 +336,7 @@ def _emit_dispatch(node: models.WorkflowNode, extra: dict, depth: int,
     if getattr(node, "enabled", 1) == 0:
         return
     prefix = _indent(depth)
-    from src.runtime.workflow.commands import get_command
+    from src.runtime.workflow.handlers.registry import get_command
     cmd = get_command(node.type) or {}
     label = cmd.get("label", node.type)
     lines.append(f"{prefix}# WF_NODE id={node.id} type={node.type} label={label}")

@@ -11,54 +11,62 @@
 ```mermaid
 flowchart TB
     VT["commands/value_types.json<br/>类型注册表"]
-    VT -.->|加载 paramTypes| CE["前端 CommandEditor"]
-    VT -.->|加载| SC["Scaffold 生成器<br/>_build_backend_scaffold()"]
-    VT -.->|加载| AI["AI Prompt 模板<br/>{{scaffold}} 注入"]
+    VT -.->|"加载 paramTypes"| CE["前端 CommandEditor"]
+    VT -.->|"加载"| SC["Scaffold 生成器<br/>_build_backend_scaffold()"]
+    VT -.->|"加载"| AI["AI Prompt 模板<br/>{{scaffold}} 注入"]
 
-    CE --> JSON["commands/&lt;type&gt;.json<br/>指令定义 · 唯一真相源"]
+    CE --> JSON["commands/&lt;type&gt;.json<br/>指令定义"]
     SC --> JSON
     AI --> JSON
 
-    JSON -->|读取| GEN["generate_commands.py<br/>生成 Python 桩"]
-    JSON -->|读取| BC["build_content_js.py<br/>拼接 DOM handlers"]
-    JSON -->|读取| BB["build_background_js.py<br/>拼接 bg handlers"]
+    JSON -->|"读取"| GEN["generate_commands.py"]
+    JSON -->|"读取"| BC["build_content_js.py"]
+    JSON -->|"读取"| BB["build_background_js.py"]
 
-    GEN --> EXT["extension_commands/*.py<br/>(手写/AI 生成)"]
-    GEN --> BE["backend_commands/*.py<br/>(手写/AI 生成)"]
-    GEN --> CTL["control_commands/*.py<br/>(手写/AI 生成)"]
+    GEN --> EXT["extension_commands/*.py"]
+    GEN --> BE["backend_commands/*.py"]
+    GEN --> CTL["control_commands/*.py"]
 
-    BC --> CONTENT["content.js<br/>(DOM handlers 合集)"]
-    BB --> BGS["background.js<br/>(bg handlers 合集)"]
+    BC --> CONTENT["content.js<br/>(DOM handlers)"]
+    BB --> BGS["background.js<br/>(bg handlers)"]
 
-    EXT -->|@register_handler| REG["_HANDLER_REGISTRY"]
-    BE -->|@register_handler| REG
-    CTL -->|@register_handler| REG
+    EXT -->|"@register_handler"| REG["_HANDLER_REGISTRY"]
+    BE -->|"@register_handler"| REG
+    CTL -->|"@register_handler"| REG
 
-    REG --> LOCAL["LOCAL_HANDLERS<br/>(有 execute() 方法的)"]
-    REG --> CAT["commands.py<br/>(旧系统兼容层)"]
-
+    REG -->|"有 execute()"| LOCAL["LOCAL_HANDLERS"]
     LOCAL --> RUNNER
-    CAT --> RUNNER
 
     subgraph RUNNER["Runner 运行时调度"]
-        direction TB
-        INSTR["instr 到达"]
-        INSTR --> HAS{"has execute() ?"}
-        HAS -->|YES| HL["_handle_local()<br/>执行前置工作"]
-        HAS -->|NO| ISEXT
-        HL --> ISEXT{"runtime == extension ?"}
-        ISEXT -->|NO| DONE["✅ 完成"]
-        ISEXT -->|YES| RESOLVE["resolve_vars()<br/>{{var}} → 实际值"]
-        RESOLVE -->|JSON 序列化| SEND["_send_and_wait()"]
+        direction LR
+        INSTR["instr 到达"] --> DISPATCH
+
+        subgraph DISPATCH["路由分发"]
+            HAS{"has<br/>execute() ?"}
+        end
+
+        HAS -->|"YES"| LOCAL_WORK["_handle_local()<br/>完成全部工作"]
+        HAS -->|"NO"| EMITTER["emitter 展开<br/>子节点递归"]
+
+        LOCAL_WORK -->|"backend"| DONE["✅ 完成"]
+        LOCAL_WORK -->|"extension"| EXT_PIPE["↓ 继续到扩展通道"]
     end
 
-    SEND -->|WebSocket| BGS
-    BGS --> BG["_backgroundHandlers['type']<br/>窗口管理"]
-    BG --> AC["_ensureWorkTab()<br/>注入 content script"]
-    AC --> CONTENT
-    CONTENT -->|返回 result / vars| SEND
+    EXT_PIPE --> RESOLVE["resolve_vars()<br/>{{var}} → 实际值"]
+    RESOLVE --> SEND["_send_and_wait()"]
+    DONE --> OUT["📤 runner.results / runner.vars"]
+    EMITTER --> OUT
 
-    SEND --> OUT["📤 runner.results.append()<br/>📤 runner.vars[key] = value<br/>📤 runner._emit('stepComplete')"]
+    subgraph CHANNEL["扩展通信通道"]
+        direction TB
+        SEND -->|"WebSocket"| BGTARGET["background.js"]
+        BGTARGET --> BG["_backgroundHandlers['type']<br/>窗口 / 标签管理"]
+        BG --> INJECT["_ensureWorkTab()<br/>注入 content script"]
+        INJECT --> DOM["content.js<br/>DOM 操作"]
+        DOM -->|"返回"| SEND
+    end
+
+    SEND --> OUT
 ```
 
 ---

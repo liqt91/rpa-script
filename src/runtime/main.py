@@ -126,8 +126,6 @@ def _seed_commands_to_db(db):
 
 def _load_commands_from_db(db):
     """从数据库加载指令配置到内存，数据库为唯一事实来源。"""
-    from .workflow import commands
-    commands.load_commands_from_db(db)
 
 
 @asynccontextmanager
