@@ -6,7 +6,7 @@ import csv
 import io
 import json
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Request, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -672,6 +672,17 @@ def get_value_types(user=Depends(auth.get_current_user)):
     """Return project-level value type definitions."""
     fp = _COMMANDS_DIR / "value_types.json"
     if not fp.exists():
-        return {"types": {}}
+        return {"paramTypes": {}, "valueTypes": {}}
     with open(fp, encoding="utf-8") as f:
         return json.load(f)
+
+@router.put("/value-types")
+async def save_value_types(request: Request, user=Depends(auth.get_current_user)):
+    fp = _COMMANDS_DIR / "value_types.json"
+    body = json.loads(await request.body())
+    _COMMANDS_DIR.mkdir(parents=True, exist_ok=True)
+    with open(fp, "w", encoding="utf-8") as f:
+        json.dump(body, f, ensure_ascii=False, indent=2)
+    return {"ok": True}
+
+

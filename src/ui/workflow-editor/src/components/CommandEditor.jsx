@@ -56,6 +56,8 @@ export default function CommandEditor() {
   const [jsCode, setJsCode] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [reviewFindings, setReviewFindings] = useState(null);
+  const [showTypeRegistry, setShowTypeRegistry] = useState(false);
+  const [typeRegistryJson, setTypeRegistryJson] = useState('');
   const [categories, setCategories] = useState([]);
   const [valueTypes, setValueTypes] = useState({});
   const [paramTypes, setParamTypes] = useState([]);
@@ -68,7 +70,19 @@ export default function CommandEditor() {
       const pt = data.paramTypes || {};
       setParamTypes(Object.keys(pt));
       setValueTypes(data.valueTypes || {});
+      setTypeRegistryJson(JSON.stringify(data, null, 2));
     } catch (e) { /* ignore */ }
+  }
+
+  async function saveTypeRegistry() {
+    try {
+      await api.request('/api/commands/value-types', {
+        method: 'PUT',
+        body: typeRegistryJson,
+      });
+      await loadValueTypes();
+      setStatus('类型注册表已保存');
+    } catch (e) { setError('保存类型注册表失败: ' + e.message); }
   }
 
   async function loadCategories() {
@@ -665,14 +679,35 @@ export default function CommandEditor() {
                 </div>
               </div>
 
-              {/* Col 2: JSON 预览 */}
+              {/* Col 2: JSON 预览 / 类型注册表 */}
               <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0">
-                  JSON 预览
+                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0 flex items-center justify-between">
+                  <span>{showTypeRegistry ? '类型注册表' : 'JSON 预览'}</span>
+                  <button
+                    onClick={() => setShowTypeRegistry(v => !v)}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-300 hover:bg-gray-600"
+                  >{showTypeRegistry ? 'JSON' : '类型'}</button>
                 </div>
-                <pre className="flex-1 overflow-auto p-3 text-[10px] text-gray-300 font-mono bg-[#0a0f1a] whitespace-pre-wrap m-0 leading-relaxed">
-                  {JSON.stringify(form, null, 2)}
-                </pre>
+                {showTypeRegistry ? (
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <textarea
+                      value={typeRegistryJson}
+                      onChange={e => setTypeRegistryJson(e.target.value)}
+                      className="flex-1 p-3 text-[10px] font-mono bg-[#0a0f1a] text-gray-300 outline-none resize-none"
+                      spellCheck={false}
+                    />
+                    <div className="px-2 py-1.5 border-t border-gray-700 bg-[#0a0f1a] shrink-0">
+                      <button onClick={saveTypeRegistry}
+                        className="text-[10px] px-2 py-1 rounded bg-green-700/60 text-green-300 hover:bg-green-700 w-full">
+                        保存类型注册表
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <pre className="flex-1 overflow-auto p-3 text-[10px] text-gray-300 font-mono bg-[#0a0f1a] whitespace-pre-wrap m-0 leading-relaxed">
+                    {JSON.stringify(form, null, 2)}
+                  </pre>
+                )}
               </div>
 
               {/* Col 3: Python Handler 预览 */}
