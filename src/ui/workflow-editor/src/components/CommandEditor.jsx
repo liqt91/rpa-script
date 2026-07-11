@@ -313,7 +313,7 @@ export default function CommandEditor() {
           <button onClick={createNew} className="text-xs text-blue-400 hover:text-blue-300">+ 新建</button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-          {defs.map(d => {
+          {defs.map((d, i) => {
             const isCur = selected && selected.type === d.type;
             return (
               <button key={d.type || d.label || i} onClick={() => selectDef(d)}
