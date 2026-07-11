@@ -387,7 +387,14 @@ export default function CommandEditor() {
                 <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{form.type}</code>
               </div>
               <div className="flex items-center gap-2">
-      )}
+                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
+                {error && <span className="text-xs text-red-400">{error}</span>}
+                <button onClick={saveDef}
+                  className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">保存</button>
+                <button onClick={deleteDef}
+                  className="text-xs px-3 py-1 rounded bg-red-700/60 text-red-200 hover:bg-red-700">删除</button>
+              </div>
+            </div>
 
             {/* 4-column layout */}
             <div className="flex-1 flex min-h-0">
