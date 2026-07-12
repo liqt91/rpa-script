@@ -169,11 +169,6 @@ DEFAULT_SCENARIOS = [
         "enabled": True,
     },
     {
-        "id": "command_review",
-        "name": "通用 handler 审查",
-        "description": "通用审查（含 value_types.json 校验）",
-        "prompt": REVIEW_PROMPT,
-        "enabled": True,
     },
 ]
 

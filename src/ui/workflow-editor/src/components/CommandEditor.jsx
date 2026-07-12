@@ -225,21 +225,6 @@ export default function CommandEditor() {
     } catch (e) { setError('构建失败: ' + e.message); }
   }
 
-  async function generateHandlerWithAI() {
-    if (!form) return;
-    setAiLoading(true); setError('');
-    try {
-      const definition = {
-        cmd: form.cmd, label: form.label, category: form.category,
-        runtime: form.runtime, description: form.description,
-        params: form.params || [],
-      };
-      const res = await api.generateWithScenario('command_backend', { definition });
-      setPythonCode(res.code || '');
-      setStatus('AI 生成完成');
-    } catch (e) { setError('AI 生成失败: ' + e.message); }
-    finally { setAiLoading(false); }
-  }
 
   async function reviewHandler() {
     if (!form || !pythonCode) return;
@@ -250,10 +235,10 @@ export default function CommandEditor() {
         runtime: form.runtime, description: form.description,
         params: form.params || [],
       };
-      const res = await api.generateWithScenario('command_review', { definition, source: pythonCode });
+      const res = await api.generateWithScenario(form.runtime === 'extension' ? 'command_extension_js' : form.runtime === 'control' ? 'command_control' : 'command_backend', { definition, source: pythonCode });
       setReviewFindings(res.findings || []);
       setStatus(res.findings?.length ? `发现 ${res.findings.length} 个问题` : '未发现问题');
-    } catch (e) { setError('Review 失败: ' + e.message); }
+    } catch (e) { setError('审查失败: ' + e.message); }
     finally { setAiLoading(false); }
   }
 
@@ -724,8 +709,6 @@ export default function CommandEditor() {
                   <button
                     onClick={() => setShowTypeRegistry(v => !v)}
                     className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-300 hover:bg-gray-600"
-                  >{showTypeRegistry ? 'JSON' : '类型'}</button>
-                </div>
                 {showTypeRegistry ? (
                   <div className="flex-1 flex flex-col min-h-0">
                     <textarea
@@ -758,9 +741,6 @@ export default function CommandEditor() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-gray-400">操作</span>
                       <div className="flex items-center gap-1.5">
-                        <button onClick={generateHandlerWithAI} disabled={aiLoading}
-                          className="text-[10px] px-2 py-1 rounded bg-purple-600/80 text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                          {aiLoading ? '生成中…' : 'AI 生成'}
                         </button>
                         <button onClick={reviewHandler} disabled={aiLoading || !pythonCode}
                           className="text-[10px] px-2 py-1 rounded bg-emerald-600/80 text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
