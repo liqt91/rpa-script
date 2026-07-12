@@ -2815,6 +2815,8 @@
   }
 
   function highlightSelectorMatches(selector, type) {
+    // DEBUG: inject a visible marker to confirm this function runs
+    try { const _dbg=document.createElement("div");_dbg.id="rpa-debug-marker";_dbg.textContent="✅ RPA verify running";_dbg.style.cssText="position:fixed;top:10px;right:10px;z-index:99999999;background:red;color:white;padding:8px 16px;font-size:16px;font-weight:bold;border-radius:4px";(document.body||document.documentElement).appendChild(_dbg);setTimeout(()=>_dbg.remove(),3000); } catch(_){}
     console.log('[RPA Capture] highlightSelectorMatches: selector=' + selector + ' type=' + type);
     removeEditorHighlights();
     const nodes = resolveAllForVerify(selector, type);

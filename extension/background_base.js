@@ -563,7 +563,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     ensureContentScripts(tabId)
       .then(() => {
         console.log('[Agent] verifyElement: forwarding to tab ' + tabId);
-        return chrome.tabs.sendMessage(tabId, { action: 'verifyElement', payload });
+        return chrome.tabs.get(tabId).then(tab => {
+          console.log('[Agent] verifyElement: tab URL = ' + (tab?.url || 'unknown'));
+          return chrome.tabs.sendMessage(tabId, { action: 'verifyElement', payload });
+        });
       })
       .then(result => {
         console.log('[Agent] verifyElement: tab responded', result);
