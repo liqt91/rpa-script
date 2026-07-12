@@ -3064,6 +3064,7 @@
       sendResponse({ ...stats, matchedSelector });
       // Also broadcast result so side panel can pick it up
       chrome.runtime.sendMessage({ action: 'verifyResult', payload: { ...stats, matchedSelector } }).catch(() => {});
+      } catch(e) { console.error('[RPA Capture] verifyElement error:', e); sendResponse({ error: e.message }); }
       return false;
     }
 
