@@ -1,0 +1,34 @@
+{
+  "cmd": "getText",
+  "label": "获取文本",
+  "runtime": "extension",
+  "category": "页面操作",
+  "icon": "fa-font",
+  "iconColor": "text-green-500",
+  "bgColor": "bg-green-50",
+  "categoryOrder": 20,
+  "commandOrder": 10,
+  "description": "获取页面元素的文本内容",
+  "enabled": true,
+  "params": [
+    {
+      "name": "elementName",
+      "label": "目标元素",
+      "type": "element",
+      "group": "主属性",
+      "placeholder": "选择一个已捕获的元素"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "text1",
+      "group": "output"
+    }
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/getText.js"
+  },
+  "categories": ["page"]
+}

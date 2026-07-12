@@ -1,0 +1,42 @@
+{
+  "cmd": "navigate",
+  "label": "页面跳转",
+  "runtime": "extension",
+  "category": "浏览器",
+  "icon": "fa-arrow-right",
+  "iconColor": "text-blue-500",
+  "bgColor": "bg-blue-50",
+  "categoryOrder": 10,
+  "commandOrder": 30,
+  "description": "在指定浏览器窗口中跳转到新网址",
+  "enabled": true,
+  "params": [
+    {
+      "name": "windowVar",
+      "label": "浏览器窗口",
+      "type": "string",
+      "default": "browser1",
+      "group": "input",
+      "valueType": "window",
+      "placeholder": "如 browser1"
+    },
+    {
+      "name": "url",
+      "label": "目标网址",
+      "type": "string",
+      "placeholder": "如 https://deepseek.com"
+    },
+    {
+      "name": "waitLoad",
+      "label": "等待页面加载完成",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced"
+    }
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/background_handlers/navigate.js"
+  },
+  "categories": ["browser"]
+}
