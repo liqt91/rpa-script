@@ -6,7 +6,6 @@ import WorkflowList from './components/WorkflowList';
 import RunLogs from './components/RunLogs';
 import Schedules from './components/Schedules';
 import AdminPassword from './components/admin/AdminPassword';
-import CommandsPage from './components/CommandsPage';
 import CommandEditor from './components/CommandEditor';
 import AIConfigPage from './components/AIConfigPage';
 
@@ -92,29 +91,7 @@ function SidebarLayout({ children }) {
             <i className="fas fa-lock w-4 text-center"></i>
             修改密码
           </NavLink>
-          <NavLink
-            to="/commands"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-blue-600/20 text-blue-300 border-r-2 border-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
-              }`
-            }
-          >
-            <i className="fas fa-code w-4 text-center"></i>
-            指令管理
-          </NavLink>
-          <NavLink
-            to="/commands/definitions"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-blue-600/20 text-blue-300 border-r-2 border-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
-              }`
-            }
-          >
-            <i className="fas fa-file-code w-4 text-center"></i>
-            指令定义
-          </NavLink>
-          <NavLink
+                    <NavLink
             to="/ai-config"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
@@ -165,7 +142,6 @@ function App() {
           <Route path="/logs" element={<SidebarLayout><RunLogs /></SidebarLayout>} />
           <Route path="/schedules" element={<SidebarLayout><Schedules /></SidebarLayout>} />
           <Route path="/admin/password" element={<SidebarLayout><AdminPassword /></SidebarLayout>} />
-          <Route path="/commands" element={<SidebarLayout><CommandsPage /></SidebarLayout>} />
           <Route path="/commands/definitions" element={<SidebarLayout><CommandEditor /></SidebarLayout>} />
           <Route path="/ai-config" element={<SidebarLayout><AIConfigPage /></SidebarLayout>} />
           <Route path="/editor/:id" element={<EditorPage />} />
