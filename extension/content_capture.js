@@ -2202,7 +2202,14 @@
       <style>:host { all: initial; } canvas { display: block; }</style>
       <canvas id="rpa-hl-canvas" style="position:fixed;top:0;left:0;pointer-events:none;"></canvas>
     `;
-    document.body.appendChild(highlightHost);
+    const parent = document.body || document.documentElement;
+    if (!parent) {
+      console.warn('[RPA capture] body/documentElement not ready, retrying in 100ms');
+      highlightHost = null;
+      setTimeout(initHighlightCanvas, 100);
+      return;
+    }
+    parent.appendChild(highlightHost);
     highlightCanvas = shadow.getElementById('rpa-hl-canvas');
     highlightCtx = highlightCanvas.getContext('2d');
     resizeHighlightCanvas();
