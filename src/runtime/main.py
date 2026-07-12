@@ -117,7 +117,7 @@ def _seed_commands_to_db(db):
             "command_order": cmd.get("commandOrder", 0),
         }
         if row is None:
-            db.add(models.WorkflowCommand(type=type_name, **fields))
+            db.add(models.WorkflowCommand(cmd=type_name, **fields))
         else:
             for key, value in fields.items():
                 setattr(row, key, value)
