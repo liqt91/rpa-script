@@ -2815,8 +2815,10 @@
   }
 
   function highlightSelectorMatches(selector, type) {
+    console.log('[RPA Capture] highlightSelectorMatches: selector=' + selector + ' type=' + type);
     removeEditorHighlights();
     const nodes = resolveAllForVerify(selector, type);
+    console.log('[RPA Capture] highlightSelectorMatches: found ' + nodes.length + ' nodes');
 
     nodes.forEach((node) => {
       if (!node.getBoundingClientRect) return;
@@ -3025,10 +3027,12 @@
       return false;
     }
     if (message.action === 'verifyElement') {
+      console.log('[RPA Capture] verifyElement received:', JSON.stringify(message.payload).slice(0, 200));
       let { selector, type } = message.payload || {};
       // 若选择器带显式前缀，以后缀推断 family，覆盖侧板可能传错的 type
       const inferred = splitSelectorPrefix(selector).family;
       if (inferred === 'css' || inferred === 'xpath') type = inferred;
+      console.log('[RPA Capture] verifyElement: selector=' + selector + ' type=' + type + ' inferred=' + inferred);
       let stats = { total: 0, visible: 0, invisible: 0 };
       let matchedSelector = selector;
       // 支持多选择器数组：逐个试，命中即停
@@ -3036,6 +3040,7 @@
         for (const sel of selector) {
           const selType = splitSelectorPrefix(sel).family || type;
           const s = resolveAllForVerifyStats(sel, selType);
+          console.log('[RPA Capture] verifyElement multi: sel=' + sel + ' selType=' + selType + ' total=' + s.total);
           if (s.total > 0) {
             stats = s;
             matchedSelector = sel;
@@ -3045,8 +3050,10 @@
         }
       } else {
         stats = resolveAllForVerifyStats(selector, type);
+        console.log('[RPA Capture] verifyElement single: total=' + stats.total + ' visible=' + stats.visible);
         highlightSelectorMatches(selector, type);
       }
+      console.log('[RPA Capture] verifyElement done: total=' + stats.total + ' matchedSelector=' + matchedSelector);
       sendResponse({ ...stats, matchedSelector });
       // Also broadcast result so side panel can pick it up
       chrome.runtime.sendMessage({ action: 'verifyResult', payload: { ...stats, matchedSelector } }).catch(() => {});
