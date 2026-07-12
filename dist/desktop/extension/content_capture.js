@@ -2825,14 +2825,19 @@
       const rect = node.getBoundingClientRect();
       const hl = document.createElement('div');
       hl.className = 'rpa-editor-highlight';
-      hl.style.cssText = `
-        position: fixed; pointer-events: none; z-index: 2147483646;
-        left: ${rect.left}px; top: ${rect.top}px;
-        width: ${rect.width}px; height: ${rect.height}px;
-        border: 2px dashed #1677ff; background: rgba(22,119,255,0.08);
-        box-sizing: border-box;
-      `;
-      document.body.appendChild(hl);
+      hl.style.setProperty('position', 'fixed', 'important');
+      hl.style.setProperty('pointer-events', 'none', 'important');
+      hl.style.setProperty('z-index', '2147483646', 'important');
+      hl.style.setProperty('left', rect.left + 'px', 'important');
+      hl.style.setProperty('top', rect.top + 'px', 'important');
+      hl.style.setProperty('width', rect.width + 'px', 'important');
+      hl.style.setProperty('height', rect.height + 'px', 'important');
+      hl.style.setProperty('border', '3px solid #1677ff', 'important');
+      hl.style.setProperty('background', 'rgba(22,119,255,0.15)', 'important');
+      hl.style.setProperty('box-sizing', 'border-box', 'important');
+      const parent = document.body || document.documentElement;
+      if (parent) parent.appendChild(hl);
+      else console.warn('[RPA Capture] highlight: no body or documentElement');
       editorHighlights.push({ node, el: hl });
     });
 
