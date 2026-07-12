@@ -363,6 +363,7 @@ def _emit_instruction(
         "nodeId": node.id,
         "order": node.order,
         "cmdType": node.cmd,
+        "cmdLabel": node_meta.get("label", node.cmd),
         "type": handler,
         "locator": locator,
         "selectorFamily": selector_family,

@@ -297,7 +297,7 @@ export default function RunLogs() {
                       'text-gray-300'
                     }`}>
                       <span className="text-gray-500 mr-2">[{evt.type}]</span>
-                      {evt.compound && <span className="text-blue-400 mr-2">{evt.cmdType || 'compound'}</span>}
+                      {evt.cmdLabel && <span className="text-blue-400 mr-2">{evt.cmdLabel}</span>}
                       {evt.endOrder && <span className="text-blue-300 mr-2">#{evt.endOrder} 第#{evt.order}步</span>}
                       {evt.error && <span className="text-red-400">{evt.error}</span>}
                       {evt.result?.log !== undefined ? (

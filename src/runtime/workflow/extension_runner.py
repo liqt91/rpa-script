@@ -498,6 +498,7 @@ class ExtensionRunner:
                     "nodeId": instr.get("nodeId"),
                     "compound": instr.get("compound", False),
                     "cmdType": instr.get("cmdType", ""),
+                    "cmdLabel": instr.get("cmdLabel", instr.get("cmdType", "")),
                 })
                 try:
                     success = await self._execute_instruction(instr)
