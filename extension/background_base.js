@@ -550,17 +550,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 2) Side panel 请求校验元素 → 转发给对应标签页的 content_capture.js
   if (message.action === 'verifyElement') {
+    console.log('[Agent] verifyElement received:', JSON.stringify(message).slice(0, 200));
     // sidepanel.js 的 send() 把参数包在 payload 里: { action, payload: { tabId, payload } }
     const tabId = message.tabId ?? message.payload?.tabId;
     const payload = message.payload?.payload ?? message.payload;
+    console.log('[Agent] verifyElement: tabId=' + tabId + ' payloadKeys=' + Object.keys(payload || {}).join(','));
     if (!tabId) {
+      console.log('[Agent] verifyElement: missing tabId');
       sendResponse({ error: 'tabId required' });
       return false;
     }
     ensureContentScripts(tabId)
-      .then(() => chrome.tabs.sendMessage(tabId, { action: 'verifyElement', payload }))
-      .then(result => sendResponse(result))
-      .catch(err => sendResponse({ error: err.message }));
+      .then(() => {
+        console.log('[Agent] verifyElement: forwarding to tab ' + tabId);
+        return chrome.tabs.sendMessage(tabId, { action: 'verifyElement', payload });
+      })
+      .then(result => {
+        console.log('[Agent] verifyElement: tab responded', result);
+        sendResponse(result);
+      })
+      .catch(err => {
+        console.log('[Agent] verifyElement: error ' + err.message);
+        sendResponse({ error: err.message });
+      });
     return true; // async
   }
 
