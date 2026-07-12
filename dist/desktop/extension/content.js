@@ -12,6 +12,9 @@
   if (window.__rpaAgentInjected) return;
   window.__rpaAgentInjected = true;
 
+  const handlers = {};
+  function registerHandler(name, fn) { handlers[name] = fn; }
+
   const AGENT_VERSION = '1.0.0';
 
   // ─── Locator resolution ──────────────────────────────────────────
