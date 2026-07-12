@@ -77,7 +77,7 @@ def load_new_catalog() -> dict[str, Any]:
 
         runtime = _runtime_info(d)
         cmd = {
-            "type": d["cmd"],
+            "cmd": d["cmd"],
             "label": d.get("label", d["cmd"]),
             "category": cats[0] if cats else "其他",
             "icon": d.get("icon", "fa-circle"),
