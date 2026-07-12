@@ -306,7 +306,7 @@ export default function RunLogs() {
                         <span className="text-gray-400">{JSON.stringify(evt.result).slice(0, 200)}</span>
                       ) : evt.result ? (
                         <span className="text-gray-400">{String(evt.result).slice(0, 200)}</span>
-                      }
+                      ) : null}
                     </div>
                   ))}
                 </div>
