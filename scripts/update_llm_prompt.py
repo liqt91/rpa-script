@@ -168,8 +168,8 @@ DEFAULT_SCENARIOS = [
         "prompt": CONTROL_PROMPT,
         "enabled": True,
     },
-    {
-    },
+
+
 ]
 
 
