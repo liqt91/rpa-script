@@ -42,6 +42,7 @@ export default function Toolbar() {
   const [paused, setPaused] = useState(false);
   const [currentRunId, setCurrentRunId] = useState(null);
   const [runResult, setRunResult] = useState(null);
+  const stepResultsRef = useRef([]);
   const [runParamsOpen, setRunParamsOpen] = useState(false);
   const [extStatus, setExtStatus] = useState(null);
   const [runStatus, setRunStatus] = useState(null);
@@ -347,6 +348,7 @@ export default function Toolbar() {
     setRunning(true);
     setPaused(false);
     setRunResult(null);
+    stepResultsRef.current = [];
     refreshRunStatus();
     dispatch({ type: 'RUN_START' });
     dispatch({ type: 'CLEAR_RUN_LOGS' });
@@ -376,6 +378,13 @@ export default function Toolbar() {
             const node = nodes.find(n => n.id === evt.nodeId);
             const label = node ? (NODE_TYPE_MAP[node.cmd]?.label || node.cmd) : evt.stepId;
             const resultStr = evt.result ? formatResult(evt.result) : '完成';
+            // Accumulate step result for modal
+            stepResultsRef.current.push({
+              nodeId: evt.nodeId,
+              stepId: evt.stepId,
+              status: 'success',
+              result: evt.result,
+            });
             let msg;
             if (evt.compound || (node && NODE_TYPE_MAP[node.cmd]?.isContainer)) {
               const startOrder = evt.order ?? node?.order ?? '';
@@ -449,7 +458,7 @@ export default function Toolbar() {
       const data = await api.runWorkflowExtension(wfId, runId, getDesignTableData(), parameters);
       console.log(`[Toolbar] runWorkflowExtension result success=${data.success}`);
       if (!stoppedRef.current) {
-        setRunResult(data);
+        data.results = stepResultsRef.current; setRunResult(data);
       }
       // Final table data: push to DataTableTab for display only (do NOT overwrite design-time data)
       if (data.tableRows || data.tableColumns) {
@@ -530,6 +539,7 @@ export default function Toolbar() {
   };
 
   const closeResult = () => setRunResult(null);
+    stepResultsRef.current = [];
 
   const extDotColor = extStatus?.online ? 'bg-green-500' : 'bg-red-500';
 
