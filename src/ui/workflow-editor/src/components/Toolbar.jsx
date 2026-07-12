@@ -26,7 +26,10 @@ function formatResult(result) {
   if (result.setVar) parts.push(`设置变量 ${result.setVar} = ${JSON.stringify(result.value).slice(0, 40)}`);
   if (result.ifElementVisible !== undefined) parts.push(`元素可见: ${result.ifElementVisible}`);
   if (result.ifElementExists !== undefined) parts.push(`元素存在: ${result.ifElementExists}`);
-  if (result.log !== undefined) parts.push(`日志: ${result.log}`);
+  if (result.log !== undefined) {
+    const levelIcon = result.level === 'error' ? '❌' : result.level === 'warning' ? '⚠️' : '📝';
+    parts.push(`${levelIcon} ${result.log}`);
+  }
   if (parts.length === 0) return JSON.stringify(result).slice(0, 200);
   return parts.join(' ');
 }
@@ -383,7 +386,9 @@ export default function Toolbar() {
             }
             dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'success', msg } });
             if (evt.result?.log !== undefined) {
-              dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `  📝 ${evt.result.log}` } });
+              const logLevel = evt.result?.level || 'info';
+              const logIcon = logLevel === 'error' ? '❌' : logLevel === 'warning' ? '⚠️' : '📝';
+              dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: logLevel === 'error' ? 'error' : logLevel === 'warning' ? 'warning' : 'info', msg: `  ${logIcon} ${evt.result.log}` } });
             }
             if (evt.result?.prints?.length) {
               for (const line of evt.result.prints) {
