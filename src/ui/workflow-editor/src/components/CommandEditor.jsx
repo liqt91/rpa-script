@@ -722,10 +722,9 @@ export default function CommandEditor() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-gray-400">操作</span>
                       <div className="flex items-center gap-1.5">
-                        </button>
                         <button onClick={reviewHandler} disabled={aiLoading || !pythonCode}
                           className="text-[10px] px-2 py-1 rounded bg-emerald-600/80 text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                          Review
+                          AI 审查
                         </button>
                         <button onClick={savePythonCode} disabled={!pythonCode}
                           className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
