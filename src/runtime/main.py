@@ -90,7 +90,7 @@ def _seed_commands_to_db(db):
     from .workflow.handlers.registry import build_command_registry
 
     registry = build_command_registry()
-    existing = {row.type: row for row in db.query(models.WorkflowCommand).all()}
+    existing = {row.cmd: row for row in db.query(models.WorkflowCommand).all()}
     for type_name, cmd in registry.items():
         row = existing.get(type_name)
         if row is not None and not row.is_builtin:
