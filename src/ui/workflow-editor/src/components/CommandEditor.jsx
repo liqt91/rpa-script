@@ -633,7 +633,7 @@ export default function CommandEditor() {
                             <div>
                               <div className="text-[9px] text-gray-500 mb-0.5">类型</div>
                               <select value={p.type || 'str-input'} onChange={e => updateParam(i, 'type', e.target.value)} className={`${selectCls} text-[10px]`}>
-                                {PARAM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                {paramTypes.map(t => <option key={t} value={t}>{t}</option>)}
                               </select>
                             </div>
                             <div>
