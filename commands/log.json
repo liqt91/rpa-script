@@ -1,0 +1,39 @@
+{
+  "cmd": "log",
+  "label": "输出日志",
+  "runtime": "backend",
+  "category": "数据",
+  "icon": "fa-terminal",
+  "iconColor": "text-gray-500",
+  "bgColor": "bg-gray-50",
+  "categoryOrder": 40,
+  "commandOrder": 10,
+  "description": "输出一条消息到运行日志",
+  "enabled": true,
+  "params": [
+    {
+      "name": "message",
+      "label": "日志内容",
+      "type": "text",
+      "placeholder": "支持 {{变量}} 引用",
+      "group": "主属性"
+    },
+    {
+      "name": "level",
+      "label": "日志级别",
+      "type": "select",
+      "options": [
+        {"label": "信息", "value": "info"},
+        {"label": "警告", "value": "warning"},
+        {"label": "错误", "value": "error"}
+      ],
+      "default": "info",
+      "group": "advanced"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/backend_commands/log.py"
+  },
+  "categories": ["data"]
+}
