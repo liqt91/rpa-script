@@ -1,45 +1,46 @@
 {
+  "cmd": "waitForElement",
   "label": "等待元素出现",
   "runtime": "extension",
+  "category": "页面操作",
   "icon": "fa-eye",
   "iconColor": "text-yellow-500",
   "bgColor": "bg-yellow-50",
   "categoryOrder": 20,
   "commandOrder": 40,
-  "description": "等待页面上的元素出现，超时则失败",
+  "description": "等待页面上的元素出现，轮询检测直到出现或超时",
   "enabled": true,
-  "isNew": true,
   "params": [
     {
-      "name": "element_name",
-      "label": "元素",
+      "name": "elementName",
+      "label": "目标元素",
       "type": "element",
-      "required": true
+      "group": "主属性",
+      "placeholder": "选择一个已捕获的元素"
+    },
+    {
+      "name": "timeout",
+      "label": "超时时间（秒）",
+      "type": "number",
+      "default": 10,
+      "group": "advanced",
+      "description": "超过此时间元素未出现则失败"
     },
     {
       "name": "visibilityMode",
-      "label": "元素可见性",
+      "label": "可见性",
       "type": "select",
       "options": [
-        {
-          "label": "仅可见",
-          "value": "visible"
-        },
-        {
-          "label": "所有",
-          "value": "any"
-        }
+        {"label": "仅可见", "value": "visible"},
+        {"label": "所有", "value": "any"}
       ],
-      "default": "visible"
+      "default": "visible",
+      "group": "advanced"
     }
   ],
-  "pythonAction": "wait",
   "handler": {
     "kind": "extension",
-    "source": "extension/handlers/waitForElement.js"
+    "source": "extension/dom_handlers_new/waitForElement.js"
   },
-  "categories": [
-    "wait"
-  ],
-  "cmd": "waitForElement"
+  "categories": ["page"]
 }
