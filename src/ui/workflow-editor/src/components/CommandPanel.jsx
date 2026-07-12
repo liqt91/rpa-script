@@ -74,11 +74,11 @@ export default function CommandPanel() {
   }, []);
 
   const createDragImage = (cmd) => {
-    const typeInfo = unifiedTypeMap[cmd.type] || {};
+    const typeInfo = unifiedTypeMap[cmd.cmd] || {};
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;left:-9999px;top:0;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.15);border:1px solid #1677ff;width:240px;font-size:12px;pointer-events:none;z-index:99999;';
     const iconHtml = `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;background:${typeInfo.bgColor ? '' : '#f5f5f5'};color:${typeInfo.iconColor || '#9ca3af'};font-size:10px;"><i class="fas ${typeInfo.icon || 'fa-circle'}"></i></span>`;
-    const labelHtml = `<span style="color:#374151;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">${typeInfo.label || cmd.label || cmd.type}</span>`;
+    const labelHtml = `<span style="color:#374151;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">${typeInfo.label || cmd.label || cmd.cmd}</span>`;
     el.innerHTML = iconHtml + labelHtml;
     document.body.appendChild(el);
     return el;
@@ -95,10 +95,10 @@ export default function CommandPanel() {
   };
 
   const handleAdd = async (nodeType) => {
-    console.log(`[CommandPanel] add nodeType=${nodeType.type}`);
+    console.log(`[CommandPanel] add nodeType=${nodeType.cmd}`);
     try {
       // Build default extra from command schema
-      const cmd = allCommandsByCat[nodeType.category]?.find(c => c.type === nodeType.type);
+      const cmd = allCommandsByCat[nodeType.category]?.find(c => c.cmd === nodeType.cmd);
       const defaultExtra = {};
       if (cmd?.fields) {
         for (const f of cmd.fields) {
@@ -109,10 +109,10 @@ export default function CommandPanel() {
       }
 
       // Auto derive parent_id based on list position
-      const parentId = deriveParentId(nodes, nodeType.type, unifiedTypeMap);
+      const parentId = deriveParentId(nodes, nodeType.cmd, unifiedTypeMap);
 
       await saveNode({
-        type: nodeType.type,
+        type: nodeType.cmd,
         parent_id: parentId,
         extra: defaultExtra,
       });
@@ -148,11 +148,11 @@ export default function CommandPanel() {
 
   const renderCommandItem = (cmd) => (
     <div
-      key={cmd.type}
+      key={cmd.cmd}
       className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-grab text-xs text-gray-600 draggable-item ${cmd.isNew ? 'border-l-2 border-l-blue-400' : ''}`}
       draggable
       onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', JSON.stringify({ type: cmd.type, category: cmd.category }));
+        e.dataTransfer.setData('text/plain', JSON.stringify({ type: cmd.cmd, category: cmd.category }));
         e.target.classList.add('dragging');
         const img = createDragImage(cmd);
         e.dataTransfer.setDragImage(img, 10, 18);

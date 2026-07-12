@@ -114,7 +114,7 @@ export default function NodeList() {
     for (const [sId, cId] of bracketMatch) containerClose.set(cId, sId);
     for (let i = indices[0]; i <= indices[indices.length - 1]; i++) {
       const node = treeNodes[i];
-      const info = NODE_TYPE_MAP[node.type];
+      const info = NODE_TYPE_MAP[node.cmd];
       if (info?.isContainer) {
         const closeId = containerClose.get(node.id);
         if (closeId && !selectedNodeIds.has(closeId)) {
@@ -330,7 +330,7 @@ export default function NodeList() {
     if (!raw) return;
     let payload;
     try { payload = JSON.parse(raw); } catch { payload = { type: raw }; }
-    const nodeType = payload.type;
+    const nodeType = payload.cmd;
     if (!nodeType) return;
     const typeInfo = NODE_TYPE_MAP[nodeType];
     if (!typeInfo) return;
@@ -368,7 +368,7 @@ export default function NodeList() {
           <div className="w-full space-y-0.5 relative">
             {dragOver && insertIndex === 0 && <InsertPlaceholder />}
             {treeNodes.map((node, idx) => {
-              const typeInfo = NODE_TYPE_MAP[node.type] || {};
+              const typeInfo = NODE_TYPE_MAP[node.cmd] || {};
               const nextNode = treeNodes[idx + 1];
               const hasChildren = nextNode && nextNode.depth === (node.depth || 0) + 1;
               const isSelected = selectedNodeIds.has(node.id);
@@ -471,7 +471,7 @@ export default function NodeList() {
 // ─── 子组件 ───────────────────────────────────────────────────
 
 function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect, onDelete, onToggleEnabled, onDragStart, isRunning, runError, elements, warningBand }) {
-  const typeInfo = NODE_TYPE_MAP[node.type] || {};
+  const typeInfo = NODE_TYPE_MAP[node.cmd] || {};
   const depth = node.depth || 0;
   const indent = depth * 20;
   const isDisabled = node.enabled === 0;
@@ -535,7 +535,7 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <div className="text-xs font-medium text-gray-800">{typeInfo.label || node.type}</div>
+          <div className="text-xs font-medium text-gray-800">{typeInfo.label || node.cmd}</div>
           {runError && (
             <span className="text-[10px] text-red-600 bg-red-100 px-1 rounded truncate max-w-[200px]" title={runError}>
               {runError}
@@ -607,10 +607,10 @@ function V({ children }) {
 }
 
 function getNodeDesc(node, NODE_TYPE_MAP, elements) {
-  const typeInfo = NODE_TYPE_MAP[node.type];
+  const typeInfo = NODE_TYPE_MAP[node.cmd];
   const extra = node.extra && typeof node.extra === 'object' ? node.extra : {};
   const hasElement = typeInfo?.fields?.some(f => f.name === 'element_name');
-  const isCondition = node.type.startsWith('if');
+  const isCondition = node.cmd.startsWith('if');
   const hiddenDescFields = new Set(
     (typeInfo?.fields || [])
       .filter(f => f.group === 'advanced' || f.group === 'anchor' || f.hidden)
@@ -643,12 +643,12 @@ function getNodeDesc(node, NODE_TYPE_MAP, elements) {
       }
     }
 
-    if (parts.length === 0) return typeInfo?.label || node.type;
+    if (parts.length === 0) return typeInfo?.label || node.cmd;
     return <span className="space-x-1.5">{parts}</span>;
   }
 
   const summary = summarizeExtra(extra, typeInfo, hiddenDescFields);
-  return summary || typeInfo?.label || node.type;
+  return summary || typeInfo?.label || node.cmd;
 }
 
 function summarizeExtra(extra, typeInfo, hiddenDescFields) {
