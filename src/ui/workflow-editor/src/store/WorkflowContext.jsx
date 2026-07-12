@@ -336,7 +336,7 @@ function getCategories(commands) {
 }
 
 function getNodeTypeMap(nodeTypes) {
-  return Object.fromEntries(nodeTypes.map(n => [n.type, n]));
+  return Object.fromEntries(nodeTypes.map(n => [n.cmd, n]));
 }
 
 function getContainerTypes(commands) {
