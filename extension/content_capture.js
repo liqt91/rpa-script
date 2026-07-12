@@ -3051,7 +3051,7 @@
           if (s.total > 0) {
             stats = s;
             matchedSelector = sel;
-            highlightSelectorMatches(sel, selType);
+            document.body.style.outline="5px solid red"; highlightSelectorMatches(sel, selType);
             break;
           }
         }
