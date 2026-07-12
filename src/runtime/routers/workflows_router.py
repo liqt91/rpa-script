@@ -191,6 +191,13 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
             except Exception:
                 pass
 
+        # Normalize field types for NodeForm (new type names -> old)
+        _FTYPE = {"string": "str-input", "text": "str-textarea", "number": "int-number",
+                   "boolean": "bool-check", "select": "str-dropdown", "code": "any-expr",
+                   "element": "str-element"}
+        for f in handler_fields:
+            f["type"] = _FTYPE.get(f.get("type", ""), f.get("type", "str-input"))
+
         cmd = {
             **reg_cmd,
             "id": row.id,

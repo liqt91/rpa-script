@@ -14,10 +14,18 @@ COMMANDS_DIR = ROOT / "commands"
 
 def _normalize_field(field: dict) -> dict:
     """Convert JSON param definition to workflow-editor field schema."""
+    # Map new type names to NodeForm-compatible old names
+    _TYPE_MAP = {
+        "string": "str-input", "text": "str-textarea",
+        "number": "int-number", "boolean": "bool-check",
+        "select": "str-dropdown", "code": "any-expr",
+        "element": "str-element", "hidden": "hidden",
+    }
+    field_type = field.get("type", "str-input")
     out = {
         "name": field["name"],
         "label": field.get("label", field["name"]),
-        "type": field.get("type", "str-input"),
+        "type": _TYPE_MAP.get(field_type, field_type),
         "group": field.get("group", "主属性"),
     }
     if field.get("required"):
