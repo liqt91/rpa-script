@@ -686,3 +686,26 @@ async def save_value_types(request: Request, user=Depends(auth.get_current_user)
     return {"ok": True}
 
 
+# ─── Categories JSON (same pattern as value-types) ──────────
+
+_CATEGORIES_PATH = _COMMANDS_DIR.parent / "src" / "runtime" / "commands" / "types" / "categories.json"
+
+
+@router.get("/categories-json")
+def get_categories_json(user=Depends(auth.get_current_user)):
+    """Return project-level category definitions as JSON."""
+    if not _CATEGORIES_PATH.exists():
+        return {"categories": []}
+    with open(_CATEGORIES_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@router.put("/categories-json")
+async def save_categories_json(request: Request, user=Depends(auth.get_current_user)):
+    _CATEGORIES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    body = json.loads(await request.body())
+    with open(_CATEGORIES_PATH, "w", encoding="utf-8") as f:
+        json.dump(body, f, ensure_ascii=False, indent=2)
+    return {"ok": True}
+
+

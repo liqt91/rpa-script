@@ -150,6 +150,16 @@ export const api = {
 
   // Command categories
   getCategories: () => request('/api/command-categories'),
+  getCategoriesJson: () => request('/api/commands/categories-json'),
+  saveCategoriesJson: (data) => request('/api/commands/categories-json', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  getValueTypes: () => request('/api/commands/value-types'),
+  saveValueTypes: (data) => request('/api/commands/value-types', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
 
   // Run logs
   listAllRuns: () => request('/api/workflows/runs'),
