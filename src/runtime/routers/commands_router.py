@@ -47,7 +47,7 @@ def list_commands(
     for r in rows:
         row = {
             "id": r.id,
-            "type": r.type,
+            "type": r.cmd,
             "label": r.label,
             "category": r.category,
             "icon": r.icon,
@@ -71,7 +71,7 @@ def list_commands(
         }
         # 从 handler 注册表补充运行时元数据
         from src.runtime.workflow.handlers.registry import get_handler
-        h = get_handler(r.type)
+        h = get_handler(r.cmd)
         if h:
             row["hasRuntime"] = h["runtime"] != "control"
             row["isContainer"] = h.get("isContainer")
@@ -403,7 +403,7 @@ def export_csv(db: Session = Depends(get_db), user=Depends(auth.get_current_user
     for r in rows:
         writer.writerow([
             r.category,
-            r.type,
+            r.cmd,
             r.label,
             "是" if r.is_container else "否",
             "是" if r.is_branch else "否",
