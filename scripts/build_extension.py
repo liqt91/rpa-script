@@ -49,7 +49,7 @@ def main():
         print(f"\n--- {script} ---")
         subprocess.run([sys.executable, script_path], check=True)
 
-    print("\n✅ Extension build complete: " + DST_DIR)
+    print("\nOK - Extension build complete: " + DST_DIR)
 
 
 if __name__ == "__main__":
