@@ -454,23 +454,14 @@ export default function NodeForm() {
 
 /**
  * Detect if cursor is inside an unfinished variable reference.
- * Returns { start, end, prefix, hasBrace } or null.
+ * Returns { start, end, prefix } or null.
  */
 function findVarContext(value, cursorPos) {
   let i = cursorPos - 1;
-  // skip variable-name chars left of cursor
   while (i >= 0 && /[a-zA-Z0-9_]/.test(value[i])) i--;
-  // case: {{name  (new syntax)
+  // case: {{name
   if (i >= 0 && value[i] === '{' && i - 1 >= 0 && value[i - 1] === '{') {
-    return { start: i - 1, end: cursorPos, prefix: value.slice(i + 1, cursorPos), hasBrace: true };
-  }
-  // case: ${name  (old syntax — keep backward compat)
-  if (i >= 0 && value[i] === '{' && i - 1 >= 0 && value[i - 1] === '$') {
-    return { start: i - 1, end: cursorPos, prefix: value.slice(i + 1, cursorPos), hasBrace: true };
-  }
-  // case: $name (bare old syntax — trigger dropdown)
-  if (i >= 0 && value[i] === '$') {
-    return { start: i, end: cursorPos, prefix: value.slice(i + 1, cursorPos), hasBrace: false };
+    return { start: i - 1, end: cursorPos, prefix: value.slice(i + 1, cursorPos) };
   }
   return null;
 }
@@ -481,7 +472,7 @@ function findVarContext(value, cursorPos) {
  */
 function VarInput({ value, onChange, placeholder, className, vars, multiline = false, enableFullscreen = false, fullscreenMode = 'code', fullscreenTitle = '编辑' }) {
   const inputRef = useRef(null);
-  const [ctx, setCtx] = useState(null); // { start, end, prefix, hasBrace }
+  const [ctx, setCtx] = useState(null); // { start, end, prefix }
   const ctxRef = useRef(ctx);
   useEffect(() => { ctxRef.current = ctx; }, [ctx]);
   const [highlighted, setHighlighted] = useState(0);
@@ -504,8 +495,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
   const insertVar = useCallback((varName) => {
     if (!ctx || !inputRef.current) return;
     const val = String(value ?? '');
-    const replacement = ctx.hasBrace ? `${varName}}}` : `{{${varName}}}`;
-    const before = val.slice(0, ctx.start) + replacement;
+    const before = val.slice(0, ctx.start) + `{{${varName}}}`;
     const after = val.slice(ctx.end);
     const newVal = before + after;
     const cursorPos = before.length;
@@ -530,7 +520,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
         current.start === found.start &&
         current.end === found.end &&
         current.prefix === found.prefix &&
-        current.hasBrace === found.hasBrace
+        true
       ) {
         // Same context (e.g. arrow keys) — keep current highlight.
         return;
