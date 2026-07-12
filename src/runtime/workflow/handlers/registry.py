@@ -102,7 +102,7 @@ def register_handler(
                 params.append(p.to_dict() if isinstance(p, Param) else p)
 
         _HANDLER_REGISTRY[cmd] = {
-            "cmd": type,
+            "cmd": cmd,
             "label": label,
             "category": category,
             "runtime": runtime,
