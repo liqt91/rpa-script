@@ -47,7 +47,7 @@ def list_commands(
     for r in rows:
         row = {
             "id": r.id,
-            "type": r.cmd,
+            "cmd": r.cmd,
             "label": r.label,
             "category": r.category,
             "icon": r.icon,
@@ -123,7 +123,7 @@ def check_handler_sync(user=Depends(auth.get_current_user)):
 
 @router.post("")
 def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
-    type_name = payload.get("type", "").strip()
+    type_name = payload.get("cmd", "").strip()
     if not type_name:
         raise HTTPException(status_code=400, detail="type is required")
     existing = db.query(models.WorkflowCommand).filter(models.WorkflowCommand.cmd == type_name).first()
@@ -153,7 +153,7 @@ def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=
     db.add(cmd)
     db.commit()
     db.refresh(cmd)
-    return {"id": cmd.id, "type": cmd.cmd}
+    return {"id": cmd.id, "cmd": cmd.cmd}
 
 
 @router.put("/{cmd_id}")
@@ -229,16 +229,16 @@ def get_command_source(cmd_id: int, db: Session = Depends(get_db), user=Depends(
     if h and h.get("handler_class"):
         try:
             source = inspect.getsource(h["handler_class"])
-            return {"type": cmd.cmd, "source": source}
+            return {"cmd": cmd.cmd, "source": source}
         except Exception:
             pass
 
     # Fallback: try emitter source
     emitter = h.get("emitter_handler")
     if emitter:
-        return {"type": cmd.cmd, "source": f"# Emitter ({cmd.cmd})\n# Source not available via inspect", "fallback": True}
+        return {"cmd": cmd.cmd, "source": f"# Emitter ({cmd.cmd})\n# Source not available via inspect", "fallback": True}
 
-    return {"type": cmd.cmd, "source": None, "fallback": True}
+    return {"cmd": cmd.cmd, "source": None, "fallback": True}
 
 
 @router.delete("/{cmd_id}")
@@ -350,7 +350,7 @@ def _analyze_command_recommendation(cmd_type: str, fields: list, is_container: b
 @router.post("/analyze")
 def analyze_command(payload: dict[str, Any], user=Depends(auth.get_current_user)):
     """Smart analysis: recommend runtime config + run consistency checks for a single command."""
-    cmd_type = payload.get("type", "")
+    cmd_type = payload.get("cmd", "")
     fields = payload.get("fields", [])
     is_container = payload.get("isContainer", False)
     is_structural = payload.get("isStructural", False)
@@ -525,8 +525,8 @@ def get_handler_source(type_name: str, user=Depends(auth.get_current_user)):
     for sub in _RUNTIME_DIRS:
         fp = _HANDLERS_BASE_DIR / sub / f"{type_name}.py"
         if fp.exists():
-            return {"type": type_name, "code": fp.read_text(encoding="utf-8"), "exists": True}
-    return {"type": type_name, "code": "", "exists": False}
+            return {"cmd": type_name, "code": fp.read_text(encoding="utf-8"), "exists": True}
+    return {"cmd": type_name, "code": "", "exists": False}
 
 
 @router.post("/definitions/{type_name}/save-handler")
@@ -561,17 +561,17 @@ def get_js_handler_source(type_name: str, user=Depends(auth.get_current_user)):
     """Return the JS handler source for an extension command."""
     def_fp = _COMMANDS_DIR / f"{type_name}.json"
     if not def_fp.exists():
-        return {"type": type_name, "code": "", "exists": False}
+        return {"cmd": type_name, "code": "", "exists": False}
     with open(def_fp, encoding="utf-8") as f2:
         definition = json.load(f2)
     handler = definition.get("handler", {})
     source_path = handler.get("source", "")
     if not source_path:
-        return {"type": type_name, "code": "", "exists": False}
+        return {"cmd": type_name, "code": "", "exists": False}
     fp = _Path(__file__).resolve().parent.parent.parent.parent / source_path
     if not fp.exists():
-        return {"type": type_name, "code": "", "exists": False, "path": source_path}
-    return {"type": type_name, "code": fp.read_text(encoding="utf-8"), "exists": True, "path": source_path}
+        return {"cmd": type_name, "code": "", "exists": False, "path": source_path}
+    return {"cmd": type_name, "code": fp.read_text(encoding="utf-8"), "exists": True, "path": source_path}
 
 
 @router.post("/definitions/{type_name}/save-js-handler")
