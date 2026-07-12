@@ -28,7 +28,7 @@
   ],
   "handler": {
     "kind": "extension",
-    "source": "extension/dom_handlers_new/getText.js"
+    "source": "extension/dom_handlers/getText.js"
   },
   "categories": ["page"]
 }

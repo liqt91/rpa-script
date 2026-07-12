@@ -1649,10 +1649,11 @@ registerHandler('clickElement', async (args) => doClick(args));
 
   // ── getText ──
 
-registerHandler('getText', async function handler(args) {
-  // Source file not found: extension/dom_handlers_new/getText.js
-  return { ok: true };
-});
+
+registerHandler('getText', async (args) => {
+      args.extra = { ...(args.extra || {}), action: 'getText' };
+      return doExtract(args);
+  });
 
 
   // ── inputElement ──
