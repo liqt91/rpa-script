@@ -154,7 +154,7 @@ class WorkflowNodeIn(BaseModel):
     id: Optional[int] = None
     parent_id: Optional[int] = None
     order: int = 0
-    type: str
+    cmd: str
     action: Optional[str] = None
     element_name: Optional[str] = None
     enabled: Optional[int] = 1
@@ -168,7 +168,7 @@ class WorkflowNodeOut(BaseModel):
     workflow_id: int
     parent_id: Optional[int] = None
     order: int
-    type: str
+    cmd: str
     action: Optional[str] = None
     element_name: Optional[str] = None
     enabled: Optional[int] = None

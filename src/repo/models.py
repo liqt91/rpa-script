@@ -134,8 +134,7 @@ class WorkflowNode(Base):
     workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
     parent_id = Column(Integer, ForeignKey("workflow_nodes.id"), nullable=True)  # 嵌套: forEach/if body
     order = Column(Integer, default=0)
-    # node types: click|input|getText|hover|getAttr|findWithin|waitFor|forEach|if|else|endFor|endIf|custom
-    type = Column(String(32), nullable=False)
+    cmd = Column("type", String(32), nullable=False)
     action = Column(String(32), nullable=True)
     element_name = Column(String(128), nullable=True)  # 引用 workflow_elements.name
     extra = Column(Text, default="{}")        # JSON: {text, attrName, subSelector, seconds, description}

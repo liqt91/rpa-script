@@ -73,12 +73,12 @@ export default function CommandsPage() {
   }
 
   async function handleViewSource(cmd) {
-    setViewSource({ type: cmd.type, source: null, loading: true });
+    setViewSource({ type: cmd.cmd, source: null, loading: true });
     try {
       const data = await api.request(`/api/commands/${cmd.id}/source`);
       setViewSource({ type: data.type, source: data.source, loading: false });
     } catch (e) {
-      setViewSource({ type: cmd.type, source: null, loading: false, error: e.message });
+      setViewSource({ type: cmd.cmd, source: null, loading: false, error: e.message });
     }
   }
 
@@ -109,8 +109,8 @@ export default function CommandsPage() {
           <tbody>{cmds.map(cmd=>{
             const ctrl=controlLabel(cmd);
             const isControl=!!ctrl;
-            return(<tr key={cmd.type} className="border-b border-gray-700/30 hover:bg-[#252f47] cursor-pointer" onClick={()=>setEditCmd({...type,fields:JSON.parse(JSON.stringify(cmd.fields||[]))})}>
-            <td className="px-3 py-2 font-mono text-blue-300 truncate">{cmd.type}</td>
+            return(<tr key={cmd.cmd} className="border-b border-gray-700/30 hover:bg-[#252f47] cursor-pointer" onClick={()=>setEditCmd({...type,fields:JSON.parse(JSON.stringify(cmd.fields||[]))})}>
+            <td className="px-3 py-2 font-mono text-blue-300 truncate">{cmd.cmd}</td>
             <td className="px-3 py-2 text-gray-300 truncate">{cmd.label||'-'}</td>
             <td className="px-3 py-2 text-center">{cmd.enabled!==false?<span className="px-1.5 py-0.5 bg-green-900/40 text-green-300 rounded text-[10px]">启用</span>:<span className="px-1.5 py-0.5 bg-gray-700/50 text-gray-400 rounded text-[10px]">禁用</span>}</td>
             <td className="px-3 py-2 text-center">{isControl?<span className="px-1.5 py-0.5 bg-yellow-900/40 text-yellow-300 rounded text-[10px]">控制</span>:<span className="px-1.5 py-0.5 bg-blue-900/40 text-blue-300 rounded text-[10px]">操作</span>}</td>
@@ -129,7 +129,7 @@ export default function CommandsPage() {
       <div className="bg-[#1e293b] rounded-xl border border-gray-700 w-[740px] max-w-[95vw] max-h-[90vh] flex flex-col" onClick={e=>e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-gray-700 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <h3 className="text-base font-semibold text-white font-mono">{editCmd.type}</h3>
+            <h3 className="text-base font-semibold text-white font-mono">{editCmd.cmd}</h3>
             <span className="text-xs text-gray-400">{editCmd.label}</span>
             <span className={`px-1.5 py-0.5 rounded text-[10px] ${isControl?'bg-yellow-900/40 text-yellow-300':'bg-blue-900/40 text-blue-300'}`}>{isControl?'控制指令':'操作指令'}</span>
           </div>
@@ -175,7 +175,7 @@ export default function CommandsPage() {
             {viewSource && (
               <div className="border border-gray-700/50 rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 bg-[#0f172a]/80 border-b border-gray-700/50">
-                  <span className="text-[10px] text-gray-400 font-mono">{viewSource.type} source</span>
+                  <span className="text-[10px] text-gray-400 font-mono">{viewSource.cmd} source</span>
                   <button onClick={() => setViewSource(null)} className="text-gray-400 hover:text-white"><i className="fas fa-times"></i></button>
                 </div>
                 {viewSource.loading ? (
@@ -276,7 +276,7 @@ export default function CommandsPage() {
           <div>
             <div className="flex items-center gap-2 mb-3"><span className={`w-5 h-5 rounded-full ${isControl?'bg-green-600':'bg-blue-600'} text-white text-[10px] font-bold flex items-center justify-center shrink-0`}>{isControl?'③':'④'}</span><span className="text-xs font-medium text-gray-300">基本信息</span><span className="text-[10px] text-gray-500">— 可修改</span></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-[10px] text-gray-500 mb-1">类型标识（唯一ID，不可改）</label><input value={editCmd.type} disabled className="w-full px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-400 text-xs font-mono"/></div>
+              <div><label className="block text-[10px] text-gray-500 mb-1">类型标识（唯一ID，不可改）</label><input value={editCmd.cmd} disabled className="w-full px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-400 text-xs font-mono"/></div>
               <div><label className="block text-[10px] text-gray-500 mb-1">中文显示名</label><input value={editCmd.label||''} onChange={e=>setEditCmd({...editCmd,label:e.target.value})} className="w-full px-2 py-1.5 bg-[#0f172a] border border-gray-600 rounded text-white text-xs outline-none focus:border-blue-500"/></div>
               <div><label className="block text-[10px] text-gray-500 mb-1">分类</label><select value={editCmd.category||''} onChange={e=>setEditCmd({...editCmd,category:e.target.value})} className="w-full px-2 py-1.5 bg-[#0f172a] border border-gray-600 rounded text-white text-xs outline-none focus:border-blue-500">{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
               <div><label className="block text-[10px] text-gray-500 mb-1">说明（悬停提示）</label><textarea value={editCmd.description||''} onChange={e=>setEditCmd({...editCmd,description:e.target.value})} rows={2} className="w-full px-2 py-1.5 bg-[#0f172a] border border-gray-600 rounded text-white text-xs outline-none focus:border-blue-500 resize-none" placeholder="描述该指令的功能和使用场景"/></div>

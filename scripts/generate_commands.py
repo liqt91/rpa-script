@@ -100,7 +100,7 @@ def generate_py(d: dict) -> str:
     category = _category(d)
 
     # Build class name
-    class_name = f"{d['type'][0].upper()}{d['type'][1:]}Handler"
+    class_name = f"{d['cmd'][0].upper()}{d['cmd'][1:]}Handler"
 
     # Build params list (8-space indent for class body)
     param_lines = []
@@ -163,7 +163,7 @@ def generate_js(d: dict) -> str:
     source = handler.get("source", "")
 
     if func:
-        return f"\nregisterHandler('{d['type']}', async (args) => {func}(args));\n"
+        return f"\nregisterHandler('{d['cmd']}', async (args) => {func}(args));\n"
 
     if source:
         src_path = ROOT / source
@@ -171,7 +171,7 @@ def generate_js(d: dict) -> str:
             return src_path.read_text(encoding="utf-8")
         # Source file not found — generate a stub
         return (
-            f"\nregisterHandler('{d['type']}', async function handler(args) {{\n"
+            f"\nregisterHandler('{d['cmd']}', async function handler(args) {{\n"
             f"  // Source file not found: {source}\n"
             f"  return {{ ok: true }};\n"
             f"}});\n"
@@ -179,7 +179,7 @@ def generate_js(d: dict) -> str:
 
     # Neither function nor source — generate TODO stub
     return (
-        f"\nregisterHandler('{d['type']}', async function handler(args) {{\n"
+        f"\nregisterHandler('{d['cmd']}', async function handler(args) {{\n"
         f"  // TODO: implement {d['label']}\n"
         f"  return {{ ok: true }};\n"
         f"}});\n"
@@ -205,7 +205,7 @@ def write_outputs(defs: list[dict]):
 
         # Python handler — extension generates stub; backend/control are hand-written
         py_code = generate_py(d)
-        py_path = py_dir / f"{d['type']}.py"
+        py_path = py_dir / f"{d['cmd']}.py"
         os.makedirs(py_path.parent, exist_ok=True)
 
         if kind in ("", "extension"):
@@ -226,7 +226,7 @@ def write_outputs(defs: list[dict]):
                 print(f"  SKIP JS (background handler: {source})")
             else:
                 js_code = generate_js(d)
-                js_path = js_dir / f"{d['type']}.js"
+                js_path = js_dir / f"{d['cmd']}.js"
                 os.makedirs(js_path.parent, exist_ok=True)
                 if js_path.exists():
                     print(f"  KEEP {js_path} (exists)")

@@ -127,7 +127,7 @@ export default function NodeForm() {
   const commit = (nextForm, nextExtra) => {
     if (!selectedNode) return;
     const payload = buildPayload(nextForm, nextExtra);
-    console.log(`[NodeForm] autoSave id=${selectedNode.id} type=${payload.type}`, payload);
+    console.log(`[NodeForm] autoSave id=${selectedNode.id} type=${payload.cmd}`, payload);
     updateNode(payload);
   };
 
@@ -223,7 +223,7 @@ export default function NodeForm() {
     <aside className="w-[280px] bg-white border-l border-[#e8e8e8] flex flex-col shrink-0 select-none overflow-hidden">
       <div className="px-4 py-3 border-b border-[#e8e8e8]">
         <h2 className="text-sm font-medium text-gray-700">节点属性</h2>
-        <p className="text-xs text-gray-500">#{selectedNode.order} {command?.label || selectedNode.type}</p>
+        <p className="text-xs text-gray-500">#{selectedNode.order} {command?.label || selectedNode.cmd}</p>
         {command?.description && (
           <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed bg-gray-50 rounded px-2 py-1.5 border border-gray-100">
             {command.description}
@@ -387,7 +387,7 @@ export default function NodeForm() {
                                   <span className="relative inline-flex items-center justify-center w-4 h-4 ml-1.5 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-500 text-[10px] font-bold cursor-help select-none group">
                                     ?
                                     <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[11px] rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
-                                      >回传: {(TYPE_INFO[field.type]||{}).type||'str'} | 示例: {(TYPE_INFO[field.type]||{}).example||field.placeholder||'—'}</span>
+                                      >回传: {(TYPE_INFO[field.cmd]||{}).type||'str'} | 示例: {(TYPE_INFO[field.cmd]||{}).example||field.placeholder||'—'}</span>
                                   </span>
                                 </td>
                                 <td className="px-3 py-2 align-middle">
@@ -397,7 +397,7 @@ export default function NodeForm() {
                                     onChange={(v) => handleExtraChange(field.name, v)}
                                     availableVars={availableVars}
                                     elements={elements}
-                                    fullscreenTitle={`#${selectedNode.order} ${command?.label || selectedNode.type}-${field.label || field.name}`}
+                                    fullscreenTitle={`#${selectedNode.order} ${command?.label || selectedNode.cmd}-${field.label || field.name}`}
                                   />
                                   {field.description && (
                                     <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
@@ -432,7 +432,7 @@ export default function NodeForm() {
                     <option value="">无 (顶层)</option>
                     {containerNodes.map(n => (
                       <option key={n.id} value={n.id}>
-                        #{n.order} {NODE_TYPE_MAP[n.type]?.label || n.type}{n.element_name ? ` - ${n.element_name}` : ''}
+                        #{n.order} {NODE_TYPE_MAP[n.type]?.label || n.cmd}{n.element_name ? ` - ${n.element_name}` : ''}
                       </option>
                     ))}
                   </select>
@@ -441,7 +441,7 @@ export default function NodeForm() {
               <div>
                 <label className="block text-xs text-gray-500 mb-1">节点类型</label>
                 <div className="px-2 py-1.5 bg-gray-50 border border-[#d9d9d9] rounded text-sm text-gray-500">
-                  {command?.label || selectedNode.type}
+                  {command?.label || selectedNode.cmd}
                 </div>
               </div>
             </div>
@@ -837,7 +837,7 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
   const inputClass = "w-full px-3 py-2 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]";
   const currentValue = value !== undefined ? value : (field.default ?? '');
 
-  switch (field.type) {
+  switch (field.cmd) {
     case 'bool-check':
       return (
         <input
