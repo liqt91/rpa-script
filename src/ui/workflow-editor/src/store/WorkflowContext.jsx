@@ -651,7 +651,7 @@ export function WorkflowProvider({ children, wfId }) {
   }, [persistToLocal]);
 
   const updateNode = useCallback((payload) => {
-    console.log(`[WorkflowContext] updateNode id=${payload.id} type=${payload.type}`);
+    console.log(`[WorkflowContext] updateNode id=${payload.id} type=${payload.cmd}`);
     dispatch({ type: 'UPDATE_NODE_LOCAL', payload });
     setTimeout(() => persistToLocal(), 0);
   }, [persistToLocal]);

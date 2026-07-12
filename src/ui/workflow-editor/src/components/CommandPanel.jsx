@@ -112,7 +112,7 @@ export default function CommandPanel() {
       const parentId = deriveParentId(nodes, nodeType.cmd, unifiedTypeMap);
 
       await saveNode({
-        type: nodeType.cmd,
+        cmd: nodeType.cmd,
         parent_id: parentId,
         extra: defaultExtra,
       });
@@ -152,7 +152,7 @@ export default function CommandPanel() {
       className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-grab text-xs text-gray-600 draggable-item ${cmd.isNew ? 'border-l-2 border-l-blue-400' : ''}`}
       draggable
       onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', JSON.stringify({ type: cmd.cmd, category: cmd.category }));
+        e.dataTransfer.setData('text/plain', JSON.stringify({ cmd: cmd.cmd, category: cmd.category }));
         e.target.classList.add('dragging');
         const img = createDragImage(cmd);
         e.dataTransfer.setDragImage(img, 10, 18);

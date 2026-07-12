@@ -329,7 +329,7 @@ export default function NodeList() {
     const raw = e.dataTransfer.getData('text/plain');
     if (!raw) return;
     let payload;
-    try { payload = JSON.parse(raw); } catch { payload = { type: raw }; }
+    try { payload = JSON.parse(raw); } catch { payload = { cmd: raw }; }
     const nodeType = payload.cmd;
     if (!nodeType) return;
     const typeInfo = NODE_TYPE_MAP[nodeType];
@@ -345,7 +345,7 @@ export default function NodeList() {
     }
     const parentId = deriveParentId(nodes, nodeType, NODE_TYPE_MAP, idx);
     saveNode({
-      type: nodeType,
+      cmd: nodeType,
       parent_id: parentId,
       extra: defaultExtra,
     }, idx);
