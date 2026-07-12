@@ -46,7 +46,7 @@ def _runtime_info(d: dict) -> dict:
     local = rtype == "backend"
     # The actual handler name used at runtime equals the command type for
     # generated delegate handlers; custom/backend reference their impl source.
-    handler_name = d["type"] if kind == "delegate" else handler.get("source") or d["type"]
+    handler_name = d["cmd"] if kind == "delegate" else handler.get("source") or d["cmd"]
     return {"hasRuntime": True, "local": local, "handler": handler_name}
 
 
@@ -77,8 +77,8 @@ def load_new_catalog() -> dict[str, Any]:
 
         runtime = _runtime_info(d)
         cmd = {
-            "type": d["type"],
-            "label": d.get("label", d["type"]),
+            "type": d["cmd"],
+            "label": d.get("label", d["cmd"]),
             "category": cats[0] if cats else "其他",
             "icon": d.get("icon", "fa-circle"),
             "iconColor": d.get("iconColor", "text-gray-500"),
@@ -100,9 +100,9 @@ def load_new_catalog() -> dict[str, Any]:
             commands_by_cat[cat].append(cmd)
 
         if cmd["isContainer"]:
-            container_types.append(cmd["type"])
+            container_types.append(cmd["cmd"])
         if cmd["isBranch"]:
-            branch_types.append(cmd["type"])
+            branch_types.append(cmd["cmd"])
 
     # Sort commands inside each category
     for cat in commands_by_cat:
