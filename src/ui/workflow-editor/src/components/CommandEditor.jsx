@@ -772,6 +772,20 @@ export default function CommandEditor() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-gray-400">操作</span>
                       <div className="flex items-center gap-1.5">
+                        <button onClick={async () => {
+                          if (!form || !jsCode) return;
+                          setAiLoading(true); setError(''); setReviewFindings(null);
+                          try {
+                            const definition = { cmd: form.cmd, label: form.label, category: form.category, runtime: form.runtime, description: form.description, params: form.params || [] };
+                            const res = await api.generateWithScenario('command_extension_js', { definition, source: jsCode });
+                            setReviewFindings(res.findings || []);
+                            setStatus(res.findings?.length ? `发现 ${res.findings.length} 个问题` : '未发现问题');
+                          } catch (e) { setError('审查失败: ' + e.message); }
+                          finally { setAiLoading(false); }
+                        }} disabled={aiLoading || !jsCode}
+                          className="text-[10px] px-2 py-1 rounded bg-emerald-600/80 text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                          AI 审查
+                        </button>
                         <button onClick={async () => { try { await api.saveJsHandlerCode(form.cmd, jsCode); setStatus('JS 代码已保存'); } catch(e) { setError('保存失败: ' + e.message); } }} disabled={!jsCode}
                           className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
                           保存
