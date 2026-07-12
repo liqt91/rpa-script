@@ -80,6 +80,29 @@ def _read_handler_from_json(type_name):
             return _json2.load(f2).get("handler")
     return None
 
+
+def _seed_categories_from_json():
+    """从 types/categories.json 同步分类到数据库。slug 冲突时跳过。"""
+    import json as _json3
+    from pathlib import Path as _Path3
+    fp = _Path3(__file__).resolve().parent / "commands" / "types" / "categories.json"
+    if not fp.exists():
+        return
+    with open(fp, encoding="utf-8") as f:
+        data = _json3.load(f)
+    db = models.SessionLocal()
+    try:
+        for cat in data.get("categories", []):
+            slug = cat["slug"]
+            if db.query(models.CommandCategory).filter_by(slug=slug).first():
+                continue
+            db.add(models.CommandCategory(
+                slug=slug, name=cat["name"], icon=cat.get("icon", "fa-folder")))
+        db.commit()
+    finally:
+        db.close()
+
+
 def _seed_commands_to_db(db):
     """将 handler 系统中的内置指令种子同步到数据库。
 
@@ -146,6 +169,9 @@ async def lifespan(app: FastAPI):
     # Re-populate LOCAL_HANDLERS now that new handlers are registered
     from src.runtime.workflow.extension_runner import _populate_local_handlers
     _populate_local_handlers()
+
+    # Seed categories from JSON
+    _seed_categories_from_json()
 
     from . import auth
     db = models.SessionLocal()

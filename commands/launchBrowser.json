@@ -2,7 +2,7 @@
   "label": "打开浏览器",
   "runtime": "extension",
   "category": "浏览器",
-  "icon": "fa-chrome",
+  "icon": "fa-globe",
   "iconColor": "text-blue-500",
   "bgColor": "bg-blue-50",
   "categoryOrder": 10,
@@ -30,7 +30,8 @@
       "name": "url",
       "label": "启动后打开网址",
       "type": "string",
-      "placeholder": "留空则打开 about:blank"
+      "placeholder": "留空则打开 about:blank",
+      "default": "about:blank"
     },
     {
       "name": "windowState",
@@ -62,10 +63,6 @@
       "valueType": "window"
     }
   ],
-  "handler": {
-    "kind": "extension",
-    "source": "extension/background_handlers/launchBrowser.js"
-  },
   "categories": [
     "browser"
   ],

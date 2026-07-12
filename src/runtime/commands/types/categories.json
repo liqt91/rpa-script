@@ -1,0 +1,10 @@
+{
+  "description": "指令分类定义。启动时自动同步到数据库，slug 冲突时跳过。",
+  "categories": [
+    {"slug": "browser", "name": "浏览器", "icon": "fa-chrome"},
+    {"slug": "page", "name": "页面操作", "icon": "fa-mouse-pointer"},
+    {"slug": "variable", "name": "变量", "icon": "fa-code"},
+    {"slug": "logic", "name": "逻辑", "icon": "fa-code-branch"},
+    {"slug": "data", "name": "数据", "icon": "fa-table"}
+  ]
+}
