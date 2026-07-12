@@ -413,6 +413,10 @@ class ExtensionRunner:
             await ext_manager.send_to(self.client_id, "runStarted", {"runId": self.run_id})
 
     async def _emit(self, event: dict) -> None:
+        # Enrich stepComplete events with cmdLabel from instruction
+        if event.get("type") == "stepComplete":
+            event.setdefault("cmdLabel", self._current_step.get("cmdLabel", ""))
+            event.setdefault("cmdType", self._current_step.get("cmdType", ""))
         # Enrich compound stepComplete events with the container's start/end
         # positions so the UI can render the closing marker correctly.
         if (
