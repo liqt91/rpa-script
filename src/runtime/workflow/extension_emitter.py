@@ -381,7 +381,6 @@ def _get_extension_runtime(cmd_type: str) -> dict | None:
         "rightClick": "elementAction", "hover": "elementAction",
         "unhover": "elementAction", "selectOption": "elementAction",
         "getAttr": "elementAction", "getHtml": "elementAction",
-        "getText": "elementAction", "getValue": "elementAction",
         "scrollToBottom": "elementAction", "scrollToTop": "elementAction",
         "scrollBy": "elementAction", "scrollOneScreen": "elementAction",
         "inputAndPressEnter": "elementAction", "clickCurrentLoopItem": "elementAction",
