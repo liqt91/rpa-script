@@ -2565,7 +2565,8 @@
         border: 2px solid #fa8c16; background: rgba(250,140,22,0.10);
         box-sizing: border-box; border-radius: 2px;
       `;
-      document.body.appendChild(hl);
+      const _hlp = document.body || document.documentElement;
+      if (_hlp) _hlp.appendChild(hl);
       anchorHighlightEls.push(hl);
     });
     if (!anchorHighlightNodes.length) return;
