@@ -194,7 +194,7 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
         cmd = {
             **reg_cmd,
             "id": row.id,
-            "type": row.cmd,
+            "cmd": row.cmd,
             "label": row.label or reg_cmd.get("label", row.cmd),
             "category": cat,
             "icon": row.icon or reg_cmd.get("icon", "fa-circle"),
@@ -205,7 +205,7 @@ def list_commands(db: Session = Depends(get_db), user=Depends(auth.get_current_u
             "fields": handler_fields,
         }
 
-        db_row = {"type": row.cmd, "handler": row.handler, "local": row.local}
+        db_row = {"cmd": row.cmd, "handler": row.handler, "local": row.local}
         # 从 handler 注册表补充运行时元数据
         h = get_command(row.cmd)
         cmd["handler"] = db_row.get("handler") or (h["runtimes"]["extension"]["handler"] if h else None)
@@ -329,7 +329,7 @@ def add_node(wf_id: int, payload: schemas.WorkflowNodeIn, db: Session = Depends(
         workflow_id=wf_id,
         parent_id=payload.parent_id,
         order=order,
-        type=payload.type,
+        cmd=payload.cmd,
         action=payload.action,
         element_name=payload.element_name,
         enabled=1 if payload.enabled is None else payload.enabled,
@@ -509,7 +509,7 @@ def add_node_anonymous(wf_id: int, payload: schemas.WorkflowNodeIn, db: Session 
         workflow_id=wf_id,
         parent_id=payload.parent_id,
         order=order,
-        type=payload.type,
+        cmd=payload.cmd,
         action=payload.action,
         element_name=payload.element_name,
         enabled=1 if payload.enabled is None else payload.enabled,
