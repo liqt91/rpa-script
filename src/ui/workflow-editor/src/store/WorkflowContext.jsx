@@ -907,14 +907,13 @@ export function WorkflowProvider({ children, wfId }) {
   // Derived values
   const NODE_TYPES = getNodeTypes(state.commands);
   const CATEGORIES = getCategories(state.commands);
+  const NEW_NODE_TYPES = getNodeTypes(state.newCommands);
+  const NEW_CATEGORIES = getCategories(state.newCommands);
   const NODE_TYPE_MAP = { ...getNodeTypeMap(NODE_TYPES), ...getNodeTypeMap(NEW_NODE_TYPES) };
+  const NEW_NODE_TYPE_MAP = getNodeTypeMap(NEW_NODE_TYPES);
   const selectedNode = state.nodes.find(n => n.id === state.selectedNodeId) || null;
   const containerTypes = [...getContainerTypes(state.commands), ...getContainerTypes(state.newCommands)];
   const containerNodes = state.nodes.filter(n => containerTypes.includes(n.cmd));
-
-  const NEW_NODE_TYPES = getNodeTypes(state.newCommands);
-  const NEW_CATEGORIES = getCategories(state.newCommands);
-  const NEW_NODE_TYPE_MAP = getNodeTypeMap(NEW_NODE_TYPES);
   const newContainerTypes = getContainerTypes(state.newCommands);
 
   const value = {
