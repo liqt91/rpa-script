@@ -364,17 +364,17 @@ export default function Toolbar() {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: evt.nodeId } });
             if (evt.compound || evt._summary) {
               const node = nodes.find(n => n.id === evt.nodeId);
-              const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
+              const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.cmd]?.label || node.cmd}` : evt.stepId;
               const summary = evt._summary ? ` → ${evt._summary}` : '';
               dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'info', msg: `${label}${summary}` } });
             }
           } else if (evt.type === 'stepComplete') {
             dispatch({ type: 'RUN_STEP', payload: { nodeId: null } });
             const node = nodes.find(n => n.id === evt.nodeId);
-            const label = node ? (NODE_TYPE_MAP[node.type]?.label || node.type) : evt.stepId;
+            const label = node ? (NODE_TYPE_MAP[node.cmd]?.label || node.cmd) : evt.stepId;
             const resultStr = evt.result ? formatResult(evt.result) : '完成';
             let msg;
-            if (evt.compound || (node && NODE_TYPE_MAP[node.type]?.isContainer)) {
+            if (evt.compound || (node && NODE_TYPE_MAP[node.cmd]?.isContainer)) {
               const startOrder = evt.order ?? node?.order ?? '';
               const endOrder = evt.endOrder ?? startOrder;
               msg = `#${endOrder} 第#${startOrder}步 ${label}: ${resultStr}`;
@@ -398,7 +398,7 @@ export default function Toolbar() {
             }
           } else if (evt.type === 'stepError') {
             const node = nodes.find(n => n.id === evt.nodeId);
-            const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.type]?.label || node.type}` : evt.stepId;
+            const label = node ? `#${node.order} ${NODE_TYPE_MAP[node.cmd]?.label || node.cmd}` : evt.stepId;
             if (evt.caught) {
               // Errors caught by try/catch are warnings, not workflow failures.
               dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'warn', msg: `${label} 已捕获: ${evt.error}` } });
@@ -747,7 +747,7 @@ function RunResultModal({ result, onClose, nodes, typeMap }) {
     if (!nodes || !r.nodeId) return r.stepId;
     const node = nodes.find(n => n.id === r.nodeId);
     if (!node) return r.stepId;
-    return `#${node.order} ${typeMap[node.type]?.label || node.type}`;
+    return `#${node.order} ${typeMap[node.cmd]?.label || node.cmd}`;
   };
 
   const title = stopped ? '停止执行' : (success ? '运行成功' : '运行失败');
