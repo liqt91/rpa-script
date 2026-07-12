@@ -1,0 +1,29 @@
+{
+  "cmd": "switchTab",
+  "label": "切换标签页",
+  "runtime": "extension",
+  "category": "浏览器",
+  "icon": "fa-exchange-alt",
+  "iconColor": "text-blue-500",
+  "bgColor": "bg-blue-50",
+  "categoryOrder": 10,
+  "commandOrder": 40,
+  "description": "切换到指定浏览器窗口的活跃标签页",
+  "enabled": true,
+  "params": [
+    {
+      "name": "windowVar",
+      "label": "浏览器窗口",
+      "type": "string",
+      "default": "browser1",
+      "group": "input",
+      "valueType": "window",
+      "placeholder": "如 browser1"
+    }
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/background_handlers/switchTab.js"
+  },
+  "categories": ["browser"]
+}
