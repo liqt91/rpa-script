@@ -682,7 +682,7 @@ export default function CommandEditor() {
                             <input value={p.description || ''} onChange={e => updateParam(i, 'description', e.target.value)}
                               className={`${inputCls} text-[10px]`} placeholder="向用户说明该参数的用途" />
                           </div>
-                          {(p.type === 'str-dropdown') && (
+                          {(p.type === 'select' || p.type === 'str-dropdown') && (
                             <div>
                               <div className="text-[9px] text-gray-500 mb-0.5 flex items-center justify-between">
                                 <span>下拉选项</span>
