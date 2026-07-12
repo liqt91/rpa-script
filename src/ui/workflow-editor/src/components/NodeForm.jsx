@@ -460,13 +460,17 @@ function findVarContext(value, cursorPos) {
   let i = cursorPos - 1;
   // skip variable-name chars left of cursor
   while (i >= 0 && /[a-zA-Z0-9_]/.test(value[i])) i--;
-  // case: $name
-  if (i >= 0 && value[i] === '$') {
-    return { start: i, end: cursorPos, prefix: value.slice(i + 1, cursorPos), hasBrace: false };
+  // case: {{name  (new syntax)
+  if (i >= 0 && value[i] === '{' && i - 1 >= 0 && value[i - 1] === '{') {
+    return { start: i - 1, end: cursorPos, prefix: value.slice(i + 1, cursorPos), hasBrace: true };
   }
-  // case: ${name
+  // case: ${name  (old syntax — keep backward compat)
   if (i >= 0 && value[i] === '{' && i - 1 >= 0 && value[i - 1] === '$') {
     return { start: i - 1, end: cursorPos, prefix: value.slice(i + 1, cursorPos), hasBrace: true };
+  }
+  // case: $name (bare old syntax — trigger dropdown)
+  if (i >= 0 && value[i] === '$') {
+    return { start: i, end: cursorPos, prefix: value.slice(i + 1, cursorPos), hasBrace: false };
   }
   return null;
 }
@@ -500,8 +504,8 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
   const insertVar = useCallback((varName) => {
     if (!ctx || !inputRef.current) return;
     const val = String(value ?? '');
-    const replacement = ctx.hasBrace ? varName : `{${varName}}`;
-    const before = val.slice(0, ctx.start) + '$' + replacement;
+    const replacement = ctx.hasBrace ? `${varName}}}` : `{{${varName}}}`;
+    const before = val.slice(0, ctx.start) + replacement;
     const after = val.slice(ctx.end);
     const newVal = before + after;
     const cursorPos = before.length;
