@@ -218,7 +218,7 @@ export default function RunLogs() {
                         <span className="flex items-center gap-1.5 text-red-400">
                           <i className="fas fa-times-circle"></i>
                           运行失败
-                          {run.error && <span className="text-red-500 text-xs ml-1">({run.error})</span>) : null}
+                          {run.error && <span className="text-red-500 text-xs ml-1">({run.error})</span>}
                         </span>
                       ) : (
                         <span className="text-gray-500">未知</span>
@@ -297,16 +297,16 @@ export default function RunLogs() {
                       'text-gray-300'
                     }`}>
                       <span className="text-gray-500 mr-2">[{evt.type}]</span>
-                      {evt.cmdLabel ? <span className="text-blue-400 mr-2">{evt.cmdLabel || evt.cmdType}</span>) : null}
-                      {evt.endOrder && <span className="text-blue-300 mr-2">#{evt.endOrder} 第#{evt.order}步</span>) : null}
-                      {evt.error && <span className="text-red-400">{evt.error}</span>) : null}
+                      {(evt.cmdLabel || evt.cmdType) && <span className="text-blue-400 mr-2">{evt.cmdLabel || evt.cmdType}</span>}
+                      {evt.endOrder && <span className="text-blue-300 mr-2">#{evt.endOrder} 第#{evt.order}步</span>}
+                      {evt.error && <span className="text-red-400">{evt.error}</span>}
                       {evt.result?.log !== undefined ? (
                         <span className="text-gray-300">{evt.result.log}</span>
                       ) : evt.result && typeof evt.result === 'object' ? (
                         <span className="text-gray-400">{JSON.stringify(evt.result).slice(0, 200)}</span>
                       ) : evt.result ? (
                         <span className="text-gray-400">{String(evt.result).slice(0, 200)}</span>
-                      ) : null}
+                      }
                     </div>
                   ))}
                 </div>
