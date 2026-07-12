@@ -3038,6 +3038,7 @@
       return false;
     }
     if (message.action === 'verifyElement') {
+      try {
       console.log('[RPA Capture] verifyElement received:', JSON.stringify(message.payload).slice(0, 200));
       let { selector, type } = message.payload || {};
       // 若选择器带显式前缀，以后缀推断 family，覆盖侧板可能传错的 type
