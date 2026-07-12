@@ -67,7 +67,8 @@ class AgentBackground {
     this.pingTimer = null;
     this.clientId = null;
     this.pendingSteps = new Map(); // stepId -> {resolve, reject, timer}
-    this.workTabId = null;         // 工作流专用标签页 ID
+    this.workTabId = null;
+      this._lastTabUrl = null;         this._lastTabUrl = null;   // 工作流专用标签页 ID
     this.workWindowId = null;      // 工作流专用窗口 ID
     this.lastCapturePayload = null; // 最近一次捕获的元素数据（供 side panel 获取）
     this.lastCaptureTabId = null;   // 捕获来源标签页
@@ -199,6 +200,7 @@ class AgentBackground {
       // removing it kills the browser process and breaks the extension connection.
       this.workWindowId = null;
       this.workTabId = null;
+      this._lastTabUrl = null;
       console.log('[Agent] work window/tab reset for new run');
       return;
     }
@@ -276,6 +278,7 @@ class AgentBackground {
         if (!explicitWindowId) {
           this.workWindowId = null;
           this.workTabId = null;
+      this._lastTabUrl = null;
         }
       }
 
@@ -427,6 +430,7 @@ class AgentBackground {
         if (targetWindowId === this.workWindowId) {
           this.workWindowId = null;
           this.workTabId = null;
+      this._lastTabUrl = null;
         }
         this._send('stepResult', { stepId, result: { closedWindowId: targetWindowId } });
       } catch (e) {
@@ -479,6 +483,26 @@ class AgentBackground {
       }
 
       if (result?.status === 'success') {
+        // Detect tab navigation after DOM step (e.g. click opens new page)
+        try {
+          const currentTab = await chrome.tabs.get(tabId);
+          if (this._lastTabUrl && currentTab.url !== this._lastTabUrl) {
+            console.log('[Agent] tab navigated: ' + this._lastTabUrl + ' -> ' + currentTab.url);
+            await new Promise((resolve) => {
+              const listener = (tid, info) => {
+                if (tid === tabId && info.status === 'complete') {
+                  chrome.tabs.onUpdated.removeListener(listener);
+                  resolve();
+                }
+              };
+              chrome.tabs.onUpdated.addListener(listener);
+              setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 15000);
+            });
+            await this._injectContentScript(tabId);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+          this._lastTabUrl = currentTab.url;
+        } catch (_) {}
         this._send('stepResult', { stepId, result: result.result });
       } else {
         this._send('stepError', { stepId, error: result?.error || 'Unknown content error' });
