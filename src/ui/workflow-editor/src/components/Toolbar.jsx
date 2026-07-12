@@ -425,7 +425,7 @@ export default function Toolbar() {
             dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level: 'warn', msg: '⏸ 已暂停' } });
           } else if (evt.type === 'done') {
             dispatch({ type: 'RUN_DONE', payload: { success: evt.success, stopped: evt.stopped } });
-            const msg = evt.stopped ? '用户停止运行' : (evt.success ? '执行完成' : '执行失败');
+            const msg = evt.stopped ? '用户停止运行' : (evt.success ? '运行结束' : '执行失败');
             const level = evt.stopped ? 'warn' : (evt.success ? 'success' : 'error');
             dispatch({ type: 'APPEND_RUN_LOG', payload: { time: t, level, msg } });
             es.close();
