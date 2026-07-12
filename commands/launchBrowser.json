@@ -67,5 +67,9 @@
     "browser"
   ],
   "featureFlag": "core",
-  "cmd": "launchBrowser"
+  "cmd": "launchBrowser",
+  "handler": {
+    "kind": "extension",
+    "source": "extension/background_handlers/launchBrowser.js"
+  }
 }
