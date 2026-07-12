@@ -458,7 +458,7 @@ export default function Toolbar() {
       const data = await api.runWorkflowExtension(wfId, runId, getDesignTableData(), parameters);
       console.log(`[Toolbar] runWorkflowExtension result success=${data.success}`);
       if (!stoppedRef.current) {
-        data.results = stepResultsRef.current; setRunResult(data);
+        // Modal removed — run log shows all results
       }
       // Final table data: push to DataTableTab for display only (do NOT overwrite design-time data)
       if (data.tableRows || data.tableColumns) {
