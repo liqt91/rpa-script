@@ -337,13 +337,13 @@ def _emit_dispatch(node: models.WorkflowNode, extra: dict, depth: int,
         return
     prefix = _indent(depth)
     from src.runtime.workflow.handlers.registry import get_command
-    cmd = get_command(node.type) or {}
-    label = cmd.get("label", node.type)
-    lines.append(f"{prefix}# WF_NODE id={node.id} type={node.type} label={label}")
+    cmd = get_command(node.cmd) or {}
+    label = cmd.get("label", node.cmd)
+    lines.append(f"{prefix}# WF_NODE id={node.id} type={node.cmd} label={label}")
 
     is_container = cmd.get("isContainer")
     is_structural = cmd.get("isStructural")
-    handler = _EMIT_HANDLERS.get(node.type)
+    handler = _EMIT_HANDLERS.get(node.cmd)
 
     if not handler:
         # Fallback: try generic emitter for new-system JSON-defined commands
@@ -352,7 +352,7 @@ def _emit_dispatch(node: models.WorkflowNode, extra: dict, depth: int,
             generic(node, extra, depth, prefix, by_parent, lines, element_map)
             return
         loc = _loc_call(node, extra, element_map)
-        lines.append(f"{prefix}# TODO: {node.type} -> {loc}")
+        lines.append(f"{prefix}# TODO: {node.cmd} -> {loc}")
         return
 
     if is_container or is_structural:
@@ -377,7 +377,7 @@ def _emit_dispatch(node: models.WorkflowNode, extra: dict, depth: int,
         lines.append(f"{prefix}    except Exception as _e:")
         lines.append(
             f'{prefix}        print(f"[WF_ERROR] '
-            f'指令 #{node.id} ({node.type}) {label} "'
+            f'指令 #{node.id} ({node.cmd}) {label} "'
             f'f"(retry {{_retry_idx + 1}}/{retry_count}): {{_e}}", file=sys.stderr)'
         )
         lines.append(f"{prefix}        if _retry_idx < {retry_count - 1}:")
@@ -385,7 +385,7 @@ def _emit_dispatch(node: models.WorkflowNode, extra: dict, depth: int,
         lines.append(f"{prefix}else:")
         lines.append(
             f'{prefix}    raise RuntimeError('
-            f'f"指令 #{node.id} ({node.type}) {label} '
+            f'f"指令 #{node.id} ({node.cmd}) {label} '
             f'重试 {retry_count} 次后仍然失败")'
         )
     else:
@@ -396,7 +396,7 @@ def _emit_dispatch(node: models.WorkflowNode, extra: dict, depth: int,
         lines.append(f"{prefix}except Exception as _e:")
         lines.append(
             f'{prefix}    print(f"[WF_ERROR] '
-            f'指令 #{node.id} ({node.type}) {label}: {{_e}}", file=sys.stderr)'
+            f'指令 #{node.id} ({node.cmd}) {label}: {{_e}}", file=sys.stderr)'
         )
         if on_error == "continue":
             lines.append(f"{prefix}    pass  # continue on error")

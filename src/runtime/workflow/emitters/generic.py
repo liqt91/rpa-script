@@ -26,11 +26,11 @@ def _load_definition(type_name: str) -> dict | None:
 @_handler("__generic__")
 def _emit_generic(node, extra, depth, prefix, by_parent, lines, element_map=None):
     """Fallback emitter driven by commands/*.json metadata."""
-    d = _load_definition(node.type)
+    d = _load_definition(node.cmd)
     if not d:
         # No JSON definition either — leave a TODO marker
         loc = _loc_call(node, extra, element_map)
-        lines.append(f"{prefix}# TODO: {node.type} -> {loc}")
+        lines.append(f"{prefix}# TODO: {node.cmd} -> {loc}")
         return
 
     python_action = d.get("pythonAction")
@@ -66,5 +66,5 @@ def _emit_generic(node, extra, depth, prefix, by_parent, lines, element_map=None
     # Unknown / unsupported action
     loc = _loc_call(node, extra, element_map)
     lines.append(
-        f"{prefix}# TODO: {node.type} pythonAction={python_action!r} is not supported by generic emitter -> {loc}"
+        f"{prefix}# TODO: {node.cmd} pythonAction={python_action!r} is not supported by generic emitter -> {loc}"
     )
