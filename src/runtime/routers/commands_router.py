@@ -499,7 +499,7 @@ def build_definitions(user=Depends(auth.get_current_user)):
     import subprocess, sys
     root = _COMMANDS_DIR.parent
     results = []
-    for script in ["scripts/generate_commands.py", "scripts/build_content_js.py", "scripts/build_background_js.py"]:
+    for script in ["scripts/build_extension.py"]:
         sp = subprocess.run(
             [sys.executable, str(root / script)],
             capture_output=True, text=True, cwd=str(root),

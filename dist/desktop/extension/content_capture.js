@@ -28,6 +28,9 @@
   let activeCandidate = null;
   let lastMouseX = -1;
   let lastMouseY = -1;
+  // Anchor-first capture: an existing element chosen as the active loop anchor
+  // BEFORE capturing its inner children. Shape: { name, selector, family, elements }.
+  let activeAnchor = null;
 
   // ─── Helpers: stability scoring (inspired by @medv/finder) ───────
 
@@ -1148,6 +1151,211 @@
     return `//${tag}`;
   }
 
+  /**
+   * Build a position-based relative XPath from `item` down to descendant `el`.
+   * Result is prefixed with `./` so it evaluates strictly within the item.
+   * Returns null if `el` is not a descendant of `item` or the path is too deep.
+   */
+  function buildRelativeXPath(item, el) {
+    const segs = [];
+    let cur = el;
+    while (cur && cur !== item) {
+      const parent = cur.parentElement;
+      if (!parent) return null;
+      const sameTag = Array.from(parent.children).filter(c => c.tagName === cur.tagName);
+      const pos = sameTag.indexOf(cur);
+      // Shadow-DOM / slot boundaries can make parentElement.children not contain
+      // cur. Bail rather than emit an invalid 1-indexed position (e.g. tag[0]).
+      if (pos === -1) return null;
+      const idx = pos + 1;
+      const tag = cur.tagName.toLowerCase();
+      segs.unshift(sameTag.length === 1 ? tag : `${tag}[${idx}]`);
+      cur = parent;
+      if (segs.length > 8) return null;
+    }
+    if (cur !== item) return null;
+    if (segs.length === 0) return null;
+    const xp = './' + segs.join('/');
+    // Self-validate: the relative xpath must resolve to exactly one node === el
+    // within the item, mirroring buildRelativeCss's uniqueness check.
+    try {
+      const r = document.evaluate(xp, item, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      if (r.snapshotLength !== 1 || r.snapshotItem(0) !== el) return null;
+    } catch (e) {
+      return null;
+    }
+    return xp;
+  }
+
+  /**
+   * Build a relative CSS selector that, queried within `item`, uniquely resolves
+   * to `el`. Tries stable id/class/data-* first, then bare tag. Each candidate is
+   * validated to match exactly one element === el inside the item. Returns null
+   * if no unique stable CSS selector is found.
+   */
+  function buildRelativeCss(item, el) {
+    const tag = el.tagName.toLowerCase();
+    const tryers = [];
+    if (el.id && isStableId(el.id)) tryers.push('#' + cssEscape(el.id));
+    const stable = el.classList ? Array.from(el.classList).filter(isStableClass) : [];
+    if (stable.length) tryers.push(tag + '.' + stable.map(cssEscape).join('.'));
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
+    for (const attr of dataAttrs) {
+      const v = el.getAttribute(attr);
+      if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
+        tryers.push(`${tag}[${attr}="${attrValueEscape(v)}"]`);
+      }
+    }
+    tryers.push(tag);
+    for (const sel of tryers) {
+      try {
+        const found = item.querySelectorAll(sel);
+        if (found.length === 1 && found[0] === el) return sel;
+      } catch (e) { /* invalid selector, skip */ }
+    }
+    return null;
+  }
+
+  /**
+   * Generate a ranked list of relative selectors from an anchor element down to a
+   * target descendant. Each candidate is validated against every resolved anchor
+   * instance; candidates that match exactly one element per anchor score highest.
+   */
+  function generateRelativeCandidates(activeAnchor, host, el) {
+    if (!activeAnchor || !host || !el || !host.contains(el)) return [];
+    const anchorSelector = activeAnchor.selector;
+    const anchorFamily = activeAnchor.family || splitSelectorPrefix(anchorSelector).family;
+    let anchors = activeAnchor.elements;
+    if (!anchors || !anchors.length) {
+      anchors = resolveAllForVerify(anchorSelector, anchorFamily);
+    }
+    if (!anchors || !anchors.length) return [];
+
+    const tag = el.tagName.toLowerCase();
+    const candidates = [];
+    const seen = new Set();
+
+    function addCandidate(syntax, family) {
+      if (!syntax || seen.has(syntax)) return;
+      seen.add(syntax);
+      let total = 0;
+      let exact = 0;
+      let zero = 0;
+      for (const a of anchors) {
+        const matches = queryRelativeInItem(a, syntax);
+        total += matches.length;
+        if (matches.length === 1) exact++;
+        else if (matches.length === 0) zero++;
+      }
+      if (total === 0) return;
+      const n = anchors.length;
+      let score = 100;
+      score -= (n - exact) * 15;
+      score -= (total - exact) * 10;
+      if (zero > 0) score -= 10;
+      score = Math.max(0, Math.min(100, Math.round(score)));
+      candidates.push({
+        syntax,
+        family,
+        score,
+        matchCount: total,
+        isList: false,
+        label: syntax.replace(/^(css|xpath):/, ''),
+      });
+    }
+
+    // CSS strategies
+    if (el.id && isStableId(el.id)) addCandidate('css:#' + cssEscape(el.id), 'css');
+    const stableClasses = el.classList ? Array.from(el.classList).filter(isStableClass) : [];
+    if (stableClasses.length) {
+      addCandidate('css:' + tag + '.' + stableClasses.map(cssEscape).join('.'), 'css');
+      addCandidate('css:' + stableClasses.map(c => '.' + cssEscape(c)).join(''), 'css');
+    }
+    const dataAttrs = ['data-testid', 'data-test', 'data-test-id', 'data-cy', 'data-qa', 'data-e2e', 'data-id', 'data-key', 'data-name'];
+    for (const attr of dataAttrs) {
+      const v = el.getAttribute(attr);
+      if (v && v.length < 80 && !attrValNeedsCssFallback(v)) {
+        addCandidate(`css:${tag}[${attr}="${attrValueEscape(v)}"]`, 'css');
+        addCandidate(`css:[${attr}="${attrValueEscape(v)}"]`, 'css');
+      }
+    }
+    addCandidate('css:' + tag, 'css');
+    const parent = el.parentElement;
+    if (parent) {
+      const sameTag = Array.from(parent.children).filter(c => c.tagName === el.tagName);
+      if (sameTag.length > 1) {
+        const idx = sameTag.indexOf(el) + 1;
+        addCandidate(`css:${tag}:nth-of-type(${idx})`, 'css');
+      }
+    }
+
+    // XPath strategies
+    const relXp = buildRelativeXPath(host, el);
+    if (relXp) addCandidate('xpath:' + relXp, 'xpath');
+    if (el.id && isStableId(el.id)) addCandidate(`xpath:.//*[@id=${xpathLiteral(el.id)}]`, 'xpath');
+    for (const attr of dataAttrs) {
+      const v = el.getAttribute(attr);
+      if (v && v.length < 80) {
+        addCandidate(`xpath:.//${tag}[@${attr}=${xpathLiteral(v)}]`, 'xpath');
+      }
+    }
+    if (stableClasses.length) {
+      addCandidate(`xpath:.//${tag}[contains(@class,${xpathLiteral(stableClasses[0])})]`, 'xpath');
+    }
+    const directText = getDirectText(el);
+    if (directText && directText.length > 0 && directText.length < 50) {
+      addCandidate(`xpath:.//${tag}[contains(text(),${xpathLiteral(directText)})]`, 'xpath');
+    }
+
+    return candidates.sort((a, b) => b.score - a.score);
+  }
+
+  /**
+   * Capture-time anchoring (plan B). Given a detected list family, compute the
+   * captured element's selector RELATIVE to its repeating ancestor (the future
+   * loop item), plus the anchor (item) selector itself. Returns:
+   *   { relative: 'css:...'|'xpath:...', anchor: 'css:...'|'xpath:...', family }
+   * or null when:
+   *   - no list family / item could be resolved, or
+   *   - the captured element IS the list item itself (no child relative needed).
+   * The relative selector is self-validated to resolve to exactly one element
+   * (=== the captured element) within a single item.
+   */
+  function computeRelativeSelector(el, listFamily) {
+    if (!el || !listFamily || !listFamily.container || !Array.isArray(listFamily.items)) return null;
+    const item = listFamily.items.find(it => it && it.nodeType === 1 && (it === el || it.contains(el)));
+    if (!item) return null;
+    // The element is the repeating item itself — used as a loop target, not a
+    // child reference. No relative selector to compute.
+    if (item === el) return null;
+
+    let relative = null;
+    let family = null;
+    const relCss = buildRelativeCss(item, el);
+    if (relCss) {
+      relative = 'css:' + relCss;
+      family = 'css';
+    } else {
+      const relXp = buildRelativeXPath(item, el);
+      if (relXp) {
+        relative = 'xpath:' + relXp;
+        family = 'xpath';
+      }
+    }
+    if (!relative) return null;
+
+    // Anchor selector for the repeating item. Prefer the stable CSS item selector;
+    // fall back to an XPath built for the item.
+    const itemSel = buildListItemSelector(item);
+    let anchor = itemSel ? 'css:' + itemSel : '';
+    if (!anchor) {
+      const itemXp = buildXPathForElement(item);
+      if (itemXp) anchor = 'xpath:' + itemXp;
+    }
+
+    return { relative, anchor, family };
+  }
+
   function generateListCandidates(element) {
     const candidates = [];
     if (!element || element === document.body) return candidates;
@@ -1271,6 +1479,37 @@
             label: `${containerXp} (列表容器)`,
             family: 'xpath', score: 43, matchCount: containerCount, isList: true,
             listContainer: containerXp,
+          });
+        }
+      }
+    }
+
+    // ── Phase 1.6: target self repeated fallback ──
+    // If the target element itself appears multiple times across the page
+    // (even if not as direct siblings), offer it as a list item.
+    const selfItemSel = buildListItemSelector(element);
+    const familyItemSel = (family.container && family.items.length >= 2)
+      ? buildListItemSelector(family.items.find(item => item === element || item.contains(element)) || element)
+      : '';
+    if (selfItemSel && selfItemSel !== familyItemSel) {
+      const selfCount = verifyLocator(selfItemSel, 'css');
+      if (selfCount >= 2 && selfCount <= 200) {
+        candidates.push({
+          syntax: 'css:' + selfItemSel,
+          label: `${selfItemSel} (列表, ${selfCount}个)`,
+          family: 'css', score: 60, matchCount: selfCount, isList: true,
+          listItem: selfItemSel,
+        });
+      }
+      const selfItemXp = buildXPathForElement(element);
+      if (selfItemXp) {
+        const selfXpCount = verifyLocator(selfItemXp, 'xpath');
+        if (selfXpCount >= 2 && selfXpCount <= 200) {
+          candidates.push({
+            syntax: 'xpath:' + selfItemXp,
+            label: `${selfItemXp} (列表, ${selfXpCount}个)`,
+            family: 'xpath', score: 58, matchCount: selfXpCount, isList: true,
+            listItem: selfItemXp,
           });
         }
       }
@@ -2149,6 +2388,63 @@
         listMeta.listSimilarity = Math.round(listFamily.similarity * 100) / 100;
       }
 
+      // Capture-time anchoring — anchor-first only (explicit-first policy).
+      // A relative selector is produced ONLY when the user pre-selected an
+      // active anchor and this element sits inside one of its instances.
+      // No anchor → plain global capture (no relative selector).
+      const anchorMeta = {};
+      if (activeAnchor && (activeAnchor.selector || (activeAnchor.elements && activeAnchor.elements.length))) {
+        try {
+          let anchorEls = activeAnchor.elements;
+          if (!anchorEls || !anchorEls.length) {
+            anchorEls = resolveAllForVerify(activeAnchor.selector, activeAnchor.family);
+          }
+          const host = anchorEls.find((a) => a && a.nodeType === 1 && (a === el || a.contains(el)));
+          if (host && host !== el) {
+            // Locate the anchor inside the target's ancestor path so the sidepanel
+            // can render only the sub-path below the anchor and build the relative
+            // selector directly without a global-selector round-trip.
+            let anchorPathIndex = -1;
+            let cur = el;
+            for (let i = path.length - 1; i >= 0; i--) {
+              if (cur === host) {
+                anchorPathIndex = i;
+                break;
+              }
+              cur = cur.parentElement;
+            }
+            if (anchorPathIndex === -1) {
+              showToast('锚点层级超出捕获范围，已按全局捕获');
+            } else {
+              let relative = null;
+              const relCss = buildRelativeCss(host, el);
+              if (relCss) relative = 'css:' + relCss;
+              else {
+                const relXp = buildRelativeXPath(host, el);
+                if (relXp) relative = 'xpath:' + relXp;
+              }
+              const relativeCandidates = generateRelativeCandidates(activeAnchor, host, el);
+              if (relative || relativeCandidates.length) {
+                anchorMeta.relativeSelector = relative || relativeCandidates[0]?.syntax || '';
+                anchorMeta.relativeCandidates = relativeCandidates;
+                anchorMeta.anchorSelector = activeAnchor.selector;
+                anchorMeta.anchorElementName = activeAnchor.name;
+                anchorMeta.anchorMode = 'anchor-first';
+                anchorMeta.elementKind = 'child';
+                anchorMeta.relativeManuallyEdited = false;
+                anchorMeta.anchorPathIndex = anchorPathIndex;
+              } else {
+                showToast('无法在锚点内生成稳定相对选择器，已按普通捕获');
+              }
+            }
+          } else {
+            showToast('捕获的元素不在所选锚点内，已按全局捕获');
+          }
+        } catch (e) {
+          console.warn('[RPA capture] anchor-first compute failed', e);
+        }
+      }
+
       const payload = {
         name: defaultName,
         tag: features.tag,
@@ -2169,6 +2465,7 @@
         inner_text: features.inner_text,
         verse_fp: verseFp,
         ...listMeta,
+        ...anchorMeta,
       };
 
       lastCapturePayload = payload;
@@ -2232,6 +2529,56 @@
       active.push(h);
     }
     editorHighlights = active;
+  }
+
+  // ─── Active anchor persistent highlight (anchor-first capture) ───
+  // Distinct from the 3s verify highlight: stays until the anchor is cleared or
+  // the side panel closes, and follows layout via requestAnimationFrame.
+
+  let anchorHighlightEls = [];   // overlay divs, index-aligned with anchorHighlightNodes
+  let anchorHighlightNodes = []; // tracked anchor DOM instances
+  let anchorHighlightRAF = null;
+
+  function clearActiveAnchorHighlights() {
+    if (anchorHighlightRAF) { cancelAnimationFrame(anchorHighlightRAF); anchorHighlightRAF = null; }
+    anchorHighlightEls.forEach((el) => el.remove());
+    document.querySelectorAll('.rpa-anchor-highlight').forEach((el) => el.remove());
+    anchorHighlightEls = [];
+    anchorHighlightNodes = [];
+  }
+
+  function renderActiveAnchorHighlights(nodes) {
+    clearActiveAnchorHighlights();
+    anchorHighlightNodes = (nodes || []).filter((n) => n && n.getBoundingClientRect);
+    anchorHighlightNodes.forEach(() => {
+      const hl = document.createElement('div');
+      hl.className = 'rpa-anchor-highlight';
+      hl.style.cssText = `
+        position: fixed; pointer-events: none; z-index: 2147483645;
+        border: 2px solid #fa8c16; background: rgba(250,140,22,0.10);
+        box-sizing: border-box; border-radius: 2px;
+      `;
+      document.body.appendChild(hl);
+      anchorHighlightEls.push(hl);
+    });
+    if (!anchorHighlightNodes.length) return;
+    const tick = () => {
+      for (let i = 0; i < anchorHighlightNodes.length; i++) {
+        const node = anchorHighlightNodes[i];
+        const box = anchorHighlightEls[i];
+        if (!box) continue;
+        if (!node.isConnected) { box.style.display = 'none'; continue; }
+        const r = node.getBoundingClientRect();
+        box.style.display = 'block';
+        box.style.left = r.left + 'px';
+        box.style.top = r.top + 'px';
+        box.style.width = r.width + 'px';
+        box.style.height = r.height + 'px';
+      }
+      // Keep following layout only while an anchor is active.
+      anchorHighlightRAF = activeAnchor ? requestAnimationFrame(tick) : null;
+    };
+    anchorHighlightRAF = requestAnimationFrame(tick);
   }
 
   function resolveAllForVerify(selector, type) {
@@ -2369,11 +2716,124 @@
     }
   }
 
+  function resolveLocatorForVerify(selector, type) {
+    const all = resolveAllForVerify(selector, type);
+    return all[0] || null;
+  }
+
+  function splitSelectorPrefix(sel) {
+    if (!sel) return { bare: '', family: 'css' };
+    const lowered = sel.toLowerCase();
+    if (lowered.startsWith('css:')) return { bare: sel.slice(4).trim(), family: 'css' };
+    if (lowered.startsWith('xpath:')) return { bare: sel.slice(6).trim(), family: 'xpath' };
+    if (lowered.startsWith('drission:')) return { bare: sel.slice(9).trim(), family: 'css' };
+    const bare = sel.trim();
+    if (bare.startsWith('//') || bare.startsWith('.//')) return { bare, family: 'xpath' };
+    return { bare, family: 'css' };
+  }
+
+  function queryRelativeInItem(item, relativeSelector) {
+    const { bare, family } = splitSelectorPrefix(relativeSelector);
+    if (family === 'xpath') {
+      const r = document.evaluate(bare, item, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      const arr = [];
+      for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+      return arr;
+    }
+    return Array.from(item.querySelectorAll(bare));
+  }
+
+  /**
+   * Resolve a selector chain from the outermost root down to the innermost
+   * anchor. Each chain node is { selector: 'css:...' | 'xpath:...' }.
+   */
+  function resolveSelectorChain(chain) {
+    if (!chain || !chain.length) return [];
+    let contexts = [document];
+    for (const node of chain) {
+      const sel = node.selector || '';
+      if (!sel) return [];
+      const next = [];
+      for (const ctx of contexts) {
+        const scope = (ctx === document) ? document : ctx;
+        const matches = queryRelativeInItem(scope, sel);
+        for (const m of matches) next.push(m);
+      }
+      contexts = next;
+      if (!contexts.length) break;
+    }
+    return contexts.filter((el) => el && el.nodeType === 1);
+  }
+
+  function verifyRelativeSelector(anchorSelector, relativeSelector, anchorChain) {
+    if ((!anchorSelector && (!anchorChain || !anchorChain.length)) || !relativeSelector) {
+      return { total: 0, perItem: [], error: '锚点或相对选择器为空' };
+    }
+    let anchors = [];
+    if (anchorChain && anchorChain.length) {
+      anchors = resolveSelectorChain(anchorChain);
+    } else {
+      const { bare: anchorBare, family: anchorFamily } = splitSelectorPrefix(anchorSelector);
+      anchors = anchorFamily === 'xpath'
+        ? (() => {
+            const r = document.evaluate(anchorBare, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+            const arr = [];
+            for (let i = 0; i < r.snapshotLength; i++) arr.push(r.snapshotItem(i));
+            return arr;
+          })()
+        : Array.from(document.querySelectorAll(anchorBare));
+    }
+
+    let total = 0;
+    let uniqueItems = 0;
+    let emptyItems = 0;
+    const perItem = [];
+    const matchedElements = [];
+    for (const item of anchors) {
+      const found = queryRelativeInItem(item, relativeSelector);
+      total += found.length;
+      if (found.length === 1) uniqueItems++;
+      if (found.length === 0) emptyItems++;
+      perItem.push(found.length);
+      matchedElements.push(...found);
+    }
+    return {
+      total,
+      anchorCount: anchors.length,
+      uniqueItems,
+      emptyItems,
+      perItem,
+      matchedElements,
+    };
+  }
+
   function highlightSelectorMatches(selector, type) {
     removeEditorHighlights();
     const nodes = resolveAllForVerify(selector, type);
 
     nodes.forEach((node) => {
+      if (!node.getBoundingClientRect) return;
+      const rect = node.getBoundingClientRect();
+      const hl = document.createElement('div');
+      hl.className = 'rpa-editor-highlight';
+      hl.style.cssText = `
+        position: fixed; pointer-events: none; z-index: 2147483646;
+        left: ${rect.left}px; top: ${rect.top}px;
+        width: ${rect.width}px; height: ${rect.height}px;
+        border: 2px dashed #1677ff; background: rgba(22,119,255,0.08);
+        box-sizing: border-box;
+      `;
+      document.body.appendChild(hl);
+      editorHighlights.push({ node, el: hl });
+    });
+
+    if (editorHighlightTimer) clearTimeout(editorHighlightTimer);
+    editorHighlightTimer = setTimeout(removeEditorHighlights, 3000);
+  }
+
+  function highlightRelativeMatches(elements) {
+    removeEditorHighlights();
+    elements.forEach((node) => {
       if (!node.getBoundingClientRect) return;
       const rect = node.getBoundingClientRect();
       const hl = document.createElement('div');
@@ -2498,7 +2958,39 @@
     if (message.action === 'setCaptureEnabled') {
       captureEnabled = message.enabled;
       if (!captureEnabled && captureMode) exitCaptureMode();
+      if (!captureEnabled) { activeAnchor = null; clearActiveAnchorHighlights(); }
       sendResponse({ ok: true });
+      return false;
+    }
+    if (message.action === 'setActiveAnchor') {
+      const { anchorSelector, anchorElementName, anchorChain } = message.payload || {};
+      if ((!anchorSelector || !anchorSelector.trim()) && (!anchorChain || !anchorChain.length)) {
+        activeAnchor = null;
+        clearActiveAnchorHighlights();
+        sendResponse({ ok: true, count: 0 });
+        return false;
+      }
+      if (anchorChain && anchorChain.length) {
+        const finalEls = resolveSelectorChain(anchorChain);
+        const last = anchorChain[anchorChain.length - 1] || {};
+        const { family } = splitSelectorPrefix(last.selector || '');
+        activeAnchor = {
+          name: anchorElementName || '',
+          selector: last.selector || '',
+          family,
+          elements: finalEls,
+          chain: anchorChain,
+        };
+        renderActiveAnchorHighlights(finalEls);
+        sendResponse({ ok: true, count: finalEls.length });
+        return false;
+      }
+      const family = splitSelectorPrefix(anchorSelector).family;
+      let els = [];
+      try { els = resolveAllForVerify(anchorSelector, family); } catch (_e) { els = []; }
+      activeAnchor = { name: anchorElementName || '', selector: anchorSelector, family, elements: els };
+      renderActiveAnchorHighlights(els);
+      sendResponse({ ok: true, count: els.length });
       return false;
     }
     if (message.action === 'selectCandidate') {
@@ -2526,17 +3018,21 @@
       return false;
     }
     if (message.action === 'verifyElement') {
-      const { selector, type } = message.payload || {};
+      let { selector, type } = message.payload || {};
+      // 若选择器带显式前缀，以后缀推断 family，覆盖侧板可能传错的 type
+      const inferred = splitSelectorPrefix(selector).family;
+      if (inferred === 'css' || inferred === 'xpath') type = inferred;
       let stats = { total: 0, visible: 0, invisible: 0 };
       let matchedSelector = selector;
       // 支持多选择器数组：逐个试，命中即停
       if (Array.isArray(selector) && selector.length > 0) {
         for (const sel of selector) {
-          const s = resolveAllForVerifyStats(sel, type);
+          const selType = splitSelectorPrefix(sel).family || type;
+          const s = resolveAllForVerifyStats(sel, selType);
           if (s.total > 0) {
             stats = s;
             matchedSelector = sel;
-            highlightSelectorMatches(sel, type);
+            highlightSelectorMatches(sel, selType);
             break;
           }
         }
@@ -2547,6 +3043,84 @@
       sendResponse({ ...stats, matchedSelector });
       // Also broadcast result so side panel can pick it up
       chrome.runtime.sendMessage({ action: 'verifyResult', payload: { ...stats, matchedSelector } }).catch(() => {});
+      return false;
+    }
+
+    if (message.action === 'recomputeAnchor') {
+      const { selector, selectorFamily } = message.payload || {};
+      try {
+        const el = resolveLocatorForVerify(selector, selectorFamily);
+        if (!el) {
+          sendResponse({ error: '当前选择器未匹配到元素' });
+          return false;
+        }
+        const listFamily = detectListFamily(el, { maxDepth: 6, minItems: 2, similarityThreshold: 0.55 });
+        const rel = computeRelativeSelector(el, listFamily);
+        if (!rel) {
+          sendResponse({ error: '未找到稳定的循环锚点' });
+          return false;
+        }
+        sendResponse({ relativeSelector: rel.relative, anchorSelector: rel.anchor, family: rel.family });
+      } catch (e) {
+        sendResponse({ error: e?.message || String(e) });
+      }
+      return false;
+    }
+
+    if (message.action === 'computeRelativeFromAnchor') {
+      const { targetSelector, anchorSelector, anchorChain } = message.payload || {};
+      try {
+        const targetEl = resolveLocatorForVerify(targetSelector, splitSelectorPrefix(targetSelector).family);
+        let anchors = [];
+        if (anchorChain && anchorChain.length) {
+          anchors = resolveSelectorChain(anchorChain);
+        } else {
+          anchors = [resolveLocatorForVerify(anchorSelector, splitSelectorPrefix(anchorSelector).family)].filter(Boolean);
+        }
+        if (!targetEl || !anchors.length) {
+          sendResponse({ error: '目标元素或锚点元素未匹配' });
+          return false;
+        }
+        const anchorEl = anchors.find((a) => a === targetEl || a.contains(targetEl));
+        if (!anchorEl) {
+          sendResponse({ error: '目标元素不在所选锚点元素内部' });
+          return false;
+        }
+        let relative = null;
+        let family = null;
+        const relCss = buildRelativeCss(anchorEl, targetEl);
+        if (relCss) {
+          relative = 'css:' + relCss;
+          family = 'css';
+        } else {
+          const relXp = buildRelativeXPath(anchorEl, targetEl);
+          if (relXp) {
+            relative = 'xpath:' + relXp;
+            family = 'xpath';
+          }
+        }
+        if (!relative) {
+          sendResponse({ error: '无法构建稳定的相对选择器' });
+          return false;
+        }
+        sendResponse({ relativeSelector: relative, family });
+      } catch (e) {
+        sendResponse({ error: e?.message || String(e) });
+      }
+      return false;
+    }
+
+    if (message.action === 'verifyRelative') {
+      const { anchorSelector, relativeSelector, anchorChain } = message.payload || {};
+      try {
+        const result = verifyRelativeSelector(anchorSelector, relativeSelector, anchorChain);
+        if (result.matchedElements?.length) {
+          highlightRelativeMatches(result.matchedElements);
+        }
+        sendResponse(result);
+      } catch (e) {
+        sendResponse({ error: e?.message || String(e), total: 0 });
+      }
       return false;
     }
   });
