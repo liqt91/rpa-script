@@ -18,7 +18,8 @@ class LogHandler:
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
         extra = instr.get("extra") or {}
-        message = extra.get("message", "")
+        from src.runtime.workflow.handlers.utils import convert_value
+        message = convert_value(extra.get("message", ""), "string", runner.vars)
         level = extra.get("level", "info")
         result = {"log": str(message), "level": level}
         runner.completed += 1
