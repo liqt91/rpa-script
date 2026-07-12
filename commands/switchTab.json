@@ -8,7 +8,7 @@
   "bgColor": "bg-blue-50",
   "categoryOrder": 10,
   "commandOrder": 40,
-  "description": "切换到指定浏览器窗口的活跃标签页",
+  "description": "切换到指定标签页。默认激活的；有 urlPattern 时匹配 URL",
   "enabled": true,
   "params": [
     {
@@ -19,6 +19,13 @@
       "group": "input",
       "valueType": "window",
       "placeholder": "如 browser1"
+    },
+    {
+      "name": "urlPattern",
+      "label": "URL 匹配",
+      "type": "string",
+      "placeholder": "URL 包含的文本，留空使用激活标签页",
+      "group": "advanced"
     }
   ],
   "handler": {
