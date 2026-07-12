@@ -230,7 +230,7 @@ export default function CommandEditor() {
     setAiLoading(true); setError('');
     try {
       const definition = {
-        type: form.cmd, label: form.label, category: form.category,
+        cmd: form.cmd, label: form.label, category: form.category,
         runtime: form.runtime, description: form.description,
         params: form.params || [],
       };
@@ -246,7 +246,7 @@ export default function CommandEditor() {
     setAiLoading(true); setError(''); setReviewFindings(null);
     try {
       const definition = {
-        type: form.cmd, label: form.label, category: form.category,
+        cmd: form.cmd, label: form.label, category: form.category,
         runtime: form.runtime, description: form.description,
         params: form.params || [],
       };
@@ -815,7 +815,7 @@ export default function CommandEditor() {
                         <button onClick={async () => {
                           setAiLoading(true); setError('');
                           try {
-                            const definition = { type: form.cmd, label: form.label, category: form.category, runtime: form.runtime, description: form.description, params: form.params || [] };
+                            const definition = { cmd: form.cmd, label: form.label, category: form.category, runtime: form.runtime, description: form.description, params: form.params || [] };
                             const res = await api.generateWithScenario('command_extension_js', { definition });
                             setJsCode(res.code || '');
                             setStatus('AI 生成完成');

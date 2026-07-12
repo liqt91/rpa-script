@@ -158,12 +158,12 @@ function ScenarioEdit({ scenario, meta, updateScenario }) {
   useEffect(() => {
     api.request('/api/commands/definitions').then(d => {
       setDefs(d || []);
-      if (d?.length) setTestType(d[0].type);
+      if (d?.length) setTestType(d[0].cmd);
     }).catch(() => {});
   }, []);
 
   async function handleTest() {
-    const def = defs.find(d => d.type === testType);
+    const def = defs.find(d => d.cmd === testType);
     if (!def) return;
     setTesting(true); setTestResult(''); setTestPrompt('');
     try {
