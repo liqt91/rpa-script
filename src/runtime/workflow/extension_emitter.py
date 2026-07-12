@@ -72,7 +72,7 @@ def _parse_extra(node: models.WorkflowNode) -> dict:
             extra = {}
     else:
         extra = node.extra or {}
-    return _apply_defaults(node.type, extra)
+    return _apply_defaults(node.cmd, extra)
 
 
 def _apply_defaults(cmd_type: str, extra: dict) -> dict:
@@ -91,12 +91,12 @@ def _apply_defaults(cmd_type: str, extra: dict) -> dict:
 
 def _node_meta(node: models.WorkflowNode) -> tuple[bool, bool, bool]:
     """Return (is_container, is_branch, is_structural) for a node."""
-    cmd = build_command_registry().get(node.type) or {}
+    cmd = build_command_registry().get(node.cmd) or {}
     is_container = cmd.get("isContainer", False)
     is_branch = cmd.get("isBranch", False)
     is_structural = cmd.get("isStructural", False)
     # Legacy fallback for types that should be containers
-    if not is_container and node.type in ("if", "for", "loop", "try", "while"):
+    if not is_container and node.cmd in ("if", "for", "loop", "try", "while"):
         is_container = True
     return is_container, is_branch, is_structural
 
@@ -346,7 +346,7 @@ def _emit_instruction(
 ) -> dict:
     """Convert a single node to an instruction dict."""
     extra = _parse_extra(node)
-    transform = _EXTRA_TRANSFORMS.get(node.type)
+    transform = _EXTRA_TRANSFORMS.get(node.cmd)
     if transform:
         extra = transform(extra)
 
@@ -362,7 +362,7 @@ def _emit_instruction(
         "stepId": f"step_{step_index}",
         "nodeId": node.id,
         "order": node.order,
-        "cmdType": node.type,
+        "cmdType": node.cmd,
         "type": handler,
         "locator": locator,
         "selectorFamily": selector_family,
@@ -471,7 +471,7 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
             # onto the loop stack so descendants can auto-resolve relatives.
             # If the loop element itself is a child, resolve it relative to its
             # parent loop so nested forEachElement loops work without a global chain.
-            if node.type == "forEachElement" and node.element_name:
+            if node.cmd == "forEachElement" and node.element_name:
                 el = element_map.get(node.element_name) if element_map else None
                 if el and getattr(el, "element_kind", "plain") == "child":
                     rel_extra = _inject_relative_fields(extra, el, element_map)
@@ -492,8 +492,8 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
                 "stepId": _next_step_id(),
                 "nodeId": node.id,
                 "order": node.order,
-                "cmdType": node.type,
-                "type": node.type,
+                "cmdType": node.cmd,
+                "type": node.cmd,
                 "compound": True,
                 "elementName": node.element_name,
                 "locator": locator,
@@ -521,16 +521,16 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
             return compound
 
         # Leaf node: check for extension runtime support
-        runtime = _get_extension_runtime(node.type)
+        runtime = _get_extension_runtime(node.cmd)
         if not runtime:
             # Special case: break/continue have no runtime but are handled by runner
-            if node.type in ("break", "continue"):
+            if node.cmd in ("break", "continue"):
                 return {
                     "stepId": _next_step_id(),
                     "nodeId": node.id,
                     "order": node.order,
-                    "cmdType": node.type,
-                    "type": node.type,
+                    "cmdType": node.cmd,
+                    "type": node.cmd,
                     "compound": True,
                     "extra": extra,
                 }
