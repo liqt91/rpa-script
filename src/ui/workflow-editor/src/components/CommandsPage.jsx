@@ -73,12 +73,12 @@ export default function CommandsPage() {
   }
 
   async function handleViewSource(cmd) {
-    setViewSource({ type: cmd.cmd, source: null, loading: true });
+    setViewSource({ type: cmd.type, source: null, loading: true });
     try {
       const data = await api.request(`/api/commands/${cmd.id}/source`);
       setViewSource({ type: data.type, source: data.source, loading: false });
     } catch (e) {
-      setViewSource({ type: cmd.cmd, source: null, loading: false, error: e.message });
+      setViewSource({ type: cmd.type, source: null, loading: false, error: e.message });
     }
   }
 
@@ -109,8 +109,8 @@ export default function CommandsPage() {
           <tbody>{cmds.map(cmd=>{
             const ctrl=controlLabel(cmd);
             const isControl=!!ctrl;
-            return(<tr key={cmd.cmd} className="border-b border-gray-700/30 hover:bg-[#252f47] cursor-pointer" onClick={()=>setEditCmd({...cmd,fields:JSON.parse(JSON.stringify(cmd.fields||[]))})}>
-            <td className="px-3 py-2 font-mono text-blue-300 truncate">{cmd.cmd}</td>
+            return(<tr key={cmd.type} className="border-b border-gray-700/30 hover:bg-[#252f47] cursor-pointer" onClick={()=>setEditCmd({...type,fields:JSON.parse(JSON.stringify(cmd.fields||[]))})}>
+            <td className="px-3 py-2 font-mono text-blue-300 truncate">{cmd.type}</td>
             <td className="px-3 py-2 text-gray-300 truncate">{cmd.label||'-'}</td>
             <td className="px-3 py-2 text-center">{cmd.enabled!==false?<span className="px-1.5 py-0.5 bg-green-900/40 text-green-300 rounded text-[10px]">启用</span>:<span className="px-1.5 py-0.5 bg-gray-700/50 text-gray-400 rounded text-[10px]">禁用</span>}</td>
             <td className="px-3 py-2 text-center">{isControl?<span className="px-1.5 py-0.5 bg-yellow-900/40 text-yellow-300 rounded text-[10px]">控制</span>:<span className="px-1.5 py-0.5 bg-blue-900/40 text-blue-300 rounded text-[10px]">操作</span>}</td>
@@ -175,7 +175,7 @@ export default function CommandsPage() {
             {viewSource && (
               <div className="border border-gray-700/50 rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 bg-[#0f172a]/80 border-b border-gray-700/50">
-                  <span className="text-[10px] text-gray-400 font-mono">{viewSource.cmd} source</span>
+                  <span className="text-[10px] text-gray-400 font-mono">{viewSource.type} source</span>
                   <button onClick={() => setViewSource(null)} className="text-gray-400 hover:text-white"><i className="fas fa-times"></i></button>
                 </div>
                 {viewSource.loading ? (
