@@ -1,13 +1,13 @@
 """
-Update AI prompt scenarios for command handler code generation.
+Update AI prompt scenarios for command handler code review.
 
-Three command types -> three prompts, stored in the ai_llm_configs.scenarios JSON
-column so the frontend can select the right prompt per command type.
+Three command types -> three review prompts, stored in the ai_llm_configs.scenarios
+JSON column so the frontend can select the right prompt per command type.
 
 Usage: python scripts/update_llm_prompt.py [data.db path]
 
-Note: The prompt template variables {{scaffold}}, {{definition_json}}, {{context}}
-are replaced by the backend at runtime (see other_routers.py generate_with_scenario).
+Note: The prompt template variables {{source_code}}, {{definition_json}}, {{context}}
+are replaced by the backend at runtime (see other_routers.py).
 """
 
 import sqlite3
@@ -16,120 +16,96 @@ import json
 
 
 BACKEND_PROMPT = """
-你是 RPA 后端开发专家。下面是一份已经写好的 Python handler 代码，import、注册、参数读取、结果上报都已正确。
-你只需要把 `# TODO: 业务逻辑` 区域替换成真实可执行的业务代码，然后输出完整文件。
+你是 RPA 后端代码审查专家。请审查下面的 Python backend handler 代码，逐项检查并返回 JSON 问题清单。
 
-=== 当前代码（你只能修改 # TODO 区域）===
-
+=== Handler 源码 ===
 ```python
-{{scaffold}}
+{{source_code}}
 ```
 
-=== 项目 API 清单（按需选用，不要编造）===
+=== JSON 定义 ===
+{{definition_json}}
 
-浏览器操作：
-  from src.repo.browser_utils import is_browser_running, launch_browser_with_extension
-  # launch_browser_with_extension(browser_type) -> bool  自动加载 RPA 扩展启动浏览器
+=== 检查清单 ===
+1. @register_handler 的 cmd/label/category/runtime 是否与 JSON 定义一致
+2. params 列表是否与 JSON 定义完全匹配（name、type、default、group、valueType）
+3. execute() 签名：@staticmethod async def execute(runner, cmd_type, step_id, instr)
+4. 参数是否从 instr.get("extra") 读取（不是 instr.get("paramName")）
+5. runner.completed 是否递增
+6. runner.results 是否 append 了 result_summary（result_summary 必须是 dict）
+7. runner._emit 是否正确发送 stepComplete
+8. 输出变量是否写入了 runner.vars[键名]
+9. 是否编造了不存在的模块或 API
+10. 异常处理是否合理（raise RuntimeError 还是 try-except）
 
-  from src.runtime.workflow.extension_runner import wait_for_extension_connection, ext_manager
-  # client_id = await wait_for_extension_connection(browser_type, ext_manager, timeout=10.0)
-  # 连接建立后必须设置: runner.client_id = client_id
-
-工具函数：
-  from src.runtime.workflow.handlers.utils import clean_var_ref, convert_value
-  # clean_var_ref("${var}") -> "var"
-  # convert_value(value, type, runner.vars) -> 转换后的值
-
-HTTP 请求：
-  import httpx  # 项目已安装
-  async with httpx.AsyncClient() as client:
-      resp = await client.get(url, headers={...})
-
-=== 架构规则 ===
-- backend 指令: execute() 完成全部工作，不涉及浏览器扩展
-- extension 指令: execute() 只做前置工作（启动浏览器、建立 WebSocket 连接）。扩展通信和窗口管理由 Runner 负责，不要在 execute() 里调用 _send_and_wait
-- 输出变量：如果参数 group="output" 且 type="str-var"，其值代表写入 runner.vars 的键名，执行后写入 runner.vars[键名]
-
-=== 硬性要求 ===
-1. 只能改 # TODO 之后、result_summary 之前的代码，其他地方一个字符都不准动
-2. 保留 result_summary、runner.completed、runner.results、runner._emit 结果上报代码
-3. 不要重写整个文件，不要改 import/register/params/extra 读取
-4. result_summary 必须是 dict
-5. 不确定的 API 不要编造，说明"需确认"
-6. 直接输出完整文件，不要代码块包裹，不要说明文字
+=== 返回格式 ===
+只返回 JSON 数组：
+[
+  {"level": "error|warning|info", "line": 行号或null, "check": "检查项名称", "message": "具体问题和建议"}
+]
+没有问题时返回空数组 []
 """
 
 EXTENSION_JS_PROMPT = """
-你是 Chrome 扩展开发专家。请根据下面的指令定义，编写浏览器扩展的 JS handler。
+你是 Chrome 扩展代码审查专家。请审查下面的 JS handler 代码，逐项检查并返回 JSON 问题清单。
 
-=== 指令定义 ===
+=== Handler 源码 ===
+```javascript
+{{source_code}}
+```
+
+=== JSON 定义 ===
 {{definition_json}}
 
-=== Handler 上下文 ===
-{{context}}
+=== 检查清单 ===
+1. 注册方式是否正确（registerHandler for DOM, registerBackgroundHandler for background）
+2. 参数是否从 step.extra 读取，参数名是否与 JSON 定义匹配
+3. 返回值是否符合规范：{ ok: true/false, result?: ..., error?: ..., vars?: ... }
+4. DOM 操作前是否检查了元素存在性（findElement 返回值检查）
+5. chrome API 调用是否有错误处理
+6. 是否考虑了 extension context invalidation（Service Worker 生命周期）
+7. background handler 是否设置了 agent.workWindowId / agent.workTabId
+8. 是否注入了 content script（agent._injectContentScript）
+9. 异步操作是否正确使用 await
+10. 是否有硬编码的 URL 或 magic string
 
-=== 可用 API ===
-注册方式（根据上下文选择其一）：
-  registerHandler(name, handler)          — DOM handler（content script 中运行）
-  registerBackgroundHandler(name, handler) — background handler（Service Worker 中运行）
-
-DOM handler 可用工具（content.js 中已定义）：
-  findElement(elementDef, scope, visibilityMode) -> DOM Element | null
-    elementDef: args.elements[elementName]
-    scope: "local" | "global"
-    visibilityMode: "visible" | "any"
-  resolveSelector(selectors) -> 最佳选择器字符串
-  sleep(ms) -> Promise
-
-参数读取：
-  args.extra — 用户填写的参数 {paramName: value}，参数名与 JSON 定义一致
-  args.elements — 元素选择器 {elementName: {selectors: [...]}}
-
-Background handler 可用：
-  chrome.windows / chrome.tabs — 扩展后台 API
-  agent.workWindowId / agent.workTabId — 当前工作窗口/标签
-  agent._injectContentScript(tabId) — 注入 content script
-  agent._send(type, payload) — 通过 WebSocket 发送消息到后端
-
-=== 返回值规范 ===
-  { ok: true }                           — 成功
-  { ok: true, result: {...} }            — 带结果
-  { ok: true, vars: {key: val} }         — 写变量
-  { ok: false, error: "原因" }            — 失败
-
-=== 要求 ===
-1. 根据上下文选择正确的注册方式（registerHandler 或 registerBackgroundHandler）
-2. 代码必须真实可执行，正确处理错误情况
-3. DOM 操作前检查元素是否存在（findElement 可能返回 null）
-4. 直接输出完整 JS 代码，不要 markdown 代码块，不要说明文字
+=== 返回格式 ===
+只返回 JSON 数组：
+[
+  {"level": "error|warning|info", "line": 行号或null, "check": "检查项名称", "message": "具体问题和建议"}
+]
+没有问题时返回空数组 []
 """
 
 CONTROL_PROMPT = """
-你是 RPA 工作流引擎开发专家。请填充控制流 handler 的 # TODO 区域。
+你是 RPA 工作流引擎审查专家。请审查下面的 control handler 代码，逐项检查并返回 JSON 问题清单。
 
-=== 当前代码 ===
-
+=== Handler 源码 ===
 ```python
-{{scaffold}}
+{{source_code}}
 ```
 
-=== 控制流语义 ===
-- is_container=True — 容器指令（for/if/try），子节点由 emitter 展开执行
-- is_structural=True — 结束标记（endFor/endIf），仅语法闭合
-- is_branch=True — 分支路径（else/catch）
-- 控制流 handler 的 execute() 只做条件判断/状态更新，不需要 I/O 或浏览器通信
+=== JSON 定义 ===
+{{definition_json}}
 
-=== Runner 可用 API ===
-- runner.vars: dict — 工作流变量空间
-- runner.current_loop_index: int | None — 循环索引
-- runner.get_parent_vars() -> dict: 父级变量
-- instr.get("extra"): dict — 用户填写的参数值
+=== 检查清单 ===
+1. @register_handler 的 cmd/label/category/runtime 是否与 JSON 定义一致
+2. is_container / is_branch / is_structural / closes_with 是否正确声明
+3. execute() 签名：@staticmethod async def execute(runner, cmd_type, step_id, instr)
+4. 控制流逻辑是否正确处理嵌套场景
+5. 变量作用域是否正确（runner.vars vs runner.get_parent_vars()）
+6. 条件判断逻辑是否有边界情况遗漏
+7. 是否正确处理了空列表/空值/null
+8. 结构性指令是否只做标记不执行业务逻辑
+9. 异常处理是否合理
+10. 是否与 JSON 定义的 closesWith 匹配
 
-=== 要求 ===
-1. 只能改 # TODO 区域，不能改其他地方
-2. 控制流逻辑必须正确处理嵌套场景
-3. 不写 pass 或占位代码
-4. 直接输出完整代码，不要代码块，不要说明文字
+=== 返回格式 ===
+只返回 JSON 数组：
+[
+  {"level": "error|warning|info", "line": 行号或null, "check": "检查项名称", "message": "具体问题和建议"}
+]
+没有问题时返回空数组 []
 """
 
 REVIEW_PROMPT = """
@@ -145,7 +121,7 @@ REVIEW_PROMPT = """
 {{value_types_json}}
 
 === 检查清单 ===
-1. @register_handler 的 type/label/category/runtime 是否与 JSON 定义一致
+1. @register_handler 的 cmd/label/category/runtime 是否与 JSON 定义一致
 2. params 列表是否与 JSON 定义完全匹配（name、type、default、group）
 3. execute() 签名是否正确：@staticmethod async def execute(runner, cmd_type, step_id, instr)
 4. 参数是否从 instr.get("extra") 读取（不是 instr.get("paramName")）
@@ -173,29 +149,29 @@ REVIEW_PROMPT = """
 DEFAULT_SCENARIOS = [
     {
         "id": "command_backend",
-        "name": "后端指令代码生成",
-        "description": "生成 backend_commands Python handler，含 execute 实现",
+        "name": "后端指令审查",
+        "description": "审查 backend Python handler 代码质量",
         "prompt": BACKEND_PROMPT,
         "enabled": True,
     },
     {
         "id": "command_extension_js",
-        "name": "扩展端 JS 代码生成",
-        "description": "生成 extension_commands 的 content.js handler 函数",
+        "name": "扩展端 JS 审查",
+        "description": "审查 extension JS handler 代码质量",
         "prompt": EXTENSION_JS_PROMPT,
         "enabled": True,
     },
     {
         "id": "command_control",
-        "name": "控制流指令代码生成",
-        "description": "生成 control_commands Python handler，含流程控制逻辑",
+        "name": "控制流指令审查",
+        "description": "审查 control Python handler 代码质量",
         "prompt": CONTROL_PROMPT,
         "enabled": True,
     },
     {
         "id": "command_review",
-        "name": "handler 代码审查",
-        "description": "审查 Python handler 代码，逐项检查注册、参数、边界规则",
+        "name": "通用 handler 审查",
+        "description": "通用审查（含 value_types.json 校验）",
         "prompt": REVIEW_PROMPT,
         "enabled": True,
     },
