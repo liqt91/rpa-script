@@ -74,7 +74,7 @@ export default function NodeForm() {
   const [extra, setExtra] = useState({});
   const [activeTab, setActiveTab] = useState('params');
 
-  const command = selectedNode ? NODE_TYPE_MAP[selectedNode.type] : null;
+  const command = selectedNode ? NODE_TYPE_MAP[selectedNode.cmd] : null;
   const availableVars = useAvailableVars(selectedNode, nodes, workflow?.parameters);
 
   // Schema-driven field buckets
@@ -144,7 +144,7 @@ export default function NodeForm() {
     }
     queueMicrotask(() => {
       const initialForm = {
-        type: selectedNode.type || '',
+        cmd: selectedNode.cmd || '',
         parent_id: selectedNode.parent_id || '',
       };
       if (primaryElementField) {
@@ -432,7 +432,7 @@ export default function NodeForm() {
                     <option value="">无 (顶层)</option>
                     {containerNodes.map(n => (
                       <option key={n.id} value={n.id}>
-                        #{n.order} {NODE_TYPE_MAP[n.type]?.label || n.cmd}{n.element_name ? ` - ${n.element_name}` : ''}
+                        #{n.order} {NODE_TYPE_MAP[n.cmd]?.label || n.cmd}{n.element_name ? ` - ${n.element_name}` : ''}
                       </option>
                     ))}
                   </select>
