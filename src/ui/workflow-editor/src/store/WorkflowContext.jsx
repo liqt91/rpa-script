@@ -113,7 +113,7 @@ export function findAncestorNodes(nodes, selectedNodeId, types) {
   let node = idToNode.get(selectedNodeId);
   while (node && node.parent_id != null) {
     node = idToNode.get(node.parent_id);
-    if (node && typeSet.has(node.type)) {
+    if (node && typeSet.has(node.cmd)) {
       result.push(node);
     }
   }
@@ -265,10 +265,10 @@ function reducer(state, action) {
           sorted[i].order = i + 1;
         }
         nodes = sorted;
-        console.log(`[reducer] ADD_NODE_LOCAL id=${newNode.id} type=${newNode.type} insertAt=${_insertIndex} total=${nodes.length}`);
+        console.log(`[reducer] ADD_NODE_LOCAL id=${newNode.id} type=${newNode.cmd} insertAt=${_insertIndex} total=${nodes.length}`);
       } else {
         nodes = [...state.nodes, newNode];
-        console.log(`[reducer] ADD_NODE_LOCAL id=${newNode.id} type=${newNode.type} append total=${nodes.length}`);
+        console.log(`[reducer] ADD_NODE_LOCAL id=${newNode.id} type=${newNode.cmd} append total=${nodes.length}`);
       }
 
       return { ...state, nodes, treeNodes: buildTree(nodes), selectedNodeId: newNode.id, isDirty: true };
@@ -353,7 +353,7 @@ export function matchBrackets(sorted, typeMap) {
   const stack = []; // { id, closesWith }[]
   const match = new Map();
   for (const node of sorted) {
-    const info = typeMap[node.type];
+    const info = typeMap[node.cmd];
     if (info?.isBranch) {
       // 分支（else/catch）与原始容器共享同一个结束标记，不进入栈
       if (stack.length > 0) {
@@ -362,7 +362,7 @@ export function matchBrackets(sorted, typeMap) {
     } else if (info?.isContainer) {
       stack.push({ id: node.id, closesWith: info.closesWith });
     } else if (info?.isStructural) {
-      const closeType = node.type; // e.g. "endFor"
+      const closeType = node.cmd; // e.g. "endFor"
       let idx = stack.length - 1;
       while (idx >= 0 && stack[idx].closesWith !== closeType) idx--;
       if (idx >= 0) {
@@ -382,7 +382,7 @@ export function getUnclosedContainers(sorted, typeMap) {
   const stack = [];
   for (let i = 0; i < sorted.length; i++) {
     const node = sorted[i];
-    const info = typeMap[node.type];
+    const info = typeMap[node.cmd];
     if (info?.isBranch) {
       // 分支（else/catch）与原始容器共享同一个结束标记，不进入栈
       if (stack.length > 0) {
@@ -391,7 +391,7 @@ export function getUnclosedContainers(sorted, typeMap) {
     } else if (info?.isContainer) {
       stack.push({ id: node.id, closesWith: info.closesWith, index: i, depth: node.depth || 0 });
     } else if (info?.isStructural) {
-      const closeType = node.type;
+      const closeType = node.cmd;
       let idx = stack.length - 1;
       while (idx >= 0 && stack[idx].closesWith !== closeType) idx--;
       if (idx >= 0) {
@@ -415,7 +415,7 @@ export function computeParents(sorted, typeMap) {
 
   const scope = []; // 当前打开的容器 {containerId, branchId, closesWith}[]
   for (const node of sorted) {
-    const info = typeMap[node.type];
+    const info = typeMap[node.cmd];
     if (info?.isContainer) {
       node.parent_id = scope.length > 0 ? scope[scope.length - 1].branchId : null;
       scope.push({ containerId: node.id, branchId: node.id, closesWith: info.closesWith });
@@ -430,7 +430,7 @@ export function computeParents(sorted, typeMap) {
         closesWith: info.closesWith || closed?.closesWith,
       });
     } else if (info?.isStructural) {
-      const closeType = node.type;
+      const closeType = node.cmd;
       let idx = scope.length - 1;
       while (idx >= 0 && scope[idx].closesWith !== closeType) idx--;
       if (idx >= 0) {
@@ -456,7 +456,7 @@ export function deriveParentId(nodes, newNodeType, typeMap, insertIndex) {
   const prefix = insertIndex !== undefined ? sorted.slice(0, insertIndex) : sorted;
   const scope = []; // 当前未闭合的容器 {containerId, branchId, closesWith}[]
   for (const node of prefix) {
-    const info = typeMap[node.type];
+    const info = typeMap[node.cmd];
     if (info?.isContainer) {
       scope.push({ containerId: node.id, branchId: node.id, closesWith: info.closesWith });
     } else if (info?.isBranch) {
@@ -469,7 +469,7 @@ export function deriveParentId(nodes, newNodeType, typeMap, insertIndex) {
         };
       }
     } else if (info?.isStructural) {
-      const closeType = node.type;
+      const closeType = node.cmd;
       let idx = scope.length - 1;
       while (idx >= 0 && scope[idx].closesWith !== closeType) idx--;
       if (idx >= 0) scope.splice(idx, 1);
@@ -644,7 +644,7 @@ export function WorkflowProvider({ children, wfId }) {
     if (!stateRef.current.wfId) return;
     const tempId = crypto.randomUUID();
     const node = { ...payload, id: tempId, order: payload.order || (stateRef.current.nodes.length + 1), _insertIndex: insertIndex };
-    console.log(`[WorkflowContext] saveNode tempId=${tempId} type=${node.type} insertIndex=${insertIndex ?? 'end'}`);
+    console.log(`[WorkflowContext] saveNode tempId=${tempId} type=${node.cmd} insertIndex=${insertIndex ?? 'end'}`);
     dispatch({ type: 'ADD_NODE_LOCAL', payload: node });
     setTimeout(() => persistToLocal(), 0);
     return node;
@@ -907,10 +907,10 @@ export function WorkflowProvider({ children, wfId }) {
   // Derived values
   const NODE_TYPES = getNodeTypes(state.commands);
   const CATEGORIES = getCategories(state.commands);
-  const NODE_TYPE_MAP = getNodeTypeMap(NODE_TYPES);
+  const NODE_TYPE_MAP = { ...getNodeTypeMap(NODE_TYPES), ...getNodeTypeMap(NEW_NODE_TYPES) };
   const selectedNode = state.nodes.find(n => n.id === state.selectedNodeId) || null;
-  const containerTypes = getContainerTypes(state.commands);
-  const containerNodes = state.nodes.filter(n => containerTypes.includes(n.type));
+  const containerTypes = [...getContainerTypes(state.commands), ...getContainerTypes(state.newCommands)];
+  const containerNodes = state.nodes.filter(n => containerTypes.includes(n.cmd));
 
   const NEW_NODE_TYPES = getNodeTypes(state.newCommands);
   const NEW_CATEGORIES = getCategories(state.newCommands);
