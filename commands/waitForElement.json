@@ -23,7 +23,7 @@
       "label": "超时时间（秒）",
       "type": "number",
       "default": 10,
-      "group": "advanced",
+      "group": "默认属性",
       "description": "超过此时间元素未出现则失败"
     },
     {
@@ -31,16 +31,20 @@
       "label": "可见性",
       "type": "select",
       "options": [
-        {"label": "仅可见", "value": "visible"},
-        {"label": "所有", "value": "any"}
+        {
+          "label": "仅可见",
+          "value": "visible"
+        },
+        {
+          "label": "所有",
+          "value": "any"
+        }
       ],
       "default": "visible",
       "group": "advanced"
     }
   ],
-  "handler": {
-    "kind": "extension",
-    "source": "extension/dom_handlers_new/waitForElement.js"
-  },
-  "categories": ["page"]
+  "categories": [
+    "page"
+  ]
 }
