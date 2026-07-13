@@ -1315,17 +1315,17 @@ console.log({
     let value;
     switch (action) {
       case 'getAttr':
-        value = el.getAttribute(extra?.attribute || 'value') || '';
+        value = (el && el.getAttribute) ? (el.getAttribute(extra?.attribute || 'value') || '') : '';
         break;
       case 'getHtml':
-        value = el.innerHTML || '';
+        value = el ? (el.innerHTML || '') : '';
         break;
       case 'getValue':
-        value = el.value ?? el.getAttribute('value') ?? '';
+        value = el ? (el.value ?? el.getAttribute?.('value') ?? '') : '';
         break;
       case 'getText':
       default:
-        value = (el.textContent || el.innerText || '').trim();
+        value = el ? (el.textContent || el.innerText || '').trim() : '';
     }
     return { value, text: value };
   }
