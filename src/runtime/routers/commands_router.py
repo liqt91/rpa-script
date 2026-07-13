@@ -471,9 +471,16 @@ def get_definition(type_name: str, user=Depends(auth.get_current_user)):
 
 @router.put("/definitions/{type_name}")
 def save_definition(type_name: str, payload: dict, user=Depends(auth.get_current_user)):
-    """Save a command definition JSON. Creates if not exists."""
+    """Save a command definition JSON. Merges with existing to preserve handler etc."""
     fp = _COMMANDS_DIR / f"{type_name}.json"
     _os.makedirs(_COMMANDS_DIR, exist_ok=True)
+    # Merge: preserve fields not in payload
+    if fp.exists():
+        with open(fp, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+        for k, v in existing.items():
+            if k not in payload:
+                payload[k] = v
     with open(fp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     return {"success": True, "file": fp.name}

@@ -2,11 +2,10 @@
   "cmd": "getText",
   "label": "获取文本",
   "runtime": "extension",
-  "category": "页面操作",
   "icon": "fa-font",
   "iconColor": "text-green-500",
   "bgColor": "bg-green-50",
-  "categoryOrder": 20,
+  "categoryOrder": 40,
   "commandOrder": 10,
   "description": "获取页面元素的文本内容",
   "enabled": true,
@@ -30,5 +29,5 @@
     "kind": "extension",
     "source": "extension/dom_handlers/getText.js"
   },
-  "categories": ["page"]
+  "categories": ["data"]
 }
