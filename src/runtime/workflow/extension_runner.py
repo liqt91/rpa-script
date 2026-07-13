@@ -1009,7 +1009,9 @@ class ExtensionRunner:
         if cmd == "inputText":
             return f'{extra.get("text","")[:40]}'
         if cmd == "getText":
-            return f'{extra.get("element_name","?")} → {extra.get("varName","?")}'
+            return str(extra.get("elementName", extra.get("element_name", "?")))[:40]
+        if cmd == "getElementLink":
+            return str(extra.get("elementName", extra.get("element_name", "?")))[:40] → {extra.get("varName","?")}'
         if cmd == "custom":
             return str(extra.get("code", ""))[:80]
         if cmd in ("ifElementVisible", "ifTextContains", "ifVarEquals"):

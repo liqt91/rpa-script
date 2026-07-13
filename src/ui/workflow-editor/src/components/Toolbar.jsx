@@ -11,7 +11,7 @@ function formatResult(result) {
   if (result.element) parts.push(`元素「${result.element}」`);
   if (result.clicked) parts.push('点击成功');
   if (result.input !== undefined) parts.push(`输入: ${String(result.input).slice(0, 50)}`);
-  if (result.text !== undefined) parts.push(`文本: ${String(result.text).slice(0, 40)}`);
+  if (result.text !== undefined && result.extracted === undefined) parts.push(`文本: ${String(result.text).slice(0, 40)}`);
   if (result.extracted !== undefined) parts.push(`提取: ${String(result.extracted).slice(0, 40)}`);
   if (result.scrolled) parts.push(`滚动: ${result.scrolled}`);
   if (result.navigatedTo) parts.push(`导航: ${result.navigatedTo}`);
