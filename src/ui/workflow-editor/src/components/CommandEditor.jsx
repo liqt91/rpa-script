@@ -10,7 +10,7 @@ const CMD_TYPES = [
 const PARAM_TYPES = []; // populated from value_types.json
 
 const PARAM_GROUPS = [
-  { v: '默认属性', l: '默认属性' },
+  { v: '主属性', l: '主属性' },
   { v: 'advanced', l: '高级' },
   { v: '输出变量', l: '输出变量' },
   { v: '输入变量', l: '输入变量' },
