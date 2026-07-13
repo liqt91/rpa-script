@@ -1721,6 +1721,17 @@ registerHandler('waitForElement', async function waitForElementHandler({ locator
 registerHandler('clickElement', async (args) => doClick(args));
 
 
+  // ── getElementLink ──
+/**
+ * getElementLink — DOM handler.
+ * Extracts the href attribute from an element.
+ */
+registerHandler('getElementLink', async (args) => {
+  args.extra = { ...(args.extra || {}), action: 'getAttr', attribute: 'href' };
+  return doExtract(args);
+});
+
+
   // ── getText ──
 
 

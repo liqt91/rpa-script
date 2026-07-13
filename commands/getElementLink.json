@@ -1,0 +1,36 @@
+{
+  "cmd": "getElementLink",
+  "label": "获取超链接",
+  "runtime": "extension",
+  "category": "数据提取",
+  "icon": "fa-link",
+  "iconColor": "text-blue-500",
+  "bgColor": "bg-blue-50",
+  "categoryOrder": 40,
+  "commandOrder": 20,
+  "description": "获取指定元素的 href 链接地址",
+  "params": [
+    {
+      "name": "elementName",
+      "label": "目标元素",
+      "type": "element",
+      "isPrimaryElement": true,
+      "required": true,
+      "group": "主属性",
+      "placeholder": "选择一个已捕获的链接元素"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "link1",
+      "group": "output",
+      "description": "链接地址将保存到此变量中"
+    }
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/getElementLink.js"
+  },
+  "categories": ["data"]
+}
