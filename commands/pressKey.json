@@ -34,6 +34,7 @@
         {"label": "Home", "value": "Home"},
         {"label": "End", "value": "End"},
         {"label": "F1", "value": "F1"},
+        {"label": "F5 刷新", "value": "F5"},
         {"label": "F12", "value": "F12"},
         {"label": "Ctrl+C 复制", "value": "c"},
         {"label": "Ctrl+V 粘贴", "value": "v"},
