@@ -889,114 +889,12 @@ class ExtensionRunner:
         for alt in instr.get("altLocators") or []:
             locators.append((alt.get("locator"), alt.get("selectorFamily") or selector_family))
 
-        if cmd_type == "ifElementExists":
-            op = extra.get("operator", "exists")
-            elements = []
-            results = []
-            for loc, fam in locators:
-                res = await self._check_element_exists(loc, fam, timeout=timeout, extra=extra)
-                results.append(res)
-                elements.append({"locator": loc, "family": fam, "exists": res})
-            met = not any(results) if op == "notExists" else any(results)
-            return {"met": met, "cmdType": cmd_type, "operator": op, "elements": elements}
-        if cmd_type == "ifElementVisible":
-            op = extra.get("operator", "visible")
-            logger.info(
-                f"[ExtensionRunner] evaluating ifElementVisible "
-                f"locators={locators} timeout={timeout} operator={op} "
-                f"visibilityMode={extra.get('visibilityMode', 'visible')}"
-            )
-            elements = []
-            results = []
-            for loc, fam in locators:
-                res = await self._check_element_visible(loc, fam, timeout=timeout, extra=extra)
-                results.append(res)
-                elements.append({"locator": loc, "family": fam, "visible": res})
-            logger.info(f"[ExtensionRunner] ifElementVisible results={results}")
-            met = not any(results) if op == "notVisible" else any(results)
-            return {"met": met, "cmdType": cmd_type, "operator": op, "elements": elements}
-        if cmd_type == "ifTextContains":
-            text = await self._get_element_text(locator, selector_family, timeout=timeout, extra=extra)
-            expected = extra.get("text", "")
-            op = extra.get("operator", "contains")
-            met = False
-            if op == "notContains":
-                met = expected not in text
-            elif op == "startsWith":
-                met = text.startswith(expected)
-            elif op == "endsWith":
-                met = text.endswith(expected)
-            else:
-                met = expected in text
-            logger.info(f"[ExtensionRunner] ifTextContains text={text!r} expected={expected!r} op={op} met={met}")
-            return met
-        if cmd_type == "ifTextEquals":
-            text = await self._get_element_text(locator, selector_family, timeout=timeout, extra=extra)
-            expected = extra.get("text", "")
-            met = text == expected
-            logger.info(f"[ExtensionRunner] ifTextEquals text={text!r} expected={expected!r} met={met}")
-            return met
-        if cmd_type == "ifUrlContains":
-            url = await self._get_current_url()
-            pattern = extra.get("urlPattern", "")
-            return pattern in url
-        if cmd_type == "ifVarEquals":
-            var_name = _clean_var_ref(extra.get("varName", ""))
-            expected = extra.get("value", "")
-            vtype = extra.get("valueType", "string")
-            op = extra.get("operator", "equals")
-            actual = self.vars.get(var_name)
-            if vtype == "number":
-                try:
-                    fa, fe = float(actual), float(expected)
-                    if op == "greaterThan":
-                        return fa > fe
-                    if op == "lessThan":
-                        return fa < fe
-                    return fa == fe
-                except (ValueError, TypeError):
-                    return False
-            if vtype == "bool":
-                return bool(actual) == (str(expected).lower() in ("true", "1", "yes"))
-            if op == "greaterThan":
-                return str(actual) > str(expected)
-            if op == "lessThan":
-                return str(actual) < str(expected)
-            return str(actual) == str(expected)
-        if cmd_type == "ifVarContains":
-            var_name = _clean_var_ref(extra.get("varName", ""))
-            expected = extra.get("value", "")
-            op = extra.get("operator", "contains")
-            actual = self.vars.get(var_name)
-            if isinstance(actual, list):
-                has = expected in actual
-                return not has if op == "notContains" else has
-            s = str(actual)
-            if op == "notContains":
-                return expected not in s
-            if op == "startsWith":
-                return s.startswith(expected)
-            if op == "endsWith":
-                return s.endswith(expected)
-            return expected in s
-        if cmd_type == "ifListContains":
-            list_name = _clean_var_ref(extra.get("listName", ""))
-            expected = self._resolve_vars(str(extra.get("value", "")), self.vars)
-            actual = self.vars.get(list_name)
-            if isinstance(actual, list):
-                return expected in actual
-            logger.warning(f"[ExtensionRunner] ifListContains: {list_name} is not a list")
-            return False
-        if cmd_type == "ifDictContains":
-            dict_name = _clean_var_ref(extra.get("dictName", ""))
-            key = self._resolve_vars(str(extra.get("key", "")), self.vars)
-            actual = self.vars.get(dict_name)
-            if isinstance(actual, dict):
-                return key in actual
-            logger.warning(f"[ExtensionRunner] ifDictContains: {dict_name} is not a dict")
-            return False
+        # Data-driven condition evaluation
+        from .handlers.registry import get_handler as _gh
+        _h = _gh(cmd_type)
+        if _h and _h.get("handler_class") and hasattr(_h["handler_class"], "evaluate"):
+            return await _h["handler_class"].evaluate(self, instr)
 
-        # whileCondition variants
         if cmd_type == "whileCondition":
             cond_type = extra.get("conditionType", "elementExists")
             met = False

@@ -11,3 +11,20 @@ class IfVarContainsHandler:
         Param("varName", "变量名", "str-var", required=True),
         Param("substring", "包含文本", "str-input", required=True),
     ]
+    @staticmethod
+    async def evaluate(runner, instr):
+        from src.runtime.workflow.extension_runner import _clean_var_ref
+        extra = runner._resolve_vars(instr.get("extra") or {}, runner.vars)
+        var_name = _clean_var_ref(extra.get("varName", ""))
+        expected = extra.get("value", "")
+        op = extra.get("operator", "contains")
+        actual = runner.vars.get(var_name)
+        if isinstance(actual, list):
+            has = expected in actual
+            return not has if op == "notContains" else has
+        s = str(actual)
+        if op == "notContains": return expected not in s
+        if op == "startsWith": return s.startswith(expected)
+        if op == "endsWith": return s.endswith(expected)
+        return expected in s
+

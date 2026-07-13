@@ -14,3 +14,17 @@ class IfDictContainsHandler:
 
 
 # ─── 异常处理 ────────────────────────────────────────────────
+    @staticmethod
+    async def evaluate(runner, instr):
+        import logging
+        logger = logging.getLogger(__name__)
+        from src.runtime.workflow.extension_runner import _clean_var_ref
+        extra = runner._resolve_vars(instr.get("extra") or {}, runner.vars)
+        dict_name = _clean_var_ref(extra.get("dictName", ""))
+        key = runner._resolve_vars(str(extra.get("key", "")), runner.vars)
+        actual = runner.vars.get(dict_name)
+        if isinstance(actual, dict):
+            return key in actual
+        logger.warning(f"ifDictContains: {dict_name} is not a dict")
+        return False
+

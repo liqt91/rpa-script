@@ -11,3 +11,26 @@ class IfVarEqualsHandler:
         Param("varName", "变量名", "str-var", required=True),
         Param("compareTo", "比较值", "str-input", required=True),
     ]
+    @staticmethod
+    async def evaluate(runner, instr):
+        from src.runtime.workflow.extension_runner import _clean_var_ref
+        extra = runner._resolve_vars(instr.get("extra") or {}, runner.vars)
+        var_name = _clean_var_ref(extra.get("varName", ""))
+        expected = extra.get("value", "")
+        vtype = extra.get("valueType", "string")
+        op = extra.get("operator", "equals")
+        actual = runner.vars.get(var_name)
+        if vtype == "number":
+            try:
+                fa, fe = float(actual), float(expected)
+                if op == "greaterThan": return fa > fe
+                if op == "lessThan": return fa < fe
+                return fa == fe
+            except (ValueError, TypeError):
+                return False
+        if vtype == "bool":
+            return bool(actual) == (str(expected).lower() in ("true", "1", "yes"))
+        if op == "greaterThan": return str(actual) > str(expected)
+        if op == "lessThan": return str(actual) < str(expected)
+        return str(actual) == str(expected)
+

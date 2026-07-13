@@ -217,122 +217,9 @@ class AgentBackground {
   }
 
   async _ensureWorkTab(step) {
-    const type = step.type;
-    const url = step.extra?.url;
     const explicitWindowId = step.extra?.windowId ? Number(step.extra.windowId) : null;
     const explicitTabId = step.extra?.tabId ? Number(step.extra.tabId) : null;
 
-    // ── openBrowser: 创建/复用工作窗口（旧系统，待迁移到 background_handlers）──
-    if (type === 'openBrowser') {
-      const createUrl = url || 'about:blank';
-      const state = step.extra?.windowState || 'normal';
-
-      // 优先复用已有的空白窗口（刚由 launch_browser_with_extension 启动的）
-      const allWins = await chrome.windows.getAll({ populate: true });
-      // 找最新的 about:blank/newtab 窗口
-      for (const win of allWins.reverse()) {
-        if (win.type !== 'normal') continue;
-        const tab = win.tabs?.[0];
-        if (tab && (tab.url === 'about:blank' || tab.url?.includes('newtab') || tab.url === 'edge://newtab/')) {
-          this.workWindowId = win.id;
-          await chrome.tabs.update(tab.id, { url: createUrl, active: true });
-          await chrome.windows.update(win.id, { focused: true });
-          this.workTabId = tab.id;
-          await new Promise(r => setTimeout(r, 500));
-          try { await this._injectContentScript(tab.id); } catch (e) {}
-          return tab.id;
-        }
-      }
-
-      // 没有可复用的空白窗口，创建新窗口
-      const newWindow = await chrome.windows.create({ url: createUrl, focused: true, state });
-      this.workWindowId = newWindow.id;
-      const newTab = newWindow.tabs?.[0];
-      if (newTab?.id) {
-        this.workTabId = newTab.id;
-        await new Promise(r => setTimeout(r, 500));
-        try { await this._injectContentScript(newTab.id); } catch (e) {}
-        return newTab.id;
-      }
-      throw new Error('Failed to create browser window');
-    }
-
-    // ── navigate: 在指定窗口内新建标签页（或隐式工作窗口） ──
-    if (type === 'navigate') {
-      if (!url) throw new Error('navigate: url required');
-
-      const targetWindowId = explicitWindowId || this.workWindowId;
-
-      // 有目标窗口 → 在窗口内新建标签页
-      if (targetWindowId) {
-        try {
-          const win = await chrome.windows.get(targetWindowId);
-          if (win) {
-            const tab = await chrome.tabs.create({ url, windowId: targetWindowId, active: true });
-            if (!explicitWindowId) this.workTabId = tab.id;
-            await new Promise(r => setTimeout(r, 500));
-            try { await this._injectContentScript(tab.id); } catch (e) {}
-            return tab.id;
-          }
-        } catch (e) {}
-        if (!explicitWindowId) {
-          this.workWindowId = null;
-          this.workTabId = null;
-      this._lastTabUrl = null;
-        }
-      }
-
-      // 无工作窗口（旧流程兼容）→ 回退到旧行为：创建/复用窗口
-      const windows = await chrome.windows.getAll({ populate: true });
-      let fallbackTab = null;
-      let fallbackWindowId = null;
-      for (const win of windows) {
-        if (win.type !== 'normal' || !win.tabs) continue;
-        const blankTabs = win.tabs.filter(t =>
-          !this._isRestrictedUrl(t.url) &&
-          (t.url === 'about:blank' || t.url?.includes('newtab') || t.url === 'edge://newtab/')
-        );
-        if (blankTabs.length > 0) {
-          this.workWindowId = win.id;
-          const tab = blankTabs[0];
-          await chrome.tabs.update(tab.id, { url, active: true });
-          this.workTabId = tab.id;
-          await new Promise(r => setTimeout(r, 500));
-          try { await this._injectContentScript(tab.id); } catch (e) {}
-          return tab.id;
-        }
-        if (!fallbackTab) {
-          const usable = win.tabs.find(t => !this._isRestrictedUrl(t.url));
-          if (usable) {
-            fallbackTab = usable;
-            fallbackWindowId = win.id;
-          }
-        }
-      }
-      if (fallbackTab) {
-        this.workWindowId = fallbackWindowId;
-        await chrome.tabs.update(fallbackTab.id, { url, active: true });
-        this.workTabId = fallbackTab.id;
-        await new Promise(r => setTimeout(r, 500));
-        try { await this._injectContentScript(fallbackTab.id); } catch (e) {}
-        return fallbackTab.id;
-      }
-
-      // 最后手段：创建新窗口
-      const newWindow = await chrome.windows.create({ url, focused: false });
-      this.workWindowId = newWindow.id;
-      const newTab = newWindow.tabs?.[0];
-      if (newTab?.id) {
-        this.workTabId = newTab.id;
-        await new Promise(r => setTimeout(r, 500));
-        try { await this._injectContentScript(newTab.id); } catch (e) {}
-        return newTab.id;
-      }
-
-      throw new Error('Failed to create automation window');
-    }
-
-    // ── Non-navigate: 优先使用显式 tabId/windowId，否则回退到隐式工作窗口 ──
     if (explicitTabId) {
       try {
         const tab = await chrome.tabs.get(explicitTabId);
@@ -426,21 +313,6 @@ class AgentBackground {
       if (tabId) {
         chrome.tabs.sendMessage(tabId, { action: 'setRunningBanner', visible: true, stepType: type })
           .catch(() => {});
-      }
-
-      // openBrowser / navigate are fully handled in _ensureWorkTab
-      if (type === 'openBrowser') {
-        this.workTabId = tabId;
-        await new Promise(r => setTimeout(r, 500));
-        this._send('stepResult', { stepId, result: { windowId: this.workWindowId, tabId } });
-        return;
-      }
-
-      if (type === 'navigate') {
-        this.workTabId = tabId;
-        await new Promise(r => setTimeout(r, 500));
-        this._send('stepResult', { stepId, result: { navigatedTo: step.extra?.url, tabId, windowId: this.workWindowId } });
-        return;
       }
 
       // Detect navigation caused by previous step BEFORE executing this one
