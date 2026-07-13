@@ -112,6 +112,56 @@ def _os_click() -> bool:
         return False
 
 
+# Virtual key code map for common keys
+_VK_MAP = {
+    "Enter": 0x0D, "Tab": 0x09, "Escape": 0x1B, "Backspace": 0x08,
+    "Delete": 0x2E, " ": 0x20,  # Space
+    "ArrowUp": 0x26, "ArrowDown": 0x28, "ArrowLeft": 0x25, "ArrowRight": 0x27,
+    "PageUp": 0x21, "PageDown": 0x22, "Home": 0x24, "End": 0x23,
+    "F1": 0x70, "F2": 0x71, "F3": 0x72, "F4": 0x73,
+    "F5": 0x74, "F6": 0x75, "F7": 0x76, "F8": 0x77,
+    "F9": 0x78, "F10": 0x79, "F11": 0x7A, "F12": 0x7B,
+}
+
+
+def _os_press_key(key: str, modifiers: str = "") -> bool:
+    """Send a keyboard key press at OS level. Windows only."""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        vk = _VK_MAP.get(key)
+        if vk is None and len(key) == 1:
+            vk = ord(key.upper())
+
+        if vk is None:
+            return False
+
+        mods = [m.strip() for m in modifiers.split(",") if m.strip()]
+        for m in mods:
+            if m == "Ctrl":
+                ctypes.windll.user32.keybd_event(0x11, 0, 0, 0)
+            elif m == "Alt":
+                ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)
+            elif m == "Shift":
+                ctypes.windll.user32.keybd_event(0x10, 0, 0, 0)
+
+        ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+        time.sleep(0.05)
+        ctypes.windll.user32.keybd_event(vk, 0, 2, 0)  # KEYUP
+
+        for m in reversed(mods):
+            if m == "Shift":
+                ctypes.windll.user32.keybd_event(0x10, 0, 2, 0)
+            elif m == "Alt":
+                ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)
+            elif m == "Ctrl":
+                ctypes.windll.user32.keybd_event(0x11, 0, 2, 0)
+        return True
+    except Exception:
+        return False
+
+
 DEFAULT_STEP_TIMEOUT = 30.0
 
 _VAR_PLACEHOLDER_RE = re.compile(r"\$\{(\w+)\}|\{\{(\w+)\}\}")
@@ -1375,10 +1425,16 @@ class ExtensionRunner:
             _os_move_mouse(sx, sy)
             result["screenX"] = sx; result["screenY"] = sy
             result.pop("_needsCalib", None)
-        # Real OS click for clickElement
+        # Real OS click for clickElement / pressKey
         if cmd_type == "clickElement":
             await asyncio.sleep(0.1)
             _os_click()
+        elif cmd_type == "pressKey":
+            await asyncio.sleep(0.1)
+            _os_click()  # focus first
+            await asyncio.sleep(0.1)
+            _os_press_key(extra.get("key", "Enter"), extra.get("modifiers", ""))
+            logger.info(f"[ExtensionRunner] OS pressKey: {extra.get('key')} modifiers={extra.get('modifiers')}")
 
     async def _send_and_wait(self, step_id: str, instr: dict, timeout: float) -> Any:
         """Send executeStep to extension and wait for result."""
