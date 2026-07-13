@@ -15,6 +15,15 @@
   const handlers = {};
   function registerHandler(name, fn) { handlers[name] = fn; }
 
+  // ── Shared calibration: capture viewport→screen offset from any mousemove ──
+  function _ensureCalibrationCapture() {
+    document.addEventListener('mousemove', function _rpaCal(e) {
+      const offX = e.screenX - e.clientX;
+      const offY = e.screenY - e.clientY;
+      try { sessionStorage.setItem('_rpaHoverCal', JSON.stringify({offX, offY})); } catch (_) {}
+    }, { once: true });
+  }
+
   const AGENT_VERSION = '1.0.0';
 
   // ─── Locator resolution ──────────────────────────────────────────
@@ -1231,6 +1240,10 @@ console.log({
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       await sleep(randNormal(400, 150));
     }
+    const rect = el.getBoundingClientRect();
+    const viewX = Math.round(rect.left + rect.width / 2);
+    const viewY = Math.round(rect.top + rect.height / 2);
+    _ensureCalibrationCapture();
     const action = extra?.action || 'click';
     if (action === 'rightClick') {
       el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
@@ -1240,7 +1253,15 @@ console.log({
       el.click();
     }
     if (humanLike) await sleep(randNormal(300, 100));
-    return { clicked: true };
+    let cal = null;
+    try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
+    if (cal) {
+      const dpr = window.devicePixelRatio || 1;
+      return { clicked: true, viewX, viewY,
+        screenX: Math.round((cal.offX + viewX) * dpr),
+        screenY: Math.round((cal.offY + viewY) * dpr) };
+    }
+    return { clicked: true, viewX, viewY, dpr: window.devicePixelRatio || 1, _needsCalib: true };
   }
 
   async function doInput({ locator, selectorFamily, extra }) {
@@ -1251,6 +1272,10 @@ console.log({
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       await sleep(randNormal(300, 100));
     }
+    const rect2 = el.getBoundingClientRect();
+    const viewX2 = Math.round(rect2.left + rect2.width / 2);
+    const viewY2 = Math.round(rect2.top + rect2.height / 2);
+    _ensureCalibrationCapture();
     el.focus();
     if (extra?.clearFirst !== false) el.value = '';
     if (humanLike) {
@@ -1269,7 +1294,16 @@ console.log({
       el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
     }
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    return { input: text, length: text.length };
+    let cal = null;
+    try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
+    if (cal) {
+      const dpr = window.devicePixelRatio || 1;
+      return { input: text, length: text.length, viewX: viewX2, viewY: viewY2,
+        screenX: Math.round((cal.offX + viewX2) * dpr),
+        screenY: Math.round((cal.offY + viewY2) * dpr) };
+    }
+    return { input: text, length: text.length, viewX: viewX2, viewY: viewY2,
+      dpr: window.devicePixelRatio || 1, _needsCalib: true };
   }
 
   async function doExtract({ locator, selectorFamily, extra }) {
@@ -1319,12 +1353,8 @@ console.log({
     const viewY = Math.round(rect.top + rect.height / 2);
     const dpr = window.devicePixelRatio || 1;
 
-    // ── Auto-calibration: capture viewport→screen offset ──
-    document.addEventListener('mousemove', function _rpaCal(e) {
-      const offX = e.screenX - e.clientX;
-      const offY = e.screenY - e.clientY;
-      try { sessionStorage.setItem('_rpaHoverCal', JSON.stringify({offX, offY})); } catch (_) {}
-    }, { once: true });
+    // ── Auto-calibration ──
+    _ensureCalibrationCapture();
 
     let cal = null;
     try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
