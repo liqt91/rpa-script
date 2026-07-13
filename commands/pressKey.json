@@ -8,7 +8,7 @@
   "bgColor": "bg-purple-50",
   "categoryOrder": 60,
   "commandOrder": 30,
-  "description": "向页面发送键盘按键。注意：浏览器级快捷键（F5刷新、Ctrl+T新标签等）由系统拦截，请用对应指令替代",
+  "description": "向页面发送键盘按键。OS级keybd_event发送，页面按键和浏览器快捷键均可生效",
   "enabled": true,
   "params": [
     {
@@ -17,29 +17,29 @@
       "type": "select",
       "required": true,
       "default": "Enter",
-      "description": "键盘按键名称，支持键盘事件标准 key 值。常用：Enter、Tab、Escape、Backspace、ArrowUp/Down/Left/Right、Space",
+      "description": "[页面]仅页面生效  [浏览器]整个浏览器生效  [需modifier]请填写修饰键",
       "options": [
-        {"label": "Enter 回车", "value": "Enter"},
-        {"label": "Tab 制表", "value": "Tab"},
-        {"label": "Escape 取消", "value": "Escape"},
-        {"label": "Backspace 退格", "value": "Backspace"},
-        {"label": "Delete 删除", "value": "Delete"},
-        {"label": "Space 空格", "value": " "},
-        {"label": "ArrowUp ↑", "value": "ArrowUp"},
-        {"label": "ArrowDown ↓", "value": "ArrowDown"},
-        {"label": "ArrowLeft ←", "value": "ArrowLeft"},
-        {"label": "ArrowRight →", "value": "ArrowRight"},
-        {"label": "PageUp 上翻", "value": "PageUp"},
-        {"label": "PageDown 下翻", "value": "PageDown"},
-        {"label": "Home", "value": "Home"},
-        {"label": "End", "value": "End"},
-        {"label": "F1", "value": "F1"},
-        {"label": "F5 刷新", "value": "F5"},
-        {"label": "F12", "value": "F12"},
-        {"label": "Ctrl+C 复制", "value": "c"},
-        {"label": "Ctrl+V 粘贴", "value": "v"},
-        {"label": "Ctrl+A 全选", "value": "a"},
-        {"label": "Ctrl+Z 撤销", "value": "z"}
+        {"label": "Enter 回车 [页面]", "value": "Enter"},
+        {"label": "Tab 制表 [页面]", "value": "Tab"},
+        {"label": "Escape 取消 [页面]", "value": "Escape"},
+        {"label": "Backspace 退格 [页面]", "value": "Backspace"},
+        {"label": "Delete 删除 [页面]", "value": "Delete"},
+        {"label": "Space 空格 [页面]", "value": " "},
+        {"label": "ArrowUp \u2191 [页面]", "value": "ArrowUp"},
+        {"label": "ArrowDown \u2193 [页面]", "value": "ArrowDown"},
+        {"label": "ArrowLeft \u2190 [页面]", "value": "ArrowLeft"},
+        {"label": "ArrowRight \u2192 [页面]", "value": "ArrowRight"},
+        {"label": "PageUp 上翻 [页面]", "value": "PageUp"},
+        {"label": "PageDown 下翻 [页面]", "value": "PageDown"},
+        {"label": "Home [页面]", "value": "Home"},
+        {"label": "End [页面]", "value": "End"},
+        {"label": "F1 [浏览器]", "value": "F1"},
+        {"label": "F5 刷新 [浏览器]", "value": "F5"},
+        {"label": "F12 开发者工具 [浏览器]", "value": "F12"},
+        {"label": "Ctrl+C 复制 [需modifier=Ctrl]", "value": "c"},
+        {"label": "Ctrl+V 粘贴 [需modifier=Ctrl]", "value": "v"},
+        {"label": "Ctrl+A 全选 [需modifier=Ctrl]", "value": "a"},
+        {"label": "Ctrl+Z 撤销 [需modifier=Ctrl]", "value": "z"}
       ]
     },
     {
@@ -49,10 +49,12 @@
       "default": "",
       "placeholder": "Ctrl,Alt,Shift, 可多个逗号分隔",
       "group": "advanced",
-      "description": "同时按下的修饰键，多个用逗号分隔。如 Ctrl,Shift+字母键可输入大写。注意：部分组合键(如 Ctrl+C)系统拦截，页面收不到"
+      "description": "同时按下的修饰键。Ctrl+C/V/A/Z 需要 modifier=Ctrl。注意：Ctrl+T/W/N 等浏览器标签页快捷键也会生效"
     }
   ],
-  "categories": ["page"],
+  "categories": [
+    "page"
+  ],
   "handler": {
     "kind": "extension",
     "source": "extension/dom_handlers_new/pressKey.js"
