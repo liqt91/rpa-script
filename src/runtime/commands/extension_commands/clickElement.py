@@ -9,7 +9,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="点击页面上的一个元素")
 class ClickElementHandler:
     params = [
-        Param("element_name", "元素", "str-element", required=True),
+        Param("elementName", "元素", "str-element", required=True),
         Param("scope", "匹配范围", "str-dropdown", default="local",
               options=[{"label": "当前外层元素内", "value": "local"}, {"label": "全页面", "value": "global"}],
               group="advanced"),

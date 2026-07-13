@@ -78,6 +78,17 @@ def _load_generic_params() -> dict:
     }
 
 
+def _merge_fields(specific, generic):
+    """Merge generic params into specific, dedup by name (specific wins)."""
+    seen = {f["name"] for f in specific if f.get("name")}
+    merged = list(specific)
+    for f in generic:
+        if f.get("name") and f["name"] not in seen:
+            seen.add(f["name"])
+            merged.append(f)
+    return merged
+
+
 def _generic_extra_params(runtime: str) -> list:
     """Return generic params that apply to a given runtime tier."""
     params = _load_generic_params()
@@ -123,8 +134,10 @@ def load_new_catalog() -> dict[str, Any]:
             "iconColor": d.get("iconColor", "text-gray-500"),
             "bgColor": d.get("bgColor", "bg-gray-50"),
             "description": d.get("description", ""),
-            "fields": [_normalize_field(p) for p in d.get("params", [])]
-            + ([] if is_structural else _generic_extra_params(d.get("runtime", "extension"))),
+            "fields": _merge_fields(
+                [_normalize_field(p) for p in d.get("params", [])],
+                [] if is_structural else _generic_extra_params(d.get("runtime", "extension")),
+            ),
             "isContainer": bool(d.get("isContainer")),
             "isBranch": bool(d.get("isBranch")),
             "isStructural": bool(d.get("isStructural")),

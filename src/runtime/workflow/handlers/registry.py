@@ -23,6 +23,17 @@ from dataclasses import dataclass, field
 _GENERIC_PARAMS_CACHE: dict | None = None
 
 
+def _merge_fields_registry(specific, generic):
+    """Merge generic params into specific, dedup by name (specific wins)."""
+    seen = {f.get("name") for f in specific if f.get("name")}
+    merged = list(specific)
+    for f in generic:
+        if f.get("name") and f["name"] not in seen:
+            seen.add(f["name"])
+            merged.append(f)
+    return merged
+
+
 def _load_generic_params_from_json() -> dict:
     """Load generic params from JSON, with hardcoded fallback."""
     import json
@@ -192,7 +203,7 @@ def build_command_registry() -> dict[str, dict]:
             "isBranch": hdef["isBranch"],
             "isStructural": hdef["isStructural"],
             "closesWith": hdef["closesWith"],
-            "fields": hdef["params"] + ([] if is_structural else _generic_params_for(hdef["runtime"])),
+            "fields": _merge_fields_registry(hdef["params"], [] if is_structural else _generic_params_for(hdef["runtime"])),
             "description": hdef["description"],
             "categoryOrder": hdef["categoryOrder"],
             "commandOrder": hdef["commandOrder"],
@@ -211,7 +222,7 @@ def get_command(type_name: str) -> dict | None:
 
     is_structural = h.get("isContainer") or h.get("isBranch") or h.get("isStructural")
     is_control = h["runtime"] == "control"
-    fields = h["params"] + ([] if is_structural else _generic_params_for(h["runtime"]))
+    fields = _merge_fields_registry(h["params"], [] if is_structural else _generic_params_for(h["runtime"]))
 
     return {
         "cmd": h["cmd"], "label": h["label"], "category": h["category"],

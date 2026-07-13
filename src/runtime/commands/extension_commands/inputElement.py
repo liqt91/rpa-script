@@ -9,7 +9,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="在页面输入框中输入文本，可选输入完成后按回车")
 class InputElementHandler:
     params = [
-        Param("element_name", "元素", "str-element", required=True),
+        Param("elementName", "元素", "str-element", required=True),
         Param("text", "输入内容", "str-input", required=True),
         Param("pressEnter", "输入后按回车", "bool-check", default=False),
         Param("scope", "匹配范围", "str-dropdown", default="local",

@@ -11,7 +11,7 @@
   "isNew": true,
   "params": [
     {
-      "name": "element_name",
+      "name": "elementName",
       "label": "元素",
       "type": "element",
       "required": true
