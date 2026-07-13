@@ -209,11 +209,9 @@ def write_outputs(defs: list[dict]):
         os.makedirs(py_path.parent, exist_ok=True)
 
         if kind in ("", "extension"):
-            if py_path.exists():
-                print(f"  KEEP {py_path} (exists)")
-            else:
-                py_path.write_text(py_code, encoding="utf-8")
-                print(f"  GEN  {py_path}")
+            # Always regenerate — these stubs are never hand-edited
+            py_path.write_text(py_code, encoding="utf-8")
+            print(f"  GEN  {py_path}")
         else:
             print(f"  SKIP {py_path} ({kind} — hand-written)")
 
