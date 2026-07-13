@@ -30,6 +30,8 @@ def _normalize_field(field: dict) -> dict:
         out["placeholder"] = field["placeholder"]
     if field.get("description"):
         out["description"] = field["description"]
+    if field.get("isPrimaryElement"):
+        out["isPrimaryElement"] = True
     return out
 
 
