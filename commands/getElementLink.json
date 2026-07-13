@@ -32,5 +32,5 @@
     "kind": "extension",
     "source": "extension/dom_handlers_new/getElementLink.js"
   },
-  "categories": ["data"]
+  "categories": ["数据提取"]
 }
