@@ -5,6 +5,6 @@
     {"slug": "page", "name": "页面操作", "icon": "fa-mouse-pointer"},
     {"slug": "variable", "name": "变量", "icon": "fa-code"},
     {"slug": "logic", "name": "逻辑", "icon": "fa-code-branch"},
-    {"slug": "data", "name": "数据", "icon": "fa-table"}
+    {"slug": "data", "name": "数据提取", "icon": "fa-table"}
   ]
 }

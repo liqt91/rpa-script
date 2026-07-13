@@ -26,7 +26,7 @@
     }
   ],
   "categories": [
-    "page"
+    "data"
   ],
   "handler": {
     "kind": "extension",
