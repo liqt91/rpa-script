@@ -1319,9 +1319,7 @@ console.log({
     const viewY = Math.round(rect.top + rect.height / 2);
     const dpr = window.devicePixelRatio || 1;
 
-    // ── Auto-calibration ──
-    // Capture viewport→screen offset from mousemove after SetCursorPos.
-    // Works for any monitor layout, DPI, browser chrome, side panel.
+    // ── Auto-calibration: capture viewport→screen offset ──
     document.addEventListener('mousemove', function _rpaCal(e) {
       const offX = e.screenX - e.clientX;
       const offY = e.screenY - e.clientY;
@@ -1336,8 +1334,7 @@ console.log({
         screenX: Math.round((cal.offX + viewX) * dpr),
         screenY: Math.round((cal.offY + viewY) * dpr) };
     }
-    // First hover: background estimates, then mousemove calibrates
-    return { hovered: true, viewX, viewY, dpr };
+    return { hovered: true, viewX, viewY, dpr, _needsCalib: true };
   }
 
   async function doUnhover({ locator, selectorFamily }) {
@@ -1369,6 +1366,25 @@ console.log({
     // The iteration target is resolved from the loop context
     return { clicked: true };
   }
+
+  // ─── Calibration helper ──────────────────────────────────────────
+
+  registerHandler('recomputeScreenCoords', function({ extra }) {
+    const viewX = extra?.viewX;
+    const viewY = extra?.viewY;
+    const dpr = extra?.dpr || 1;
+    try {
+      const raw = sessionStorage.getItem('_rpaHoverCal');
+      if (raw) {
+        const cal = JSON.parse(raw);
+        return {
+          screenX: Math.round((cal.offX + viewX) * dpr),
+          screenY: Math.round((cal.offY + viewY) * dpr),
+        };
+      }
+    } catch (_) {}
+    return {};
+  });
 
   // ─── Message listener ────────────────────────────────────────────
 

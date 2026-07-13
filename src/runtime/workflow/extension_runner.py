@@ -1480,11 +1480,31 @@ class ExtensionRunner:
 
                 # ── OS mouse move for hover ──
                 if cmd_type == "hover" and isinstance(result, dict):
-                    sx = result.get("screenX")
-                    sy = result.get("screenY")
-                    if sx is not None and sy is not None:
-                        human_like = extra.get("humanLike", True)
-                        if human_like:
+                    human_like = extra.get("humanLike", True)
+                    if not human_like:
+                        pass  # skip OS mouse move
+                    elif result.get("_needsCalib"):
+                        # First hover: move approx, wait for calibration, then re-compute
+                        sx = result.get("screenX"); sy = result.get("screenY")
+                        if sx is not None: _os_move_mouse(sx, sy)
+                        await asyncio.sleep(0.6)
+                        try:
+                            coords = await self._call_extension_handler(
+                                "recomputeScreenCoords",
+                                {"extra": {"viewX": result["viewX"], "viewY": result["viewY"], "dpr": result["dpr"]}},
+                                timeout=5.0,
+                            )
+                            sx = coords.get("screenX"); sy = coords.get("screenY")
+                        except Exception:
+                            pass
+                        if sx is not None and sy is not None:
+                            _os_move_mouse(sx, sy)
+                            logger.info(f"[ExtensionRunner] hover calibrated → ({sx}, {sy})")
+                            result["screenX"] = sx; result["screenY"] = sy
+                            result.pop("_needsCalib", None)
+                    else:
+                        sx = result.get("screenX"); sy = result.get("screenY")
+                        if sx is not None and sy is not None:
                             _os_move_mouse(sx, sy)
                             logger.info(f"[ExtensionRunner] hover OS mouse → ({sx}, {sy})")
 
