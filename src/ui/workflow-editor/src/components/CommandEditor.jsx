@@ -322,9 +322,19 @@ export default function CommandEditor() {
 
 
   // ── Group & filter ──
+  const slugToName = {};
+  for (const c of categories) { slugToName[c.slug] = c.name; }
+  const catDisplay = (d) => {
+    const cats = d.categories || [];
+    if (cats.length > 0) {
+      for (const s of cats) { if (slugToName[s]) return slugToName[s]; }
+      return cats[0];
+    }
+    return d.category || '其他';
+  };
   const grouped = {};
   for (const d of defs) {
-    const cat = d.category || '其他';
+    const cat = catDisplay(d);
     if (!grouped[cat]) grouped[cat] = [];
     grouped[cat].push(d);
   }
