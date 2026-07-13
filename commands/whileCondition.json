@@ -1,0 +1,30 @@
+{
+  "cmd": "whileCondition",
+  "label": "条件循环",
+  "runtime": "control",
+  "icon": "fa-arrows-spin",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 50,
+  "commandOrder": 40,
+  "isContainer": true,
+  "closesWith": "endLoop",
+  "description": "当条件满足时重复执行循环体",
+  "params": [
+    {"name": "conditionType", "label": "条件类型", "type": "select", "required": true, "group": "主属性",
+     "options": [
+       {"label": "元素存在", "value": "elementExists"},
+       {"label": "元素不存在", "value": "elementNotExists"},
+       {"label": "URL 包含", "value": "urlContains"},
+       {"label": "变量等于", "value": "varEquals"},
+       {"label": "变量包含", "value": "varContains"},
+       {"label": "表达式", "value": "expression"}
+     ]},
+    {"name": "elementName", "label": "元素", "type": "element", "group": "condition"},
+    {"name": "urlPattern", "label": "URL 包含", "type": "string", "default": "", "group": "condition"},
+    {"name": "varName", "label": "变量名", "type": "string", "default": "", "group": "condition"},
+    {"name": "varValue", "label": "预期值", "type": "string", "default": "", "group": "condition"},
+    {"name": "condition", "label": "表达式", "type": "string", "default": "False", "group": "condition",
+     "placeholder": "如: ${a} > 10"}
+  ]
+}

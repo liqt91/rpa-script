@@ -1,0 +1,21 @@
+{
+  "cmd": "forEachElement",
+  "label": "遍历元素列表",
+  "runtime": "control",
+  "icon": "fa-list-check",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 50,
+  "commandOrder": 10,
+  "isContainer": true,
+  "closesWith": "endLoop",
+  "description": "遍历页面上匹配的元素列表，对每个元素执行循环体",
+  "params": [
+    {"name": "elementName", "label": "目标元素列表", "type": "element-list", "required": true, "group": "主属性"},
+    {"name": "itemVar", "label": "当前项变量", "type": "string", "default": "item"},
+    {"name": "indexVar", "label": "索引变量", "type": "string", "default": "index"},
+    {"name": "scope", "label": "匹配范围", "type": "select",
+     "options": [{"label": "当前外层元素内", "value": "local"}, {"label": "全页面", "value": "global"}],
+     "default": "local", "group": "advanced"}
+  ]
+}

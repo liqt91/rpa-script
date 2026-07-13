@@ -1,0 +1,9 @@
+{
+  "cmd": "break",
+  "label": "跳出循环",
+  "runtime": "control",
+  "icon": "fa-right-from-bracket",
+  "iconColor": "text-red-500",
+  "commandOrder": 50,
+  "description": "跳出当前循环，继续执行循环后的指令"
+}

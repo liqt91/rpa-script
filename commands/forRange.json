@@ -1,0 +1,19 @@
+{
+  "cmd": "forRange",
+  "label": "循环次数",
+  "runtime": "control",
+  "icon": "fa-rotate",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 50,
+  "commandOrder": 30,
+  "isContainer": true,
+  "closesWith": "endLoop",
+  "description": "循环指定次数，从起始值到结束值",
+  "params": [
+    {"name": "start", "label": "起始值", "type": "number", "default": 0},
+    {"name": "end", "label": "结束值", "type": "number", "required": true},
+    {"name": "step", "label": "步长", "type": "number", "default": 1},
+    {"name": "itemVar", "label": "当前值变量", "type": "string", "default": "i"}
+  ]
+}
