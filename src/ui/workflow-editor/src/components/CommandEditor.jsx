@@ -56,6 +56,8 @@ export default function CommandEditor() {
   const [jsCode, setJsCode] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [reviewFindings, setReviewFindings] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState({});
   const [showTypeRegistry, setShowTypeRegistry] = useState(false);
   const [typeRegistryJson, setTypeRegistryJson] = useState('');
   const [categories, setCategories] = useState([]);
@@ -318,6 +320,22 @@ export default function CommandEditor() {
     return c ? c.hex50 : PALETTE[15].hex50;
   }
 
+
+  // ── Group & filter ──
+  const grouped = {};
+  for (const d of defs) {
+    const cat = d.category || '其他';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(d);
+  }
+  const q = searchTerm.toLowerCase();
+  const filtered = {};
+  for (const [cat, cmds] of Object.entries(grouped)) {
+    if (!q) { filtered[cat] = cmds; continue; }
+    const f = cmds.filter(d => (d.label||'').toLowerCase().includes(q) || (d.cmd||'').toLowerCase().includes(q));
+    if (f.length > 0 || cat.toLowerCase().includes(q)) filtered[cat] = f;
+  }
+
   return (
     <div className="flex-1 flex min-h-0">
       {/* Left panel — list */}
@@ -354,15 +372,40 @@ export default function CommandEditor() {
             <i className="fas fa-sliders-h text-[10px] w-4 text-center"></i>
             通用参数
           </button>
-          {defs.map((d, i) => {
-            const isCur = selected && selected.cmd === d.cmd;
+
+          {/* Search */}
+          <div className="px-2 pt-1">
+            <input
+              type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              placeholder="搜索指令..." className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-500"
+            />
+          </div>
+
+          {/* Grouped command list */}
+          {Object.entries(filtered).map(([cat, cmds]) => {
+            const isCol = collapsedGroups[cat];
             return (
-              <button key={d.cmd || d.label || i} onClick={() => selectDef(d)}
-                className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                  isCur ? 'bg-blue-600/30 text-blue-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
-                {d.label}
-                <span className="text-gray-600 ml-1">{d.cmd}</span>
-              </button>
+              <div key={cat} className="mt-0.5">
+                <button
+                  onClick={() => setCollapsedGroups(g => ({...g, [cat]: !isCol}))}
+                  className="w-full text-left px-2 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-300 flex items-center gap-1"
+                >
+                  <span className="text-[10px]">{isCol ? '▸' : '▾'}</span>
+                  {cat}
+                  <span className="text-gray-600 ml-auto">{cmds.length}</span>
+                </button>
+                {!isCol && cmds.map((d, i) => {
+                  const isCur = selected && selected.cmd === d.cmd;
+                  return (
+                    <button key={d.cmd || d.label || i} onClick={() => selectDef(d)}
+                      className={`w-full text-left pl-5 pr-2 py-1 rounded text-xs transition-colors ${
+                        isCur ? 'bg-blue-600/30 text-blue-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
+                      {d.label}
+                      <span className="text-gray-600 ml-1">{d.cmd}</span>
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </div>
