@@ -101,6 +101,29 @@ def _generic_extra_params(runtime: str) -> list:
     return []
 
 
+_CATEGORY_NAMES = {}  # slug -> Chinese name, loaded on first call
+
+
+def _load_category_names() -> dict:
+    """Load category slug→name mapping from categories.json."""
+    global _CATEGORY_NAMES
+    if not _CATEGORY_NAMES:
+        path = ROOT / "src" / "runtime" / "commands" / "types" / "categories.json"
+        try:
+            if path.exists():
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                _CATEGORY_NAMES = {c["slug"]: c["name"] for c in data.get("categories", [])}
+        except Exception:
+            pass
+    return _CATEGORY_NAMES
+
+
+def _category_name(slug: str) -> str:
+    """Map a category slug to its Chinese display name."""
+    return _load_category_names().get(slug, slug)
+
+
 def load_new_catalog() -> dict[str, Any]:
     """Return a command catalog shaped like /api/workflows/commands."""
     commands_by_cat: dict[str, list] = {}
@@ -122,16 +145,17 @@ def load_new_catalog() -> dict[str, Any]:
         if not cats:
             cats = ["其他"]
         for cat in cats:
-            if cat not in commands_by_cat:
-                commands_by_cat[cat] = []
-                categories.append(cat)
+            name = _category_name(cat)
+            if name not in commands_by_cat:
+                commands_by_cat[name] = []
+                categories.append(name)
 
         rt_info = _runtime_info(d)
         is_structural = d.get("isContainer") or d.get("isBranch") or d.get("isStructural")
         cmd = {
             "cmd": d["cmd"],
             "label": d.get("label", d["cmd"]),
-            "category": cats[0] if cats else "其他",
+            "category": _category_name(cats[0]) if cats else "其他",
             "icon": d.get("icon", "fa-circle"),
             "iconColor": d.get("iconColor", "text-gray-500"),
             "bgColor": d.get("bgColor", "bg-gray-50"),
@@ -152,7 +176,7 @@ def load_new_catalog() -> dict[str, Any]:
             **rt_info,
         }
         for cat in cats:
-            commands_by_cat[cat].append(cmd)
+            commands_by_cat[_category_name(cat)].append(cmd)
 
         if cmd["isContainer"]:
             container_types.append(cmd["cmd"])

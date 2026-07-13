@@ -25,9 +25,11 @@
       "group": "output"
     }
   ],
+  "categories": [
+    "page"
+  ],
   "handler": {
     "kind": "extension",
     "source": "extension/dom_handlers/getText.js"
-  },
-  "categories": ["data"]
+  }
 }
