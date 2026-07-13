@@ -14,3 +14,4 @@ def auto_register():
     from . import backend_commands  # noqa: F401
     from . import extension_commands  # noqa: F401
     from . import control_commands  # noqa: F401
+    from . import desktop_commands  # noqa: F401
