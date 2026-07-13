@@ -23,7 +23,7 @@
       "label": "超时时间（秒）",
       "type": "number",
       "default": 10,
-      "group": "默认属性",
+      "group": "advanced",
       "description": "超过此时间元素未出现则失败"
     },
     {
