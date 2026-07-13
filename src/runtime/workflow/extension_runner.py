@@ -1292,6 +1292,13 @@ class ExtensionRunner:
                     if human_like:
                         await self._handle_mouse_op(cmd_type, result, extra)
 
+                # ── OS key press (no mouse move needed) ──
+                if cmd_type == "pressKey":
+                    human_like = extra.get("humanLike", True)
+                    if human_like:
+                        _os_press_key(extra.get("key", "Enter"), extra.get("modifiers", ""))
+                        logger.info(f"[ExtensionRunner] OS pressKey: {extra.get('key')} modifiers={extra.get('modifiers')}")
+
                 await self._emit({
                     "type": "stepComplete",
                     "stepId": step_id, "nodeId": instr.get("nodeId"),
@@ -1425,16 +1432,10 @@ class ExtensionRunner:
             _os_move_mouse(sx, sy)
             result["screenX"] = sx; result["screenY"] = sy
             result.pop("_needsCalib", None)
-        # Real OS click for clickElement / pressKey
+        # Real OS click for clickElement
         if cmd_type == "clickElement":
             await asyncio.sleep(0.1)
             _os_click()
-        elif cmd_type == "pressKey":
-            await asyncio.sleep(0.1)
-            _os_click()  # focus first
-            await asyncio.sleep(0.1)
-            _os_press_key(extra.get("key", "Enter"), extra.get("modifiers", ""))
-            logger.info(f"[ExtensionRunner] OS pressKey: {extra.get('key')} modifiers={extra.get('modifiers')}")
 
     async def _send_and_wait(self, step_id: str, instr: dict, timeout: float) -> Any:
         """Send executeStep to extension and wait for result."""
