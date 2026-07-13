@@ -1327,7 +1327,7 @@ console.log({
       default:
         value = el ? (el.textContent || el.innerText || '').trim() : '';
     }
-    return { value, text: value };
+    return { value, text: value, extracted: value };
   }
 
   async function doScroll({ locator, selectorFamily, extra }) {
