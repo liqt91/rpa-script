@@ -49,6 +49,20 @@ def _os_move_mouse(screen_x: int, screen_y: int) -> bool:
         return False
 
 
+def _os_click() -> bool:
+    """Send a left mouse click at the current cursor position. Windows only."""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)  # down
+        time.sleep(0.05)
+        ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)  # up
+        return True
+    except Exception:
+        return False
+
+
 DEFAULT_STEP_TIMEOUT = 30.0
 
 _VAR_PLACEHOLDER_RE = re.compile(r"\$\{(\w+)\}|\{\{(\w+)\}\}")
@@ -1482,7 +1496,7 @@ class ExtensionRunner:
                 if isinstance(result, dict) and "viewX" in result:
                     human_like = extra.get("humanLike", True)
                     if human_like:
-                        await self._handle_mouse_op(result, extra)
+                        await self._handle_mouse_op(cmd_type, result, extra)
 
                 await self._emit({
                     "type": "stepComplete",
@@ -1597,11 +1611,10 @@ class ExtensionRunner:
         else:
             return False
 
-    async def _handle_mouse_op(self, result: dict, extra: dict) -> None:
-        """Move OS mouse to element. On first call, calibrates via two-phase movement."""
+    async def _handle_mouse_op(self, cmd_type: str, result: dict, extra: dict) -> None:
+        """Move OS mouse to element + optionally click. Calibrates on first call."""
         sx = result.get("screenX"); sy = result.get("screenY")
         if result.get("_needsCalib"):
-            # First time: move approx, wait for calibration capture, recompute exact
             if sx is not None: _os_move_mouse(sx, sy)
             await asyncio.sleep(0.6)
             try:
@@ -1614,13 +1627,14 @@ class ExtensionRunner:
                 sx = coords.get("screenX"); sy = coords.get("screenY")
             except Exception:
                 pass
-            if sx is not None and sy is not None:
-                _os_move_mouse(sx, sy)
-                result["screenX"] = sx; result["screenY"] = sy
-                result.pop("_needsCalib", None)
-        else:
-            if sx is not None and sy is not None:
-                _os_move_mouse(sx, sy)
+        if sx is not None and sy is not None:
+            _os_move_mouse(sx, sy)
+            result["screenX"] = sx; result["screenY"] = sy
+            result.pop("_needsCalib", None)
+        # Real OS click for clickElement
+        if cmd_type == "clickElement":
+            await asyncio.sleep(0.1)
+            _os_click()
 
     async def _send_and_wait(self, step_id: str, instr: dict, timeout: float) -> Any:
         """Send executeStep to extension and wait for result."""

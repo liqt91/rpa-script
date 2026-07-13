@@ -1244,13 +1244,16 @@ console.log({
     const viewX = Math.round(rect.left + rect.width / 2);
     const viewY = Math.round(rect.top + rect.height / 2);
     _ensureCalibrationCapture();
-    const action = extra?.action || 'click';
-    if (action === 'rightClick') {
-      el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    } else if (action === 'doubleClick') {
-      el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
-    } else {
-      el.click();
+    // When humanLike=true, runner handles real OS click — skip synthetic
+    if (!humanLike) {
+      const action = extra?.action || 'click';
+      if (action === 'rightClick') {
+        el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      } else if (action === 'doubleClick') {
+        el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+      } else {
+        el.click();
+      }
     }
     if (humanLike) await sleep(randNormal(300, 100));
     let cal = null;
