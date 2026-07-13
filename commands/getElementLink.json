@@ -20,6 +20,17 @@
       "placeholder": "选择一个已捕获的链接元素"
     },
     {
+      "name": "scope",
+      "label": "匹配范围",
+      "type": "select",
+      "options": [
+        {"label": "当前外层元素内", "value": "local"},
+        {"label": "全页面", "value": "global"}
+      ],
+      "default": "local",
+      "group": "advanced"
+    },
+    {
       "name": "resultVar",
       "label": "保存到变量",
       "type": "string",
