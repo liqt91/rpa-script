@@ -8,7 +8,7 @@
   "bgColor": "bg-purple-50",
   "categoryOrder": 60,
   "commandOrder": 30,
-  "description": "向页面发送键盘按键",
+  "description": "向页面发送键盘按键。注意：浏览器级快捷键（F5刷新、Ctrl+T新标签等）由系统拦截，请用对应指令替代",
   "enabled": true,
   "params": [
     {
@@ -34,7 +34,6 @@
         {"label": "Home", "value": "Home"},
         {"label": "End", "value": "End"},
         {"label": "F1", "value": "F1"},
-        {"label": "F5 刷新", "value": "F5"},
         {"label": "F12", "value": "F12"},
         {"label": "Ctrl+C 复制", "value": "c"},
         {"label": "Ctrl+V 粘贴", "value": "v"},

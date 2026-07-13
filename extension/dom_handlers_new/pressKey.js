@@ -17,6 +17,9 @@ registerHandler('pressKey', async function({ extra }) {
   const shiftKey = modList.includes('Shift');
   const metaKey = modList.includes('Meta');
 
+  console.warn('[RPA pressKey] key=' + key + ' modifiers=' + (modList.join(',') || 'none')
+    + ' ctrl=' + ctrlKey + ' alt=' + altKey + ' shift=' + shiftKey);
+
   if (humanLike) {
     const isModifier = ['Control', 'Alt', 'Shift', 'Meta'].includes(key);
     if (isModifier || modList.length > 0) await sleep(randNormal(30, 10));
@@ -24,11 +27,13 @@ registerHandler('pressKey', async function({ extra }) {
   }
 
   const init = { key, bubbles: true, ctrlKey, altKey, shiftKey, metaKey };
-  document.dispatchEvent(new KeyboardEvent('keydown', init));
+  // Dispatch on activeElement so form inputs receive the key
+  const target = document.activeElement || document.body;
+  target.dispatchEvent(new KeyboardEvent('keydown', init));
   if (humanLike && !['Control', 'Alt', 'Shift', 'Meta'].includes(key)) {
     await sleep(randNormal(80, 30));
   }
-  document.dispatchEvent(new KeyboardEvent('keyup', init));
+  target.dispatchEvent(new KeyboardEvent('keyup', init));
 
   return { pressed: key, modifiers: modList.length ? modList.join(',') : undefined };
 });
