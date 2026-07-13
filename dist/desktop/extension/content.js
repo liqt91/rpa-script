@@ -1315,24 +1315,29 @@ console.log({
     await sleep(400);
 
     const rect = el.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-    const eventInit = { bubbles: true, cancelable: true, clientX: x, clientY: y,
-                        screenX: x, screenY: y, view: window, composed: true };
+    const viewX = Math.round(rect.left + rect.width / 2);
+    const viewY = Math.round(rect.top + rect.height / 2);
+    const dpr = window.devicePixelRatio || 1;
 
-    // Full hover lifecycle: pointer → mouse → focus → move
-    el.dispatchEvent(new PointerEvent('pointerover', eventInit));
-    el.dispatchEvent(new PointerEvent('pointerenter', eventInit));
-    el.dispatchEvent(new MouseEvent('mouseover', eventInit));
-    el.dispatchEvent(new MouseEvent('mouseenter', eventInit));
-    await sleep(50);
-    el.dispatchEvent(new PointerEvent('pointermove', eventInit));
-    el.dispatchEvent(new MouseEvent('mousemove', eventInit));
-    // Focus for aria-describedby / CSS :focus-within tooltips
-    el.focus({ preventScroll: true });
-    el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    // ── Auto-calibration ──
+    // Capture viewport→screen offset from mousemove after SetCursorPos.
+    // Works for any monitor layout, DPI, browser chrome, side panel.
+    document.addEventListener('mousemove', function _rpaCal(e) {
+      const offX = e.screenX - e.clientX;
+      const offY = e.screenY - e.clientY;
+      try { sessionStorage.setItem('_rpaHoverCal', JSON.stringify({offX, offY})); } catch (_) {}
+    }, { once: true });
 
-    return { hovered: true };
+    let cal = null;
+    try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
+
+    if (cal) {
+      return { hovered: true,
+        screenX: Math.round((cal.offX + viewX) * dpr),
+        screenY: Math.round((cal.offY + viewY) * dpr) };
+    }
+    // First hover: background estimates, then mousemove calibrates
+    return { hovered: true, viewX, viewY, dpr };
   }
 
   async function doUnhover({ locator, selectorFamily }) {

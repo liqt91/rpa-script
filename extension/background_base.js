@@ -482,6 +482,22 @@ class AgentBackground {
           }
           this._lastTabUrl = currentTab.url;
         } catch (_) {}
+        // Enrich hover results with screen coordinates computed from Chrome API
+        if (type === 'hover' && result?.result?.viewX !== undefined) {
+          try {
+            const tab = await chrome.tabs.get(tabId);
+            if (tab) {
+              const win = await chrome.windows.get(tab.windowId);
+              const dpr = result.result.dpr || 1;
+              const leftChrome = Math.round((win.width - tab.width) / 2);
+              const topChrome = win.height - tab.height;
+              const screenX = Math.round((win.left + leftChrome + result.result.viewX) * dpr);
+              const screenY = Math.round((win.top + topChrome + result.result.viewY) * dpr);
+              result.result.screenX = screenX;
+              result.result.screenY = screenY;
+            }
+          } catch (_) {}
+        }
         this._send('stepResult', { stepId, result: result.result });
       } else {
         this._send('stepError', { stepId, error: result?.error || 'Unknown content error' });

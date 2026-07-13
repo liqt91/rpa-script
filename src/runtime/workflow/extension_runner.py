@@ -36,6 +36,19 @@ from .handler_validator import validate_handler_sync  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
+
+def _os_move_mouse(screen_x: int, screen_y: int) -> bool:
+    """Move the system mouse cursor to absolute screen coordinates. Windows only."""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        ctypes.windll.user32.SetCursorPos(screen_x, screen_y)
+        return True
+    except Exception:
+        return False
+
+
 DEFAULT_STEP_TIMEOUT = 30.0
 
 _VAR_PLACEHOLDER_RE = re.compile(r"\$\{(\w+)\}|\{\{(\w+)\}\}")
@@ -1464,6 +1477,16 @@ class ExtensionRunner:
                         f"[ExtensionRunner] {step_id} {cmd_type} matched "
                         f"{result['matchedCount']} element(s) for locator={resolved_instr.get('locator')}"
                     )
+
+                # ── OS mouse move for hover ──
+                if cmd_type == "hover" and isinstance(result, dict):
+                    sx = result.get("screenX")
+                    sy = result.get("screenY")
+                    if sx is not None and sy is not None:
+                        human_like = extra.get("humanLike", True)
+                        if human_like:
+                            _os_move_mouse(sx, sy)
+                            logger.info(f"[ExtensionRunner] hover OS mouse → ({sx}, {sy})")
 
                 await self._emit({
                     "type": "stepComplete",
