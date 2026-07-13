@@ -1363,7 +1363,7 @@ console.log({
     try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
 
     if (cal) {
-      return { hovered: true,
+      return { hovered: true, viewX, viewY,
         screenX: Math.round((cal.offX + viewX) * dpr),
         screenY: Math.round((cal.offY + viewY) * dpr) };
     }
