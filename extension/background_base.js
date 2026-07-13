@@ -482,8 +482,8 @@ class AgentBackground {
           }
           this._lastTabUrl = currentTab.url;
         } catch (_) {}
-        // Enrich element results with screen coordinates from Chrome API
-        if (result?.result?.viewX !== undefined) {
+        // Enrich with screen coordinates if not already calibrated
+        if (result?.result?.viewX !== undefined && result?.result?.screenX === undefined) {
           try {
             const tab = await chrome.tabs.get(tabId);
             if (tab) {
