@@ -482,8 +482,8 @@ class AgentBackground {
           }
           this._lastTabUrl = currentTab.url;
         } catch (_) {}
-        // Enrich hover results with screen coordinates computed from Chrome API
-        if (type === 'hover' && result?.result?.viewX !== undefined) {
+        // Enrich element results with screen coordinates from Chrome API
+        if (result?.result?.viewX !== undefined) {
           try {
             const tab = await chrome.tabs.get(tabId);
             if (tab) {
