@@ -443,6 +443,29 @@ class AgentBackground {
         return;
       }
 
+      // Detect navigation caused by previous step BEFORE executing this one
+      try {
+        const prevTab = await chrome.tabs.get(tabId);
+        if (this._lastTabUrl && prevTab.url !== this._lastTabUrl) {
+          console.log('[Agent] tab navigated: ' + this._lastTabUrl + ' -> ' + prevTab.url);
+          if (prevTab.status !== 'complete') {
+            await new Promise((resolve) => {
+              const listener = (tid, info) => {
+                if (tid === tabId && info.status === 'complete') {
+                  chrome.tabs.onUpdated.removeListener(listener);
+                  resolve();
+                }
+              };
+              chrome.tabs.onUpdated.addListener(listener);
+              setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 5000);
+            });
+          }
+          await this._injectContentScript(tabId);
+          await new Promise(r => setTimeout(r, 500));
+        }
+        this._lastTabUrl = prevTab.url;
+      } catch (_) {}
+
       // Try sending directly; if content script is missing, inject and retry once
       let result;
       try {
@@ -462,26 +485,6 @@ class AgentBackground {
       }
 
       if (result?.status === 'success') {
-        // Detect tab navigation after DOM step (e.g. click opens new page)
-        try {
-          const currentTab = await chrome.tabs.get(tabId);
-          if (this._lastTabUrl && currentTab.url !== this._lastTabUrl) {
-            console.log('[Agent] tab navigated: ' + this._lastTabUrl + ' -> ' + currentTab.url);
-            await new Promise((resolve) => {
-              const listener = (tid, info) => {
-                if (tid === tabId && info.status === 'complete') {
-                  chrome.tabs.onUpdated.removeListener(listener);
-                  resolve();
-                }
-              };
-              chrome.tabs.onUpdated.addListener(listener);
-              setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 15000);
-            });
-            await this._injectContentScript(tabId);
-            await new Promise(r => setTimeout(r, 1000));
-          }
-          this._lastTabUrl = currentTab.url;
-        } catch (_) {}
         // Enrich with screen coordinates if not already calibrated
         if (result?.result?.viewX !== undefined && result?.result?.screenX === undefined) {
           try {
