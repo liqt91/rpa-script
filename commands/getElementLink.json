@@ -28,9 +28,11 @@
       "description": "链接地址将保存到此变量中"
     }
   ],
+  "categories": [
+    "data"
+  ],
   "handler": {
     "kind": "extension",
     "source": "extension/dom_handlers_new/getElementLink.js"
-  },
-  "categories": ["数据提取"]
+  }
 }

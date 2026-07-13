@@ -26,7 +26,7 @@
     }
   ],
   "categories": [
-    "数据提取"
+    "data"
   ],
   "handler": {
     "kind": "extension",

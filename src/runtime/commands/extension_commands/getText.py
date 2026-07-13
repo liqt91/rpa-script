@@ -2,11 +2,11 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="getText", label="获取文本",
-    category="页面操作", runtime="extension",
+    category="数据提取", runtime="extension",
     icon="fa-font", icon_color="text-green-500",
     bg_color="bg-green-50",
     description="获取页面元素的文本内容",
-    category_order=20,
+    category_order=40,
     command_order=10,
 )
 class GetTextHandler:
