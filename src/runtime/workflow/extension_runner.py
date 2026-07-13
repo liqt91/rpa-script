@@ -37,12 +37,61 @@ from .handler_validator import validate_handler_sync  # noqa: F401
 logger = logging.getLogger(__name__)
 
 
-def _os_move_mouse(screen_x: int, screen_y: int) -> bool:
-    """Move the system mouse cursor to absolute screen coordinates. Windows only."""
+def _get_cursor_pos():
+    """Get current absolute cursor position. Windows only."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        pt = wintypes.POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+        return pt.x, pt.y
+    except Exception:
+        return 0, 0
+
+
+def _os_move_mouse(screen_x: int, screen_y: int, instant: bool = False) -> bool:
+    """Move mouse to absolute screen coordinates with natural curve + jitter.
+    Set instant=True to teleport (used during calibration phase).
+    """
     if os.name != "nt":
         return False
     try:
         import ctypes
+        import math
+        import random
+
+        if instant:
+            ctypes.windll.user32.SetCursorPos(screen_x, screen_y)
+            return True
+
+        # Human-like: Bezier curve + ease-out + jitter
+        sx, sy = _get_cursor_pos()
+        dx = screen_x - sx
+        dy = screen_y - sy
+        dist = math.sqrt(dx * dx + dy * dy)
+
+        # Control points for quadratic bezier (random curve)
+        cpx = sx + dx * 0.3 + random.randint(-40, 40)
+        cpy = sy + dy * 0.4 + random.randint(-30, 30)
+
+        steps = max(10, int(dist / 8))
+        for i in range(steps + 1):
+            t = i / steps
+            te = 1 - (1 - t) ** 3  # ease-out cubit
+
+            x = int((1 - te) ** 2 * sx + 2 * (1 - te) * te * cpx + te ** 2 * screen_x)
+            y = int((1 - te) ** 2 * sy + 2 * (1 - te) * te * cpy + te ** 2 * screen_y)
+
+            # Jitter (decreases as we approach target)
+            if 0 < i < steps:
+                j = max(1, int((1 - t) * dist / 30))
+                x += random.randint(-j, j)
+                y += random.randint(-j, j)
+
+            ctypes.windll.user32.SetCursorPos(x, y)
+            time.sleep(random.uniform(0.001, 0.005))
+
+        # Final precise position
         ctypes.windll.user32.SetCursorPos(screen_x, screen_y)
         return True
     except Exception:
@@ -1615,7 +1664,7 @@ class ExtensionRunner:
         """Move OS mouse to element + optionally click. Calibrates on first call."""
         sx = result.get("screenX"); sy = result.get("screenY")
         if result.get("_needsCalib"):
-            if sx is not None: _os_move_mouse(sx, sy)
+            if sx is not None: _os_move_mouse(sx, sy, instant=True)
             await asyncio.sleep(0.6)
             try:
                 coords = await self._call_extension_handler(
