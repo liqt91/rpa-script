@@ -1,0 +1,43 @@
+{
+  "cmd": "closeTab",
+  "label": "关闭标签页",
+  "runtime": "extension",
+  "category": "浏览器",
+  "icon": "fa-times",
+  "iconColor": "text-orange-500",
+  "bgColor": "bg-orange-50",
+  "categoryOrder": 10,
+  "commandOrder": 50,
+  "description": "关闭当前或指定的标签页",
+  "enabled": true,
+  "params": [
+    {
+      "name": "windowVar",
+      "label": "浏览器窗口",
+      "type": "string",
+      "default": "browser1",
+      "group": "input",
+      "valueType": "window",
+      "placeholder": "如 browser1"
+    },
+    {
+      "name": "tabIndex",
+      "label": "标签页序号(可选)",
+      "type": "number",
+      "placeholder": "留空关闭当前标签页",
+      "group": "advanced"
+    },
+    {
+      "name": "urlPattern",
+      "label": "URL 匹配",
+      "type": "string",
+      "placeholder": "关闭 URL 包含此文本的标签页",
+      "group": "advanced"
+    }
+  ],
+  "categories": ["browser"],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/background_handlers/closeTab.js"
+  }
+}

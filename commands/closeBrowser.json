@@ -1,0 +1,28 @@
+{
+  "cmd": "closeBrowser",
+  "label": "关闭浏览器",
+  "runtime": "extension",
+  "category": "浏览器",
+  "icon": "fa-window-close",
+  "iconColor": "text-red-500",
+  "bgColor": "bg-red-50",
+  "categoryOrder": 10,
+  "commandOrder": 40,
+  "description": "关闭指定的浏览器窗口",
+  "enabled": true,
+  "params": [
+    {
+      "name": "windowVar",
+      "label": "窗口变量",
+      "type": "string",
+      "default": "browser1",
+      "group": "input",
+      "valueType": "window"
+    }
+  ],
+  "categories": ["browser"],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/background_handlers/closeBrowser.js"
+  }
+}

@@ -418,27 +418,6 @@ class AgentBackground {
       return;
     }
 
-    // closeBrowser 不需要工作标签页，直接处理
-    if (type === 'closeBrowser') {
-      const targetWindowId = step.extra?.windowId || this.workWindowId;
-      if (!targetWindowId) {
-        this._send('stepError', { stepId, error: '没有可关闭的窗口，请先执行打开浏览器指令' });
-        return;
-      }
-      try {
-        await chrome.windows.remove(Number(targetWindowId));
-        if (targetWindowId === this.workWindowId) {
-          this.workWindowId = null;
-          this.workTabId = null;
-      this._lastTabUrl = null;
-        }
-        this._send('stepResult', { stepId, result: { closedWindowId: targetWindowId } });
-      } catch (e) {
-        this._send('stepError', { stepId, error: e.message });
-      }
-      return;
-    }
-
     try {
       // Ensure we have a valid work tab (creates new one for navigate if needed)
       const tabId = await this._ensureWorkTab(step);

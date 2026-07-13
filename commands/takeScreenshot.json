@@ -1,0 +1,33 @@
+{
+  "cmd": "takeScreenshot",
+  "label": "截图",
+  "runtime": "extension",
+  "category": "高级",
+  "icon": "fa-camera",
+  "iconColor": "text-gray-700",
+  "bgColor": "bg-gray-100",
+  "categoryOrder": 90,
+  "commandOrder": 40,
+  "description": "截取页面或元素的截图",
+  "enabled": true,
+  "params": [
+    {
+      "name": "elementName",
+      "label": "目标元素(可选)",
+      "type": "element",
+      "group": "主属性",
+      "placeholder": "留空则截取整个页面"
+    },
+    {
+      "name": "saveToVar",
+      "label": "保存到变量(base64)",
+      "type": "string",
+      "group": "output"
+    }
+  ],
+  "categories": ["advanced"],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/takeScreenshot.js"
+  }
+}

@@ -50,6 +50,44 @@ def _runtime_info(d: dict) -> dict:
     return {"hasRuntime": True, "local": local, "handler": handler_name}
 
 
+# Generic params injected into every non-structural command.
+# Loaded from commands/types/generic_params.json at runtime (shared with registry.py).
+
+def _load_generic_params() -> dict:
+    import json as _json
+    json_path = ROOT / "src" / "runtime" / "commands" / "types" / "generic_params.json"
+    try:
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as f:
+                return _json.load(f)
+    except Exception:
+        pass
+    # hardcoded fallback
+    return {
+        "common": [
+            {"name": "onError", "label": "执行失败时", "type": "select",
+             "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
+             "default": "stop", "group": "advanced"},
+            {"name": "retryCount", "label": "重试次数", "type": "number", "default": 3, "group": "advanced"},
+            {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 10, "group": "advanced"},
+            {"name": "description", "label": "步骤说明", "type": "text", "default": "", "group": "advanced"},
+        ],
+        "extensionOnly": [
+            {"name": "humanLike", "label": "模拟人工操作", "type": "boolean", "default": True, "group": "advanced"},
+        ],
+    }
+
+
+def _generic_extra_params(runtime: str) -> list:
+    """Return generic params that apply to a given runtime tier."""
+    params = _load_generic_params()
+    if runtime in ("extension",):
+        return params.get("common", []) + params.get("extensionOnly", [])
+    if runtime in ("backend",):
+        return params.get("common", [])
+    return []
+
+
 def load_new_catalog() -> dict[str, Any]:
     """Return a command catalog shaped like /api/workflows/commands."""
     commands_by_cat: dict[str, list] = {}
@@ -75,7 +113,8 @@ def load_new_catalog() -> dict[str, Any]:
                 commands_by_cat[cat] = []
                 categories.append(cat)
 
-        runtime = _runtime_info(d)
+        rt_info = _runtime_info(d)
+        is_structural = d.get("isContainer") or d.get("isBranch") or d.get("isStructural")
         cmd = {
             "cmd": d["cmd"],
             "label": d.get("label", d["cmd"]),
@@ -84,7 +123,8 @@ def load_new_catalog() -> dict[str, Any]:
             "iconColor": d.get("iconColor", "text-gray-500"),
             "bgColor": d.get("bgColor", "bg-gray-50"),
             "description": d.get("description", ""),
-            "fields": [_normalize_field(p) for p in d.get("params", [])],
+            "fields": [_normalize_field(p) for p in d.get("params", [])]
+            + ([] if is_structural else _generic_extra_params(d.get("runtime", "extension"))),
             "isContainer": bool(d.get("isContainer")),
             "isBranch": bool(d.get("isBranch")),
             "isStructural": bool(d.get("isStructural")),
@@ -94,7 +134,7 @@ def load_new_catalog() -> dict[str, Any]:
             "isBuiltin": False,
             "enabled": True,
             "isNew": True,
-            **runtime,
+            **rt_info,
         }
         for cat in cats:
             commands_by_cat[cat].append(cmd)

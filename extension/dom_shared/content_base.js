@@ -1269,7 +1269,7 @@ console.log({
       el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
     }
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    return { input: text };
+    return { input: text, length: text.length };
   }
 
   async function doExtract({ locator, selectorFamily, extra }) {
@@ -1312,9 +1312,26 @@ console.log({
   async function doHover({ locator, selectorFamily }) {
     const el = findTarget(locator, selectorFamily);
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    await sleep(300);
-    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+    await sleep(400);
+
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const eventInit = { bubbles: true, cancelable: true, clientX: x, clientY: y,
+                        screenX: x, screenY: y, view: window, composed: true };
+
+    // Full hover lifecycle: pointer → mouse → focus → move
+    el.dispatchEvent(new PointerEvent('pointerover', eventInit));
+    el.dispatchEvent(new PointerEvent('pointerenter', eventInit));
+    el.dispatchEvent(new MouseEvent('mouseover', eventInit));
+    el.dispatchEvent(new MouseEvent('mouseenter', eventInit));
+    await sleep(50);
+    el.dispatchEvent(new PointerEvent('pointermove', eventInit));
+    el.dispatchEvent(new MouseEvent('mousemove', eventInit));
+    // Focus for aria-describedby / CSS :focus-within tooltips
+    el.focus({ preventScroll: true });
+    el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+
     return { hovered: true };
   }
 

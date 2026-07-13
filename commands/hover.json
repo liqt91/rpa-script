@@ -1,0 +1,38 @@
+{
+  "cmd": "hover",
+  "label": "鼠标悬停",
+  "runtime": "extension",
+  "category": "元素操作",
+  "icon": "fa-hand-pointer",
+  "iconColor": "text-blue-500",
+  "bgColor": "bg-blue-50",
+  "categoryOrder": 40,
+  "commandOrder": 30,
+  "description": "将鼠标悬停在指定元素上",
+  "enabled": true,
+  "params": [
+    {
+      "name": "elementName",
+      "label": "目标元素",
+      "type": "element",
+      "group": "主属性",
+      "placeholder": "选择一个已捕获的元素"
+    },
+    {
+      "name": "scope",
+      "label": "匹配范围",
+      "type": "select",
+      "options": [
+        {"label": "当前循环元素内", "value": "local"},
+        {"label": "全页面", "value": "global"}
+      ],
+      "default": "local",
+      "group": "advanced"
+    }
+  ],
+  "categories": ["interaction"],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/hover.js"
+  }
+}

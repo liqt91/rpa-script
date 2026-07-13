@@ -160,6 +160,11 @@ export const api = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
+  getGenericParams: () => request('/api/commands/generic-params'),
+  saveGenericParams: (data) => request('/api/commands/generic-params', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
 
   // Run logs
   listAllRuns: () => request('/api/workflows/runs'),

@@ -1,0 +1,12 @@
+{
+  "description": "通用参数配置 — 所有非结构指令自动注入。common 对所有执行指令生效，extensionOnly 仅对扩展端指令生效。",
+  "common": [
+    {"name": "onError", "label": "执行失败时", "type": "select", "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}], "default": "stop", "group": "advanced"},
+    {"name": "retryCount", "label": "重试次数", "type": "number", "default": 3, "group": "advanced"},
+    {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 10, "group": "advanced"},
+    {"name": "description", "label": "步骤说明", "type": "text", "default": "", "group": "advanced"}
+  ],
+  "extensionOnly": [
+    {"name": "humanLike", "label": "模拟人工操作", "type": "boolean", "default": true, "group": "advanced"}
+  ]
+}

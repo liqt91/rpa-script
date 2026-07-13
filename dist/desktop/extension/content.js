@@ -1269,7 +1269,7 @@ console.log({
       el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
     }
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    return { input: text };
+    return { input: text, length: text.length };
   }
 
   async function doExtract({ locator, selectorFamily, extra }) {
@@ -1312,9 +1312,26 @@ console.log({
   async function doHover({ locator, selectorFamily }) {
     const el = findTarget(locator, selectorFamily);
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    await sleep(300);
-    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+    await sleep(400);
+
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const eventInit = { bubbles: true, cancelable: true, clientX: x, clientY: y,
+                        screenX: x, screenY: y, view: window, composed: true };
+
+    // Full hover lifecycle: pointer → mouse → focus → move
+    el.dispatchEvent(new PointerEvent('pointerover', eventInit));
+    el.dispatchEvent(new PointerEvent('pointerenter', eventInit));
+    el.dispatchEvent(new MouseEvent('mouseover', eventInit));
+    el.dispatchEvent(new MouseEvent('mouseenter', eventInit));
+    await sleep(50);
+    el.dispatchEvent(new PointerEvent('pointermove', eventInit));
+    el.dispatchEvent(new MouseEvent('mousemove', eventInit));
+    // Focus for aria-describedby / CSS :focus-within tooltips
+    el.focus({ preventScroll: true });
+    el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+
     return { hovered: true };
   }
 
@@ -1659,9 +1676,100 @@ registerHandler('getText', async (args) => {
   });
 
 
+  // ── hover ──
+/**
+ * hover — DOM handler.
+ *
+ * Hovers the mouse over the target element.
+ * Delegates to doHover in content_base.js.
+ */
+registerHandler('hover', async function(step) {
+  const { locator, selectorFamily, extra } = step;
+  return await doHover({ locator, selectorFamily, extra });
+});
+
+
   // ── inputElement ──
 
 registerHandler('inputElement', async (args) => doInput(args));
+
+
+  // ── pressKey ──
+/**
+ * pressKey — DOM handler.
+ *
+ * Sends a keyboard event to the page.
+ * Supports modifiers (Ctrl, Alt, Shift, Meta) via extra.modifiers.
+ */
+registerHandler('pressKey', async function({ extra }) {
+  const key = extra?.key || 'Enter';
+  const humanLike = extra?.humanLike ?? true;
+  const modifiers = extra?.modifiers || '';
+
+  // Parse modifiers: comma-separated or array
+  const modList = Array.isArray(modifiers) ? modifiers
+    : modifiers.split(',').map(s => s.trim()).filter(Boolean);
+
+  if (humanLike) {
+    const isModifier = ['Control', 'Alt', 'Shift', 'Meta'].includes(key);
+    const hasModifier = modList.length > 0;
+    if (isModifier || hasModifier) await sleep(randNormal(30, 10));
+    if (key === 'Enter' || key === 'Tab') await sleep(randNormal(300, 100));
+  }
+
+  document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  if (humanLike && !['Control', 'Alt', 'Shift', 'Meta'].includes(key)) {
+    await sleep(randNormal(80, 30));
+  }
+  document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+
+  return { pressed: key };
+});
+
+
+  // ── scrollIntoView ──
+/**
+ * scrollIntoView — DOM handler.
+ *
+ * Scrolls the page so the target element is visible.
+ * Delegates to doScroll in content_base.js.
+ */
+registerHandler('scrollIntoView', async function(step) {
+  const { locator, selectorFamily, extra } = step;
+  return await doScroll({ locator, selectorFamily, extra: { ...extra, action: 'scrollIntoView' } });
+});
+
+
+  // ── takeScreenshot ──
+/**
+ * takeScreenshot — DOM handler.
+ *
+ * Captures a screenshot of the page or a specific element.
+ * Uses chrome.runtime.sendMessage to request capture from the background.
+ */
+registerHandler('takeScreenshot', async function({ locator, selectorFamily, extra }) {
+  const mode = getVisibilityMode(extra);
+  if (locator) {
+    // Screenshot of a specific element
+    const timeoutMs = (extra?.timeout ?? 10) * 1000;
+    const el = await waitForElement(locator, selectorFamily, mode, timeoutMs);
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await sleep(200);
+    const rect = el.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const resp = await chrome.runtime.sendMessage({
+      action: 'captureElementScreenshot',
+      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      dpr,
+    });
+    if (resp?.error) throw new Error(`截图失败: ${resp.error}`);
+    return { dataUrl: resp.dataUrl, elementScreenshot: true };
+  }
+  // Full page screenshot
+  const resp = await chrome.runtime.sendMessage({ action: 'captureScreenshot' });
+  if (resp?.error) throw new Error(`截图失败: ${resp.error}`);
+  return { dataUrl: resp.dataUrl, elementScreenshot: false };
+});
 
 
   // ── waitForElement ──

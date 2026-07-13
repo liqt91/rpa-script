@@ -709,3 +709,26 @@ async def save_categories_json(request: Request, user=Depends(auth.get_current_u
     return {"ok": True}
 
 
+# ─── Generic Params JSON ──────────────────────────────────────
+
+_GENERIC_PARAMS_PATH = _COMMANDS_DIR.parent / "src" / "runtime" / "commands" / "types" / "generic_params.json"
+
+
+@router.get("/generic-params")
+def get_generic_params(user=Depends(auth.get_current_user)):
+    """Return project-level generic parameter definitions."""
+    if not _GENERIC_PARAMS_PATH.exists():
+        return {"common": [], "extensionOnly": []}
+    with open(_GENERIC_PARAMS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@router.put("/generic-params")
+async def save_generic_params(request: Request, user=Depends(auth.get_current_user)):
+    _GENERIC_PARAMS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    body = json.loads(await request.body())
+    with open(_GENERIC_PARAMS_PATH, "w", encoding="utf-8") as f:
+        json.dump(body, f, ensure_ascii=False, indent=2)
+    return {"ok": True}
+
+

@@ -62,8 +62,25 @@ export default function CommandEditor() {
   const [categoriesJson, setCategoriesJson] = useState('');
   const [valueTypes, setValueTypes] = useState({});
   const [paramTypes, setParamTypes] = useState([]);
+  const [genericParamsJson, setGenericParamsJson] = useState('');
 
-  useEffect(() => { loadDefinitions(); loadCategories(); loadValueTypes(); }, []);
+  useEffect(() => { loadDefinitions(); loadCategories(); loadValueTypes(); loadGenericParams(); }, []);
+
+  async function loadGenericParams() {
+    try {
+      const data = await api.getGenericParams();
+      setGenericParamsJson(JSON.stringify(data, null, 2));
+    } catch (e) { /* ignore */ }
+  }
+
+  async function saveGenericParams() {
+    try {
+      const data = JSON.parse(genericParamsJson);
+      await api.saveGenericParams(data);
+      await loadGenericParams();
+      setStatus('通用参数已保存');
+    } catch (e) { setError('保存通用参数失败: ' + e.message); }
+  }
 
   async function loadValueTypes() {
     try {
@@ -328,6 +345,15 @@ export default function CommandEditor() {
             <i className="fas fa-tags text-[10px] w-4 text-center"></i>
             分类管理
           </button>
+          {/* 通用参数入口 */}
+          <button
+            onClick={() => { setSelected({ _type: '__generic_params__' }); setForm(null); }}
+            className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
+              selected && selected._type === '__generic_params__' ? 'bg-emerald-600/30 text-emerald-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+            }`}>
+            <i className="fas fa-sliders-h text-[10px] w-4 text-center"></i>
+            通用参数
+          </button>
           {defs.map((d, i) => {
             const isCur = selected && selected.cmd === d.cmd;
             return (
@@ -386,6 +412,35 @@ export default function CommandEditor() {
             </div>
             <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
               编辑 src/runtime/commands/types/value_types.json。此文件是参数类型和值类型的唯一真相源。
+            </div>
+          </div>
+        ) : selected && selected._type === '__generic_params__' ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-[#0f172a] shrink-0">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-sliders-h text-emerald-400 text-sm"></i>
+                <span className="text-sm font-medium text-gray-200">通用参数</span>
+                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">src/runtime/commands/types/generic_params.json</code>
+              </div>
+              <div className="flex items-center gap-2">
+                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
+                {error && <span className="text-xs text-red-400">{error}</span>}
+                <button onClick={saveGenericParams}
+                  className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">
+                  <i className="fas fa-save mr-1"></i>保存
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 p-4">
+              <textarea
+                value={genericParamsJson}
+                onChange={e => setGenericParamsJson(e.target.value)}
+                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
+                spellCheck={false}
+              />
+            </div>
+            <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
+              common 对所有执行指令生效，extensionOnly 仅对扩展端（DOM操作）指令生效。修改后重启服务器生效。
             </div>
           </div>
         ) : selected && selected._type === '__categories__' ? (

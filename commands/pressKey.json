@@ -1,0 +1,37 @@
+{
+  "cmd": "pressKey",
+  "label": "按键",
+  "runtime": "extension",
+  "category": "页面操作",
+  "icon": "fa-keyboard",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 30,
+  "description": "向页面发送键盘按键",
+  "enabled": true,
+  "params": [
+    {
+      "name": "key",
+      "label": "按键",
+      "type": "string",
+      "required": true,
+      "default": "Enter",
+      "placeholder": "Enter / Tab / Escape / ..."
+    },
+    {
+      "name": "modifiers",
+      "label": "修饰键",
+      "type": "string",
+      "default": "",
+      "placeholder": "如 Ctrl,Alt,Shift",
+      "group": "advanced",
+      "description": "逗号分隔的修饰键"
+    }
+  ],
+  "categories": ["page"],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/pressKey.js"
+  }
+}

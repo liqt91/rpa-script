@@ -16,31 +16,61 @@ Handler 注册系统 — 每个 handler 声明自己的参数，自动生成指�
 from typing import Optional, Any
 from dataclasses import dataclass, field
 
-# ─── Generic params injected into every instruction ──────────────
+# ─── Generic params injected into every non-structural instruction ──
+# Loaded from commands/types/generic_params.json at startup.
+# Hardcoded values serve as fallback when the JSON file is missing.
 
-GENERIC_PARAMS = [
-    {
-        "name": "onError", "label": "执行失败时", "type": "str-dropdown",
-        "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
-        "default": "stop", "group": "advanced",
-    },
-    {
-        "name": "retryCount", "label": "重试次数", "type": "int-number",
-        "default": 3, "group": "advanced",
-    },
-    {
-        "name": "timeout", "label": "超时(秒)", "type": "int-number",
-        "default": 10, "group": "advanced",
-    },
-    {
-        "name": "humanLike", "label": "模拟人工操作", "type": "bool-check",
-        "default": True, "group": "advanced",
-    },
-    {
-        "name": "description", "label": "步骤说明", "type": "str-textarea",
-        "default": "", "group": "advanced",
-    },
-]
+_GENERIC_PARAMS_CACHE: dict | None = None
+
+
+def _load_generic_params_from_json() -> dict:
+    """Load generic params from JSON, with hardcoded fallback."""
+    import json
+    from pathlib import Path
+    json_path = Path(__file__).resolve().parent.parent.parent.parent / "src" / "runtime" / "commands" / "types" / "generic_params.json"
+    try:
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    # hardcoded fallback
+    return {
+        "common": [
+            {"name": "onError", "label": "执行失败时", "type": "select",
+             "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
+             "default": "stop", "group": "advanced"},
+            {"name": "retryCount", "label": "重试次数", "type": "number", "default": 3, "group": "advanced"},
+            {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 10, "group": "advanced"},
+            {"name": "description", "label": "步骤说明", "type": "text", "default": "", "group": "advanced"},
+        ],
+        "extensionOnly": [
+            {"name": "humanLike", "label": "模拟人工操作", "type": "boolean", "default": True, "group": "advanced"},
+        ],
+    }
+
+
+def _generic_params_reload():
+    """Force reload from JSON (called after save from API)."""
+    global _GENERIC_PARAMS_CACHE
+    _GENERIC_PARAMS_CACHE = _load_generic_params_from_json()
+
+
+def _get_generic_params() -> dict:
+    global _GENERIC_PARAMS_CACHE
+    if _GENERIC_PARAMS_CACHE is None:
+        _GENERIC_PARAMS_CACHE = _load_generic_params_from_json()
+    return _GENERIC_PARAMS_CACHE
+
+
+def _generic_params_for(runtime: str) -> list:
+    """Return the generic params that apply to a given runtime tier."""
+    params = _get_generic_params()
+    if runtime in ("extension",):
+        return params.get("common", []) + params.get("extensionOnly", [])
+    if runtime in ("backend",):
+        return params.get("common", [])
+    return []
 
 
 @dataclass
@@ -162,7 +192,7 @@ def build_command_registry() -> dict[str, dict]:
             "isBranch": hdef["isBranch"],
             "isStructural": hdef["isStructural"],
             "closesWith": hdef["closesWith"],
-            "fields": hdef["params"],
+            "fields": hdef["params"] + ([] if is_structural else _generic_params_for(hdef["runtime"])),
             "description": hdef["description"],
             "categoryOrder": hdef["categoryOrder"],
             "commandOrder": hdef["commandOrder"],
@@ -181,7 +211,7 @@ def get_command(type_name: str) -> dict | None:
 
     is_structural = h.get("isContainer") or h.get("isBranch") or h.get("isStructural")
     is_control = h["runtime"] == "control"
-    fields = h["params"] if is_structural else h["params"] + GENERIC_PARAMS
+    fields = h["params"] + ([] if is_structural else _generic_params_for(h["runtime"]))
 
     return {
         "cmd": h["cmd"], "label": h["label"], "category": h["category"],

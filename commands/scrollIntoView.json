@@ -1,0 +1,38 @@
+{
+  "cmd": "scrollIntoView",
+  "label": "滚动到元素",
+  "runtime": "extension",
+  "category": "页面操作",
+  "icon": "fa-arrow-down",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 10,
+  "description": "将页面滚动到指定元素可见的位置",
+  "enabled": true,
+  "params": [
+    {
+      "name": "elementName",
+      "label": "目标元素",
+      "type": "element",
+      "group": "主属性",
+      "placeholder": "选择一个已捕获的元素"
+    },
+    {
+      "name": "scope",
+      "label": "匹配范围",
+      "type": "select",
+      "options": [
+        {"label": "当前循环元素内", "value": "local"},
+        {"label": "全页面", "value": "global"}
+      ],
+      "default": "local",
+      "group": "advanced"
+    }
+  ],
+  "categories": ["page"],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/scrollIntoView.js"
+  }
+}

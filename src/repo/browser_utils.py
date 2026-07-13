@@ -116,8 +116,10 @@ def launch_browser(browser_type: str) -> bool:
 
 def find_extension_dir() -> Optional[str]:
     """定位扩展文件夹：统一用 dist/desktop/extension/。"""
+    # REPO_DIR points to src/, project root is one level up
+    project_root = os.path.dirname(config.REPO_DIR)
     candidates = [
-        os.path.join(config.REPO_DIR, "dist", "desktop", "extension"),
+        os.path.join(project_root, "dist", "desktop", "extension"),
     ]
     for path in candidates:
         if os.path.isdir(path) and os.path.isfile(os.path.join(path, "manifest.json")):
