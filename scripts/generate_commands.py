@@ -208,12 +208,12 @@ def write_outputs(defs: list[dict]):
         py_path = py_dir / f"{d['cmd']}.py"
         os.makedirs(py_path.parent, exist_ok=True)
 
-        if kind in ("", "extension"):
-            # Always regenerate — these stubs are never hand-edited
+        if kind in ("", "extension") and d["runtime"] != "control":
+            # Always regenerate extension stubs; control commands are hand-written
             py_path.write_text(py_code, encoding="utf-8")
             print(f"  GEN  {py_path}")
         else:
-            print(f"  SKIP {py_path} ({kind} — hand-written)")
+            print(f"  SKIP {py_path} ({kind or d['runtime']} — hand-written)")
 
         # JS part — only for extension commands
         # Background handlers (source in background_handlers/) are compiled
