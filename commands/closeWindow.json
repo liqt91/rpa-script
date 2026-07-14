@@ -1,0 +1,27 @@
+{
+  "cmd": "closeWindow",
+  "label": "关闭窗口",
+  "runtime": "backend",
+  "icon": "fa-window-close",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 35,
+  "description": "向指定窗口发送 WM_CLOSE 消息关闭窗口",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "parentWindow",
+      "label": "窗口 (HWND变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "引用 findWindow 或 openApp 存入的窗口句柄变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/closeWindow.py"
+  },
+  "categories": ["desktop"]
+}

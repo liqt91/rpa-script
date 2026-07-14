@@ -1,0 +1,20 @@
+{
+  "cmd": "findWindowUia",
+  "label": "查找窗口 (UIA)",
+  "runtime": "backend",
+  "icon": "fa-window-maximize",
+  "iconColor": "text-green-500",
+  "bgColor": "bg-green-50",
+  "categoryOrder": 65,
+  "commandOrder": 5,
+  "description": "使用 UI Automation 查找桌面窗口 [UIA]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    { "name": "windowTitle", "label": "窗口标题", "type": "string", "required": true, "placeholder": "如：无标题 - 记事本，支持模糊匹配" },
+    { "name": "searchMode", "label": "搜索模式", "type": "select", "default": "fuzzy", "options": [{"label":"模糊匹配","value":"fuzzy"},{"label":"精确匹配","value":"exact"}] },
+    { "name": "resultVar", "label": "结果存入变量(UIA)", "type": "str-var", "default": "", "placeholder": "找到的窗口UIA对象存入此变量" }
+  ],
+  "handler": { "kind": "backend", "source": "src/runtime/commands/desktop_commands/findWindowUia.py" },
+  "categories": ["desktop"]
+}

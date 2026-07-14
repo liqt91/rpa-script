@@ -8,6 +8,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="将页面滚动到指定元素可见的位置",
     category_order=60,
     command_order=10,
+    summary_tpl="{elementName}",
 )
 class ScrollIntoViewHandler:
     params = [

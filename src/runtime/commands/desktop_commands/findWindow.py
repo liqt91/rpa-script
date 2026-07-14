@@ -4,7 +4,7 @@
 支持精确匹配与模糊匹配两种模式。
 """
 from src.runtime.workflow.handlers.registry import register_handler, Param
-from src.runtime.workflow.handlers.utils import convert_value
+from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
 
 
 @register_handler(
@@ -14,6 +14,7 @@ from src.runtime.workflow.handlers.utils import convert_value
     bg_color="bg-purple-50",
     description="按标题或类名查找 Windows 桌面窗口，可选自动激活前置",
     category_order=60, command_order=10,
+    summary_tpl="{windowTitle} ({searchMode})",
 )
 class FindWindowHandler:
     params = [
@@ -40,8 +41,8 @@ class FindWindowHandler:
         extra = instr.get("extra", {})
         search_mode = extra.get("searchMode", "fuzzy")
         window_title = convert_value(extra.get("windowTitle", ""), "string", runner.vars)
-        auto_activate = extra.get("autoActivate", True)
-        result_var = extra.get("resultVar", "")
+        auto_activate = convert_value(extra.get("autoActivate", True), "boolean", runner.vars)
+        result_var = clean_var_ref(extra.get("resultVar", ""))
 
         if not is_windows():
             result = {"error": "当前系统非 Windows，不支持桌面窗口操作"}
@@ -86,7 +87,8 @@ class FindWindowHandler:
                 }
 
         if not hwnd:
-            result = {"found": False, "search": window_title, "mode": search_mode}
+            result = {"found": False, "search": window_title, "mode": search_mode,
+                      "log": f"未找到窗口: {window_title}"}
             runner.completed += 1
             runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
                                     "status": "success", "result": result})
@@ -102,7 +104,8 @@ class FindWindowHandler:
         if result_var:
             runner.vars[result_var] = hwnd
 
-        result = {"found": True, "window": window_info}
+        result = {"found": True, "window": window_info,
+                  "log": f"找到窗口: {window_info.get('title', window_title)}"}
         runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
                                 "status": "success", "result": result})

@@ -6,7 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     cmd="log", label="输出日志", category="数据", runtime="backend",
     icon="fa-terminal", icon_color="text-gray-500", bg_color="bg-gray-50",
     category_order=40, command_order=10,
-    description="输出一条消息到运行日志")
+    description="输出一条消息到运行日志",
+    summary_tpl="{message}")
 class LogHandler:
     params = [
         Param("message", "日志内容", "text", placeholder="支持 {{变量}} 引用"),

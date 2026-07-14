@@ -128,6 +128,7 @@ def register_handler(
     category_order: int = 0,
     command_order: int = 0,
     enabled: bool = True,
+    summary_tpl: str = "",  # "{windowTitle} ({searchMode})" — stepStart 日志摘要模板
 ):
     """装饰器：注册一个 handler 及其参数声明。
     
@@ -135,6 +136,10 @@ def register_handler(
       - "extension": 浏览器扩展执行 (content.js)
       - "backend": 后端本地执行 (extension_runner.py LOCAL_HANDLERS)
       - "control": 由 emitter 展开，不经过 handler 执行（容器/结构指令）
+    
+    summary_tpl: Python 格式化字符串，引用 extra 中的字段名。
+                 如 "{windowTitle} ({searchMode})"。
+                 留空则回退到 extension_runner._summarize() 中的硬编码逻辑。
     """
     def decorator(cls):
         params = []
@@ -159,6 +164,7 @@ def register_handler(
             "categoryOrder": category_order,
             "commandOrder": command_order,
             "enabled": enabled,
+            "summaryTpl": summary_tpl,
             "handler_class": cls,
         }
         return cls

@@ -523,7 +523,7 @@ def build_definitions(user=Depends(auth.get_current_user)):
 
 _HANDLERS_BASE_DIR = _Path(__file__).resolve().parent.parent.parent.parent / "src" / "runtime" / "commands"
 
-_RUNTIME_DIRS = ["backend_commands", "extension_commands", "control_commands"]
+_RUNTIME_DIRS = ["backend_commands", "extension_commands", "control_commands", "desktop_commands"]
 
 
 @router.get("/definitions/{type_name}/source")
@@ -737,5 +737,71 @@ async def save_generic_params(request: Request, user=Depends(auth.get_current_us
     with open(_GENERIC_PARAMS_PATH, "w", encoding="utf-8") as f:
         json.dump(body, f, ensure_ascii=False, indent=2)
     return {"ok": True}
+
+
+# ── 控件拾取器 ────────────────────────────────────────────────────
+
+@router.post("/picker")
+def run_picker(user=Depends(auth.get_current_user)):
+    """启动控件拾取器，返回捕获的控件信息。
+    
+    调用 scripts/picker.py，用户点击目标控件后返回 JSON。
+    """
+    import subprocess
+    import sys
+    import os as _os
+    _ROOT = _Path(__file__).resolve().parent.parent.parent.parent
+    picker_path = _ROOT / "scripts" / "picker.py"
+    if not picker_path.exists():
+        raise HTTPException(status_code=500, detail="picker.py not found")
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(picker_path), "--compact"],
+            capture_output=True, text=True, timeout=30,
+            cwd=str(_ROOT),
+        )
+        if proc.returncode != 0:
+            raise HTTPException(status_code=500, detail=proc.stderr.strip() or "picker failed")
+        stdout = proc.stdout.strip()
+        if not stdout:
+            return {"cancelled": True}
+        return json.loads(stdout)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=408, detail="picker timeout")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"invalid picker output: {proc.stdout[:200]}")
+
+
+@router.post("/picker_uia")
+def run_picker_uia(user=Depends(auth.get_current_user)):
+    """启动 UIA 控件拾取器，返回捕获的 UIA 控件信息。
+
+    调用 scripts/picker_uia.py，用户 Alt+点击目标控件后返回 JSON。
+    需要 pip install uiautomation。
+    """
+    import subprocess
+    import sys
+    _ROOT = _Path(__file__).resolve().parent.parent.parent.parent
+    picker_path = _ROOT / "scripts" / "picker_uia.py"
+    if not picker_path.exists():
+        raise HTTPException(status_code=500, detail="picker_uia.py not found")
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(picker_path)],
+            capture_output=True, text=True, timeout=30,
+            cwd=str(_ROOT),
+        )
+        if proc.returncode != 0:
+            raise HTTPException(status_code=500, detail=proc.stderr.strip() or "picker_uia failed")
+        stdout = proc.stdout.strip()
+        import re
+        stdout = re.sub(r'\x1b\[[0-9;?]*[a-zA-Z]', '', stdout)
+        if not stdout:
+            return {"cancelled": True}
+        return json.loads(stdout)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=408, detail="picker_uia timeout")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"invalid picker_uia output: {proc.stdout[:200]}")
 
 

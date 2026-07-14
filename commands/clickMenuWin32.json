@@ -1,0 +1,34 @@
+{
+  "cmd": "clickMenuWin32",
+  "label": "点击菜单 (Win32)",
+  "runtime": "backend",
+  "icon": "fa-bars",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 25,
+  "description": "按菜单路径查找并点击 Windows 窗口菜单项（如 文件->另存为） [Win32 API]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "parentWindow",
+      "label": "父窗口 (HWND变量) (Win32)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "引用 findWindow 或 openApp 存入的窗口句柄变量"
+    },
+    {
+      "name": "menuPath",
+      "label": "菜单路径 (Win32)",
+      "type": "string",
+      "required": true,
+      "placeholder": "用 -> 分隔，如 文件->另存为 或 编辑->查找->查找下一个"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/clickMenuWin32.py"
+  },
+  "categories": ["desktop"]
+}

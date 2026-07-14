@@ -1,0 +1,66 @@
+{
+  "cmd": "findSibling",
+  "label": "查找兄弟控件",
+  "runtime": "backend",
+  "icon": "fa-arrow-right",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 13,
+  "description": "从参考控件出发，按方向查找匹配类名的兄弟控件（如标签→输入框）",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "refWindow",
+      "label": "参考控件 (HWND变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "引用已知的控件句柄变量，如标签 Static"
+    },
+    {
+      "name": "direction",
+      "label": "查找方向",
+      "type": "select",
+      "options": [
+        { "label": "下一个 (→)", "value": "next" },
+        { "label": "上一个 (←)", "value": "prev" }
+      ],
+      "default": "next"
+    },
+    {
+      "name": "classFilter",
+      "label": "目标类名",
+      "type": "select",
+      "default": "Edit",
+      "options": [
+        { "label": "Edit (输入框)", "value": "Edit" },
+        { "label": "Button (按钮)", "value": "Button" },
+        { "label": "ComboBox (下拉框)", "value": "ComboBox" },
+        { "label": "ComboBoxEx32", "value": "ComboBoxEx32" },
+        { "label": "Static (标签)", "value": "Static" },
+        { "label": "ListBox (列表框)", "value": "ListBox" },
+        { "label": "不筛选", "value": "" }
+      ]
+    },
+    {
+      "name": "skip",
+      "label": "跳过几个",
+      "type": "int-number",
+      "default": "0",
+      "placeholder": "跳过前N个匹配项，0=第一个"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "找到的控件句柄存入此变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/findSibling.py"
+  },
+  "categories": ["desktop"]
+}

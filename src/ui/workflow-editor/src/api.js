@@ -148,6 +148,10 @@ export const api = {
     method: 'DELETE',
   }),
 
+  // Desktop picker
+  runPicker: () => request('/api/commands/picker', { method: 'POST' }),
+  runPickerUia: () => request('/api/commands/picker_uia', { method: 'POST' }),
+
   // Command categories
   getCategories: () => request('/api/command-categories'),
   getCategoriesJson: () => request('/api/commands/categories-json'),

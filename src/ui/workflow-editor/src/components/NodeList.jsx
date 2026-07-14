@@ -29,6 +29,7 @@ export default function NodeList() {
 
   const hasMultiSelection = selectedNodeIds.size > 1;
 
+
   // ─── 拖拽时自动滚动 ──────────────────────────────────────────
   const autoScrollRef = useRef({ active: false, direction: 0 });
 
@@ -464,6 +465,7 @@ export default function NodeList() {
           </div>
         </div>
       )}
+
     </main>
   );
 }

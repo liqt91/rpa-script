@@ -8,6 +8,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="截取页面或元素的截图",
     category_order=90,
     command_order=40,
+    summary_tpl="{elementName}",
 )
 class TakeScreenshotHandler:
     params = [

@@ -1,0 +1,20 @@
+{
+  "cmd": "pickElementUia",
+  "label": "按元素库取控件 (UIA)",
+  "runtime": "backend",
+  "icon": "fa-sitemap",
+  "iconColor": "text-green-500",
+  "bgColor": "bg-green-50",
+  "categoryOrder": 65,
+  "commandOrder": 15,
+  "description": "从元素库UIA元素中按层级取控件 [UIA]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    { "name": "elementName", "label": "桌面元素", "type": "string", "required": true, "placeholder": "元素库中 element_kind=uia 的元素名称", "group": "主属性" },
+    { "name": "levelIndex", "label": "层级序号", "type": "number", "default": "-1", "placeholder": "0=顶层窗口，-1=最后一层(目标控件)" },
+    { "name": "resultVar", "label": "结果存入变量(UIA)", "type": "str-var", "default": "", "placeholder": "找到的UIA控件对象存入此变量" }
+  ],
+  "handler": { "kind": "backend", "source": "src/runtime/commands/desktop_commands/pickElementUia.py" },
+  "categories": ["desktop"]
+}

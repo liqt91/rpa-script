@@ -163,7 +163,6 @@ export default function CommandPanel() {
         e.target.classList.remove('dragging');
         document.body.classList.remove('dragging-node');
       }}
-      onClick={() => handleAdd(cmd)}
       title={cmd.description || cmd.label}
     >
       <i className="fas fa-grip-vertical text-gray-300 text-[10px] mr-1"></i>

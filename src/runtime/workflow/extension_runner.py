@@ -622,6 +622,7 @@ class ExtensionRunner:
                 self._current_step = instr
                 if not await self._wait_if_paused():
                     break
+                summary = self._summarize(instr)
                 await self._emit({
                     "type": "stepStart",
                     "stepId": instr.get("stepId"),
@@ -629,6 +630,7 @@ class ExtensionRunner:
                     "compound": instr.get("compound", False),
                     "cmdType": instr.get("cmdType", ""),
                     "cmdLabel": instr.get("cmdLabel", instr.get("cmdType", "")),
+                    "_summary": summary,
                 })
                 try:
                     success = await self._execute_instruction(instr)
@@ -680,6 +682,9 @@ class ExtensionRunner:
                         self._log_file = None
                 except Exception:
                     pass
+            # Give SSE polling a moment to connect and drain the queue
+            # (pure-local workflows finish in <100ms, SSE may not have connected yet)
+            await asyncio.sleep(0.3)
             await run_progress.unregister(self.run_id)
             await remove_active_runner(self.run_id)
 
@@ -979,43 +984,48 @@ class ExtensionRunner:
         logger.warning(f"[ExtensionRunner] Unknown condition type: {cmd_type}")
         return {"met": False, "cmdType": cmd_type}
 
+    class _SafeFormatDict(dict):
+        """A dict that returns empty string for missing keys, so
+        summary_tpl like '{windowTitle} ({searchMode})' never raises KeyError."""
+        def __missing__(self, key):
+            return ""
+
+    # Param names injected by the system (not user-facing) — skip in generic summary.
+    _GENERIC_PARAM_NAMES = {"onError", "retryCount", "timeout", "description", "humanLike"}
+
     @staticmethod
     def _summarize(instr: dict) -> str:
-        """生成指令输入摘要，用于调试日志。"""
+        """生成指令输入摘要，用于调试日志。
+
+        优先从 handler registry 读取 summary_tpl 模板格式化；
+        若无模板，遍历 params 拼 "标签: 值, ..." 作为通用兜底。
+        """
         cmd = instr.get("cmdType", instr.get("cmd", ""))
         extra = instr.get("extra") or {}
-        if cmd == "setVar":
-            return f'name={extra.get("name","?")} value={str(extra.get("value",""))[:60]}'
-        if cmd == "writeTableRow":
-            return f'row={str(extra.get("rowData",""))[:60]}'
-        if cmd == "writeTableCell":
-            return f'[{extra.get("rowIndex","?")},{extra.get("colIndex","?")}]={str(extra.get("value",""))[:40]}'
-        if cmd == "log":
-            return str(extra.get("message", ""))[:80]
-        if cmd == "navigate":
-            return str(extra.get("url", ""))[:80]
-        if cmd == "openBrowser":
-            return f'{extra.get("browserType","?")}'
-        if cmd == "forList":
-            return f'listVar={extra.get("listVar","?")}'
-        if cmd == "forRange":
-            return f'var={extra.get("varName","i")} [{extra.get("start",0)}..{extra.get("end",10)})'
-        if cmd == "forEachElement":
-            return f'{instr.get("elementName","?")}'
-        if cmd == "forList":
-            return f'listVar={extra.get("listVar","?")}'
-        if cmd == "clickElement":
-            return f'{extra.get("element_name","?")}'
-        if cmd == "inputText":
-            return f'{extra.get("text","")[:40]}'
-        if cmd == "getText":
-            return str(extra.get("elementName", extra.get("element_name", "?")))[:40]
-        if cmd == "getElementLink":
-            return str(extra.get("elementName", extra.get("element_name", "?")))[:40]
-        if cmd == "custom":
-            return str(extra.get("code", ""))[:80]
-        if cmd in ("ifElementVisible", "ifTextContains", "ifVarEquals"):
-            return str(extra.get("operator", ""))
+
+        from .handlers.registry import get_handler as _get_hdef
+        hdef = _get_hdef(cmd)
+
+        # 1. summary_tpl 模板优先
+        tpl = hdef.get("summaryTpl", "") if hdef else ""
+        if tpl:
+            return tpl.format_map(ExtensionRunner._SafeFormatDict(extra))
+
+        # 2. 通用兜底：遍历 handler 参数，拼 "标签: 值"
+        if hdef:
+            parts = []
+            for p in hdef.get("params", []):
+                name = p.get("name", "")
+                if not name or name in ExtensionRunner._GENERIC_PARAM_NAMES:
+                    continue
+                val = extra.get(name)
+                if val is None or val == "":
+                    continue
+                label = p.get("label", name)
+                parts.append(f"{label}: {str(val)[:40]}")
+            if parts:
+                return ", ".join(parts)
+
         return ""
 
     async def _run_body(self, body: list[dict], emit_events: bool = True) -> bool:

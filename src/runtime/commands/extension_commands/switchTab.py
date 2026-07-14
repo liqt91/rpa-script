@@ -8,6 +8,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="切换到指定标签页。默认激活的；有 urlPattern 时匹配 URL",
     category_order=10,
     command_order=40,
+    summary_tpl="{urlPattern}",
 )
 class SwitchTabHandler:
     params = [

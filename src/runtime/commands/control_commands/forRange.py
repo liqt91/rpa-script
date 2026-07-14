@@ -6,7 +6,8 @@ from ...workflow.extension_runner import LoopBreak, LoopContinue, _clean_var_ref
     is_container=True, closes_with="endLoop",
     icon="fa-rotate", icon_color="text-purple-500", bg_color="bg-purple-50",
     category_order=50, command_order=30,
-    description="循环指定次数，从起始值到结束值")
+    description="循环指定次数，从起始值到结束值",
+    summary_tpl="{itemVar} [{start}..{end}]")
 class ForRangeHandler:
     params = [
         Param("start", "起始值", "number", default="0"),

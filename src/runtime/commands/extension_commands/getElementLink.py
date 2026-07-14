@@ -8,6 +8,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="获取指定元素的 href 链接地址",
     category_order=40,
     command_order=20,
+    summary_tpl="{elementName}",
 )
 class GetElementLinkHandler:
     params = [

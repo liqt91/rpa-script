@@ -538,6 +538,63 @@ export default function Toolbar() {
     navigate('/');
   };
 
+  const handlePicker = async () => {
+    try {
+      const data = await api.runPicker();
+      if (data.cancelled) return;
+      const path = data.path || [];
+      if (path.length === 0) return;
+
+      // 顶层窗口 → findWindow
+      const top = path[0];
+      const firstTitle = top.title || top.class_name;
+      dispatch({
+        type: 'ADD_NODE_LOCAL',
+        payload: {
+          cmd: 'findWindow',
+          order: (nodes.length + 1),
+          extra: {
+            windowTitle: firstTitle,
+            searchMode: 'fuzzy',
+            autoActivate: false,
+            resultVar: '_pickerWin',
+          },
+        },
+      });
+
+      // 如果顶层是桌面子窗口（如 #32770），再找一个 findWindow
+      const dialogs = path.filter(p => p.class_name === '#32770');
+      if (dialogs.length > 0 && dialogs[0].hwnd !== top.hwnd) {
+        dispatch({
+          type: 'ADD_NODE_LOCAL',
+          payload: {
+            cmd: 'findWindow',
+            order: (nodes.length + 2),
+            extra: {
+              windowTitle: dialogs[0].title,
+              searchMode: 'exact',
+              autoActivate: true,
+              resultVar: '_pickerDlg',
+            },
+          },
+        });
+      }
+
+      // 目标控件 → 显示类和标题供参考（日志）
+      const target = path[path.length - 1];
+      alert(
+        `✅ 控件已拾取\n\n` +
+        `目标: ${target.class_name} "${target.title}"\n` +
+        `大小: ${target.rect?.width || '?'}x${target.rect?.height || '?'}\n\n` +
+        `路径已转换为指令插入流程编辑器中。\n` +
+        `请用 findSibling / findChild 进一步定位。`
+      );
+    } catch (e) {
+      console.error('[Toolbar] picker failed:', e);
+      alert('拾取失败: ' + e.message);
+    }
+  };
+
   const closeResult = () => setRunResult(null);
     stepResultsRef.current = [];
 

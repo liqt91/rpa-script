@@ -6,7 +6,8 @@ from ...workflow.extension_runner import LoopBreak, LoopContinue, _clean_var_ref
     is_container=True, closes_with="endLoop",
     icon="fa-list-ol", icon_color="text-purple-500", bg_color="bg-purple-50",
     category_order=50, command_order=20,
-    description="遍历一个列表变量，对每个值执行循环体")
+    description="遍历一个列表变量，对每个值执行循环体",
+    summary_tpl="{listVar}")
 class ForListHandler:
     params = [
         Param("listVar", "列表变量", "string", required=True, group="主属性"),

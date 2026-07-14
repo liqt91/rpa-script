@@ -1,0 +1,69 @@
+{
+  "cmd": "openAppWin32",
+  "label": "打开软件 (Win32)",
+  "runtime": "backend",
+  "icon": "fa-rocket",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 5,
+  "description": "启动 Windows 自带软件或常用程序（记事本、计算器、画图等） [Win32 API]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "app",
+      "label": "选择软件 (Win32)",
+      "type": "select",
+      "options": [
+        { "label": "记事本 (Win32)", "value": "notepad" },
+        { "label": "计算器 (Win32)", "value": "calc" },
+        { "label": "画图 (Win32)", "value": "mspaint" },
+        { "label": "截图工具 (Win32)", "value": "snippingtool" },
+        { "label": "文件资源管理器 (Win32)", "value": "explorer" },
+        { "label": "命令提示符 (Win32)", "value": "cmd" },
+        { "label": "PowerShell (Win32)", "value": "powershell" },
+        { "label": "任务管理器 (Win32)", "value": "taskmgr" },
+        { "label": "控制面板 (Win32)", "value": "control" },
+        { "label": "写字板 (Win32)", "value": "write" },
+        { "label": "字符映射表 (Win32)", "value": "charmap" },
+        { "label": "关于Windows (Win32)", "value": "winver" },
+        { "label": "DirectX诊断 (Win32)", "value": "dxdiag" },
+        { "label": "注册表编辑器 (Win32)", "value": "regedit" },
+        { "label": "设备管理器 (Win32)", "value": "devmgmt" },
+        { "label": "磁盘管理 (Win32)", "value": "diskmgmt" },
+        { "label": "服务 (Win32)", "value": "services" },
+        { "label": "自定义程序 (Win32)", "value": "__custom__" }
+      ],
+      "default": "notepad"
+    },
+    {
+      "name": "appCustom",
+      "label": "自定义程序路径 (Win32)",
+      "type": "string",
+      "default": "",
+      "placeholder": "选择「自定义程序」时填写，如 C:\\Tools\\app.exe"
+    },
+    {
+      "name": "arguments",
+      "label": "启动参数 (Win32)",
+      "type": "string",
+      "default": "",
+      "placeholder": "如文件路径或命令行参数，支持 {{变量}} 引用",
+      "group": "advanced"
+    },
+    {
+      "name": "resultVar",
+      "label": "窗口句柄存入变量 (Win32)",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "将打开窗口的句柄(HWND)存入变量，供后续 clickControl/inputControl 使用",
+      "group": "output"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/openAppWin32.py"
+  },
+  "categories": ["desktop"]
+}

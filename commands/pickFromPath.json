@@ -1,0 +1,42 @@
+{
+  "cmd": "pickFromPath",
+  "label": "按层级取句柄",
+  "runtime": "backend",
+  "icon": "fa-sitemap",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 15,
+  "description": "从元素库桌面元素中选取层级，返回该层级的 HWND",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "elementName",
+      "label": "桌面元素",
+      "type": "string",
+      "required": true,
+      "placeholder": "元素库中 element_kind=win32 的元素名称",
+      "group": "主属性"
+    },
+    {
+      "name": "levelIndex",
+      "label": "层级序号",
+      "type": "number",
+      "default": "0",
+      "placeholder": "0=顶层窗口，-1=最后一层(目标控件)"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量(HWND)",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "找到的窗口句柄存入此变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/pickFromPath.py"
+  },
+  "categories": ["desktop"]
+}

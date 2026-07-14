@@ -1,0 +1,94 @@
+{
+  "cmd": "findChild",
+  "label": "查找子控件",
+  "runtime": "backend",
+  "icon": "fa-arrow-down",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 14,
+  "description": "在父窗口中按类名/标题查找第 N 个子控件",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "parentWindow",
+      "label": "父窗口 (HWND变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "引用已知的父窗口句柄变量"
+    },
+    {
+      "name": "classFilter",
+      "label": "控件类名",
+      "type": "select",
+      "options": [
+        {
+          "label": "Edit (输入框)",
+          "value": "Edit"
+        },
+        {
+          "label": "Button (按钮)",
+          "value": "Button"
+        },
+        {
+          "label": "ComboBox (下拉框)",
+          "value": "ComboBox"
+        },
+        {
+          "label": "ComboBoxEx32",
+          "value": "ComboBoxEx32"
+        },
+        {
+          "label": "Static (标签)",
+          "value": "Static"
+        },
+        {
+          "label": "ListBox (列表框)",
+          "value": "ListBox"
+        },
+        {
+          "label": "ListView (列表视图)",
+          "value": "SysListView32"
+        },
+        {
+          "label": "TreeView (树形视图)",
+          "value": "SysTreeView32"
+        },
+        {
+          "label": "不筛选",
+          "value": ""
+        }
+      ],
+      "default": "Edit"
+    },
+    {
+      "name": "titleFilter",
+      "label": "标题筛选",
+      "type": "string",
+      "default": "",
+      "placeholder": "模糊匹配控件标题，留空不筛选"
+    },
+    {
+      "name": "matchIndex",
+      "label": "匹配第几个",
+      "type": "int-number",
+      "default": "1",
+      "placeholder": "从1开始"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "找到的控件句柄存入此变量"
+    }
+  ],
+  "categories": [
+    "desktop"
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/findChild.py"
+  }
+}

@@ -604,6 +604,7 @@ def create_workflow_element(
     el = models.WorkflowElement(
         workflow_id=wf_id,
         name=payload.name,
+        element_kind=payload.element_kind,
         target_mode=payload.target_mode,
         css_candidates=json.dumps(payload.css_candidates),
         xpath_candidates=json.dumps(payload.xpath_candidates),
@@ -658,6 +659,7 @@ def update_workflow_element(
     if not el:
         raise HTTPException(status_code=404, detail="Element not found")
     el.name = payload.name
+    el.element_kind = payload.element_kind
     el.target_mode = payload.target_mode
     el.css_candidates = json.dumps(payload.css_candidates)
     el.xpath_candidates = json.dumps(payload.xpath_candidates)

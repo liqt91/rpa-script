@@ -1,0 +1,19 @@
+{
+  "cmd": "inputElementUia",
+  "label": "控件输入 (UIA)",
+  "runtime": "backend",
+  "icon": "fa-keyboard",
+  "iconColor": "text-green-500",
+  "bgColor": "bg-green-50",
+  "categoryOrder": 65,
+  "commandOrder": 30,
+  "description": "使用 UI Automation 向控件输入文本 [UIA]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    { "name": "targetElement", "label": "目标控件 (UIA变量)", "type": "str-var", "required": true, "placeholder": "控件UIA对象变量，如 {{editElement}}" },
+    { "name": "text", "label": "输入内容", "type": "string", "required": true, "placeholder": "要输入的文本，支持 {{变量}} 引用" }
+  ],
+  "handler": { "kind": "backend", "source": "src/runtime/commands/desktop_commands/inputElementUia.py" },
+  "categories": ["desktop"]
+}

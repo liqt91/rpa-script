@@ -31,8 +31,9 @@ export default function ElementLibraryTab() {
   const [showGuide, setShowGuide] = useState(false);
   const [toast, setToast] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
-  const [renamingValue, setRenamingValue] = useState('');
+  const [renameValue, setRenameValue] = useState('');
   const renameRef = useRef(null);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   const logsRef = useRef(null);
   const panelRef = useRef(null);
   const importRef = useRef(null);
@@ -94,11 +95,13 @@ export default function ElementLibraryTab() {
     setExpandedNames(new Set(elements.map(e => e.name)));
   }, [elements]);
 
-  const kindLabel = { plain: '普通', anchor: '锚点', child: '子元素' };
+  const kindLabel = { plain: '普通', anchor: '锚点', child: '子元素', win32: '桌面', uia: 'UIA' };
   const kindClass = {
     plain: 'bg-gray-100 text-gray-500',
     anchor: 'bg-blue-100 text-blue-600',
     child: 'bg-orange-100 text-orange-600',
+    win32: 'bg-purple-100 text-purple-600',
+    uia: 'bg-green-100 text-green-600',
   };
 
   function toggleExpandedName(name) {
@@ -171,12 +174,15 @@ export default function ElementLibraryTab() {
   }, [capturing]);
 
   // 智能轮询：只在元素库 tab 激活且页面可见时刷新（跨浏览器/桌面应用唯一可靠方案）
+  // renamingIdRef 避免重命名时刷新导致失焦
+  const renamingIdRef = useRef(null);
+  useEffect(() => { renamingIdRef.current = renamingId; }, [renamingId]);
   useEffect(() => {
     if (activeTab !== 'elements') return;
     const tick = () => {
-      if (!document.hidden) loadElements();
+      if (!document.hidden && !renamingIdRef.current) loadElements();
     };
-    tick(); // 立即刷新一次
+    tick();
     const timer = setInterval(tick, 5000);
     return () => clearInterval(timer);
   }, [activeTab]);
@@ -200,32 +206,68 @@ export default function ElementLibraryTab() {
 
   const startRename = (el) => {
     setRenamingId(el.id);
-    setRenamingValue(el.name);
+    setRenameValue(el.name);
+    setShowRenameModal(true);
   };
 
-  const submitRename = async (id) => {
-    const name = renamingValue.trim();
-    if (!name) {
-      setRenamingId(null);
-      return;
-    }
+  const confirmRename = async () => {
+    const name = renameValue.trim();
+    const id = renamingId;
+    if (!name || !id) { setShowRenameModal(false); return; }
     try {
       const el = elements.find(e => e.id === id);
-      if (!el) return;
+      if (!el) { setShowRenameModal(false); return; }
       await api.updateWorkflowElement(wfId, id, { ...el, name });
       showToast('重命名成功');
-      setRenamingId(null);
+      setShowRenameModal(false);
       await refresh();
     } catch (e) {
       showToast('重命名失败: ' + e.message, 'error');
-      setRenamingId(null);
     }
   };
 
-  const cancelRename = () => setRenamingId(null);
+  const cancelRename = () => setShowRenameModal(false);
 
   const handleCapture = () => {
     setShowGuide(true);
+  };
+
+  const handleDesktopPicker = async () => {
+    try {
+      const data = await api.runPicker();
+      if (data.cancelled) return;
+      const target = data.path?.[data.path.length - 1];
+      if (!target) return;
+      const name = `${target.class_name}${target.title ? ' "' + target.title + '"' : ''}`;
+      await api.createWorkflowElement(wfId, {
+        name: name.substring(0, 128),
+        element_kind: 'win32',
+        attributes: data,
+      });
+      showToast(`已添加桌面元素: ${name}`, 'success');
+      await loadElements();
+    } catch (e) {
+      if (e.message !== 'cancelled') showToast('拾取失败: ' + e.message, 'error');
+    }
+  };
+
+  const handleUiaPicker = async () => {
+    try {
+      const data = await api.runPickerUia();
+      if (data.cancelled) return;
+      const target = data.path?.[data.path.length - 1];
+      if (!target) return;
+      const name = `${target.control_type || target.class_name}${target.name ? ' "' + target.name + '"' : ''}`;
+      await api.createWorkflowElement(wfId, {
+        name: name.substring(0, 128),
+        element_kind: 'uia',
+        attributes: data,
+      });
+      showToast(`已添加 UIA 元素: ${name}`, 'success');
+      await loadElements();
+    } catch (e) {
+      if (e.message !== 'cancelled') showToast('UIA拾取失败: ' + e.message, 'error');
+    }
   };
 
   const updateAnchor = async (el, anchorName) => {
@@ -287,26 +329,11 @@ export default function ElementLibraryTab() {
           ) : (
             <span className="w-4 shrink-0"></span>
           )}
-          {renamingId === node.id ? (
-            <input
-              ref={renameRef}
-              value={renamingValue}
-              onChange={(e) => setRenamingValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') submitRename(node.id);
-                if (e.key === 'Escape') cancelRename();
-              }}
-              onBlur={() => submitRename(node.id)}
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 min-w-0 text-xs px-1 py-0.5 border border-blue-300 rounded outline-none bg-white"
-            />
-          ) : (
-            <span className={`flex-1 min-w-0 text-xs truncate ${
-              selectedElementId === node.id ? 'text-blue-700 font-medium' : 'text-gray-700'
-            }`}>
-              {node.name}
-            </span>
-          )}
+          <span className={`flex-1 min-w-0 text-xs truncate ${
+            selectedElementId === node.id ? 'text-blue-700 font-medium' : 'text-gray-700'
+          }`}>
+            {node.name}
+          </span>
           {isOrphan && (
             <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" title="父元素不存在" />
           )}
@@ -460,10 +487,26 @@ export default function ElementLibraryTab() {
                 <button
                   className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-orange-500 hover:bg-orange-600 text-white"
                   onClick={handleCapture}
-                  title="查看捕获指南"
+                  title="捕获网页元素指南"
                 >
-                  <i className="fas fa-plus text-[10px]"></i>
-                  <span>捕获新元素</span>
+                  <i className="fas fa-globe text-[10px]"></i>
+                  <span>网页</span>
+                </button>
+                <button
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-purple-500 hover:bg-purple-600 text-white"
+                  onClick={handleDesktopPicker}
+                  title="Alt+左键拾取桌面控件(Win32)"
+                >
+                  <i className="fas fa-crosshairs text-[10px]"></i>
+                  <span>桌面</span>
+                </button>
+                <button
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-green-500 hover:bg-green-600 text-white"
+                  onClick={handleUiaPicker}
+                  title="Alt+左键拾取桌面控件(UIA)"
+                >
+                  <i className="fas fa-crosshairs text-[10px]"></i>
+                  <span>UIA</span>
                 </button>
               </div>
               {selectedElement ? (
@@ -509,6 +552,74 @@ export default function ElementLibraryTab() {
                       ))}
                     </div>
                   )}
+
+                  {/* ─── Win32 / UIA 桌面元素 ─── */}
+                  {(selectedElement.element_kind === 'win32' || selectedElement.element_kind === 'uia') && (() => {
+                    const attr = selectedElement.attributes || {};
+                    const target = attr.path?.[attr.path.length - 1];
+                    const isUia = selectedElement.element_kind === 'uia';
+                    return (
+                      <div className="space-y-2 mb-4">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <div className="text-[10px] text-gray-400">{isUia ? '名称' : '类名'}</div>
+                            <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono">{isUia ? (target?.name || '-') : (target?.class_name || '-')}</div>
+                          </div>
+                          {isUia ? (
+                            <>
+                              <div>
+                                <div className="text-[10px] text-gray-400">控件类型</div>
+                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono">{target?.control_type || '-'}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-gray-400">类名</div>
+                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono">{target?.class_name || '-'}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-gray-400">AutomationId</div>
+                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono truncate">{target?.automation_id || '(空)'}</div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div>
+                                <div className="text-[10px] text-gray-400">句柄 (HWND)</div>
+                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono">0x{(target?.hwnd || 0).toString(16).toUpperCase()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-gray-400">标题</div>
+                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded truncate">{target?.title || '(空)'}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-gray-400">尺寸</div>
+                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded">{target?.rect?.width || '?'} x {target?.rect?.height || '?'}</div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* 控件层级路径 */}
+                        {attr.path && attr.path.length > 0 && (
+                          <div>
+                            <div className="text-[10px] text-gray-400 mb-1">控件层级 ({attr.path.length})</div>
+                            <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                              {attr.path.map((node, idx) => (
+                                <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded flex items-center gap-2">
+                                  <span className="text-gray-300 w-4 text-right shrink-0">{idx === 0 ? '⊞' : '└'}</span>
+                                  <span className={isUia ? 'text-green-600 font-mono text-[10px]' : 'text-purple-600 font-mono text-[10px]'}>{isUia ? (node.control_type || node.class_name) : node.class_name}</span>
+                                  {isUia ? (node.name && <span className="text-gray-500 truncate">"{node.name}"</span>) : (node.title && <span className="text-gray-500 truncate">"{node.title}"</span>)}
+                                  <span className="text-gray-300 text-[10px] ml-auto">{node.rect?.width}x{node.rect?.height}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ─── Web 元素（非 win32/uia） ─── */}
+                  {selectedElement.element_kind !== 'win32' && selectedElement.element_kind !== 'uia' && (<>
 
                   {/* 截图 */}
                   {selectedElement.screenshot && (
@@ -651,6 +762,7 @@ export default function ElementLibraryTab() {
                       </div>
                     </div>
                   )}
+                  </>)}
 
                   {/* 时间 */}
                   <div className="flex gap-4 text-[10px] text-gray-400 mt-4 pt-3 border-t border-gray-100">
@@ -764,6 +876,31 @@ export default function ElementLibraryTab() {
                 className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors"
               >
                 知道了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 重命名弹窗 */}
+      {showRenameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-96" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-medium text-gray-800 mb-4">重命名元素</h3>
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmRename(); if (e.key === 'Escape') cancelRename(); }}
+              className="w-full px-3 py-2 border border-gray-300 rounded text-sm outline-none focus:border-blue-400"
+              placeholder="输入新名称"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={cancelRename} className="px-4 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded border border-gray-200">
+                取消
+              </button>
+              <button onClick={confirmRename} className="px-4 py-1.5 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded">
+                确认
               </button>
             </div>
           </div>

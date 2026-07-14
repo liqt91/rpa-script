@@ -1,0 +1,53 @@
+{
+  "cmd": "waitWin32",
+  "label": "等待 (Win32)",
+  "runtime": "backend",
+  "icon": "fa-clock",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 40,
+  "description": "等待固定时间或随机时间（秒） [Win32 API]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "mode",
+      "label": "等待模式 (Win32)",
+      "type": "select",
+      "options": [
+        { "label": "固定时间 (Win32)", "value": "fixed" },
+        { "label": "随机时间 (Win32)", "value": "random" }
+      ],
+      "default": "fixed"
+    },
+    {
+      "name": "seconds",
+      "label": "等待时间(秒) (Win32)",
+      "type": "number",
+      "default": "1",
+      "placeholder": "固定模式下的等待秒数，支持小数如 0.5"
+    },
+    {
+      "name": "minSeconds",
+      "label": "最少(秒) (Win32)",
+      "type": "number",
+      "default": "1",
+      "placeholder": "随机模式下的最少秒数",
+      "group": "advanced"
+    },
+    {
+      "name": "maxSeconds",
+      "label": "最多(秒) (Win32)",
+      "type": "number",
+      "default": "5",
+      "placeholder": "随机模式下的最多秒数",
+      "group": "advanced"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/waitWin32.py"
+  },
+  "categories": ["desktop"]
+}

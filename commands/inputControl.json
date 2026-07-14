@@ -1,0 +1,34 @@
+{
+  "cmd": "inputControl",
+  "label": "控件输入",
+  "runtime": "backend",
+  "icon": "fa-keyboard",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 30,
+  "description": "向指定控件句柄输入文本",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "targetHwnd",
+      "label": "目标控件句柄 (HWND变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "控件句柄变量，如 {{editHWND}}"
+    },
+    {
+      "name": "text",
+      "label": "输入内容",
+      "type": "string",
+      "required": true,
+      "placeholder": "要输入的文本，支持 {{变量}} 引用"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/inputControl.py"
+  },
+  "categories": ["desktop"]
+}

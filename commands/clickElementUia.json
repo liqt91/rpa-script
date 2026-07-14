@@ -1,0 +1,18 @@
+{
+  "cmd": "clickElementUia",
+  "label": "点击控件 (UIA)",
+  "runtime": "backend",
+  "icon": "fa-hand-pointer",
+  "iconColor": "text-green-500",
+  "bgColor": "bg-green-50",
+  "categoryOrder": 65,
+  "commandOrder": 20,
+  "description": "使用 UI Automation 点击控件 [UIA]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    { "name": "targetElement", "label": "目标控件 (UIA变量)", "type": "str-var", "required": true, "placeholder": "控件UIA对象变量，如 {{btnElement}}" }
+  ],
+  "handler": { "kind": "backend", "source": "src/runtime/commands/desktop_commands/clickElementUia.py" },
+  "categories": ["desktop"]
+}

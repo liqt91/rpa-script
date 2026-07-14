@@ -8,6 +8,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="将鼠标悬停在指定元素上",
     category_order=40,
     command_order=30,
+    summary_tpl="{elementName}",
 )
 class HoverHandler:
     params = [

@@ -1,0 +1,27 @@
+{
+  "cmd": "clickControl",
+  "label": "点击控件",
+  "runtime": "backend",
+  "icon": "fa-hand-pointer",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 20,
+  "description": "点击指定控件句柄",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "targetHwnd",
+      "label": "目标控件句柄 (HWND变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "控件句柄变量，如 {{btnHWND}}"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/clickControl.py"
+  },
+  "categories": ["desktop"]
+}

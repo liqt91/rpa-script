@@ -8,6 +8,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="关闭当前或指定的标签页",
     category_order=10,
     command_order=50,
+    summary_tpl="{windowVar}",
 )
 class CloseTabHandler:
     params = [

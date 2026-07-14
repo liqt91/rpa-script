@@ -1,0 +1,79 @@
+{
+  "cmd": "sendKeyWin32",
+  "label": "发送按键 (Win32)",
+  "runtime": "backend",
+  "icon": "fa-keyboard",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 45,
+  "description": "通过 OS 级键盘事件发送按键（不依赖浏览器，适用于桌面操作） [Win32 API]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "key",
+      "label": "按键 (Win32)",
+      "type": "select",
+      "required": true,
+      "default": "Enter",
+      "options": [
+        { "label": "Enter 回车 (Win32)", "value": "Enter" },
+        { "label": "Tab 制表 (Win32)", "value": "Tab" },
+        { "label": "Escape 取消 (Win32)", "value": "Escape" },
+        { "label": "Backspace 退格 (Win32)", "value": "Backspace" },
+        { "label": "Delete 删除 (Win32)", "value": "Delete" },
+        { "label": "Space 空格 (Win32)", "value": "Space" },
+        { "label": "ArrowUp ↑ (Win32)", "value": "ArrowUp" },
+        { "label": "ArrowDown ↓ (Win32)", "value": "ArrowDown" },
+        { "label": "ArrowLeft ← (Win32)", "value": "ArrowLeft" },
+        { "label": "ArrowRight → (Win32)", "value": "ArrowRight" },
+        { "label": "PageUp 上翻 (Win32)", "value": "PageUp" },
+        { "label": "PageDown 下翻 (Win32)", "value": "PageDown" },
+        { "label": "Home (Win32)", "value": "Home" },
+        { "label": "End (Win32)", "value": "End" },
+        { "label": "F1 (Win32)", "value": "F1" },
+        { "label": "F5 刷新 (Win32)", "value": "F5" },
+        { "label": "F12 (Win32)", "value": "F12" },
+        { "label": "Ctrl+C 复制 (Win32)", "value": "c" },
+        { "label": "Ctrl+V 粘贴 (Win32)", "value": "v" },
+        { "label": "Ctrl+A 全选 (Win32)", "value": "a" },
+        { "label": "Ctrl+Z 撤销 (Win32)", "value": "z" },
+        { "label": "Ctrl+S 保存 (Win32)", "value": "s" },
+        { "label": "Alt+F4 关闭 (Win32)", "value": "F4" },
+        { "label": "Alt+Tab 切换窗口 (Win32)", "value": "Tab" },
+        { "label": "字母 a-z (Win32)", "value": "a" },
+        { "label": "数字 0-9 (Win32)", "value": "0" }
+      ]
+    },
+    {
+      "name": "keyCustom",
+      "label": "自定义按键 (Win32)",
+      "type": "string",
+      "default": "",
+      "placeholder": "输入按键名如 Enter、a、F5 等",
+      "group": "advanced"
+    },
+    {
+      "name": "modifiers",
+      "label": "修饰键 (Win32)",
+      "type": "string",
+      "default": "",
+      "placeholder": "Ctrl, Alt, Shift, Win，可多个逗号分隔如 Ctrl,Shift",
+      "group": "advanced"
+    },
+    {
+      "name": "pressCount",
+      "label": "重复次数 (Win32)",
+      "type": "int-number",
+      "default": "1",
+      "placeholder": "连续按几次，如需要多次 Tab 跳转",
+      "group": "advanced"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/sendKeyWin32.py"
+  },
+  "categories": ["desktop"]
+}

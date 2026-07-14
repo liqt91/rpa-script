@@ -8,6 +8,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="向页面发送键盘按键。OS级keybd_event发送，页面按键和浏览器快捷键均可生效",
     category_order=60,
     command_order=30,
+    summary_tpl="{key}",
 )
 class PressKeyHandler:
     params = [

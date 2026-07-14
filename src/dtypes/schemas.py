@@ -274,7 +274,7 @@ class ActiveRunStopOut(BaseModel):
 # ====== Workflow Elements ======
 class WorkflowElementIn(BaseModel):
     name: str
-    element_kind: Literal["plain", "anchor", "child"] = "plain"
+    element_kind: Literal["plain", "anchor", "child", "win32", "uia"] = "plain"
     target_mode: str = "single"
     css_candidates: list = Field(default_factory=list)
     xpath_candidates: list = Field(default_factory=list)

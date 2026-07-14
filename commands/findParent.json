@@ -1,0 +1,34 @@
+{
+  "cmd": "findParent",
+  "label": "查找父窗口",
+  "runtime": "backend",
+  "icon": "fa-arrow-up",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 12,
+  "description": "获取指定控件的父窗口句柄",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "childWindow",
+      "label": "子窗口 (HWND变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "引用已知的子控件句柄变量"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "父窗口句柄存入此变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/findParent.py"
+  },
+  "categories": ["desktop"]
+}

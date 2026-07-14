@@ -1,0 +1,66 @@
+{
+  "cmd": "findSiblingWin32",
+  "label": "查找兄弟控件 (Win32)",
+  "runtime": "backend",
+  "icon": "fa-arrow-right",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 13,
+  "description": "从参考控件出发，按方向查找匹配类名的兄弟控件（如标签→输入框） [Win32 API]",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "refWindow",
+      "label": "参考控件 (HWND变量) (Win32)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "引用已知的控件句柄变量，如标签 Static"
+    },
+    {
+      "name": "direction",
+      "label": "查找方向 (Win32)",
+      "type": "select",
+      "options": [
+        { "label": "下一个 (→) (Win32)", "value": "next" },
+        { "label": "上一个 (←) (Win32)", "value": "prev" }
+      ],
+      "default": "next"
+    },
+    {
+      "name": "classFilter",
+      "label": "目标类名 (Win32)",
+      "type": "select",
+      "default": "Edit",
+      "options": [
+        { "label": "Edit (输入框) (Win32)", "value": "Edit" },
+        { "label": "Button (按钮) (Win32)", "value": "Button" },
+        { "label": "ComboBox (下拉框) (Win32)", "value": "ComboBox" },
+        { "label": "ComboBoxEx32 (Win32)", "value": "ComboBoxEx32" },
+        { "label": "Static (标签) (Win32)", "value": "Static" },
+        { "label": "ListBox (列表框) (Win32)", "value": "ListBox" },
+        { "label": "不筛选 (Win32)", "value": "" }
+      ]
+    },
+    {
+      "name": "skip",
+      "label": "跳过几个 (Win32)",
+      "type": "int-number",
+      "default": "0",
+      "placeholder": "跳过前N个匹配项，0=第一个"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量 (Win32)",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "找到的控件句柄存入此变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/findSiblingWin32.py"
+  },
+  "categories": ["desktop"]
+}

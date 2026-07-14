@@ -1,0 +1,51 @@
+{
+  "cmd": "findWindow",
+  "label": "查找窗口",
+  "runtime": "backend",
+  "icon": "fa-window-maximize",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 60,
+  "commandOrder": 10,
+  "description": "按标题或类名查找 Windows 桌面窗口，可选自动激活前置",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "searchMode",
+      "label": "查找方式",
+      "type": "select",
+      "options": [
+        { "label": "模糊匹配（标题包含）", "value": "fuzzy" },
+        { "label": "精确匹配（标题等于）", "value": "exact" },
+        { "label": "类名匹配", "value": "classname" }
+      ],
+      "default": "fuzzy"
+    },
+    {
+      "name": "windowTitle",
+      "label": "窗口标题/类名",
+      "type": "string",
+      "required": true,
+      "placeholder": "如：记事本、交易客户端"
+    },
+    {
+      "name": "autoActivate",
+      "label": "查找后激活窗口",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量(HWND)",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "将窗口句柄存入变量，供后续操作使用"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/findWindow.py"
+  },
+  "categories": ["desktop"]
+}

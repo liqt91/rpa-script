@@ -48,10 +48,22 @@ description: 创建新的 RPA 指令（command），包括 JSON 定义、handler
 - `backend` — Python handler（手写或 AI 生成），跳过自动生成
 - `control` — 控制流 handler（手写或 AI 生成），跳过自动生成
 
-**字段类型参考：**
-`str-input` `str-textarea` `str-var` `str-dropdown` `str-element` `int-number` `bool-check` `list-input` `dict-input` `any-expr` `any-input`
+**字段类型参考（JSON `params[].type` 和 Python `Param("name", ..., "type")` 使用相同的值）：**
 
-**字段分组：** `主属性` `advanced` `output` `input` `anchor`
+| 类型 | 说明 | 示例 |
+|---|---|---|
+| `select` | 下拉选择（需配 `options`） | `"type": "select"` |
+| `string` | 单行文本输入 | `"type": "string"` |
+| `text` | 多行文本输入 | `"type": "text"` |
+| `boolean` | 复选框 | `"type": "boolean"` |
+| `number` | 数字输入 | `"type": "number"` |
+| `int-number` | 整数输入 | `"type": "int-number"` |
+| `str-var` | 变量引用（支持 `{{var}}` 语法） | `"type": "str-var"` |
+| `element` | 元素选择器（已捕获的页面元素） | `"type": "element"` |
+
+> **注意：** 不要使用 `str-dropdown`、`bool-check` 等名称，这些是旧文档中的错误写法。以实际代码中使用的为准。
+
+**字段分组（`group`）：** `主属性`（默认）、`advanced`（高级）、`output`（输出）、`input`（输入）、`anchor`
 
 ### 2. 生成 handler 桩代码
 
@@ -104,11 +116,20 @@ POST /api/commands/validate    → 运行指令注册表一致性校验
 
 | 指令 | 类型 | Handler 文件 | 特点 |
 |---|---|---|---|
-| `launchBrowser` | backend | `backend_commands/launchBrowser.py` | 完整 execute 实现，有浏览器启动 + 扩展通信 |
+| `launchBrowser` | extension | `extension_commands/launchBrowser.py` | 完整 execute 实现，有浏览器启动 + 扩展通信 |
 | `setVar` | backend | `backend_commands/setVar.py` | 变量操作，含值类型转换 |
 | `clickElement` | extension | `extension_commands/clickElement.py` | 注册桩，JS delegate 到 doClick |
 | `inputElement` | extension | `extension_commands/inputElement.py` | 注册桩，JS delegate 到 doInput |
 | `waitForElement` | extension | `extension_commands/waitForElement.py` | 注册桩，JS 自定义实现 |
+| `findWindow` | backend | `desktop_commands/findWindow.py` | 桌面操作：查找窗口，含 Win32 API |
+| `clickControl` | backend | `desktop_commands/clickControl.py` | 桌面操作：点击控件 |
+| `inputControl` | backend | `desktop_commands/inputControl.py` | 桌面操作：控件输入，含 WM_SETTEXT + keybd_event 降级 |
+| `clickMenu` | backend | `desktop_commands/clickMenu.py` | 桌面操作：点击菜单项，Win32 菜单 API |
+| `openApp` | backend | `desktop_commands/openApp.py` | 桌面操作：打开软件，subprocess 启动 |
+| `sendKey` | backend | `desktop_commands/sendKey.py` | 桌面操作：OS 级按键，keybd_event |
+| `findChild` | backend | `desktop_commands/findChild.py` | 桌面操作：查找子控件 |
+| `findSibling` | backend | `desktop_commands/findSibling.py` | 桌面操作：查找兄弟控件 |
+| `findParent` | backend | `desktop_commands/findParent.py` | 桌面操作：查找父窗口 |
 
 ## 架构约束
 
