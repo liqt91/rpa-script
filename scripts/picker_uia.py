@@ -89,7 +89,7 @@ def uia_capture(x, y):
             if rid in visited: break
             visited.add(rid)
             try: br = cur.BoundingRectangle
-            except: br = None
+            except Exception: br = None
             chain.insert(0, {
                 "name": cur.Name or "",
                 "class_name": cur.ClassName or "",
@@ -102,7 +102,7 @@ def uia_capture(x, y):
                 p = cur.GetParentControl()
                 if not p or p.ControlTypeName == "DesktopControl": break
                 cur = p
-            except: break
+            except Exception: break
         return chain
     except Exception: return None
     finally: pythoncom.CoUninitialize()

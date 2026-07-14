@@ -3,7 +3,6 @@
 封装 Windows UI Automation COM 接口，提供控件查找、点击、输入等操作。
 基于 uiautomation 库（需 pip install uiautomation）。
 """
-import time
 
 
 # ── 懒加载，不需要 UIA 的环境不会报错 ──
