@@ -8,7 +8,6 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="点击页面上的一个元素",
     category_order=40,
     command_order=10,
-    summary_tpl="{elementName}",
 )
 class ClickElementHandler:
     params = [

@@ -14,7 +14,11 @@ def test_get_llm_config_defaults(client, auth_headers):
     assert data["model"] == "deepseek-v4-flash"
     assert data["apiKey"] == ""
     assert data["enabled"] is True
-    assert any(s["id"] == "command_code_gen" for s in data["scenarios"])
+    scenario_ids = {s["id"] for s in data["scenarios"]}
+    assert "command_backend" in scenario_ids
+    assert "command_extension_js" in scenario_ids
+    assert "command_control" in scenario_ids
+    assert "command_review" in scenario_ids
 
 
 def test_update_llm_config_model(client, auth_headers):

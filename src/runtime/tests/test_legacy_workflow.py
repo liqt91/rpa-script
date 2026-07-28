@@ -32,7 +32,7 @@ def test_curated_handlers_produce_instructions(db_session):
 
     for i, htype in enumerate(CURATED_EXTENSION):
         node = models.WorkflowNode(
-            workflow_id=wf.id, type=htype, order=i,
+            workflow_id=wf.id, cmd=htype, order=i,
             extra="{}", enabled=1,
         )
         db_session.add(node)
@@ -86,7 +86,7 @@ def test_legacy_workflow_realistic(db_session):
 
     for ntype, order, extra_dict in node_data:
         node = models.WorkflowNode(
-            workflow_id=wf.id, type=ntype, order=order,
+            workflow_id=wf.id, cmd=ntype, order=order,
             extra=json.dumps(extra_dict), enabled=1,
         )
         db_session.add(node)

@@ -66,5 +66,22 @@
   "categories": [
     "element"
   ],
-  "cmd": "clickElement"
+  "cmd": "clickElement",
+  "testTemplates": [
+    {
+      "name": "百度搜索按钮点击",
+      "description": "打开百度，点击搜索按钮，验证页面跳转",
+      "params": {
+        "url": "https://www.baidu.com",
+        "elementName": "search_btn"
+      },
+      "nodes": [
+        {"cmd": "launchBrowser", "order": 1, "extra": {"browserType": "chrome", "windowVar": "browser1"}},
+        {"cmd": "navigate", "order": 2, "extra": {"url": "{{url}}", "windowVar": "browser1"}},
+        {"cmd": "waitForElement", "order": 3, "extra": {"elementName": "{{elementName}}", "timeout": 10, "windowVar": "browser1"}},
+        {"cmd": "clickElement", "order": 4, "extra": {"elementName": "{{elementName}}", "windowVar": "browser1"}},
+        {"cmd": "log", "order": 5, "extra": {"message": "点击完成"}}
+      ]
+    }
+  ]
 }

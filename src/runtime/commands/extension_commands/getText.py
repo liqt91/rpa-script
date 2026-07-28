@@ -8,7 +8,6 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="获取页面元素的文本内容",
     category_order=40,
     command_order=10,
-    summary_tpl="{elementName}",
 )
 class GetTextHandler:
     params = [

@@ -23,9 +23,18 @@
       "label": "日志级别",
       "type": "select",
       "options": [
-        {"label": "信息", "value": "info"},
-        {"label": "警告", "value": "warning"},
-        {"label": "错误", "value": "error"}
+        {
+          "label": "信息",
+          "value": "info"
+        },
+        {
+          "label": "警告",
+          "value": "warning"
+        },
+        {
+          "label": "错误",
+          "value": "error"
+        }
       ],
       "default": "info",
       "group": "advanced"
@@ -35,5 +44,8 @@
     "kind": "backend",
     "source": "src/runtime/commands/backend_commands/log.py"
   },
-  "categories": ["data"]
+  "categories": [
+    "data"
+  ],
+  "isNew": true
 }

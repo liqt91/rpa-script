@@ -1,13 +1,13 @@
 """Handler 工具函数 — 变量插值、值转换等公共逻辑。"""
 import re
 
-_VAR_RE = re.compile(r"\{\{([^}]+)\}\}")
+_VAR_RE = re.compile(r"\{\{([^}]+)\}\}|\$\{([^}]+)\}")
 
 
 def resolve_vars(text: str, runner_vars: dict) -> str:
-    """将字符串中的 {{varName}} 替换为 runner.vars 中的值。"""
+    """将字符串中的 {{varName}} 或 ${varName} 替换为 runner.vars 中的值。"""
     def _replacer(m):
-        name = m.group(1)
+        name = m.group(1) or m.group(2)
         return str(runner_vars.get(name, m.group(0)))
     return _VAR_RE.sub(_replacer, str(text))
 
@@ -20,7 +20,7 @@ def resolve_vars_json(text: str, runner_vars: dict) -> str:
     import json as _json
 
     def _replacer(m):
-        name = m.group(1)
+        name = m.group(1) or m.group(2)
         if name not in runner_vars:
             return m.group(0)
         val = runner_vars[name]
@@ -52,10 +52,19 @@ def convert_value(value, value_type: str, vars: dict | None = None):
         "str-input": "string", "str-textarea": "text", "str-var": "string",
         "str-dropdown": "select", "str-element": "element",
         "int-number": "number", "bool-check": "boolean",
-        "any-expr": "code", "any-input": "string",
-        "list-input": "code", "dict-input": "code",
+        "any-expr": "code", "list-input": "code", "dict-input": "code",
     }
     value_type = _LEGACY.get(value_type, value_type)
+
+    # any-input 保持自动推断：先尝试 JSON，再退回字符串
+    if value_type == "any-input":
+        s = str(value)
+        import json as _json
+        resolved = resolve_vars_json(s, vars or {})
+        try:
+            return _json.loads(resolved)
+        except Exception:
+            return resolve_vars(s, vars or {})
 
     if value_type == "number":
         try:

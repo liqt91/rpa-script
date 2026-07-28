@@ -878,6 +878,53 @@ REVIEW_PROMPT = """
 没有问题时返回空数组 []
 """
 
+PROMPT_TEST_FLOW_GEN = """
+你是 RPA 测试流程设计专家。请根据用户描述和指令定义，生成一个用于测试该指令的最小可运行流程。
+
+=== 被测指令定义 ===
+{{definition}}
+
+=== 用户测试描述 ===
+{{description}}
+
+=== 当前可用上下文 ===
+已连接浏览器窗口：
+{{windows}}
+
+当前 workflow 元素库：
+{{elements}}
+
+=== 可用指令列表 ===
+{{availableCommands}}
+
+=== 流程节点格式 ===
+[
+  {"cmd": "launchBrowser", "order": 1, "extra": {"browserType": "chrome", "windowVar": "browser1"}},
+  {"cmd": "navigate", "order": 2, "extra": {"url": "https://example.com", "windowVar": "browser1"}},
+  {"cmd": "clickElement", "order": 3, "extra": {"elementName": "search_btn", "windowVar": "browser1"}}
+]
+
+=== 要求 ===
+1. 生成一个完整可运行的流程，包含前置指令、被测指令、验证指令
+2. 前置指令负责准备上下文（打开浏览器、导航、等待元素等）
+3. 被测指令必须使用用户描述中的参数，或根据指令定义自动填充合理值
+4. 验证指令用于确认被测指令执行成功（如 getText、log）
+5. 如果流程需要元素，优先使用 elements 中已存在的元素名
+6. 只返回 JSON 数组，不要 markdown 代码块，不要额外说明
+7. 容器指令（forEachElement / ifElementVisible 等）必须成对出现，body 节点用 parent_id 指向容器
+
+=== 示例 ===
+用户描述：测试 clickElement：打开百度，点击搜索按钮
+返回：
+[
+  {"cmd": "launchBrowser", "order": 1, "extra": {"browserType": "chrome", "windowVar": "browser1"}},
+  {"cmd": "navigate", "order": 2, "extra": {"url": "https://www.baidu.com", "windowVar": "browser1"}},
+  {"cmd": "waitForElement", "order": 3, "extra": {"elementName": "search_btn", "timeout": 10, "windowVar": "browser1"}},
+  {"cmd": "clickElement", "order": 4, "extra": {"elementName": "search_btn", "windowVar": "browser1"}},
+  {"cmd": "getText", "order": 5, "extra": {"elementName": "result", "saveToVar": "result", "windowVar": "browser1"}}
+]
+"""
+
 NL = chr(10)
 
 
@@ -1019,6 +1066,12 @@ DEFAULT_LLM_SCENARIOS = [
         "prompt": REVIEW_PROMPT,
         "enabled": True,
     },
+    {
+        "id": "test_flow_gen",
+        "name": "测试流程生成",
+        "prompt": PROMPT_TEST_FLOW_GEN,
+        "enabled": True,
+    },
 ]
 
 _PROVIDER_ENDPOINTS = {
@@ -1079,17 +1132,12 @@ def update_llm_config(payload: dict, db: Session = Depends(get_db), user=Depends
     return {"success": True}
 
 
-@ai_router.post("/llm-config/scenarios/{scenario_id}/generate")
-def generate_with_scenario(
+def _invoke_llm_scenario(
     scenario_id: str,
     payload: dict,
-    db: Session = Depends(get_db),
-    user=Depends(auth.get_current_user),
+    db: Session,
 ):
-    """Run a configured scenario prompt against an LLM.
-
-    payload: {"definition": {...}}  or other context fields.
-    """
+    """Run a configured scenario prompt against an LLM. Internal helper."""
     row = _get_or_create_llm_config(db)
     if not row.api_key:
         raise HTTPException(400, "LLM API Key 未配置")
@@ -1120,6 +1168,12 @@ def generate_with_scenario(
         source = payload.get("source", "")
         vt = _load_value_types_json()
         prompt = prompt_template.replace("{{definition_json}}", def_json).replace("{{source_code}}", source).replace("{{value_types_json}}", vt)
+    elif scenario_id == "test_flow_gen":
+        prompt = prompt_template
+        for key, value in payload.items():
+            placeholder = "{{" + key + "}}"
+            if placeholder in prompt:
+                prompt = prompt.replace(placeholder, json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value))
     else:
         scaffold = _build_backend_scaffold(definition)
         prompt = prompt_template.replace("{{scaffold}}", scaffold)
@@ -1170,6 +1224,20 @@ def generate_with_scenario(
         return {"findings": findings, "provider": provider, "model": model}
 
     return {"code": code, "prompt": prompt, "provider": provider, "model": model, "scenario": scenario_id}
+
+
+@ai_router.post("/llm-config/scenarios/{scenario_id}/generate")
+def generate_with_scenario(
+    scenario_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user),
+):
+    """Run a configured scenario prompt against an LLM.
+
+    payload: {"definition": {...}}  or other context fields.
+    """
+    return _invoke_llm_scenario(scenario_id, payload, db)
 
 
 def _extract_code_from_markdown(text: str) -> str:

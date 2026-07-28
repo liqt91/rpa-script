@@ -8,7 +8,6 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="启动浏览器并加载RPA扩展",
     category_order=10,
     command_order=10,
-    summary_tpl="{browserType} {url}",
 )
 class LaunchBrowserHandler:
     params = [

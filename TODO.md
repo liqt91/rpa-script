@@ -45,11 +45,11 @@
 
 ### C. AI 自然语言生成流程
 
-- [ ] **C1: 指令向量化 — 将 71 个 handler 转为向量索引**
-  - 提取每个 handler 的 `label` + `description` + `params` 为文本
+- [ ] **C1: 指令向量化 — 将 52 个指令转为向量索引**
+  - 提取每个指令的 `label` + `description` + `params` 为文本
   - 用 sentence-transformers（或 OpenAI embedding）生成向量
   - 存为 `data/command_embeddings.json`
-  - 验收：`scripts/build_embeddings.py` 运行后生成 JSON，`len == 71`
+  - 验收：`scripts/build_embeddings.py` 运行后生成 JSON，`len == 52`
 
 - [ ] **C2: 自然语言 → 指令匹配**
   - 用户输入"打开百度，搜索RPA，等待3秒"，分词后匹配 handler

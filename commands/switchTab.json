@@ -32,5 +32,8 @@
     "kind": "extension",
     "source": "extension/background_handlers/switchTab.js"
   },
-  "categories": ["browser"]
+  "categories": [
+    "browser"
+  ],
+  "isNew": true
 }

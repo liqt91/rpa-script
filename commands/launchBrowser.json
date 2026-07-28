@@ -71,5 +71,6 @@
   "handler": {
     "kind": "extension",
     "source": "extension/background_handlers/launchBrowser.js"
-  }
+  },
+  "isNew": true
 }

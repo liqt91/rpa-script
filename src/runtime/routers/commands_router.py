@@ -602,6 +602,264 @@ def save_js_handler_code(type_name: str, payload: dict, user=Depends(auth.get_cu
     return {"success": True, "file": fp.name}
 
 
+class _SandboxRunner:
+    """轻量 runner，用于单指令测试。可选连接真实浏览器。"""
+
+    def __init__(self, vars=None, client_id=None):
+        self.vars = dict(vars or {})
+        self._table_data = {"columns": [], "rows": []}
+        self.completed = 0
+        self.failed_steps = []
+        self.results = []
+        self.client_id = client_id or "sandbox-client"
+        self.run_id = "sandbox-run"
+        self.workflow_id = 0
+        self._stopped = False
+        self._run_started_sent = True
+
+    async def _emit(self, payload):
+        self.results.append({"_emit": payload})
+
+    async def _send_and_wait(self, step_id, instr, timeout=30.0):
+        from src.runtime.websocket_manager import ext_manager
+        if self.client_id == "sandbox-client" or not ext_manager.get_connection(self.client_id):
+            raise RuntimeError("sandbox 环境未连接浏览器，请先在浏览器扩展面板启动并连接")
+        future = await ext_manager.register_step_future(step_id)
+        ok = await ext_manager.send_to(self.client_id, "step", {"stepId": step_id, **instr})
+        if not ok:
+            await ext_manager.cancel_step_future(step_id)
+            raise RuntimeError("发送指令到浏览器失败")
+        try:
+            result = await ext_manager.await_step_result(step_id, timeout=timeout)
+            return result
+        except TimeoutError:
+            await ext_manager.cancel_step_future(step_id)
+            raise RuntimeError(f"指令执行超时（{timeout}s）")
+
+    def _ensure_table_data(self):
+        return self._table_data
+
+    def _resolve_loop_context(self, extra):
+        return None
+
+
+@router.get("/sandbox/context")
+def get_sandbox_context(user=Depends(auth.get_current_user)):
+    """Return available runtime context for sandbox testing."""
+    from src.runtime.websocket_manager import ext_manager
+    windows = []
+    for cid, conn in ext_manager._connections.items():
+        tab = conn.tab_info or {}
+        windows.append({
+            "clientId": cid,
+            "browser": conn.browser or "unknown",
+            "title": tab.get("title", ""),
+            "url": tab.get("url", ""),
+        })
+    return {
+        "windows": windows,
+        "isAnyOnline": ext_manager.is_any_online,
+    }
+
+
+@router.post("/definitions/{type_name}/test")
+async def test_handler(type_name: str, payload: dict, user=Depends(auth.get_current_user)):
+    """Sandbox-test a single backend or extension handler without creating a workflow."""
+    from src.runtime.workflow.extension_runner import LOCAL_HANDLERS
+    from src.runtime.workflow.handlers.registry import get_handler
+
+    extra = payload.get("extra", {})
+    client_id = payload.get("clientId") or None
+    runner = _SandboxRunner(vars=payload.get("vars", {}), client_id=client_id)
+    instr = {"extra": extra, "stepId": "test_1", "nodeId": 0, "cmdType": type_name}
+
+    import time
+    start = time.perf_counter()
+
+    handler = LOCAL_HANDLERS.get(type_name)
+    if handler is not None:
+        # backend handler: call execute() directly
+        try:
+            success = await handler(runner, type_name, "test_1", instr)
+            elapsed = time.perf_counter() - start
+            return {
+                "success": bool(success),
+                "elapsed": round(elapsed, 3),
+                "vars": runner.vars,
+                "results": [r for r in runner.results if "_emit" not in r],
+                "failedSteps": runner.failed_steps,
+                "error": None,
+            }
+        except Exception as e:
+            elapsed = time.perf_counter() - start
+            return {
+                "success": False,
+                "elapsed": round(elapsed, 3),
+                "vars": runner.vars,
+                "results": runner.results,
+                "failedSteps": runner.failed_steps,
+                "error": str(e),
+            }
+
+    # extension handler: send to browser via _send_and_wait
+    hdef = get_handler(type_name)
+    if hdef and hdef.get("runtime") == "extension":
+        if not client_id:
+            return {
+                "success": False,
+                "elapsed": 0,
+                "vars": runner.vars,
+                "results": [],
+                "failedSteps": [],
+                "error": "extension 指令需要选择浏览器窗口才能测试",
+            }
+        try:
+            result = await runner._send_and_wait("test_1", instr, timeout=30.0)
+            elapsed = time.perf_counter() - start
+            return {
+                "success": result.get("status") == "success",
+                "elapsed": round(elapsed, 3),
+                "vars": runner.vars,
+                "results": [{"stepId": "test_1", "status": result.get("status"), "result": result.get("result"), "error": result.get("error")}],
+                "failedSteps": runner.failed_steps,
+                "error": result.get("error"),
+            }
+        except Exception as e:
+            elapsed = time.perf_counter() - start
+            return {
+                "success": False,
+                "elapsed": round(elapsed, 3),
+                "vars": runner.vars,
+                "results": runner.results,
+                "failedSteps": runner.failed_steps,
+                "error": str(e),
+            }
+
+    raise HTTPException(status_code=404, detail=f"Handler '{type_name}' not found")
+
+
+@router.get("/definitions/{type_name}/test-templates")
+def get_test_templates(type_name: str, user=Depends(auth.get_current_user)):
+    """Return test templates defined in the command JSON."""
+    fp = _COMMANDS_DIR / f"{type_name}.json"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"Definition '{type_name}' not found")
+    with open(fp, encoding="utf-8") as f:
+        definition = json.load(f)
+    return {"cmd": type_name, "templates": definition.get("testTemplates", [])}
+
+
+@router.post("/definitions/{type_name}/test-flow")
+async def run_test_flow(type_name: str, payload: dict, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Run a test flow for a command.
+
+    payload: {
+        "nodes": [{"cmd": "...", "order": 1, "extra": {...}}, ...],
+        "vars": {...},
+        "clientId": "..."
+    }
+    """
+    from src.runtime.workflow.extension_runner import run_workflow_extension
+
+    nodes_payload = payload.get("nodes", [])
+    if not nodes_payload:
+        raise HTTPException(status_code=400, detail="nodes is required")
+
+    # Create a temporary workflow
+    wf = models.Workflow(name=f"test-{type_name}", url="", description="sandbox test flow")
+    db.add(wf)
+    db.commit()
+    db.refresh(wf)
+
+    try:
+        nodes = []
+        for i, n in enumerate(nodes_payload):
+            node = models.WorkflowNode(
+                workflow_id=wf.id,
+                cmd=n.get("cmd"),
+                order=n.get("order", i + 1),
+                parent_id=n.get("parent_id"),
+                element_name=n.get("element_name"),
+                extra=json.dumps(n.get("extra", {})),
+                enabled=1,
+            )
+            nodes.append(node)
+        db.add_all(nodes)
+        db.commit()
+
+        client_id = payload.get("clientId") or None
+        initial_vars = payload.get("vars", {})
+
+        result = await run_workflow_extension(
+            wf, nodes,
+            initial_parameters=initial_vars,
+        )
+        return {
+            "success": result.get("success", False),
+            "vars": result.get("vars", {}),
+            "results": result.get("results", []),
+            "error": result.get("error"),
+        }
+    finally:
+        # Cleanup temporary workflow
+        db.query(models.WorkflowNode).filter(models.WorkflowNode.workflow_id == wf.id).delete()
+        db.delete(wf)
+        db.commit()
+
+
+@router.post("/definitions/{type_name}/generate-test-flow")
+async def generate_test_flow(type_name: str, payload: dict, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+    """Use LLM to generate a test flow for a command."""
+    description = payload.get("description", "")
+    if not description:
+        raise HTTPException(status_code=400, detail="description is required")
+
+    # Load command definition
+    fp = _COMMANDS_DIR / f"{type_name}.json"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"Definition '{type_name}' not found")
+    with open(fp, encoding="utf-8") as f:
+        definition = json.load(f)
+
+    # Get available context
+    from src.runtime.websocket_manager import ext_manager
+    windows = []
+    for cid, conn in ext_manager._connections.items():
+        tab = conn.tab_info or {}
+        windows.append({"clientId": cid, "browser": conn.browser, "title": tab.get("title", ""), "url": tab.get("url", "")})
+
+    # Get elements if workflowId provided
+    elements = []
+    workflow_id = payload.get("workflowId")
+    if workflow_id:
+        rows = db.query(models.WorkflowElement).filter(models.WorkflowElement.workflow_id == workflow_id).all()
+        elements = [{"name": r.name, "elementKind": r.element_kind, "webSelector": r.web_selector} for r in rows]
+
+    # Get available commands for reference
+    available_commands = []
+    for f in sorted(_COMMANDS_DIR.glob("*.json")):
+        with open(f, encoding="utf-8") as fp2:
+            d = json.load(fp2)
+        available_commands.append({
+            "cmd": d.get("cmd"),
+            "label": d.get("label"),
+            "runtime": d.get("runtime"),
+            "params": [{"name": p.get("name"), "type": p.get("type"), "required": p.get("required")} for p in d.get("params", [])],
+        })
+
+    context = {
+        "definition": definition,
+        "description": description,
+        "windows": windows,
+        "elements": elements,
+        "availableCommands": available_commands,
+    }
+
+    from .other_routers import _invoke_llm_scenario
+    res = _invoke_llm_scenario("test_flow_gen", context, db)
+    return res
+
+
 # ─── Command Categories (for new command definition system) ─────────────
 
 cat_router = APIRouter(prefix="/api/command-categories", tags=["command-categories"])

@@ -44,7 +44,7 @@ def test_workflow_parameters_crud(client, auth_headers, workflow_id):
         db.close()
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_run_injects_initial_parameters(client, auth_headers, workflow_id):
     params = [{"name": "postUrl", "label": "帖子链接", "type": "text", "default": "https://default.example.com"}]
     client.put(
@@ -57,7 +57,7 @@ async def test_run_injects_initial_parameters(client, auth_headers, workflow_id)
     r = client.post(
         f"/api/workflows/{workflow_id}/nodes",
         json={
-            "type": "setVar",
+            "cmd": "setVar",
             "order": 1,
             "extra": {"name": "targetUrl", "value": "${postUrl}", "valueType": "string"},
         },
@@ -92,11 +92,11 @@ async def test_run_injects_initial_parameters(client, auth_headers, workflow_id)
 def test_match_brackets_pairs_end_try_with_try_not_catch():
     """Regression: endTry must close the original try, not the catch branch."""
     nodes = [
-        WorkflowNode(id=1, order=1, type="try", workflow_id=1),
-        WorkflowNode(id=2, order=2, type="log", workflow_id=1),
-        WorkflowNode(id=3, order=3, type="catch", workflow_id=1),
-        WorkflowNode(id=4, order=4, type="log", workflow_id=1),
-        WorkflowNode(id=5, order=5, type="endTry", workflow_id=1),
+        WorkflowNode(id=1, order=1, cmd="try", workflow_id=1),
+        WorkflowNode(id=2, order=2, cmd="log", workflow_id=1),
+        WorkflowNode(id=3, order=3, cmd="catch", workflow_id=1),
+        WorkflowNode(id=4, order=4, cmd="log", workflow_id=1),
+        WorkflowNode(id=5, order=5, cmd="endTry", workflow_id=1),
     ]
     container_close, container_branch = _match_brackets(nodes)
     assert container_close == {1: 5}, f"endTry should close try(1), got {container_close}"
@@ -106,11 +106,11 @@ def test_match_brackets_pairs_end_try_with_try_not_catch():
 def test_match_brackets_if_else_pairs_with_if():
     """else must not become the container that endIf closes."""
     nodes = [
-        WorkflowNode(id=1, order=1, type="ifElementVisible", workflow_id=1),
-        WorkflowNode(id=2, order=2, type="log", workflow_id=1),
-        WorkflowNode(id=3, order=3, type="else", workflow_id=1),
-        WorkflowNode(id=4, order=4, type="log", workflow_id=1),
-        WorkflowNode(id=5, order=5, type="endIf", workflow_id=1),
+        WorkflowNode(id=1, order=1, cmd="ifElementVisible", workflow_id=1),
+        WorkflowNode(id=2, order=2, cmd="log", workflow_id=1),
+        WorkflowNode(id=3, order=3, cmd="else", workflow_id=1),
+        WorkflowNode(id=4, order=4, cmd="log", workflow_id=1),
+        WorkflowNode(id=5, order=5, cmd="endIf", workflow_id=1),
     ]
     container_close, container_branch = _match_brackets(nodes)
     assert container_close == {1: 5}, f"endIf should close if(1), got {container_close}"
@@ -120,29 +120,29 @@ def test_match_brackets_if_else_pairs_with_if():
 def test_match_brackets_nested_if_inside_try():
     """Nested if/else inside try must not confuse the outer try/catch pairing."""
     nodes = [
-        WorkflowNode(id=1, order=1, type="try", workflow_id=1),
-        WorkflowNode(id=2, order=2, type="log", workflow_id=1),
-        WorkflowNode(id=3, order=3, type="ifElementVisible", workflow_id=1),
-        WorkflowNode(id=4, order=4, type="log", workflow_id=1),
-        WorkflowNode(id=5, order=5, type="else", workflow_id=1),
-        WorkflowNode(id=6, order=6, type="log", workflow_id=1),
-        WorkflowNode(id=7, order=7, type="endIf", workflow_id=1),
-        WorkflowNode(id=8, order=8, type="catch", workflow_id=1),
-        WorkflowNode(id=9, order=9, type="log", workflow_id=1),
-        WorkflowNode(id=10, order=10, type="endTry", workflow_id=1),
+        WorkflowNode(id=1, order=1, cmd="try", workflow_id=1),
+        WorkflowNode(id=2, order=2, cmd="log", workflow_id=1),
+        WorkflowNode(id=3, order=3, cmd="ifElementVisible", workflow_id=1),
+        WorkflowNode(id=4, order=4, cmd="log", workflow_id=1),
+        WorkflowNode(id=5, order=5, cmd="else", workflow_id=1),
+        WorkflowNode(id=6, order=6, cmd="log", workflow_id=1),
+        WorkflowNode(id=7, order=7, cmd="endIf", workflow_id=1),
+        WorkflowNode(id=8, order=8, cmd="catch", workflow_id=1),
+        WorkflowNode(id=9, order=9, cmd="log", workflow_id=1),
+        WorkflowNode(id=10, order=10, cmd="endTry", workflow_id=1),
     ]
     container_close, container_branch = _match_brackets(nodes)
     assert container_close == {3: 7, 1: 10}, f"unexpected close map: {container_close}"
     assert container_branch == {3: 5, 1: 8}, f"unexpected branch map: {container_branch}"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_workflow_concurrency_lock_blocks_second_run(client, auth_headers, workflow_id, monkeypatch):
     """When the global workflow lock is held, a second run/extension request returns 503."""
     r = client.post(
         f"/api/workflows/{workflow_id}/nodes",
         json={
-            "type": "setVar",
+            "cmd": "setVar",
             "order": 1,
             "extra": {"name": "x", "value": "1", "valueType": "number"},
         },
@@ -178,7 +178,7 @@ def test_run_status_endpoint(client, auth_headers):
     assert data["availableSlots"] >= 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_local_sleep_is_interruptible():
     """A long local sleep must exit promptly when the runner is stopped."""
     from src.runtime.workflow.extension_runner import ExtensionRunner

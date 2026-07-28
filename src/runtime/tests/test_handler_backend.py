@@ -7,24 +7,28 @@ from .handler_test_utils import make_runner, run_handler, run_sequence
 
 
 class TestSetVar:
+    @pytest.mark.asyncio
     async def test_set_string(self):
         r = await run_handler("setVar", {
             "name": "{{x}}", "value": "hello", "valueType": "str-input",
         })
         assert r.vars["x"] == "hello"
 
+    @pytest.mark.asyncio
     async def test_set_int(self):
         r = await run_handler("setVar", {
             "name": "{{x}}", "value": "42", "valueType": "int-number",
         })
         assert r.vars["x"] == 42
 
+    @pytest.mark.asyncio
     async def test_set_list_with_any_input(self):
         r = await run_handler("setVar", {
             "name": "{{x}}", "value": '["a", "b"]', "valueType": "any-input",
         })
         assert r.vars["x"] == ["a", "b"]
 
+    @pytest.mark.asyncio
     async def test_set_with_reference_to_other_var(self):
         r = make_runner(vars={"source": "hello"})
         r = await run_handler("setVar", {
@@ -34,6 +38,8 @@ class TestSetVar:
 
 
 class TestWriteTableRow:
+    @pytest.mark.asyncio
+    @pytest.mark.asyncio
     async def test_append_single_row(self):
         r = await run_handler("writeTableRow", {
             "rowData": '["colA", "colB", "colC"]',
@@ -42,6 +48,7 @@ class TestWriteTableRow:
         assert len(r._table_data["rows"]) == 1
         assert r._table_data["rows"][0] == {"A": "colA", "B": "colB", "C": "colC"}
 
+    @pytest.mark.asyncio
     async def test_with_variables(self):
         r = make_runner(vars={"a": "hello", "b": "world"})
         r = await run_handler("writeTableRow", {
@@ -50,6 +57,7 @@ class TestWriteTableRow:
         }, r)
         assert r._table_data["rows"][0] == {"A": "hello", "B": "world"}
 
+    @pytest.mark.asyncio
     async def test_comma_in_value_no_split(self):
         r = make_runner(vars={"text": "hello, world"})
         r = await run_handler("writeTableRow", {
@@ -60,6 +68,8 @@ class TestWriteTableRow:
 
 
 class TestSequence:
+    @pytest.mark.asyncio
+    @pytest.mark.asyncio
     async def test_setvar_then_writetablerow(self):
         """模拟知乎竞品统计的核心流程：设变量 → 写表格"""
         r = await run_sequence([
@@ -72,6 +82,7 @@ class TestSequence:
         assert row["A"] == ["知乎", "同花顺"]  # list stored in A
         assert row["B"] == "如何学习"          # string stored in B
 
+    @pytest.mark.asyncio
     async def test_multiple_rows(self):
         """连续写入多行"""
         r = await run_sequence([
@@ -84,12 +95,15 @@ class TestSequence:
 
 
 class TestLog:
+    @pytest.mark.asyncio
+    @pytest.mark.asyncio
     async def test_log_with_vars(self):
         r = make_runner(vars={"name": "test"})
         await run_handler("log", {"message": "processing {{name}}"}, r)
         # log 不修改状态，只验证不报错
         assert r.completed == 1
 
+    @pytest.mark.asyncio
     async def test_log_any_input(self):
         r = make_runner(vars={"count": 5})
         await run_handler("log", {"message": "count={{count}}"}, r)
@@ -97,11 +111,13 @@ class TestLog:
 
 
 class TestIncrement:
+    @pytest.mark.asyncio
     async def test_increment_existing(self):
         r = make_runner(vars={"i": 0})
         r = await run_handler("increment", {"varName": "{{i}}", "step": 1}, r)
         assert r.vars["i"] == 1
 
+    @pytest.mark.asyncio
     async def test_increment_negative(self):
         r = make_runner(vars={"i": 10})
         r = await run_handler("increment", {"varName": "{{i}}", "step": -3}, r)

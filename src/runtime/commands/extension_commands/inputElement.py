@@ -8,7 +8,6 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="在页面输入框中输入文本，可选输入完成后按回车",
     category_order=40,
     command_order=20,
-    summary_tpl="{text}",
 )
 class InputElementHandler:
     params = [

@@ -137,7 +137,7 @@ def test_extension_emitter_injects_relative_for_child(workflow, db_session):
     loop_node = models.WorkflowNode(
         workflow_id=workflow.id,
         order=0,
-        type="forEachElement",
+        cmd="forEachElement",
         element_name="comment_card",
         extra=json.dumps({"itemVar": "item"}),
     )
@@ -145,7 +145,7 @@ def test_extension_emitter_injects_relative_for_child(workflow, db_session):
         workflow_id=workflow.id,
         order=1,
         parent_id=1,  # placeholder; builder groups by parent_id
-        type="click",
+        cmd="clickElement",
         element_name="author_name",
         extra="{}",
     )
@@ -153,7 +153,7 @@ def test_extension_emitter_injects_relative_for_child(workflow, db_session):
         workflow_id=workflow.id,
         order=2,
         parent_id=1,
-        type="endFor",
+        cmd="endLoop",
         extra="{}",
     )
     db_session.add_all([loop_node, click_node, end_node])
@@ -201,7 +201,7 @@ def test_extension_emitter_nested_forEachElement_child_anchor(workflow, db_sessi
     outer_loop = models.WorkflowNode(
         workflow_id=workflow.id,
         order=0,
-        type="forEachElement",
+        cmd="forEachElement",
         element_name="comment_card",
         extra=json.dumps({"itemVar": "item"}),
     )
@@ -213,7 +213,7 @@ def test_extension_emitter_nested_forEachElement_child_anchor(workflow, db_sessi
         workflow_id=workflow.id,
         order=1,
         parent_id=outer_loop.id,
-        type="forEachElement",
+        cmd="forEachElement",
         element_name="author_name",
         extra=json.dumps({"itemVar": "author"}),
     )
@@ -225,7 +225,7 @@ def test_extension_emitter_nested_forEachElement_child_anchor(workflow, db_sessi
         workflow_id=workflow.id,
         order=2,
         parent_id=inner_loop.id,
-        type="click",
+        cmd="clickElement",
         element_name="author_avatar",
         extra="{}",
     )
@@ -233,13 +233,13 @@ def test_extension_emitter_nested_forEachElement_child_anchor(workflow, db_sessi
         workflow_id=workflow.id,
         order=3,
         parent_id=outer_loop.id,
-        type="endFor",
+        cmd="endLoop",
         extra="{}",
     )
     outer_end = models.WorkflowNode(
         workflow_id=workflow.id,
         order=4,
-        type="endFor",
+        cmd="endLoop",
         extra="{}",
     )
     db_session.add_all([click_node, inner_end, outer_end])

@@ -20,9 +20,12 @@
       "valueType": "window"
     }
   ],
-  "categories": ["browser"],
+  "categories": [
+    "browser"
+  ],
   "handler": {
     "kind": "extension",
     "source": "extension/background_handlers/closeBrowser.js"
-  }
+  },
+  "isNew": true
 }

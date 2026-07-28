@@ -140,6 +140,20 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ code }),
   }),
+  testCommand: (typeName, extra, vars = {}, clientId = null) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/test`, {
+    method: 'POST',
+    body: JSON.stringify({ extra, vars, clientId }),
+  }),
+  getSandboxContext: () => request('/api/commands/sandbox/context'),
+  getTestTemplates: (typeName) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/test-templates`),
+  runTestFlow: (typeName, nodes, vars = {}, clientId = null) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/test-flow`, {
+    method: 'POST',
+    body: JSON.stringify({ nodes, vars, clientId }),
+  }),
+  generateTestFlow: (typeName, description, workflowId = null) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/generate-test-flow`, {
+    method: 'POST',
+    body: JSON.stringify({ description, workflowId }),
+  }),
   saveJsHandlerCode: (typeName, code) => request(`/api/commands/definitions/${encodeURIComponent(typeName)}/save-js-handler`, {
     method: 'POST',
     body: JSON.stringify({ code }),
