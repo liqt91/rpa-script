@@ -1,7 +1,7 @@
 """HTTP 请求 + 表格操作 — httpRequest, writeTableRow, readTableCell, writeTableCell, getTableRowCount"""
 from ..registry import register_handler, Param
 from ..utils import resolve_vars, clean_var_ref
-import json, asyncio, logging
+import json, logging
 
 logger = logging.getLogger(__name__)
 

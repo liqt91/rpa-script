@@ -1,7 +1,6 @@
 """
 测试 convert_value / resolve_vars / resolve_vars_json / clean_var_ref
 """
-import pytest
 from src.runtime.workflow.handlers.utils import (
     resolve_vars,
     resolve_vars_json,

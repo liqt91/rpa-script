@@ -55,7 +55,7 @@ class InputControlHandler:
 
         activate_window(edit_hwnd)
         ctrl_class = get_class_name(edit_hwnd)
-        old_text = get_control_text(edit_hwnd)
+        get_control_text(edit_hwnd)
 
         method = "WM_SETTEXT"
         set_control_text(edit_hwnd, text)

@@ -153,7 +153,7 @@ def build_system_prompt(commands: list, elements: list) -> str:
             params.append(p)
         meta = []
         if c['isContainer']:
-            meta.append(f"容器")
+            meta.append("容器")
         if c['closesWith']:
             meta.append(f"被 {c['closesWith']} 关闭")
         if c['isBranch']:
@@ -382,7 +382,7 @@ def main():
     flow = call_ai(system, user)
 
     if args.raw:
-        result = flow
+        pass
     else:
         flow = _postprocess(flow)
 

@@ -31,9 +31,7 @@ class PickFromPathHandler:
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
         from ._win32 import (
-            find_window, find_child_window, find_sibling_by_class,
-            get_window_text, get_class_name, activate_window,
-            is_windows, window_exists, find_window_by_title_fuzzy,
+            find_window, find_child_window, get_window_text, get_class_name, is_windows, find_window_by_title_fuzzy,
         )
         from src.repo import runtime_models as models
         from src.repo.models import SessionLocal

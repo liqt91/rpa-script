@@ -166,8 +166,6 @@ def draw_highlight(hwnd, color=0x0000FF):
     try:
         rect = wintypes.RECT()
         _GetWindowRect(hwnd, ctypes.byref(rect))
-        w = rect.right - rect.left
-        h = rect.bottom - rect.top
 
         hdc = _GetWindowDC(0)  # desktop DC
         pen = _CreatePen(PS_SOLID, 3, color)

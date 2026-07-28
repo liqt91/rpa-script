@@ -1,6 +1,6 @@
 """字典操作 — setDictValue, getDictValue, removeDictKey, stringConcat"""
 from ..registry import register_handler, Param
-from ..utils import resolve_vars, clean_var_ref
+from ..utils import clean_var_ref
 
 @register_handler(cmd="getDictValue", label="读取字典值", category="变量操作", runtime="backend",
     icon="fa-book-open", icon_color="text-green-500", bg_color="bg-green-50", category_order=30, command_order=50)

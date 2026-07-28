@@ -30,7 +30,6 @@ def _auto_import_subpackage(subpackage_name: str):
     if not os.path.isdir(package_path):
         return
 
-    package_full = f"{__package__}.{subpackage_name}"
     for _, module_name, _ in pkgutil.iter_modules([package_path]):
         if module_name.startswith('_') and module_name != '_manifest':
             continue  # skip private modules except _manifest

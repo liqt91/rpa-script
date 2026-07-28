@@ -63,7 +63,7 @@ def main():
     # Extract individual handler registrations
     handler_section = "\n".join(lines[handler_start:handler_end])
     # Match each registerHandler(...) block
-    pattern = re.compile(
+    re.compile(
         r"(//.*\n)*"  # optional section comment
         r"\s*registerHandler\(\s*'([^']+)'[^)]*\)\s*;",
         re.DOTALL
@@ -180,14 +180,14 @@ if __name__ == "__main__":
     with open(BUILD_SCRIPT, "w", encoding="utf-8") as f:
         f.write(build_script)
 
-    print(f"Split complete:")
+    print("Split complete:")
     print(f"  Handlers dir: {HANDLERS_DIR}")
     print(f"  Base file:    {BASE_FILE}")
     print(f"  Curated:      {curated_count}")
     print(f"  Cut:          {cut_count}")
     print(f"  Total:        {curated_count + cut_count}")
     print()
-    print(f"Next: python scripts/build_content_js.py")
+    print("Next: python scripts/build_content_js.py")
 
 
 if __name__ == "__main__":

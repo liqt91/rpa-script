@@ -5,11 +5,10 @@ No JWT session required; uses X-API-Key header.
 
 import asyncio
 import json
-import os
 import uuid as _uuid
 import datetime as _dt
 
-from fastapi import APIRouter, Header, HTTPException, Body, Query, Depends
+from fastapi import APIRouter, Header, HTTPException, Body, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -17,7 +16,6 @@ from src.repo import runtime_models as models
 from src.runtime.workflow.extension_runner import run_workflow_extension
 from src.providers import run_progress
 from src.providers.workflow_lock import (
-    WorkflowConcurrencyError,
     workflow_lock,
 )
 

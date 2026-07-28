@@ -2,7 +2,6 @@
 Tests for extension handler resolution with curated command set.
 """
 
-import pytest
 from src.repo import models
 from src.runtime.workflow.extension_emitter import build_instructions, _get_extension_runtime
 

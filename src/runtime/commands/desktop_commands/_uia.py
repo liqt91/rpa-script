@@ -61,7 +61,7 @@ def find_window_by_title_fuzzy(title: str, depth: int = 3) -> list[dict]:
 
 def find_child_by_name(parent_uia, name: str, control_type: str = None, depth: int = 5) -> dict | None:
     """在 UIA 父控件下按名称查找子控件。"""
-    uia = _get_uia()
+    _get_uia()
     parent = _to_uia_control(parent_uia)
     if not parent:
         return None
@@ -74,7 +74,7 @@ def find_child_by_name(parent_uia, name: str, control_type: str = None, depth: i
 
 def find_child_by_class(parent_uia, class_name: str, depth: int = 5) -> dict | None:
     """在 UIA 父控件下按类名查找子控件。"""
-    uia = _get_uia()
+    _get_uia()
     parent = _to_uia_control(parent_uia)
     if not parent:
         return None
@@ -86,7 +86,7 @@ def find_child_by_class(parent_uia, class_name: str, depth: int = 5) -> dict | N
 
 def find_child_by_auto_id(parent_uia, automation_id: str, depth: int = 5) -> dict | None:
     """在 UIA 父控件下按 AutomationId 查找子控件。"""
-    uia = _get_uia()
+    _get_uia()
     parent = _to_uia_control(parent_uia)
     if not parent:
         return None
@@ -171,7 +171,7 @@ def pick_from_path(path_json: list, level_index: int = -1) -> dict | None:
     if level_index >= len(path_json):
         level_index = len(path_json) - 1
 
-    uia = _get_uia()
+    _get_uia()
     target = None
 
     if level_index == 0:
@@ -240,7 +240,7 @@ def _to_uia_control(ctrl_dict: dict):
 
 def get_ancestor_chain(ctrl) -> list[dict]:
     """获取从根到目标控件的完整路径。"""
-    uia = _get_uia()
+    _get_uia()
     chain = []
     current = _to_uia_control(ctrl) if isinstance(ctrl, dict) else ctrl
     if not current:

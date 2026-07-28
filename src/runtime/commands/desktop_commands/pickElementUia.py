@@ -30,7 +30,7 @@ class PickElementUiaHandler:
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
         from ._uia import (
-            is_uia_available, pick_from_path, get_text, get_control_type,
+            is_uia_available, pick_from_path,
         )
         from src.repo import runtime_models as models
         from src.repo.models import SessionLocal

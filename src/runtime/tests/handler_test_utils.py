@@ -9,8 +9,7 @@ Handler 单元测试辅助工具。
     assert runner.vars["x"] == 42
 """
 
-import asyncio
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock
 
 
 class _MockRunner:

@@ -974,7 +974,8 @@ def _build_params_and_reads(params):
         param_lines.append("".join(parts))
         default = p.get("default")
         if default is not None and default != "":
-            param_read_lines.append(f'        {pname} = extra.get("{pname}", {json.dumps(default, ensure_ascii=False)})')
+            default_json = json.dumps(default, ensure_ascii=False)
+            param_read_lines.append(f'        {pname} = extra.get("{pname}", {default_json})')
         elif p.get("required"):
             param_read_lines.append(f'        {pname} = extra["{pname}"]  # 必填')
         else:
@@ -1023,8 +1024,14 @@ class {class_name}:
         result_summary = {{"{type_name}": True}}
 {NL}
         runner.completed += 1
-        runner.results.append({{"stepId": step_id, "nodeId": instr.get("nodeId"), "status": "success", "result": result_summary}})
-        await runner._emit({{"type": "stepComplete", "stepId": step_id, "nodeId": instr.get("nodeId"), "result": result_summary}})
+        runner.results.append({{
+            "stepId": step_id, "nodeId": instr.get("nodeId"),
+            "status": "success", "result": result_summary,
+        }})
+        await runner._emit({{
+            "type": "stepComplete", "stepId": step_id,
+            "nodeId": instr.get("nodeId"), "result": result_summary,
+        }})
         return True
 """
 
@@ -1162,18 +1169,32 @@ def _invoke_llm_scenario(
         prompt = prompt_template.replace("{{scaffold}}", scaffold)
     elif scenario_id == "command_extension_js":
         context, def_json = _build_extension_js_context(definition)
-        prompt = prompt_template.replace("{{definition_json}}", def_json).replace("{{context}}", context)
+        prompt = (
+            prompt_template
+            .replace("{{definition_json}}", def_json)
+            .replace("{{context}}", context)
+        )
     elif scenario_id == "command_review":
         def_json = json.dumps(definition, ensure_ascii=False, indent=2)
         source = payload.get("source", "")
         vt = _load_value_types_json()
-        prompt = prompt_template.replace("{{definition_json}}", def_json).replace("{{source_code}}", source).replace("{{value_types_json}}", vt)
+        prompt = (
+            prompt_template
+            .replace("{{definition_json}}", def_json)
+            .replace("{{source_code}}", source)
+            .replace("{{value_types_json}}", vt)
+        )
     elif scenario_id == "test_flow_gen":
         prompt = prompt_template
         for key, value in payload.items():
             placeholder = "{{" + key + "}}"
             if placeholder in prompt:
-                prompt = prompt.replace(placeholder, json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value))
+                replacement = (
+                    json.dumps(value, ensure_ascii=False)
+                    if isinstance(value, (dict, list))
+                    else str(value)
+                )
+                prompt = prompt.replace(placeholder, replacement)
     else:
         scaffold = _build_backend_scaffold(definition)
         prompt = prompt_template.replace("{{scaffold}}", scaffold)
@@ -1187,8 +1208,15 @@ def _invoke_llm_scenario(
     try:
         resp = httpx.post(
             endpoint,
-            headers={"Authorization": f"Bearer {row.api_key}", "Content-Type": "application/json"},
-            json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2},
+            headers={
+                "Authorization": f"Bearer {row.api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+            },
             timeout=60,
         )
         resp.raise_for_status()
@@ -1201,7 +1229,10 @@ def _invoke_llm_scenario(
 
     # LLMs often wrap code in markdown fences; strip them.
     code = _extract_code_from_markdown(content)
-    logger.info("[ai generate] scenario=%s model=%s raw_len=%d code_len=%d", scenario_id, model, len(content), len(code))
+    logger.info(
+        "[ai generate] scenario=%s model=%s raw_len=%d code_len=%d",
+        scenario_id, model, len(content), len(code),
+    )
     logger.info("[ai generate] raw response:\n%s", content)
     logger.info("[ai generate] extracted code:\n%s", code)
 

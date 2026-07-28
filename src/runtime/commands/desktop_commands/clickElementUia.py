@@ -3,7 +3,7 @@
 使用 UIA InvokePattern 点击控件。
 """
 from src.runtime.workflow.handlers.registry import register_handler, Param
-from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
+from src.runtime.workflow.handlers.utils import clean_var_ref
 
 
 @register_handler(

@@ -6,14 +6,13 @@ import csv
 import io
 import json
 from typing import Any
-from fastapi import APIRouter, Body, Request, Depends, HTTPException, Query
+from fastapi import APIRouter, Request, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from .. import auth
 from src.repo import runtime_models as models
 from src.shared.datetime_utils import parse_iso_datetime
-from src.runtime.workflow.handlers.registry import get_command, list_categories, get_container_types
 from ..workflow.validation import validate, extract_js_handler_names
 
 router = APIRouter(prefix="/api/commands", tags=["commands"])
@@ -236,7 +235,11 @@ def get_command_source(cmd_id: int, db: Session = Depends(get_db), user=Depends(
     # Fallback: try emitter source
     emitter = h.get("emitter_handler")
     if emitter:
-        return {"cmd": cmd.cmd, "source": f"# Emitter ({cmd.cmd})\n# Source not available via inspect", "fallback": True}
+        return {
+            "cmd": cmd.cmd,
+            "source": f"# Emitter ({cmd.cmd})\n# Source not available via inspect",
+            "fallback": True,
+        }
 
     return {"cmd": cmd.cmd, "source": None, "fallback": True}
 
@@ -494,7 +497,10 @@ def delete_definition(type_name: str, user=Depends(auth.get_current_user)):
         raise HTTPException(status_code=404, detail=f"Definition '{type_name}' not found")
     fp.unlink()
     # Also delete handler file if it exists
-    hfp = _Path(__file__).resolve().parent.parent.parent.parent / "src" / "runtime" / "commands" / "backend_commands" / f"{type_name}.py"
+    hfp = (
+        _Path(__file__).resolve().parent.parent.parent.parent
+        / "src" / "runtime" / "commands" / "backend_commands" / f"{type_name}.py"
+    )
     if hfp.exists():
         hfp.unlink()
     return {"success": True}
@@ -503,7 +509,8 @@ def delete_definition(type_name: str, user=Depends(auth.get_current_user)):
 @router.post("/definitions/build")
 def build_definitions(user=Depends(auth.get_current_user)):
     """Run generate_commands.py and build_content_js.py."""
-    import subprocess, sys
+    import subprocess
+    import sys
     root = _COMMANDS_DIR.parent
     results = []
     for script in ["scripts/build_extension.py"]:
@@ -624,7 +631,7 @@ class _SandboxRunner:
         from src.runtime.websocket_manager import ext_manager
         if self.client_id == "sandbox-client" or not ext_manager.get_connection(self.client_id):
             raise RuntimeError("sandbox 环境未连接浏览器，请先在浏览器扩展面板启动并连接")
-        future = await ext_manager.register_step_future(step_id)
+        await ext_manager.register_step_future(step_id)
         ok = await ext_manager.send_to(self.client_id, "step", {"stepId": step_id, **instr})
         if not ok:
             await ext_manager.cancel_step_future(step_id)
@@ -720,7 +727,12 @@ async def test_handler(type_name: str, payload: dict, user=Depends(auth.get_curr
                 "success": result.get("status") == "success",
                 "elapsed": round(elapsed, 3),
                 "vars": runner.vars,
-                "results": [{"stepId": "test_1", "status": result.get("status"), "result": result.get("result"), "error": result.get("error")}],
+                "results": [{
+                    "stepId": "test_1",
+                    "status": result.get("status"),
+                    "result": result.get("result"),
+                    "error": result.get("error"),
+                }],
                 "failedSteps": runner.failed_steps,
                 "error": result.get("error"),
             }
@@ -750,7 +762,12 @@ def get_test_templates(type_name: str, user=Depends(auth.get_current_user)):
 
 
 @router.post("/definitions/{type_name}/test-flow")
-async def run_test_flow(type_name: str, payload: dict, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+async def run_test_flow(
+    type_name: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user),
+):
     """Run a test flow for a command.
 
     payload: {
@@ -787,7 +804,7 @@ async def run_test_flow(type_name: str, payload: dict, db: Session = Depends(get
         db.add_all(nodes)
         db.commit()
 
-        client_id = payload.get("clientId") or None
+        payload.get("clientId") or None
         initial_vars = payload.get("vars", {})
 
         result = await run_workflow_extension(
@@ -802,13 +819,20 @@ async def run_test_flow(type_name: str, payload: dict, db: Session = Depends(get
         }
     finally:
         # Cleanup temporary workflow
-        db.query(models.WorkflowNode).filter(models.WorkflowNode.workflow_id == wf.id).delete()
+        db.query(models.WorkflowNode).filter(
+            models.WorkflowNode.workflow_id == wf.id
+        ).delete()
         db.delete(wf)
         db.commit()
 
 
 @router.post("/definitions/{type_name}/generate-test-flow")
-async def generate_test_flow(type_name: str, payload: dict, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
+async def generate_test_flow(
+    type_name: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user),
+):
     """Use LLM to generate a test flow for a command."""
     description = payload.get("description", "")
     if not description:
@@ -826,14 +850,24 @@ async def generate_test_flow(type_name: str, payload: dict, db: Session = Depend
     windows = []
     for cid, conn in ext_manager._connections.items():
         tab = conn.tab_info or {}
-        windows.append({"clientId": cid, "browser": conn.browser, "title": tab.get("title", ""), "url": tab.get("url", "")})
+        windows.append({
+            "clientId": cid,
+            "browser": conn.browser,
+            "title": tab.get("title", ""),
+            "url": tab.get("url", ""),
+        })
 
     # Get elements if workflowId provided
     elements = []
     workflow_id = payload.get("workflowId")
     if workflow_id:
-        rows = db.query(models.WorkflowElement).filter(models.WorkflowElement.workflow_id == workflow_id).all()
-        elements = [{"name": r.name, "elementKind": r.element_kind, "webSelector": r.web_selector} for r in rows]
+        rows = db.query(models.WorkflowElement).filter(
+            models.WorkflowElement.workflow_id == workflow_id
+        ).all()
+        elements = [
+            {"name": r.name, "elementKind": r.element_kind, "webSelector": r.web_selector}
+            for r in rows
+        ]
 
     # Get available commands for reference
     available_commands = []
@@ -844,7 +878,10 @@ async def generate_test_flow(type_name: str, payload: dict, db: Session = Depend
             "cmd": d.get("cmd"),
             "label": d.get("label"),
             "runtime": d.get("runtime"),
-            "params": [{"name": p.get("name"), "type": p.get("type"), "required": p.get("required")} for p in d.get("params", [])],
+            "params": [
+                {"name": p.get("name"), "type": p.get("type"), "required": p.get("required")}
+                for p in d.get("params", [])
+            ],
         })
 
     context = {
@@ -1007,7 +1044,6 @@ def run_picker(user=Depends(auth.get_current_user)):
     """
     import subprocess
     import sys
-    import os as _os
     _ROOT = _Path(__file__).resolve().parent.parent.parent.parent
     picker_path = _ROOT / "scripts" / "picker.py"
     if not picker_path.exists():

@@ -1,7 +1,6 @@
 """Shared progress queue registry for workflow execution SSE streaming."""
 
 import asyncio
-from typing import Optional
 
 _queues: dict[str, asyncio.Queue] = {}
 _queues_lock = asyncio.Lock()

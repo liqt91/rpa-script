@@ -34,7 +34,7 @@ def _emit_generic(node, extra, depth, prefix, by_parent, lines, element_map=None
         return
 
     python_action = d.get("pythonAction")
-    params = {p["name"]: p for p in d.get("params", [])}
+    {p["name"]: p for p in d.get("params", [])}
 
     # Element-based generic actions
     if python_action in ("click", "hover", "focus", "submit"):

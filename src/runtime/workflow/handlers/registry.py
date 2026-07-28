@@ -13,8 +13,8 @@ Handler 注册系统 — 每个 handler 声明自己的参数，自动生成指�
         params = [Param(...), Param(...)]
 """
 
-from typing import Optional, Any
-from dataclasses import dataclass, field
+from typing import Any
+from dataclasses import dataclass
 
 # ─── Generic params injected into every non-structural instruction ──
 # Loaded from commands/types/generic_params.json at startup.
@@ -288,4 +288,3 @@ def get_branch_types() -> list[str]:
 
 def load_builtin_handlers():
     """在 extension_runner 启动时调用，注册所有内置 handler。"""
-    from . import handler_definitions  # triggers all @register_handler

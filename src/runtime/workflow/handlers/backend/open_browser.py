@@ -21,12 +21,12 @@ class OpenBrowserHandler:
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
         from src.repo.browser_utils import is_browser_running, launch_browser_with_extension
-        import asyncio, logging
+        import logging
         logger = logging.getLogger(__name__)
         extra = instr.get("extra") or {}
         browser_type = extra.get("browserType", "chrome")
-        url = extra.get("url") or "about:blank"
-        state = extra.get("windowState", "normal")
+        extra.get("url") or "about:blank"
+        extra.get("windowState", "normal")
 
         if not is_browser_running(browser_type):
             logger.info(f"[{browser_type}] 启动浏览器...")
