@@ -18,6 +18,12 @@ const CATEGORY_ICONS = {
   '子流程': 'fa-sitemap',
   '异常处理': 'fa-shield-halved',
   '自定义': 'fa-code',
+  // 新指令分类
+  '浏览器操作': 'fa-chrome',
+  '浏览器元素操作': 'fa-mouse-pointer',
+  '变量及日志': 'fa-code',
+  '桌面操作win32': 'fa-desktop',
+  '桌面操作UIA': 'fa-window-maximize',
 };
 
 const CATEGORY_COLORS = {
@@ -37,6 +43,12 @@ const CATEGORY_COLORS = {
   '子流程': 'text-pink-500',
   '异常处理': 'text-red-500',
   '自定义': 'text-gray-500',
+  // 新指令分类
+  '浏览器操作': 'text-blue-500',
+  '浏览器元素操作': 'text-blue-500',
+  '变量及日志': 'text-indigo-500',
+  '桌面操作win32': 'text-purple-500',
+  '桌面操作UIA': 'text-cyan-500',
 };
 
 export default function CommandPanel() {
