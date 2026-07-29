@@ -82,7 +82,7 @@ def _read_handler_from_json(type_name):
 
 
 def _seed_categories_from_json():
-    """从 types/categories.json 同步分类到数据库。slug 冲突时跳过。"""
+    """从 types/categories.json 同步分类到数据库。slug 冲突时更新。"""
     import json as _json3
     from pathlib import Path as _Path3
     fp = _Path3(__file__).resolve().parent / "commands" / "types" / "categories.json"
@@ -94,10 +94,18 @@ def _seed_categories_from_json():
     try:
         for cat in data.get("categories", []):
             slug = cat["slug"]
-            if db.query(models.CommandCategory).filter_by(slug=slug).first():
-                continue
-            db.add(models.CommandCategory(
-                slug=slug, name=cat["name"], icon=cat.get("icon", "fa-folder")))
+            row = db.query(models.CommandCategory).filter_by(slug=slug).first()
+            if row:
+                row.name = cat["name"]
+                row.icon = cat.get("icon", "fa-folder")
+                row.sort_order = cat.get("sortOrder", 0)
+            else:
+                db.add(models.CommandCategory(
+                    slug=slug,
+                    name=cat["name"],
+                    icon=cat.get("icon", "fa-folder"),
+                    sort_order=cat.get("sortOrder", 0),
+                ))
         db.commit()
     finally:
         db.close()

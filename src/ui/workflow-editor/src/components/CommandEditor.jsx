@@ -109,6 +109,7 @@ export default function CommandEditor() {
     try {
       const data = await api.getCategoriesJson();
       const cats = data.categories || [];
+      cats.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
       setCategories(cats.map(c => ({ ...c, slug: c.slug, name: c.name, icon: c.icon })));
       setCategoriesJson(JSON.stringify(data, null, 2));
     } catch (e) { /* ignore */ }
