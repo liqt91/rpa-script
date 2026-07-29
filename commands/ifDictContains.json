@@ -1,0 +1,35 @@
+{
+  "cmd": "ifDictContains",
+  "label": "如果字典包含键",
+  "runtime": "control",
+  "icon": "fa-book",
+  "iconColor": "text-cyan-500",
+  "bgColor": "bg-cyan-50",
+  "categoryOrder": 40,
+  "commandOrder": 75,
+  "description": "根据字典是否包含指定键决定执行分支",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "closesWith": "endIf",
+  "params": [
+    {
+      "name": "dictVar",
+      "label": "字典变量",
+      "type": "str-var",
+      "required": true
+    },
+    {
+      "name": "key",
+      "label": "键名",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/ifDictContains.py"
+  },
+  "categories": ["control"],
+  "category": "流程控制"
+}

@@ -1,0 +1,50 @@
+{
+  "cmd": "ifElementVisible",
+  "label": "如果元素可见",
+  "runtime": "control",
+  "icon": "fa-eye",
+  "iconColor": "text-cyan-500",
+  "bgColor": "bg-cyan-50",
+  "categoryOrder": 40,
+  "commandOrder": 50,
+  "description": "根据元素是否可见决定执行分支",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "closesWith": "endIf",
+  "params": [
+    {
+      "name": "element_name",
+      "label": "元素",
+      "type": "element",
+      "required": true
+    },
+    {
+      "name": "operator",
+      "label": "判断条件",
+      "type": "select",
+      "options": [
+        {"label": "可见", "value": "visible"},
+        {"label": "不可见", "value": "notVisible"}
+      ],
+      "default": "visible"
+    },
+    {
+      "name": "scope",
+      "label": "匹配范围",
+      "type": "select",
+      "options": [
+        {"label": "当前外层元素内", "value": "local"},
+        {"label": "全页面", "value": "global"}
+      ],
+      "default": "local",
+      "group": "advanced"
+    }
+  ],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/ifElementVisible.py"
+  },
+  "categories": ["control"],
+  "category": "流程控制"
+}

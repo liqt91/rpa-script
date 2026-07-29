@@ -1,0 +1,35 @@
+{
+  "cmd": "ifTextEquals",
+  "label": "如果文本相等",
+  "runtime": "control",
+  "icon": "fa-equals",
+  "iconColor": "text-cyan-500",
+  "bgColor": "bg-cyan-50",
+  "categoryOrder": 40,
+  "commandOrder": 65,
+  "description": "根据元素文本是否相等决定执行分支",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "closesWith": "endIf",
+  "params": [
+    {
+      "name": "text",
+      "label": "文本A",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "compareTo",
+      "label": "文本B",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/ifTextEquals.py"
+  },
+  "categories": ["control"],
+  "category": "流程控制"
+}

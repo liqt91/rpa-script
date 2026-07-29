@@ -1,0 +1,35 @@
+{
+  "cmd": "ifListContains",
+  "label": "如果列表包含",
+  "runtime": "control",
+  "icon": "fa-list",
+  "iconColor": "text-cyan-500",
+  "bgColor": "bg-cyan-50",
+  "categoryOrder": 40,
+  "commandOrder": 70,
+  "description": "根据列表是否包含指定值决定执行分支",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "closesWith": "endIf",
+  "params": [
+    {
+      "name": "listVar",
+      "label": "列表变量",
+      "type": "str-var",
+      "required": true
+    },
+    {
+      "name": "value",
+      "label": "查找值",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/ifListContains.py"
+  },
+  "categories": ["control"],
+  "category": "流程控制"
+}

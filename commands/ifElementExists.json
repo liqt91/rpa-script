@@ -1,0 +1,50 @@
+{
+  "cmd": "ifElementExists",
+  "label": "判断元素存在",
+  "runtime": "control",
+  "icon": "fa-search",
+  "iconColor": "text-cyan-500",
+  "bgColor": "bg-cyan-50",
+  "categoryOrder": 40,
+  "commandOrder": 55,
+  "description": "判断元素是否存在，决定分支走向",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "closesWith": "endIf",
+  "params": [
+    {
+      "name": "element_name",
+      "label": "元素",
+      "type": "element",
+      "required": true
+    },
+    {
+      "name": "operator",
+      "label": "判断条件",
+      "type": "select",
+      "options": [
+        {"label": "存在", "value": "exists"},
+        {"label": "不存在", "value": "notExists"}
+      ],
+      "default": "exists"
+    },
+    {
+      "name": "scope",
+      "label": "匹配范围",
+      "type": "select",
+      "options": [
+        {"label": "当前外层元素内", "value": "local"},
+        {"label": "全页面", "value": "global"}
+      ],
+      "default": "local",
+      "group": "advanced"
+    }
+  ],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/ifElementExists.py"
+  },
+  "categories": ["control"],
+  "category": "流程控制"
+}

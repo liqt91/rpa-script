@@ -1,0 +1,21 @@
+{
+  "cmd": "endIf",
+  "label": "结束条件",
+  "runtime": "control",
+  "icon": "fa-right-to-bracket",
+  "iconColor": "text-gray-400",
+  "bgColor": "bg-gray-50",
+  "categoryOrder": 40,
+  "commandOrder": 90,
+  "description": "标记条件分支结束（自动由条件指令添加）",
+  "enabled": true,
+  "isNew": true,
+  "isStructural": true,
+  "params": [],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/endIf.py"
+  },
+  "categories": ["control"],
+  "category": "流程控制"
+}
