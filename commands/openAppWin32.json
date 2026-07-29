@@ -120,7 +120,7 @@
     "source": "src/runtime/commands/desktop_commands/openAppWin32.py"
   },
   "categories": [
-    "desktop"
+    "desktop-win32"
   ],
   "category": "桌面操作win32"
 }

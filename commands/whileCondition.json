@@ -80,5 +80,8 @@
       "placeholder": "如: ${a} > 10"
     }
   ],
-  "category": "流程控制"
+  "category": "流程控制",
+  "categories": [
+    "control"
+  ]
 }

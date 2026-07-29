@@ -90,7 +90,7 @@
     "source": "src/runtime/commands/desktop_commands/findSibling.py"
   },
   "categories": [
-    "desktop"
+    "desktop-win32"
   ],
   "category": "桌面操作win32"
 }

@@ -37,7 +37,7 @@
     }
   ],
   "categories": [
-    "interaction"
+    "browser-element"
   ],
   "handler": {
     "kind": "extension",

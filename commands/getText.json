@@ -43,7 +43,7 @@
     }
   ],
   "categories": [
-    "data"
+    "browser-element"
   ],
   "handler": {
     "kind": "extension",

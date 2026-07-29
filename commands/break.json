@@ -6,5 +6,8 @@
   "iconColor": "text-red-500",
   "commandOrder": 50,
   "description": "跳出当前循环，继续执行循环后的指令",
-  "category": "流程控制"
+  "category": "流程控制",
+  "categories": [
+    "control"
+  ]
 }

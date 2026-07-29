@@ -49,5 +49,8 @@
       "group": "advanced"
     }
   ],
-  "category": "流程控制"
+  "category": "流程控制",
+  "categories": [
+    "control"
+  ]
 }

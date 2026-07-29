@@ -56,7 +56,7 @@
     "source": "src/runtime/commands/desktop_commands/wait.py"
   },
   "categories": [
-    "desktop"
+    "browser-element"
   ],
   "category": "浏览器元素操作"
 }

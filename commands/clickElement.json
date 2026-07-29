@@ -64,7 +64,7 @@
     "function": "doClick"
   },
   "categories": [
-    "element"
+    "browser-element"
   ],
   "cmd": "clickElement",
   "category": "浏览器元素操作"

@@ -39,7 +39,7 @@
     "source": "src/runtime/commands/desktop_commands/pickElementUia.py"
   },
   "categories": [
-    "desktop"
+    "desktop-uia"
   ],
   "category": "桌面操作UIA"
 }

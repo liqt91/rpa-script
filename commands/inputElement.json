@@ -76,7 +76,7 @@
     "function": "doInput"
   },
   "categories": [
-    "element"
+    "browser-element"
   ],
   "cmd": "inputElement",
   "category": "浏览器元素操作"

@@ -85,7 +85,7 @@
     }
   ],
   "categories": [
-    "desktop"
+    "desktop-win32"
   ],
   "handler": {
     "kind": "backend",

@@ -47,7 +47,7 @@
     "source": "src/runtime/commands/desktop_commands/findWindowUia.py"
   },
   "categories": [
-    "desktop"
+    "desktop-uia"
   ],
   "category": "桌面操作UIA"
 }

@@ -116,7 +116,7 @@
     }
   ],
   "categories": [
-    "page"
+    "browser-element"
   ],
   "handler": {
     "kind": "extension",

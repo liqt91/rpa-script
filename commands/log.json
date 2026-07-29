@@ -45,6 +45,6 @@
     "source": "src/runtime/commands/backend_commands/log.py"
   },
   "categories": [
-    "data"
+    "variable"
   ]
 }
