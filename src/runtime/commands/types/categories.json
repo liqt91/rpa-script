@@ -1,11 +1,11 @@
 {
   "description": "指令分类定义。启动时自动同步到数据库，slug 冲突时跳过。",
   "categories": [
-    {"slug": "browser", "name": "浏览器操作", "icon": "fa-chrome"},
-    {"slug": "browser-element", "name": "浏览器元素操作", "icon": "fa-mouse-pointer"},
-    {"slug": "variable", "name": "变量及日志", "icon": "fa-code"},
-    {"slug": "control", "name": "流程控制", "icon": "fa-code-branch"},
-    {"slug": "desktop-win32", "name": "桌面操作win32", "icon": "fa-desktop"},
-    {"slug": "desktop-uia", "name": "桌面操作UIA", "icon": "fa-window-maximize"}
+    {"slug": "browser", "name": "浏览器操作", "icon": "fa-chrome", "sortOrder": 10},
+    {"slug": "browser-element", "name": "浏览器元素操作", "icon": "fa-mouse-pointer", "sortOrder": 20},
+    {"slug": "variable", "name": "变量及日志", "icon": "fa-code", "sortOrder": 30},
+    {"slug": "control", "name": "流程控制", "icon": "fa-code-branch", "sortOrder": 40},
+    {"slug": "desktop-win32", "name": "桌面操作win32", "icon": "fa-desktop", "sortOrder": 50},
+    {"slug": "desktop-uia", "name": "桌面操作UIA", "icon": "fa-window-maximize", "sortOrder": 60}
   ]
 }

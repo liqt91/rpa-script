@@ -6,8 +6,8 @@
   "icon": "fa-link",
   "iconColor": "text-blue-500",
   "bgColor": "bg-blue-50",
-  "categoryOrder": 40,
-  "commandOrder": 20,
+  "categoryOrder": 20,
+  "commandOrder": 50,
   "description": "获取指定元素的 href 链接地址",
   "params": [
     {

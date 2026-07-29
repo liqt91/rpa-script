@@ -6,8 +6,8 @@
   "icon": "fa-hand-pointer",
   "iconColor": "text-blue-500",
   "bgColor": "bg-blue-50",
-  "categoryOrder": 40,
-  "commandOrder": 30,
+  "categoryOrder": 20,
+  "commandOrder": 60,
   "description": "将鼠标悬停在指定元素上",
   "enabled": true,
   "params": [

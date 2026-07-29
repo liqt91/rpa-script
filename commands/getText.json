@@ -5,8 +5,8 @@
   "icon": "fa-font",
   "iconColor": "text-green-500",
   "bgColor": "bg-green-50",
-  "categoryOrder": 40,
-  "commandOrder": 10,
+  "categoryOrder": 20,
+  "commandOrder": 40,
   "description": "获取页面元素的文本内容",
   "enabled": true,
   "params": [

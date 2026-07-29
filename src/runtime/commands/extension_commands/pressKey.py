@@ -6,8 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     icon="fa-keyboard", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="向页面发送键盘按键。OS级keybd_event发送，页面按键和浏览器快捷键均可生效",
-    category_order=60,
-    command_order=30,
+    category_order=20,
+    command_order=80,
 )
 class PressKeyHandler:
     params = [

@@ -7,7 +7,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     bg_color="bg-blue-50",
     description="在指定浏览器窗口中新建标签页",
     category_order=10,
-    command_order=20,
+    command_order=30,
 )
 class NewTabHandler:
     params = [

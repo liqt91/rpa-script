@@ -6,8 +6,8 @@
   "icon": "fa-terminal",
   "iconColor": "text-gray-500",
   "bgColor": "bg-gray-50",
-  "categoryOrder": 40,
-  "commandOrder": 10,
+  "categoryOrder": 30,
+  "commandOrder": 20,
   "description": "输出一条消息到运行日志",
   "enabled": true,
   "params": [

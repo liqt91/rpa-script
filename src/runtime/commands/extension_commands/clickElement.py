@@ -6,8 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     icon="fa-hand-pointer", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="点击页面上的一个元素",
-    category_order=40,
-    command_order=10,
+    category_order=20,
+    command_order=20,
 )
 class ClickElementHandler:
     params = [

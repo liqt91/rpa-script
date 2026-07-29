@@ -9,5 +9,7 @@
   "category": "流程控制",
   "categories": [
     "control"
-  ]
+  ],
+  "categoryOrder": 40,
+  "commandOrder": 80
 }

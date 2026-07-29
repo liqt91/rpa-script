@@ -6,8 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     icon="fa-hand-pointer", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="将鼠标悬停在指定元素上",
-    category_order=40,
-    command_order=30,
+    category_order=20,
+    command_order=60,
 )
 class HoverHandler:
     params = [

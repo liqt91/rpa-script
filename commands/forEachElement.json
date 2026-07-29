@@ -5,7 +5,7 @@
   "icon": "fa-list-check",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
-  "categoryOrder": 50,
+  "categoryOrder": 40,
   "commandOrder": 10,
   "isContainer": true,
   "closesWith": "endLoop",

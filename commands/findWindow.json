@@ -5,7 +5,7 @@
   "icon": "fa-window-maximize",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
-  "categoryOrder": 60,
+  "categoryOrder": 50,
   "commandOrder": 10,
   "description": "按标题或类名查找 Windows 桌面窗口，可选自动激活前置",
   "enabled": true,

@@ -6,8 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     icon="fa-font", icon_color="text-green-500",
     bg_color="bg-green-50",
     description="获取页面元素的文本内容",
-    category_order=40,
-    command_order=10,
+    category_order=20,
+    command_order=40,
 )
 class GetTextHandler:
     params = [

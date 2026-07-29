@@ -7,7 +7,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     bg_color="bg-red-50",
     description="关闭指定的浏览器窗口",
     category_order=10,
-    command_order=40,
+    command_order=60,
 )
 class CloseBrowserHandler:
     params = [

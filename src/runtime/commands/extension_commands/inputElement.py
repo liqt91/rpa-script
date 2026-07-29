@@ -6,8 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     icon="fa-keyboard", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="在页面输入框中输入文本，可选输入完成后按回车",
-    category_order=40,
-    command_order=20,
+    category_order=20,
+    command_order=30,
 )
 class InputElementHandler:
     params = [

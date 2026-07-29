@@ -5,7 +5,7 @@
   "icon": "fa-keyboard",
   "iconColor": "text-green-500",
   "bgColor": "bg-green-50",
-  "categoryOrder": 65,
+  "categoryOrder": 60,
   "commandOrder": 30,
   "description": "使用 UI Automation 向控件输入文本 [UIA]",
   "enabled": true,

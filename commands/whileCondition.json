@@ -5,7 +5,7 @@
   "icon": "fa-arrows-spin",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
-  "categoryOrder": 50,
+  "categoryOrder": 40,
   "commandOrder": 40,
   "isContainer": true,
   "closesWith": "endLoop",

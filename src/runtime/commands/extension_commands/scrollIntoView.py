@@ -6,8 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     icon="fa-arrow-down", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="将页面滚动到指定元素可见的位置",
-    category_order=60,
-    command_order=10,
+    category_order=20,
+    command_order=70,
 )
 class ScrollIntoViewHandler:
     params = [

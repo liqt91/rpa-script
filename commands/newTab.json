@@ -7,7 +7,7 @@
   "iconColor": "text-blue-500",
   "bgColor": "bg-blue-50",
   "categoryOrder": 10,
-  "commandOrder": 20,
+  "commandOrder": 30,
   "description": "在指定浏览器窗口中新建标签页",
   "enabled": true,
   "params": [

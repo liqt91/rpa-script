@@ -6,8 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     icon="fa-camera", icon_color="text-gray-700",
     bg_color="bg-gray-100",
     description="截取页面或元素的截图",
-    category_order=90,
-    command_order=40,
+    category_order=20,
+    command_order=90,
 )
 class TakeScreenshotHandler:
     params = [

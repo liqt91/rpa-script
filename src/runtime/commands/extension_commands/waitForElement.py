@@ -7,7 +7,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     bg_color="bg-yellow-50",
     description="等待页面上的元素出现，轮询检测直到出现或超时",
     category_order=20,
-    command_order=40,
+    command_order=10,
 )
 class WaitForElementHandler:
     params = [

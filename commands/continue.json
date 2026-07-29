@@ -4,10 +4,11 @@
   "runtime": "control",
   "icon": "fa-forward",
   "iconColor": "text-orange-500",
-  "commandOrder": 51,
+  "commandOrder": 70,
   "description": "跳过当前循环剩余指令，进入下一次迭代",
   "category": "流程控制",
   "categories": [
     "control"
-  ]
+  ],
+  "categoryOrder": 40
 }

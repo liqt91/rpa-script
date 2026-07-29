@@ -6,8 +6,8 @@
   "icon": "fa-arrow-down",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
-  "categoryOrder": 60,
-  "commandOrder": 10,
+  "categoryOrder": 20,
+  "commandOrder": 70,
   "description": "将页面滚动到指定元素可见的位置",
   "enabled": true,
   "params": [

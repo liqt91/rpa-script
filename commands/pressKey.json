@@ -6,8 +6,8 @@
   "icon": "fa-keyboard",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
-  "categoryOrder": 60,
-  "commandOrder": 30,
+  "categoryOrder": 20,
+  "commandOrder": 80,
   "description": "向页面发送键盘按键。OS级keybd_event发送，页面按键和浏览器快捷键均可生效",
   "enabled": true,
   "params": [

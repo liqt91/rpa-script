@@ -6,8 +6,8 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     icon="fa-link", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="获取指定元素的 href 链接地址",
-    category_order=40,
-    command_order=20,
+    category_order=20,
+    command_order=50,
 )
 class GetElementLinkHandler:
     params = [

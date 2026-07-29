@@ -6,8 +6,8 @@
   "icon": "fa-camera",
   "iconColor": "text-gray-700",
   "bgColor": "bg-gray-100",
-  "categoryOrder": 90,
-  "commandOrder": 40,
+  "categoryOrder": 20,
+  "commandOrder": 90,
   "description": "截取页面或元素的截图",
   "enabled": true,
   "params": [

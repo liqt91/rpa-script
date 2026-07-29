@@ -4,10 +4,11 @@
   "runtime": "control",
   "icon": "fa-right-from-bracket",
   "iconColor": "text-red-500",
-  "commandOrder": 50,
+  "commandOrder": 60,
   "description": "跳出当前循环，继续执行循环后的指令",
   "category": "流程控制",
   "categories": [
     "control"
-  ]
+  ],
+  "categoryOrder": 40
 }

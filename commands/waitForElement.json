@@ -7,7 +7,7 @@
   "iconColor": "text-yellow-500",
   "bgColor": "bg-yellow-50",
   "categoryOrder": 20,
-  "commandOrder": 40,
+  "commandOrder": 10,
   "description": "等待页面上的元素出现，轮询检测直到出现或超时",
   "enabled": true,
   "params": [
