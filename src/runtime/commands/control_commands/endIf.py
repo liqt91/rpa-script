@@ -3,7 +3,7 @@ from src.runtime.workflow.handlers.registry import register_handler
 
 
 @register_handler(
-    cmd="endIf", label="结束条件", category="流程控制", runtime="control",
+    cmd="endIf", label="结束条件", category="条件判断", runtime="control",
     is_structural=True,
     icon="fa-right-to-bracket", icon_color="text-gray-400",
     bg_color="bg-gray-50",

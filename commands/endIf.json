@@ -6,7 +6,7 @@
   "iconColor": "text-gray-400",
   "bgColor": "bg-gray-50",
   "categoryOrder": 40,
-  "commandOrder": 90,
+  "commandOrder": 100,
   "description": "标记条件分支结束（自动由条件指令添加）",
   "enabled": true,
   "isNew": true,
@@ -16,6 +16,8 @@
     "kind": "control",
     "source": "src/runtime/commands/control_commands/endIf.py"
   },
-  "categories": ["control"],
-  "category": "流程控制"
+  "categories": [
+    "condition"
+  ],
+  "category": "条件判断"
 }

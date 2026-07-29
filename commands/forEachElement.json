@@ -49,8 +49,8 @@
       "group": "advanced"
     }
   ],
-  "category": "流程控制",
+  "category": "循环",
   "categories": [
-    "control"
+    "loop"
   ]
 }

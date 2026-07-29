@@ -6,7 +6,7 @@
   "iconColor": "text-cyan-500",
   "bgColor": "bg-cyan-50",
   "categoryOrder": 40,
-  "commandOrder": 50,
+  "commandOrder": 10,
   "description": "根据元素是否可见决定执行分支",
   "enabled": true,
   "isNew": true,
@@ -24,8 +24,14 @@
       "label": "判断条件",
       "type": "select",
       "options": [
-        {"label": "可见", "value": "visible"},
-        {"label": "不可见", "value": "notVisible"}
+        {
+          "label": "可见",
+          "value": "visible"
+        },
+        {
+          "label": "不可见",
+          "value": "notVisible"
+        }
       ],
       "default": "visible"
     },
@@ -34,8 +40,14 @@
       "label": "匹配范围",
       "type": "select",
       "options": [
-        {"label": "当前外层元素内", "value": "local"},
-        {"label": "全页面", "value": "global"}
+        {
+          "label": "当前外层元素内",
+          "value": "local"
+        },
+        {
+          "label": "全页面",
+          "value": "global"
+        }
       ],
       "default": "local",
       "group": "advanced"
@@ -45,6 +57,8 @@
     "kind": "control",
     "source": "src/runtime/commands/control_commands/ifElementVisible.py"
   },
-  "categories": ["control"],
-  "category": "流程控制"
+  "categories": [
+    "condition"
+  ],
+  "category": "条件判断"
 }

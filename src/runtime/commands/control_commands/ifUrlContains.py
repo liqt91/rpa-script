@@ -1,6 +1,6 @@
 """判断 URL 包含 — 控制流"""
 from src.runtime.workflow.handlers.registry import register_handler, Param
-@register_handler(cmd="ifUrlContains", label="判断URL包含", category="流程控制", runtime="control",
+@register_handler(cmd="ifUrlContains", label="判断URL包含", category="条件判断", runtime="control",
     is_container=True, closes_with="endIf",
     icon="fa-link", icon_color="text-cyan-500", bg_color="bg-cyan-50", category_order=40, command_order=30,
     description="判断当前页面 URL 是否包含指定文本")

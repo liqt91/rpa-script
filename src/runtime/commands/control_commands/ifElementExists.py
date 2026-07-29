@@ -1,6 +1,6 @@
 """判断元素存在 — 控制流"""
 from src.runtime.workflow.handlers.registry import register_handler, Param
-@register_handler(cmd="ifElementExists", label="判断元素存在", category="流程控制", runtime="control",
+@register_handler(cmd="ifElementExists", label="判断元素存在", category="条件判断", runtime="control",
     is_container=True, closes_with="endIf",
     icon="fa-search", icon_color="text-cyan-500", bg_color="bg-cyan-50", category_order=40, command_order=20,
     description="判断元素是否存在，决定分支走向")

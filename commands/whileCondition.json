@@ -80,8 +80,8 @@
       "placeholder": "如: ${a} > 10"
     }
   ],
-  "category": "流程控制",
+  "category": "循环",
   "categories": [
-    "control"
+    "loop"
   ]
 }

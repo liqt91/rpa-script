@@ -6,7 +6,7 @@
   "iconColor": "text-cyan-500",
   "bgColor": "bg-cyan-50",
   "categoryOrder": 40,
-  "commandOrder": 67,
+  "commandOrder": 80,
   "description": "判断当前页面 URL 是否包含指定文本",
   "enabled": true,
   "isNew": true,
@@ -25,6 +25,8 @@
     "kind": "control",
     "source": "src/runtime/commands/control_commands/ifUrlContains.py"
   },
-  "categories": ["control"],
-  "category": "流程控制"
+  "categories": [
+    "condition"
+  ],
+  "category": "条件判断"
 }

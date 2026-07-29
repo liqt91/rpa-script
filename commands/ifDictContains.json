@@ -6,7 +6,7 @@
   "iconColor": "text-cyan-500",
   "bgColor": "bg-cyan-50",
   "categoryOrder": 40,
-  "commandOrder": 75,
+  "commandOrder": 60,
   "description": "根据字典是否包含指定键决定执行分支",
   "enabled": true,
   "isNew": true,
@@ -30,6 +30,8 @@
     "kind": "control",
     "source": "src/runtime/commands/control_commands/ifDictContains.py"
   },
-  "categories": ["control"],
-  "category": "流程控制"
+  "categories": [
+    "condition"
+  ],
+  "category": "条件判断"
 }

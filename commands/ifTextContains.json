@@ -6,7 +6,7 @@
   "iconColor": "text-cyan-500",
   "bgColor": "bg-cyan-50",
   "categoryOrder": 40,
-  "commandOrder": 66,
+  "commandOrder": 70,
   "description": "根据元素文本是否包含指定内容决定执行分支",
   "enabled": true,
   "isNew": true,
@@ -31,6 +31,8 @@
     "kind": "control",
     "source": "src/runtime/commands/control_commands/ifTextContains.py"
   },
-  "categories": ["control"],
-  "category": "流程控制"
+  "categories": [
+    "condition"
+  ],
+  "category": "条件判断"
 }

@@ -6,9 +6,9 @@
   "iconColor": "text-orange-500",
   "commandOrder": 70,
   "description": "跳过当前循环剩余指令，进入下一次迭代",
-  "category": "流程控制",
+  "category": "循环",
   "categories": [
-    "control"
+    "loop"
   ],
   "categoryOrder": 40
 }
