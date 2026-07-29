@@ -1,0 +1,30 @@
+{
+  "cmd": "ifUrlContains",
+  "label": "判断URL包含",
+  "runtime": "control",
+  "icon": "fa-link",
+  "iconColor": "text-cyan-500",
+  "bgColor": "bg-cyan-50",
+  "categoryOrder": 40,
+  "commandOrder": 67,
+  "description": "判断当前页面 URL 是否包含指定文本",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "closesWith": "endIf",
+  "params": [
+    {
+      "name": "urlPattern",
+      "label": "URL 包含",
+      "type": "string",
+      "required": true,
+      "placeholder": "URL 包含的文本"
+    }
+  ],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/ifUrlContains.py"
+  },
+  "categories": ["control"],
+  "category": "流程控制"
+}

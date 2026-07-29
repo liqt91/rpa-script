@@ -1,0 +1,35 @@
+{
+  "cmd": "ifVarContains",
+  "label": "如果变量包含",
+  "runtime": "control",
+  "icon": "fa-search",
+  "iconColor": "text-cyan-500",
+  "bgColor": "bg-cyan-50",
+  "categoryOrder": 40,
+  "commandOrder": 68,
+  "description": "根据变量值是否包含指定内容决定执行分支",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "closesWith": "endIf",
+  "params": [
+    {
+      "name": "varName",
+      "label": "变量名",
+      "type": "str-var",
+      "required": true
+    },
+    {
+      "name": "substring",
+      "label": "包含文本",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/ifVarContains.py"
+  },
+  "categories": ["control"],
+  "category": "流程控制"
+}
