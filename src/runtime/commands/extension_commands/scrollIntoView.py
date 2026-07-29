@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="scrollIntoView", label="滚动到元素",
-    category="页面操作", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-arrow-down", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="将页面滚动到指定元素可见的位置",

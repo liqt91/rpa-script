@@ -2,7 +2,7 @@
   "cmd": "takeScreenshot",
   "label": "截图",
   "runtime": "extension",
-  "category": "高级",
+  "category": "浏览器元素操作",
   "icon": "fa-camera",
   "iconColor": "text-gray-700",
   "bgColor": "bg-gray-100",
@@ -25,7 +25,9 @@
       "group": "output"
     }
   ],
-  "categories": ["advanced"],
+  "categories": [
+    "advanced"
+  ],
   "handler": {
     "kind": "extension",
     "source": "extension/dom_handlers_new/takeScreenshot.js"

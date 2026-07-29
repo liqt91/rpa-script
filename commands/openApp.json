@@ -16,24 +16,78 @@
       "label": "选择软件",
       "type": "select",
       "options": [
-        { "label": "记事本", "value": "notepad" },
-        { "label": "计算器", "value": "calc" },
-        { "label": "画图", "value": "mspaint" },
-        { "label": "截图工具", "value": "snippingtool" },
-        { "label": "文件资源管理器", "value": "explorer" },
-        { "label": "命令提示符", "value": "cmd" },
-        { "label": "PowerShell", "value": "powershell" },
-        { "label": "任务管理器", "value": "taskmgr" },
-        { "label": "控制面板", "value": "control" },
-        { "label": "写字板", "value": "write" },
-        { "label": "字符映射表", "value": "charmap" },
-        { "label": "关于Windows", "value": "winver" },
-        { "label": "DirectX诊断", "value": "dxdiag" },
-        { "label": "注册表编辑器", "value": "regedit" },
-        { "label": "设备管理器", "value": "devmgmt" },
-        { "label": "磁盘管理", "value": "diskmgmt" },
-        { "label": "服务", "value": "services" },
-        { "label": "自定义程序", "value": "__custom__" }
+        {
+          "label": "记事本",
+          "value": "notepad"
+        },
+        {
+          "label": "计算器",
+          "value": "calc"
+        },
+        {
+          "label": "画图",
+          "value": "mspaint"
+        },
+        {
+          "label": "截图工具",
+          "value": "snippingtool"
+        },
+        {
+          "label": "文件资源管理器",
+          "value": "explorer"
+        },
+        {
+          "label": "命令提示符",
+          "value": "cmd"
+        },
+        {
+          "label": "PowerShell",
+          "value": "powershell"
+        },
+        {
+          "label": "任务管理器",
+          "value": "taskmgr"
+        },
+        {
+          "label": "控制面板",
+          "value": "control"
+        },
+        {
+          "label": "写字板",
+          "value": "write"
+        },
+        {
+          "label": "字符映射表",
+          "value": "charmap"
+        },
+        {
+          "label": "关于Windows",
+          "value": "winver"
+        },
+        {
+          "label": "DirectX诊断",
+          "value": "dxdiag"
+        },
+        {
+          "label": "注册表编辑器",
+          "value": "regedit"
+        },
+        {
+          "label": "设备管理器",
+          "value": "devmgmt"
+        },
+        {
+          "label": "磁盘管理",
+          "value": "diskmgmt"
+        },
+        {
+          "label": "服务",
+          "value": "services"
+        },
+        {
+          "label": "自定义程序",
+          "value": "__custom__"
+        }
       ],
       "default": "notepad"
     },
@@ -65,5 +119,8 @@
     "kind": "backend",
     "source": "src/runtime/commands/desktop_commands/openApp.py"
   },
-  "categories": ["desktop"]
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作win32"
 }

@@ -78,5 +78,6 @@
   "categories": [
     "element"
   ],
-  "cmd": "inputElement"
+  "cmd": "inputElement",
+  "category": "浏览器元素操作"
 }

@@ -90,5 +90,6 @@
   "handler": {
     "kind": "backend",
     "source": "src/runtime/commands/desktop_commands/findChild.py"
-  }
+  },
+  "category": "桌面操作win32"
 }

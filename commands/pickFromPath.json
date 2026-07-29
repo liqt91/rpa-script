@@ -38,5 +38,8 @@
     "kind": "backend",
     "source": "src/runtime/commands/desktop_commands/pickFromPath.py"
   },
-  "categories": ["desktop"]
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作win32"
 }

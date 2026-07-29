@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="waitForElement", label="等待元素出现",
-    category="页面操作", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-eye", icon_color="text-yellow-500",
     bg_color="bg-yellow-50",
     description="等待页面上的元素出现，轮询检测直到出现或超时",

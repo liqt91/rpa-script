@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="closeBrowser", label="关闭浏览器",
-    category="浏览器", runtime="extension",
+    category="浏览器操作", runtime="extension",
     icon="fa-window-close", icon_color="text-red-500",
     bg_color="bg-red-50",
     description="关闭指定的浏览器窗口",

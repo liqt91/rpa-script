@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="pressKey", label="按键",
-    category="页面操作", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-keyboard", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="向页面发送键盘按键。OS级keybd_event发送，页面按键和浏览器快捷键均可生效",

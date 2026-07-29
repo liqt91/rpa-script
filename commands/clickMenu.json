@@ -30,5 +30,8 @@
     "kind": "backend",
     "source": "src/runtime/commands/desktop_commands/clickMenu.py"
   },
-  "categories": ["desktop"]
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作win32"
 }

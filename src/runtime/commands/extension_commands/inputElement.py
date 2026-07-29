@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="inputElement", label="输入文本",
-    category="element", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-keyboard", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="在页面输入框中输入文本，可选输入完成后按回车",

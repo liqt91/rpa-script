@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="launchBrowser", label="打开浏览器",
-    category="浏览器", runtime="extension",
+    category="浏览器操作", runtime="extension",
     icon="fa-globe", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="启动浏览器并加载RPA扩展",

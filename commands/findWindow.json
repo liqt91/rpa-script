@@ -16,9 +16,18 @@
       "label": "查找方式",
       "type": "select",
       "options": [
-        { "label": "模糊匹配（标题包含）", "value": "fuzzy" },
-        { "label": "精确匹配（标题等于）", "value": "exact" },
-        { "label": "类名匹配", "value": "classname" }
+        {
+          "label": "模糊匹配（标题包含）",
+          "value": "fuzzy"
+        },
+        {
+          "label": "精确匹配（标题等于）",
+          "value": "exact"
+        },
+        {
+          "label": "类名匹配",
+          "value": "classname"
+        }
       ],
       "default": "fuzzy"
     },
@@ -47,5 +56,8 @@
     "kind": "backend",
     "source": "src/runtime/commands/desktop_commands/findWindow.py"
   },
-  "categories": ["desktop"]
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作win32"
 }

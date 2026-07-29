@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="takeScreenshot", label="截图",
-    category="高级", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-camera", icon_color="text-gray-700",
     bg_color="bg-gray-100",
     description="截取页面或元素的截图",

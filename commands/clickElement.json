@@ -66,5 +66,6 @@
   "categories": [
     "element"
   ],
-  "cmd": "clickElement"
+  "cmd": "clickElement",
+  "category": "浏览器元素操作"
 }

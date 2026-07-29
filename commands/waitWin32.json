@@ -16,8 +16,14 @@
       "label": "等待模式 (Win32)",
       "type": "select",
       "options": [
-        { "label": "固定时间 (Win32)", "value": "fixed" },
-        { "label": "随机时间 (Win32)", "value": "random" }
+        {
+          "label": "固定时间 (Win32)",
+          "value": "fixed"
+        },
+        {
+          "label": "随机时间 (Win32)",
+          "value": "random"
+        }
       ],
       "default": "fixed"
     },
@@ -49,5 +55,8 @@
     "kind": "backend",
     "source": "src/runtime/commands/desktop_commands/waitWin32.py"
   },
-  "categories": ["desktop"]
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作win32"
 }

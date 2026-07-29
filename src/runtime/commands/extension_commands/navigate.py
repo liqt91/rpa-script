@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="navigate", label="页面跳转",
-    category="浏览器", runtime="extension",
+    category="浏览器操作", runtime="extension",
     icon="fa-arrow-right", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="在指定浏览器窗口中跳转到新网址",

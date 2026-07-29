@@ -2,7 +2,7 @@
   "cmd": "switchTab",
   "label": "切换标签页",
   "runtime": "extension",
-  "category": "浏览器",
+  "category": "浏览器操作",
   "icon": "fa-exchange-alt",
   "iconColor": "text-blue-500",
   "bgColor": "bg-blue-50",
@@ -32,5 +32,7 @@
     "kind": "extension",
     "source": "extension/background_handlers/switchTab.js"
   },
-  "categories": ["browser"]
+  "categories": [
+    "browser"
+  ]
 }

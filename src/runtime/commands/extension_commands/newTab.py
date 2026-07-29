@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="newTab", label="新建标签页",
-    category="浏览器", runtime="extension",
+    category="浏览器操作", runtime="extension",
     icon="fa-plus-square", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="在指定浏览器窗口中新建标签页",

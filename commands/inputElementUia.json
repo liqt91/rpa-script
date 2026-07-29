@@ -11,9 +11,27 @@
   "enabled": true,
   "isNew": true,
   "params": [
-    { "name": "targetElement", "label": "目标控件 (UIA变量)", "type": "str-var", "required": true, "placeholder": "控件UIA对象变量，如 {{editElement}}" },
-    { "name": "text", "label": "输入内容", "type": "string", "required": true, "placeholder": "要输入的文本，支持 {{变量}} 引用" }
+    {
+      "name": "targetElement",
+      "label": "目标控件 (UIA变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "控件UIA对象变量，如 {{editElement}}"
+    },
+    {
+      "name": "text",
+      "label": "输入内容",
+      "type": "string",
+      "required": true,
+      "placeholder": "要输入的文本，支持 {{变量}} 引用"
+    }
   ],
-  "handler": { "kind": "backend", "source": "src/runtime/commands/desktop_commands/inputElementUia.py" },
-  "categories": ["desktop"]
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/inputElementUia.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作UIA"
 }

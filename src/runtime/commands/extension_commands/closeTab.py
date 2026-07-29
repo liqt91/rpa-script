@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="closeTab", label="关闭标签页",
-    category="浏览器", runtime="extension",
+    category="浏览器操作", runtime="extension",
     icon="fa-times", icon_color="text-orange-500",
     bg_color="bg-orange-50",
     description="关闭当前或指定的标签页",

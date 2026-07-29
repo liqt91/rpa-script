@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="getElementLink", label="获取超链接",
-    category="数据提取", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-link", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="获取指定元素的 href 链接地址",

@@ -11,8 +11,20 @@
   "enabled": true,
   "isNew": true,
   "params": [
-    { "name": "targetElement", "label": "目标控件 (UIA变量)", "type": "str-var", "required": true, "placeholder": "控件UIA对象变量，如 {{btnElement}}" }
+    {
+      "name": "targetElement",
+      "label": "目标控件 (UIA变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "控件UIA对象变量，如 {{btnElement}}"
+    }
   ],
-  "handler": { "kind": "backend", "source": "src/runtime/commands/desktop_commands/clickElementUia.py" },
-  "categories": ["desktop"]
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/clickElementUia.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作UIA"
 }

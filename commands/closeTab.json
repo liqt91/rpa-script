@@ -2,7 +2,7 @@
   "cmd": "closeTab",
   "label": "关闭标签页",
   "runtime": "extension",
-  "category": "浏览器",
+  "category": "浏览器操作",
   "icon": "fa-times",
   "iconColor": "text-orange-500",
   "bgColor": "bg-orange-50",
@@ -35,7 +35,9 @@
       "group": "advanced"
     }
   ],
-  "categories": ["browser"],
+  "categories": [
+    "browser"
+  ],
   "handler": {
     "kind": "extension",
     "source": "extension/background_handlers/closeTab.js"

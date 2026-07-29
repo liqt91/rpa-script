@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="clickElement", label="点击元素",
-    category="element", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-hand-pointer", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="点击页面上的一个元素",

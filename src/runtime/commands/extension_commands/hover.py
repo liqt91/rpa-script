@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="hover", label="鼠标悬停",
-    category="元素操作", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-hand-pointer", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="将鼠标悬停在指定元素上",

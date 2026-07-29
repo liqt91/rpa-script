@@ -2,7 +2,7 @@
   "cmd": "closeBrowser",
   "label": "关闭浏览器",
   "runtime": "extension",
-  "category": "浏览器",
+  "category": "浏览器操作",
   "icon": "fa-window-close",
   "iconColor": "text-red-500",
   "bgColor": "bg-red-50",
@@ -20,7 +20,9 @@
       "valueType": "window"
     }
   ],
-  "categories": ["browser"],
+  "categories": [
+    "browser"
+  ],
   "handler": {
     "kind": "extension",
     "source": "extension/background_handlers/closeBrowser.js"

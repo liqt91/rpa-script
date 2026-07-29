@@ -23,8 +23,14 @@
       "label": "查找方向",
       "type": "select",
       "options": [
-        { "label": "下一个 (→)", "value": "next" },
-        { "label": "上一个 (←)", "value": "prev" }
+        {
+          "label": "下一个 (→)",
+          "value": "next"
+        },
+        {
+          "label": "上一个 (←)",
+          "value": "prev"
+        }
       ],
       "default": "next"
     },
@@ -34,13 +40,34 @@
       "type": "select",
       "default": "Edit",
       "options": [
-        { "label": "Edit (输入框)", "value": "Edit" },
-        { "label": "Button (按钮)", "value": "Button" },
-        { "label": "ComboBox (下拉框)", "value": "ComboBox" },
-        { "label": "ComboBoxEx32", "value": "ComboBoxEx32" },
-        { "label": "Static (标签)", "value": "Static" },
-        { "label": "ListBox (列表框)", "value": "ListBox" },
-        { "label": "不筛选", "value": "" }
+        {
+          "label": "Edit (输入框)",
+          "value": "Edit"
+        },
+        {
+          "label": "Button (按钮)",
+          "value": "Button"
+        },
+        {
+          "label": "ComboBox (下拉框)",
+          "value": "ComboBox"
+        },
+        {
+          "label": "ComboBoxEx32",
+          "value": "ComboBoxEx32"
+        },
+        {
+          "label": "Static (标签)",
+          "value": "Static"
+        },
+        {
+          "label": "ListBox (列表框)",
+          "value": "ListBox"
+        },
+        {
+          "label": "不筛选",
+          "value": ""
+        }
       ]
     },
     {
@@ -62,5 +89,8 @@
     "kind": "backend",
     "source": "src/runtime/commands/desktop_commands/findSibling.py"
   },
-  "categories": ["desktop"]
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作win32"
 }

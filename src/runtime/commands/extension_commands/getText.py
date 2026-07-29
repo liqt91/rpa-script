@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="getText", label="获取文本",
-    category="data", runtime="extension",
+    category="浏览器元素操作", runtime="extension",
     icon="fa-font", icon_color="text-green-500",
     bg_color="bg-green-50",
     description="获取页面元素的文本内容",

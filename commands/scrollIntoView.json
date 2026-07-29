@@ -2,7 +2,7 @@
   "cmd": "scrollIntoView",
   "label": "滚动到元素",
   "runtime": "extension",
-  "category": "页面操作",
+  "category": "浏览器元素操作",
   "icon": "fa-arrow-down",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
@@ -23,14 +23,22 @@
       "label": "匹配范围",
       "type": "select",
       "options": [
-        {"label": "当前循环元素内", "value": "local"},
-        {"label": "全页面", "value": "global"}
+        {
+          "label": "当前循环元素内",
+          "value": "local"
+        },
+        {
+          "label": "全页面",
+          "value": "global"
+        }
       ],
       "default": "local",
       "group": "advanced"
     }
   ],
-  "categories": ["page"],
+  "categories": [
+    "page"
+  ],
   "handler": {
     "kind": "extension",
     "source": "extension/dom_handlers_new/scrollIntoView.js"

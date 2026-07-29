@@ -2,7 +2,7 @@
 from src.runtime.workflow.handlers.registry import register_handler, Param
 
 @register_handler(cmd="switchTab", label="切换标签页",
-    category="浏览器", runtime="extension",
+    category="浏览器操作", runtime="extension",
     icon="fa-exchange-alt", icon_color="text-blue-500",
     bg_color="bg-blue-50",
     description="切换到指定标签页。默认激活的；有 urlPattern 时匹配 URL",

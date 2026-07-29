@@ -2,7 +2,7 @@
   "cmd": "getElementLink",
   "label": "获取超链接",
   "runtime": "extension",
-  "category": "数据提取",
+  "category": "浏览器元素操作",
   "icon": "fa-link",
   "iconColor": "text-blue-500",
   "bgColor": "bg-blue-50",
@@ -24,8 +24,14 @@
       "label": "匹配范围",
       "type": "select",
       "options": [
-        {"label": "当前外层元素内", "value": "local"},
-        {"label": "全页面", "value": "global"}
+        {
+          "label": "当前外层元素内",
+          "value": "local"
+        },
+        {
+          "label": "全页面",
+          "value": "global"
+        }
       ],
       "default": "local",
       "group": "advanced"
