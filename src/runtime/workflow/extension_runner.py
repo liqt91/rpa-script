@@ -520,7 +520,7 @@ class ExtensionRunner:
 
     async def _ensure_connected(self) -> None:
         """Delay WebSocket binding until the first extension instruction.
-        Infers browser type from the current step (openBrowser extra.browserType),
+        Infers browser type from the current step (launchBrowser extra.browserType),
         defaulting to chrome. Sends runStarted on first connection.
         """
         if self.client_id:

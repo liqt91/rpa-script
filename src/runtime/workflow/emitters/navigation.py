@@ -1,13 +1,13 @@
 from ._registry import _handler, _py_str, _var_ref
 
 
-@_handler("openBrowser")
-def _emit_openBrowser(node, extra, depth, prefix, by_parent, lines, element_map=None):
+@_handler("launchBrowser")
+def _emit_launchBrowser(node, extra, depth, prefix, by_parent, lines, element_map=None):
     url = extra.get("url") or "about:blank"
     # The Python runner already connects to an existing Chrome via connect_chrome().
-    # openBrowser here just means "open a fresh tab"; we cannot switch browsers.
+    # launchBrowser here just means "open a fresh tab"; we cannot switch browsers.
     lines.append(
-        f"{prefix}tab = tab.new_tab({_py_str(url)})  # openBrowser"
+        f"{prefix}tab = tab.new_tab({_py_str(url)})  # launchBrowser"
     )
 
 

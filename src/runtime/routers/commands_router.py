@@ -307,10 +307,11 @@ def _analyze_command_recommendation(cmd_type: str, fields: list, is_container: b
         return {"needsRuntime": True, "handler": handler_guess, "local": False,
                 "reason": f"有 locator 字段，属于页面交互指令，推荐 handler={handler_guess}", "confidence": confidence}
 
-    # Rule 4: openBrowser is backend-only (launches browser + extension)
-    if cmd_type == "openBrowser":
-        return {"needsRuntime": True, "handler": "openBrowser", "local": True,
-                "reason": "openBrowser 由后端启动浏览器并加载扩展", "confidence": "high"}
+    # Rule 4: launchBrowser is an extension command with local pre-work
+    # (launches browser process, then dispatches to extension for tab open)
+    if cmd_type == "launchBrowser":
+        return {"needsRuntime": True, "handler": "launchBrowser", "local": False,
+                "reason": "launchBrowser 由后端启动浏览器进程，然后交给扩展打开新标签页", "confidence": "high"}
 
     # Rule 5: known navigation commands → browser execution
     nav_types = ("closeBrowser", "navigate", "newTab", "goBack", "goForward", "refresh")
