@@ -102,11 +102,12 @@ def _generic_extra_params(runtime: str) -> list:
 
 
 _CATEGORY_NAMES = {}  # slug -> Chinese name, loaded on first call
+_CATEGORY_ORDERS = {}  # slug -> sortOrder, loaded on first call
 
 
 def _load_category_names() -> dict:
     """Load category slug→name mapping from categories.json."""
-    global _CATEGORY_NAMES
+    global _CATEGORY_NAMES, _CATEGORY_ORDERS
     if not _CATEGORY_NAMES:
         path = ROOT / "src" / "runtime" / "commands" / "types" / "categories.json"
         try:
@@ -114,6 +115,7 @@ def _load_category_names() -> dict:
                 with open(path, encoding="utf-8") as f:
                     data = json.load(f)
                 _CATEGORY_NAMES = {c["slug"]: c["name"] for c in data.get("categories", [])}
+                _CATEGORY_ORDERS = {c["slug"]: c.get("sortOrder", 0) for c in data.get("categories", [])}
         except Exception:
             pass
     return _CATEGORY_NAMES
@@ -124,10 +126,17 @@ def _category_name(slug: str) -> str:
     return _load_category_names().get(slug, slug)
 
 
+def _category_order(slug: str) -> int:
+    """Map a category slug to its sortOrder."""
+    _load_category_names()
+    return _CATEGORY_ORDERS.get(slug, 999)
+
+
 def load_new_catalog() -> dict[str, Any]:
     """Return a command catalog shaped like /api/workflows/commands."""
     commands_by_cat: dict[str, list] = {}
     categories: list[str] = []
+    cat_slug_map: dict[str, str] = {}  # display name -> slug
     container_types: list[str] = []
     branch_types: list[str] = []
 
@@ -149,6 +158,7 @@ def load_new_catalog() -> dict[str, Any]:
             if name not in commands_by_cat:
                 commands_by_cat[name] = []
                 categories.append(name)
+                cat_slug_map[name] = cat
 
         rt_info = _runtime_info(d)
         is_structural = d.get("isContainer") or d.get("isBranch") or d.get("isStructural")
@@ -186,6 +196,9 @@ def load_new_catalog() -> dict[str, Any]:
     # Sort commands inside each category
     for cat in commands_by_cat:
         commands_by_cat[cat].sort(key=lambda c: (c["categoryOrder"], c["commandOrder"]))
+
+    # Sort categories by their sortOrder (via slug lookup)
+    categories.sort(key=lambda name: _category_order(cat_slug_map.get(name, "")))
 
     return {
         "categories": categories,
