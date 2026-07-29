@@ -393,32 +393,38 @@ export default function CommandEditor() {
           </div>
 
           {/* Grouped command list */}
-          {Object.entries(filtered).map(([cat, cmds]) => {
-            const isCol = collapsedGroups[cat];
-            return (
-              <div key={cat} className="mt-0.5">
-                <button
-                  onClick={() => setCollapsedGroups(g => ({...g, [cat]: !isCol}))}
-                  className="w-full text-left px-2 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-300 flex items-center gap-1"
-                >
-                  <span className="text-[10px]">{isCol ? '▸' : '▾'}</span>
-                  {cat}
-                  <span className="text-gray-600 ml-auto">{cmds.length}</span>
-                </button>
-                {!isCol && cmds.map((d, i) => {
-                  const isCur = selected && selected.cmd === d.cmd;
-                  return (
-                    <button key={d.cmd || d.label || i} onClick={() => selectDef(d)}
-                      className={`w-full text-left pl-5 pr-2 py-1 rounded text-xs transition-colors ${
-                        isCur ? 'bg-blue-600/30 text-blue-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
-                      {d.label}
-                      <span className="text-gray-600 ml-1">{d.cmd}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })}
+          {(() => {
+            const catOrder = {};
+            for (const c of categories) { catOrder[c.name] = c.sortOrder || 999; }
+            const sortedCats = Object.keys(filtered).sort((a, b) => (catOrder[a] || 999) - (catOrder[b] || 999));
+            return sortedCats.map(cat => {
+              const cmds = [...filtered[cat]].sort((a, b) => (a.commandOrder || 0) - (b.commandOrder || 0));
+              const isCol = collapsedGroups[cat];
+              return (
+                <div key={cat} className="mt-0.5">
+                  <button
+                    onClick={() => setCollapsedGroups(g => ({...g, [cat]: !isCol}))}
+                    className="w-full text-left px-2 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-300 flex items-center gap-1"
+                  >
+                    <span className="text-[10px]">{isCol ? '▸' : '▾'}</span>
+                    {cat}
+                    <span className="text-gray-600 ml-auto">{cmds.length}</span>
+                  </button>
+                  {!isCol && cmds.map((d, i) => {
+                    const isCur = selected && selected.cmd === d.cmd;
+                    return (
+                      <button key={d.cmd || d.label || i} onClick={() => selectDef(d)}
+                        className={`w-full text-left pl-5 pr-2 py-1 rounded text-xs transition-colors ${
+                          isCur ? 'bg-blue-600/30 text-blue-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
+                        {d.label}
+                        <span className="text-gray-600 ml-1">{d.cmd}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            });
+          })()}
         </div>
         <div className="px-2 py-2 border-t border-gray-700">
           <button onClick={runBuild}
