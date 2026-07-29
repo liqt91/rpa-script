@@ -1,0 +1,22 @@
+{
+  "cmd": "try",
+  "label": "尝试执行",
+  "runtime": "control",
+  "icon": "fa-shield-alt",
+  "iconColor": "text-red-500",
+  "bgColor": "bg-red-50",
+  "categoryOrder": 48,
+  "commandOrder": 10,
+  "description": "尝试执行内部指令，出错时跳到 catch 分支",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "closesWith": "endTry",
+  "params": [],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/try.py"
+  },
+  "categories": ["exception"],
+  "category": "异常处理"
+}

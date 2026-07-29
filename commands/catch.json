@@ -1,0 +1,30 @@
+{
+  "cmd": "catch",
+  "label": "捕获异常",
+  "runtime": "control",
+  "icon": "fa-exclamation-triangle",
+  "iconColor": "text-red-500",
+  "bgColor": "bg-red-50",
+  "categoryOrder": 48,
+  "commandOrder": 20,
+  "description": "捕获 try 分支中的异常，保存错误信息到变量",
+  "enabled": true,
+  "isNew": true,
+  "isContainer": true,
+  "isBranch": true,
+  "params": [
+    {
+      "name": "errorVar",
+      "label": "错误信息保存到",
+      "type": "str-var",
+      "default": "error",
+      "group": "output"
+    }
+  ],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/catch.py"
+  },
+  "categories": ["exception"],
+  "category": "异常处理"
+}

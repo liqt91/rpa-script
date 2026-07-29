@@ -6,6 +6,7 @@
     {"slug": "variable", "name": "变量及日志", "icon": "fa-code", "sortOrder": 30},
     {"slug": "loop", "name": "循环", "icon": "fa-sync", "sortOrder": 40},
     {"slug": "condition", "name": "条件判断", "icon": "fa-code-branch", "sortOrder": 45},
+    {"slug": "exception", "name": "异常处理", "icon": "fa-shield-halved", "sortOrder": 48},
     {"slug": "desktop-win32", "name": "桌面操作win32", "icon": "fa-desktop", "sortOrder": 50},
     {"slug": "desktop-uia", "name": "桌面操作UIA", "icon": "fa-window-maximize", "sortOrder": 60}
   ]

@@ -1,0 +1,21 @@
+{
+  "cmd": "endTry",
+  "label": "结束异常处理",
+  "runtime": "control",
+  "icon": "fa-level-up-alt",
+  "iconColor": "text-gray-400",
+  "bgColor": "bg-gray-50",
+  "categoryOrder": 48,
+  "commandOrder": 99,
+  "description": "标记异常处理块结束",
+  "enabled": true,
+  "isNew": true,
+  "isStructural": true,
+  "params": [],
+  "handler": {
+    "kind": "control",
+    "source": "src/runtime/commands/control_commands/endTry.py"
+  },
+  "categories": ["exception"],
+  "category": "异常处理"
+}
