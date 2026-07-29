@@ -60,25 +60,10 @@
   ],
   "handler": {
     "kind": "backend",
-    "source": "src/runtime/commands/backend_commands/setVar.py"
+    "source": "handlers/backend/set_var_impl.py"
   },
   "categories": [
     "variable"
   ],
-  "cmd": "setVar",
-  "testTemplates": [
-    {
-      "name": "设置数字变量",
-      "description": "设置一个数字变量并打印",
-      "params": {
-        "varName": "count",
-        "value": "42",
-        "valueType": "number"
-      },
-      "nodes": [
-        {"cmd": "setVar", "order": 1, "extra": {"name": "{{varName}}", "value": "{{value}}", "valueType": "{{valueType}}"}},
-        {"cmd": "log", "order": 2, "extra": {"message": "count = {{count}}"}}
-      ]
-    }
-  ]
+  "cmd": "setVar"
 }

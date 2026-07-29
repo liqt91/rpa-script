@@ -5,6 +5,5 @@
   "icon": "fa-right-to-bracket",
   "iconColor": "text-gray-400",
   "isStructural": true,
-  "description": "标记循环体结束（自动由循环指令添加）",
-  "isNew": true
+  "description": "标记循环体结束（自动由循环指令添加）"
 }

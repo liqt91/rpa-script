@@ -23,25 +23,16 @@
       "label": "匹配范围",
       "type": "select",
       "options": [
-        {
-          "label": "当前循环元素内",
-          "value": "local"
-        },
-        {
-          "label": "全页面",
-          "value": "global"
-        }
+        {"label": "当前循环元素内", "value": "local"},
+        {"label": "全页面", "value": "global"}
       ],
       "default": "local",
       "group": "advanced"
     }
   ],
-  "categories": [
-    "interaction"
-  ],
+  "categories": ["interaction"],
   "handler": {
     "kind": "extension",
     "source": "extension/dom_handlers_new/hover.js"
-  },
-  "isNew": true
+  }
 }

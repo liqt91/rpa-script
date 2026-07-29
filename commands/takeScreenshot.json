@@ -25,12 +25,9 @@
       "group": "output"
     }
   ],
-  "categories": [
-    "advanced"
-  ],
+  "categories": ["advanced"],
   "handler": {
     "kind": "extension",
     "source": "extension/dom_handlers_new/takeScreenshot.js"
-  },
-  "isNew": true
+  }
 }

@@ -35,12 +35,9 @@
       "group": "advanced"
     }
   ],
-  "categories": [
-    "browser"
-  ],
+  "categories": ["browser"],
   "handler": {
     "kind": "extension",
     "source": "extension/background_handlers/closeTab.js"
-  },
-  "isNew": true
+  }
 }

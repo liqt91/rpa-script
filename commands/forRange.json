@@ -11,30 +11,9 @@
   "closesWith": "endLoop",
   "description": "循环指定次数，从起始值到结束值",
   "params": [
-    {
-      "name": "start",
-      "label": "起始值",
-      "type": "number",
-      "default": 0
-    },
-    {
-      "name": "end",
-      "label": "结束值",
-      "type": "number",
-      "required": true
-    },
-    {
-      "name": "step",
-      "label": "步长",
-      "type": "number",
-      "default": 1
-    },
-    {
-      "name": "itemVar",
-      "label": "当前值变量",
-      "type": "string",
-      "default": "i"
-    }
-  ],
-  "isNew": true
+    {"name": "start", "label": "起始值", "type": "number", "default": 0},
+    {"name": "end", "label": "结束值", "type": "number", "required": true},
+    {"name": "step", "label": "步长", "type": "number", "default": 1},
+    {"name": "itemVar", "label": "当前值变量", "type": "string", "default": "i"}
+  ]
 }

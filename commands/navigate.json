@@ -38,8 +38,5 @@
     "kind": "extension",
     "source": "extension/background_handlers/navigate.js"
   },
-  "categories": [
-    "browser"
-  ],
-  "isNew": true
+  "categories": ["browser"]
 }

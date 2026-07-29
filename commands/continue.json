@@ -5,6 +5,5 @@
   "icon": "fa-forward",
   "iconColor": "text-orange-500",
   "commandOrder": 51,
-  "description": "跳过当前循环剩余指令，进入下一次迭代",
-  "isNew": true
+  "description": "跳过当前循环剩余指令，进入下一次迭代"
 }
