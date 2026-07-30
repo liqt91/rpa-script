@@ -2233,9 +2233,9 @@
     const rect = lockedElement.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     highlightCtx.save();
-    highlightCtx.strokeStyle = '#ff4444';
-    highlightCtx.lineWidth = 2 * dpr;
-    highlightCtx.fillStyle = 'rgba(255, 68, 68, 0.08)';
+    highlightCtx.strokeStyle = '#3b82f6';
+    highlightCtx.lineWidth = 3 * dpr;
+    highlightCtx.fillStyle = 'rgba(59, 130, 246, 0.10)';
     highlightCtx.fillRect(rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
     highlightCtx.strokeRect(rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
     // label
@@ -2246,9 +2246,10 @@
     const text = tag + (lockedElement.id ? '#' + lockedElement.id : '') + (cls ? '.' + cls : '');
     highlightCtx.font = (11 * dpr) + 'px monospace';
     const tw = highlightCtx.measureText(text).width;
-    const pad = 3 * dpr;
-    highlightCtx.fillStyle = '#ff4444';
-    highlightCtx.fillRect((rect.left + 2) * dpr, (rect.top - 16) * dpr, tw + pad * 2, 14 * dpr);
+    const pad = 4 * dpr;
+    const labelH = 15 * dpr;
+    highlightCtx.fillStyle = '#3b82f6';
+    highlightCtx.fillRect((rect.left + 2) * dpr, (rect.top - labelH - 2) * dpr, tw + pad * 2, labelH);
     highlightCtx.fillStyle = '#fff';
     highlightCtx.fillText(text, (rect.left + 2 + pad) * dpr, (rect.top - 5) * dpr);
     highlightCtx.restore();
@@ -2499,9 +2500,10 @@
     e.stopPropagation();
     const el = lockedElement;
     if (!el) {
-      showToast('没有可捕获的元素');
+      showToast('没有可捕获的元素', 'error');
       return;
     }
+    flashCaptureSuccess(el);
     exitCaptureMode();
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     await performCapture(el);
@@ -2876,21 +2878,47 @@
 
   // ─── Toast ───────────────────────────────────────────────────────
 
-  function showToast(message) {
+  function showToast(message, type = 'info') {
     const existing = document.getElementById('rpa-capture-toast');
     if (existing) existing.remove();
+    const colors = { info: '#1e40af', success: '#059669', error: '#dc2626' };
     const toast = document.createElement('div');
     toast.id = 'rpa-capture-toast';
     toast.style.cssText = `
-      position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
-      background: rgba(0,0,0,0.8); color: #fff; padding: 10px 16px;
-      border-radius: 6px; font-size: 13px; font-family: system-ui, sans-serif;
-      max-width: 400px; word-break: break-word; pointer-events: none;
-      transition: opacity 0.3s;
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 2147483647; background: ${colors[type] || colors.info};
+      color: #fff; padding: 10px 24px; border-radius: 8px;
+      font-size: 14px; font-family: system-ui, -apple-system, sans-serif;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25); pointer-events: none;
+      transition: opacity 0.3s; white-space: nowrap;
     `;
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2500);
+  }
+
+  // ─── Green flash on capture success ────────────────────────────────
+
+  function flashCaptureSuccess(el) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const flash = document.createElement('div');
+    flash.style.cssText = `
+      position: fixed; pointer-events: none; z-index: 2147483646;
+      left: ${rect.left - 1}px; top: ${rect.top - 1}px;
+      width: ${rect.width + 2}px; height: ${rect.height + 2}px;
+      border: 3px solid #22c55e; background: rgba(34, 197, 94, 0.25);
+      border-radius: 4px;
+      animation: rpa-capture-flash 0.3s ease-out forwards;
+    `;
+    if (!document.getElementById('rpa-capture-flash-style')) {
+      const s = document.createElement('style');
+      s.id = 'rpa-capture-flash-style';
+      s.textContent = '@keyframes rpa-capture-flash{0%{opacity:1}100%{opacity:0;transform:scale(1.02)}}';
+      document.head.appendChild(s);
+    }
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 350);
   }
 
   // ─── Keyboard shortcuts ──────────────────────────────────────────

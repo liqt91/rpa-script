@@ -16,7 +16,11 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from src.runtime.workflow.handlers.registry import build_command_registry
+from src.runtime.commands import auto_register   # 注册新体系指令 (commands/*.json → handler)
 from scripts.desktop_editor import db
+
+# 确保新体系指令在 registry 中可用
+auto_register()
 
 _server_started = False
 _server_lock = threading.Lock()
@@ -60,14 +64,23 @@ class DesktopEditor:
         self._runner = None
         self._run_queue: asyncio.Queue | None = None
 
+        # 拖拽状态
+        self._drag_source: str | None = None
+        self._drag_item: str | None = None
+        self._drag_cmd_type: str | None = None
+        self._drag_start_y: int = 0
+
         self._build_ui()
         self._refresh_workflow_list()
         self._refresh_command_tree("")
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # 后台启动 FastAPI（WebSocket 托管）
+        # 后台启动 WS 服务器（浏览器扩展通信）
         threading.Thread(target=_ensure_server, daemon=True).start()
+
+        # 注册 Native Messaging Host（Chrome/Edge 免配置自动连接）
+        self._register_native_host()
 
     # ═══════════════════════════════════════════════════════════
     # UI Layout
@@ -127,15 +140,16 @@ class DesktopEditor:
 
         self._cmd_tree = ttk.Treeview(frame, show="tree", selectmode="browse")
         self._cmd_tree.pack(fill=tk.BOTH, expand=True)
+        self._cmd_tree.bind("<ButtonPress-1>", lambda e: self._on_drag_start(e, "cmd_panel"))
 
-        ttk.Button(frame, text="➕ 添加到工作流",
+        ttk.Button(frame, text="+ 添加到工作流",
                    command=self._add_selected_command).pack(fill=tk.X, pady=(6, 0))
 
     def _build_node_list(self, paned):
         frame = ttk.Frame(paned)
         paned.add(frame, weight=1)
 
-        ttk.Label(frame, text="步骤", font=("", 10, "bold")).pack(anchor=tk.W, pady=(0, 4))
+        ttk.Label(frame, text="步骤 (拖拽排序)", font=("", 10, "bold")).pack(anchor=tk.W, pady=(0, 4))
 
         columns = ("order", "cmd", "summary")
         self._node_tree = ttk.Treeview(frame, columns=columns, show="headings",
@@ -149,12 +163,15 @@ class DesktopEditor:
         self._node_tree.pack(fill=tk.BOTH, expand=True)
 
         self._node_tree.bind("<<TreeviewSelect>>", self._on_node_select)
+        self._node_tree.bind("<ButtonPress-1>", lambda e: self._on_drag_start(e, "node_list"))
+        self._node_tree.bind("<B1-Motion>", self._on_drag_motion)
+        self._node_tree.bind("<ButtonRelease-1>", self._on_drag_stop)
 
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(fill=tk.X, pady=(4, 0))
-        ttk.Button(btn_frame, text="⬆ 上移", command=lambda: self._move_node(-1)).pack(side=tk.LEFT)
-        ttk.Button(btn_frame, text="⬇ 下移", command=lambda: self._move_node(1)).pack(side=tk.LEFT, padx=4)
-        ttk.Button(btn_frame, text="🗑 删除步骤", command=self._remove_node).pack(side=tk.LEFT)
+        ttk.Button(btn_frame, text="^ 上移", command=lambda: self._move_node(-1)).pack(side=tk.LEFT)
+        ttk.Button(btn_frame, text="v 下移", command=lambda: self._move_node(1)).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btn_frame, text="X 删除步骤", command=self._remove_node).pack(side=tk.LEFT)
 
     def _build_property_panel(self, paned):
         self._prop_frame = ttk.LabelFrame(paned, text="属性", padding=8, width=280)
@@ -162,6 +179,7 @@ class DesktopEditor:
 
         self._prop_widgets: dict[str, tk.Widget] = {}
         self._prop_vars: dict[str, tk.StringVar] = {}
+        self._prop_label_maps: dict[str, dict[str, str]] = {}  # name -> {label: value}
         self._current_node_id: int | None = None
 
         ttk.Label(self._prop_frame, text="选择一个步骤查看属性",
@@ -280,6 +298,9 @@ class DesktopEditor:
                     extra = json.loads(extra)
                 except Exception:
                     extra = {}
+            # 兼容旧格式: {"extra": {"browserType": ...}} 展开内层
+            if isinstance(extra, dict) and "extra" in extra and isinstance(extra["extra"], dict):
+                extra = extra["extra"]
             cmd_label = self._command_registry.get(node.cmd, {}).get("label", node.cmd)
             summary = self._make_summary(node.cmd, extra)
             iid = str(node.id)
@@ -403,11 +424,29 @@ class DesktopEditor:
                 self._prop_widgets[name] = bool_var
             elif ftype == "select" or ftype == "str-dropdown":
                 options = field.get("options", [])
-                values = [o["label"] if isinstance(o, dict) else o for o in options]
-                combo = ttk.Combobox(self._prop_frame, textvariable=var, values=values,
+                # 构建 label->value 映射，保存时转回 value
+                label_to_value = {}
+                if (isinstance(options, list) and options
+                        and isinstance(options[0], dict) and "value" in options[0]):
+                    for o in options:
+                        label_to_value[o["label"]] = o["value"]
+                    labels = list(label_to_value.keys())
+                    # 当前存储的值 -> 匹配对应的 label
+                    display = val
+                    for lb, v in label_to_value.items():
+                        if v == val:
+                            display = lb
+                            break
+                    var.set(str(display) if display else "")
+                else:
+                    labels = [o["label"] if isinstance(o, dict) else o for o in options]
+
+                combo = ttk.Combobox(self._prop_frame, textvariable=var, values=labels,
                                       state="readonly", width=24)
                 combo.grid(row=row, column=1, sticky=tk.W, pady=2)
                 self._prop_widgets[name] = var
+                if label_to_value:
+                    self._prop_label_maps[name] = label_to_value
             elif ftype in ("text", "string", "str-input", "str-var", "number", "int-number"):
                 w = ttk.Entry(self._prop_frame, textvariable=var, width=26)
                 w.grid(row=row, column=1, sticky=tk.EW, pady=2)
@@ -431,23 +470,33 @@ class DesktopEditor:
         if self._current_node_id is None:
             return
 
-        extra = {}
-        for name, widget in self._prop_widgets.items():
-            if isinstance(widget, tk.BooleanVar):
-                extra[name] = widget.get()
-            else:
-                val = widget.get()
-                extra[name] = val
+        try:
+            extra = {}
+            for name, widget in self._prop_widgets.items():
+                if isinstance(widget, tk.BooleanVar):
+                    extra[name] = widget.get()
+                else:
+                    val = widget.get()
+                    if name in self._prop_label_maps:
+                        val = self._prop_label_maps[name].get(val, val)
+                    extra[name] = val
 
-        db.update_node(self._current_node_id, extra={"extra": extra})
-        self._refresh_node_list()
-        self._set_status("已保存")
+            print("[DEBUG] saving extra:", extra)
+            db.update_node(self._current_node_id, extra={"extra": extra})
+            self._refresh_node_list()
+            self._set_status("已保存")
+            print("[DEBUG] save done, node_id:", self._current_node_id)
+        except Exception as e:
+            messagebox.showerror("保存失败", str(e))
+            import traceback
+            traceback.print_exc()
 
     def _clear_properties(self):
-        for w in self._prop_frame.grid_slaves():
-            w.grid_forget()
+        for w in self._prop_frame.winfo_children():
+            w.destroy()
         self._prop_widgets.clear()
         self._prop_vars.clear()
+        self._prop_label_maps.clear()
 
     # ═══════════════════════════════════════════════════════════
     # Run / Stop
@@ -556,6 +605,141 @@ class DesktopEditor:
         self._log_text.see(tk.END)
         self._log_text.configure(state=tk.DISABLED)
         self.root.update_idletasks()
+
+    def _register_native_host(self):
+        """注册 Native Messaging Host，让 Chrome/Edge 扩展免配置连接。"""
+        try:
+            from scripts.register_native_host import register_all
+            register_all()
+            self._log_append("[Native Host] 已注册到 Chrome/Edge")
+        except Exception as e:
+            self._log_append(f"[Native Host] 注册失败: {e}")
+
+    # ═══════════════════════════════════════════════════════════
+    # Drag & Drop
+    # ═══════════════════════════════════════════════════════════
+
+    def _drag_create_ghost(self, text: str):
+        """半透明 ghost 窗口跟随光标。"""
+        g = tk.Toplevel(self.root)
+        g.overrideredirect(True)
+        g.attributes("-alpha", 0.80)
+        g.attributes("-topmost", True)
+        tk.Label(g, text=text, bg="#2563eb", fg="white",
+                 font=("Microsoft YaHei UI", 10), padx=10, pady=4).pack()
+        self._drag_ghost = g
+
+    def _drag_move_ghost(self, x: int, y: int):
+        if hasattr(self, "_drag_ghost") and self._drag_ghost:
+            try:
+                self._drag_ghost.geometry(f"+{x+14}+{y+14}")
+            except Exception:
+                pass
+
+    def _drag_destroy_ghost(self):
+        if hasattr(self, "_drag_ghost") and self._drag_ghost:
+            try:
+                self._drag_ghost.destroy()
+            except Exception:
+                pass
+            self._drag_ghost = None
+
+    def _drag_hl_clear(self, tree):
+        """清除目标高亮。"""
+        if hasattr(self, "_drag_hl_item") and self._drag_hl_item:
+            try:
+                tree.item(self._drag_hl_item, tags=())
+            except Exception:
+                pass
+            self._drag_hl_item = None
+
+    def _drag_hl_set(self, tree, item):
+        """高亮目标行（蓝色背景）。"""
+        self._drag_hl_clear(tree)
+        if item:
+            tree.tag_configure("drop_hl", background="#dbeafe")
+            tree.item(item, tags=("drop_hl",))
+            self._drag_hl_item = item
+
+    def _on_drag_start(self, event, source: str):
+        if source == "cmd_panel":
+            item = self._cmd_tree.identify_row(event.y)
+            if not item:
+                return
+            vals = self._cmd_tree.item(item, "values")
+            if not vals or not vals[0]:
+                return
+            self._drag_source = "cmd_panel"
+            self._drag_cmd_type = vals[0]
+            label = self._command_registry.get(self._drag_cmd_type, {}).get("label", self._drag_cmd_type)
+            self._drag_create_ghost(f"+ {label}")
+        else:
+            item = event.widget.identify_row(event.y)
+            if not item:
+                return
+            self._drag_source = "node_list"
+            self._drag_item = item
+            info = self._codemap.get(item, {})
+            label = self._command_registry.get(info.get("cmd", ""), {}).get("label", "")
+            self._drag_create_ghost(f"  {label}")
+        self._drag_start_y = event.y_root
+
+    def _on_drag_motion(self, event):
+        if not self._drag_source:
+            return
+        if abs(event.y_root - self._drag_start_y) < 3:
+            return
+
+        self._drag_move_ghost(event.x_root, event.y_root)
+
+        if self._drag_source == "node_list":
+            target = event.widget.identify_row(event.y)
+            if target == self._drag_item:
+                target = None
+            self._drag_hl_set(event.widget, target)
+
+    def _on_drag_stop(self, event):
+        self._drag_destroy_ghost()
+        source = self._drag_source
+
+        if source == "node_list":
+            self._drag_hl_clear(event.widget)
+            if self._drag_item and self._current_wf_id:
+                nodes = db.get_nodes(self._current_wf_id)
+                info = self._codemap.get(self._drag_item)
+                if info:
+                    drag_idx = next((i for i, n in enumerate(nodes) if n.id == info["id"]), -1)
+                    if drag_idx >= 0:
+                        y_rel = event.y_root - event.widget.winfo_rooty()
+                        target = event.widget.identify_row(y_rel)
+                        children = event.widget.get_children("")
+                        if target and target in children and target != self._drag_item:
+                            target_idx = children.index(target)
+                            node_ids = [n.id for n in nodes]
+                            moved = node_ids.pop(drag_idx)
+                            insert_at = target_idx + 1 if target_idx >= drag_idx else target_idx
+                            node_ids.insert(insert_at, moved)
+                            db.reorder_nodes(self._current_wf_id, node_ids)
+                            self._refresh_node_list()
+
+        elif source == "cmd_panel" and self._drag_cmd_type and self._current_wf_id:
+            node = db.add_node(self._current_wf_id, self._drag_cmd_type)
+            y_rel = event.y_root - self._node_tree.winfo_rooty()
+            target = self._node_tree.identify_row(y_rel)
+            if target:
+                info = self._codemap.get(target)
+                if info:
+                    nodes = db.get_nodes(self._current_wf_id)
+                    target_idx = next((i for i, n in enumerate(nodes) if n.id == info["id"]), len(nodes) - 1)
+                    node_ids = [n.id for n in nodes if n.id != node.id]
+                    node_ids.insert(target_idx + 1, node.id)
+                    db.reorder_nodes(self._current_wf_id, node_ids)
+            self._refresh_node_list()
+            self._refresh_workflow_list()
+
+        self._drag_source = None
+        self._drag_item = None
+        self._drag_cmd_type = None
 
     def _on_close(self):
         self.root.destroy()

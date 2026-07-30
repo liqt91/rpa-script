@@ -72,6 +72,9 @@ def _parse_extra(node: models.WorkflowNode) -> dict:
             extra = {}
     else:
         extra = node.extra or {}
+    # 兼容旧格式: {"extra": {"browserType": ...}} 展开内层
+    if isinstance(extra, dict) and "extra" in extra and isinstance(extra["extra"], dict):
+        extra = extra["extra"]
     return _apply_defaults(node.cmd, extra)
 
 

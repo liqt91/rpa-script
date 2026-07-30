@@ -1,0 +1,10 @@
+{
+  "name": "com.rpa.host",
+  "description": "RPA Script Native Messaging Host",
+  "path": "D:\\Users\\Administrator\\Documents\\代码\\rpa_script\\.venv\\Scripts\\python.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://bokpcehmmkemnfhjbnpfphpblcbfcpce/",
+    "extension://bokpcehmmkemnfhjbnpfphpblcbfcpce/"
+  ]
+}

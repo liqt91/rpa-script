@@ -36,6 +36,8 @@ class LaunchBrowserHandler:
         logger = logging.getLogger(__name__)
         extra = instr.get("extra") or {}
         browser_type = extra.get("browserType", "chrome")
+        logger.info(f"[launchBrowser] browserType from extra: {browser_type!r}, full extra: {extra!r}")
+        print(f"[DEBUG launchBrowser] browserType={browser_type!r}, extra={extra!r}")
 
         if not is_browser_running(browser_type):
             logger.info(f"[{browser_type}] 启动浏览器...")
