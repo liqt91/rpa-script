@@ -1,0 +1,480 @@
+{
+  "version": 1,
+  "elements": [
+    {
+      "name": "FolderView",
+      "element_type": "win32",
+      "class_name": "SysListView32",
+      "title": "FolderView",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": 1080,
+        "width": 1920,
+        "height": 2160
+      },
+      "control_type": "ListItemControl",
+      "automation_id": "",
+      "uia_path": [
+        {
+          "name": "Program Manager",
+          "class_name": "Progman",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "name": "",
+          "class_name": "SHELLDLL_DefView",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "name": "桌面",
+          "class_name": "SysListView32",
+          "control_type": "ListControl",
+          "automation_id": "1",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "name": "WorkBuddy",
+          "class_name": "",
+          "control_type": "ListItemControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": 130,
+            "right": 75,
+            "bottom": 221,
+            "width": 75,
+            "height": 91
+          }
+        }
+      ],
+      "win32_path": [
+        {
+          "hwnd": 65936,
+          "class_name": "Progman",
+          "title": "Program Manager",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "hwnd": 196646,
+          "class_name": "SHELLDLL_DefView",
+          "title": "",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "hwnd": 65938,
+          "class_name": "SysListView32",
+          "title": "FolderView",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": ""
+    },
+    {
+      "name": "FolderView",
+      "element_type": "win32",
+      "class_name": "SysListView32",
+      "title": "FolderView",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": 1080,
+        "width": 1920,
+        "height": 2160
+      },
+      "control_type": "ListItemControl",
+      "automation_id": "",
+      "uia_path": [
+        {
+          "name": "桌面 1",
+          "class_name": "#32769",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "name": "Program Manager",
+          "class_name": "Progman",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "name": "",
+          "class_name": "SHELLDLL_DefView",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "name": "桌面",
+          "class_name": "SysListView32",
+          "control_type": "ListControl",
+          "automation_id": "1",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "name": "HeidiSQL",
+          "class_name": "",
+          "control_type": "ListItemControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": 755,
+            "right": 75,
+            "bottom": 846,
+            "width": 75,
+            "height": 91
+          }
+        }
+      ],
+      "win32_path": [
+        {
+          "hwnd": 65936,
+          "class_name": "Progman",
+          "title": "Program Manager",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "hwnd": 196646,
+          "class_name": "SHELLDLL_DefView",
+          "title": "",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        },
+        {
+          "hwnd": 65938,
+          "class_name": "SysListView32",
+          "title": "FolderView",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 2160
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": ""
+    },
+    {
+      "name": "栀年 - 小红书 和另外 15 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "element_type": "web",
+      "class_name": "Chrome_WidgetWin_1",
+      "title": "栀年 - 小红书 和另外 15 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": -40,
+        "width": 1920,
+        "height": 1040
+      },
+      "control_type": "TabItemControl",
+      "automation_id": "view_24",
+      "uia_path": [
+        {
+          "name": "",
+          "class_name": "ScrollView",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": -1000,
+            "right": 236,
+            "bottom": -428,
+            "width": 236,
+            "height": 572
+          }
+        },
+        {
+          "name": "",
+          "class_name": "ScrollView::Viewport",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": -1000,
+            "right": 236,
+            "bottom": -428,
+            "width": 236,
+            "height": 572
+          }
+        },
+        {
+          "name": "",
+          "class_name": "View",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 0,
+            "top": -1000,
+            "right": 231,
+            "bottom": -428,
+            "width": 231,
+            "height": 572
+          }
+        },
+        {
+          "name": "栀年 - 小红书",
+          "class_name": "EdgeTab",
+          "control_type": "TabItemControl",
+          "automation_id": "view_24",
+          "rect": {
+            "left": 4,
+            "top": -964,
+            "right": 231,
+            "bottom": -932,
+            "width": 227,
+            "height": 32
+          }
+        }
+      ],
+      "win32_path": [
+        {
+          "hwnd": 329122,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "栀年 - 小红书 和另外 15 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": ""
+    },
+    {
+      "name": "Chrome Legacy Window",
+      "element_type": "web",
+      "class_name": "Chrome_RenderWidgetHostHWND",
+      "title": "Chrome Legacy Window",
+      "rect": {
+        "left": 237,
+        "top": -1040,
+        "right": 1916,
+        "bottom": -44,
+        "width": 1679,
+        "height": 996
+      },
+      "control_type": "GroupControl",
+      "automation_id": "",
+      "uia_path": [
+        {
+          "name": "",
+          "class_name": "ai-layout-active",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 237,
+            "top": -1040,
+            "right": 1916,
+            "bottom": 2961,
+            "width": 1679,
+            "height": 4001
+          }
+        },
+        {
+          "name": "",
+          "class_name": "ai-layout-active",
+          "control_type": "GroupControl",
+          "automation_id": "app",
+          "rect": {
+            "left": 237,
+            "top": -1040,
+            "right": 1916,
+            "bottom": 2961,
+            "width": 1679,
+            "height": 4001
+          }
+        },
+        {
+          "name": "",
+          "class_name": "layout ai-layout limit",
+          "control_type": "GroupControl",
+          "automation_id": "global",
+          "rect": {
+            "left": 237,
+            "top": -1040,
+            "right": 1916,
+            "bottom": 2961,
+            "width": 1679,
+            "height": 4001
+          }
+        },
+        {
+          "name": "",
+          "class_name": "feeds-container",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 359,
+            "top": -872,
+            "right": 1884,
+            "bottom": 2897,
+            "width": 1525,
+            "height": 3769
+          }
+        },
+        {
+          "name": "",
+          "class_name": "note-item",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 668,
+            "top": -872,
+            "right": 953,
+            "bottom": -388,
+            "width": 285,
+            "height": 484
+          }
+        },
+        {
+          "name": "",
+          "class_name": "like-wrapper like-active",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 915,
+            "top": -425,
+            "right": 941,
+            "bottom": -408,
+            "width": 26,
+            "height": 17
+          }
+        }
+      ],
+      "win32_path": [
+        {
+          "hwnd": 329122,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "东方财富 - 小红书搜索 和另外 14 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        },
+        {
+          "hwnd": 27134192,
+          "class_name": "Chrome_RenderWidgetHostHWND",
+          "title": "Chrome Legacy Window",
+          "rect": {
+            "left": 237,
+            "top": -1040,
+            "right": 1916,
+            "bottom": -44,
+            "width": 1679,
+            "height": 996
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": ""
+    }
+  ]
+}

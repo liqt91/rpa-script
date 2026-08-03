@@ -1,16 +1,12 @@
-"""全屏透明捕获覆盖层。
+"""桌面元素捕获覆盖层 — SetWindowRgn 挖空窗口方案。
 
-鼠标变为十字光标，移动时 XOR 高亮目标控件。
-左键点击捕获，右键/Esc 取消。
-同时收集 Win32 + UIA 信息，浏览器窗口自动识别。
+鼠标移动时实时高亮目标控件（WS_EX_TOPMOST + SetWindowRgn 挖空中间，
+只留 3px 蓝色边框 — 永远在最上面，不会被任何窗口覆盖）。
+左键点击捕获，右键/Esc 取消。同时收集 Win32 + UIA 信息。
 """
-
 import ctypes
 import ctypes.wintypes as wintypes
 import time
-import sys
-import json
-import threading
 from dataclasses import dataclass, field
 
 _user32 = ctypes.windll.user32
@@ -18,103 +14,90 @@ _gdi32 = ctypes.windll.gdi32
 _kernel32 = ctypes.windll.kernel32
 
 # ── Constants ──
-R2_NOTXORPEN = 10
-PS_SOLID = 0
-VK_ESCAPE = 0x1B
-VK_RBUTTON = 0x02
-VK_LBUTTON = 0x01
-VK_MENU = 0x12  # Alt
-SM_CXSCREEN = 0
-SM_CYSCREEN = 1
+VK_ESCAPE = 0x1B; VK_RBUTTON = 0x02; VK_LBUTTON = 0x01
+SM_CXSCREEN = 0; SM_CYSCREEN = 1
+BORDER_COLOR = 0x3b82f6  # blue
+BORDER_T = 3
 
-# ── Win32 API declarations ──
+# ── Win32 API ──
 _GetCursorPos = _user32.GetCursorPos
 _GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
-
 _GetAsyncKeyState = _user32.GetAsyncKeyState
-_GetAsyncKeyState.argtypes = [ctypes.c_int]
-_GetAsyncKeyState.restype = ctypes.c_short
-
+_GetAsyncKeyState.argtypes = [ctypes.c_int]; _GetAsyncKeyState.restype = ctypes.c_short
 _WindowFromPoint = _user32.WindowFromPoint
-_WindowFromPoint.argtypes = [wintypes.POINT]
-_WindowFromPoint.restype = wintypes.HWND
-
+_WindowFromPoint.argtypes = [wintypes.POINT]; _WindowFromPoint.restype = wintypes.HWND
 _GetWindowTextW = _user32.GetWindowTextW
 _GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
-
 _GetWindowTextLengthW = _user32.GetWindowTextLengthW
-_GetWindowTextLengthW.argtypes = [wintypes.HWND]
-_GetWindowTextLengthW.restype = ctypes.c_int
-
+_GetWindowTextLengthW.argtypes = [wintypes.HWND]; _GetWindowTextLengthW.restype = ctypes.c_int
 _GetClassNameW = _user32.GetClassNameW
 _GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
-
 _GetWindowRect = _user32.GetWindowRect
-_GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
-_GetWindowRect.restype = wintypes.BOOL
-
+_GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]; _GetWindowRect.restype = wintypes.BOOL
 _GetParent = _user32.GetParent
-_GetParent.argtypes = [wintypes.HWND]
-_GetParent.restype = wintypes.HWND
-
-_GetWindowDC = _user32.GetWindowDC
-_GetWindowDC.argtypes = [wintypes.HWND]
-_GetWindowDC.restype = wintypes.HDC
-
-_ReleaseDC = _user32.ReleaseDC
-_ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
-_ReleaseDC.restype = ctypes.c_int
-
-_CreatePen = _gdi32.CreatePen
-_CreatePen.argtypes = [ctypes.c_int, ctypes.c_int, wintypes.COLORREF]
-_CreatePen.restype = wintypes.HANDLE
-
-_SelectObject = _gdi32.SelectObject
-_SelectObject.argtypes = [wintypes.HDC, wintypes.HANDLE]
-_SelectObject.restype = wintypes.HANDLE
-
-_Rectangle = _gdi32.Rectangle
-_Rectangle.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
-_Rectangle.restype = wintypes.BOOL
-
-_DeleteObject = _gdi32.DeleteObject
-_DeleteObject.argtypes = [wintypes.HANDLE]
-_DeleteObject.restype = wintypes.BOOL
-
-_SetROP2 = _gdi32.SetROP2
-_SetROP2.argtypes = [wintypes.HDC, ctypes.c_int]
-_SetROP2.restype = ctypes.c_int
-
+_GetParent.argtypes = [wintypes.HWND]; _GetParent.restype = wintypes.HWND
 _GetSystemMetrics = _user32.GetSystemMetrics
-_GetSystemMetrics.argtypes = [ctypes.c_int]
-_GetSystemMetrics.restype = ctypes.c_int
+_GetSystemMetrics.argtypes = [ctypes.c_int]; _GetSystemMetrics.restype = ctypes.c_int
+
+# DWM (for real visible rect, excluding shadows)
+_dwmapi = ctypes.windll.dwmapi
+_DwmGetWindowAttribute = _dwmapi.DwmGetWindowAttribute
+_DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+_DwmGetWindowAttribute.restype = ctypes.c_long
+_FillRect = _user32.FillRect
+_FillRect.argtypes = [wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.HBRUSH]
+_ReleaseDC  = _user32.ReleaseDC
+_ReleaseDC.argtypes  = [wintypes.HWND, wintypes.HDC]
+_SetBkMode  = _gdi32.SetBkMode
+_SetBkMode.argtypes  = [wintypes.HDC, ctypes.c_int]
+_SetTextColor = _gdi32.SetTextColor
+_SetTextColor.argtypes = [wintypes.HDC, wintypes.COLORREF]
+_DrawTextW  = _user32.DrawTextW
+_DrawTextW.argtypes  = [wintypes.HDC, wintypes.LPCWSTR, ctypes.c_int, ctypes.c_void_p, wintypes.UINT]
+_SelectObject = _gdi32.SelectObject
+_SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+_DeleteObject = _gdi32.DeleteObject
+_DeleteObject.argtypes = [wintypes.HGDIOBJ]
+_CreateFontW = _gdi32.CreateFontW
+_CreateFontW.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                          wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD,
+                          wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD,
+                          wintypes.LPCWSTR]; _CreateFontW.restype = wintypes.HANDLE
+_CreateSolidBrush = _gdi32.CreateSolidBrush
+_CreateSolidBrush.argtypes = [wintypes.COLORREF]; _CreateSolidBrush.restype = wintypes.HBRUSH
+_SetClassLongPtrW = _user32.SetClassLongPtrW
+_SetClassLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]; _SetClassLongPtrW.restype = wintypes.DWORD
+_GetClassLongPtrW = _user32.GetClassLongPtrW
+_GetClassLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]; _GetClassLongPtrW.restype = ctypes.c_void_p
+_GetDC = _user32.GetDC
+_GetDC.argtypes = [wintypes.HWND]; _GetDC.restype = wintypes.HDC
+DWMWA_EXTENDED_FRAME_BOUNDS = 9
+
+
+def _bgr(rgb: int) -> int:
+    return ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF)
 
 
 @dataclass
 class ElementInfo:
-    """捕获到的元素统一数据结构。"""
     name: str = ""
-    element_type: str = "win32"  # "win32" | "uia" | "web"
+    element_type: str = "win32"
     class_name: str = ""
     title: str = ""
     rect: dict = field(default_factory=dict)
     hwnd: int = 0
-    # UIA
     control_type: str = ""
     automation_id: str = ""
     uia_path: list = field(default_factory=list)
-    # Web
+    win32_path: list = field(default_factory=list)
     css_selector: str = ""
     xpath: str = ""
     tag_name: str = ""
-    # 完整祖先链
-    win32_path: list = field(default_factory=list)
 
 
 def _get_window_text(hwnd) -> str:
     length = _GetWindowTextLengthW(hwnd)
-    if length == 0:
-        return ""
+    if length == 0: return ""
     buf = ctypes.create_unicode_buffer(length + 1)
     _GetWindowTextW(hwnd, buf, length + 1)
     return buf.value
@@ -127,344 +110,421 @@ def _get_class_name(hwnd) -> str:
 
 
 def _get_window_rect(hwnd) -> dict:
-    rect = wintypes.RECT()
-    _GetWindowRect(hwnd, ctypes.byref(rect))
-    return {
-        "left": rect.left, "top": rect.top,
-        "right": rect.right, "bottom": rect.bottom,
-        "width": rect.right - rect.left,
-        "height": rect.bottom - rect.top,
-    }
+    # Try DWM first (excludes shadow/invisible chrome)
+    dwm = wintypes.RECT()
+    if _DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS,
+                               ctypes.byref(dwm), ctypes.sizeof(dwm)) == 0:
+        if dwm.right - dwm.left > 0 and dwm.bottom - dwm.top > 0:
+            return {"left": dwm.left, "top": dwm.top, "right": dwm.right, "bottom": dwm.bottom,
+                    "width": dwm.right - dwm.left, "height": dwm.bottom - dwm.top}
+    # Fallback
+    r = wintypes.RECT()
+    _GetWindowRect(hwnd, ctypes.byref(r))
+    return {"left": r.left, "top": r.top, "right": r.right, "bottom": r.bottom,
+            "width": r.right - r.left, "height": r.bottom - r.top}
 
 
 def _get_ancestor_path(hwnd) -> list:
-    """从目标控件向上追溯到顶层窗口。"""
-    path = []
-    cur = hwnd
-    visited = set()
-    while cur:
-        if cur in visited:
-            break
+    path = []; cur = hwnd; visited = set()
+    while cur and cur not in visited:
         visited.add(cur)
-        info = {
-            "hwnd": cur,
-            "class_name": _get_class_name(cur),
-            "title": _get_window_text(cur),
-            "rect": _get_window_rect(cur),
-        }
-        path.insert(0, info)
+        path.insert(0, {"hwnd": cur, "class_name": _get_class_name(cur),
+                         "title": _get_window_text(cur), "rect": _get_window_rect(cur)})
         parent = _GetParent(cur)
-        if not parent:
-            break
+        if not parent: break
         cur = parent
     return path
 
 
-def _is_browser_window(class_name: str) -> bool:
-    """检测窗口是否是浏览器（Chrome/Edge）。"""
-    browser_classes = (
-        "Chrome_WidgetWin_1",
-        "MozillaWindowClass",
-        "CASCADIA_HOSTING_WINDOW_CLASS",
-    )
-    return any(c in class_name for c in browser_classes)
+def _is_browser_window(cls: str) -> bool:
+    return any(c in cls for c in ("Chrome_WidgetWin_1", "MozillaWindowClass", "CASCADIA_HOSTING_WINDOW_CLASS"))
 
 
-def _try_uia_capture(x: int, y: int) -> dict | None:
-    """尝试 UIA 捕获。失败返回 None。"""
+def _is_browser_in_chain(path: list) -> bool:
+    return any(_is_browser_window(p.get("class_name", "")) for p in path)
+
+
+def _try_uia_capture(x, y) -> dict | None:
     try:
-        import pythoncom
-        pythoncom.CoInitialize()
-    except Exception:
-        pass
-
-    try:
+        import pythoncom; pythoncom.CoInitialize()
         import uiautomation as uia
-
         ctrl = uia.ControlFromPoint(x, y)
-        if not ctrl:
-            return None
-
-        chain = []
-        cur = ctrl
-        visited = set()
-        while cur:
-            rid = id(cur)
-            if rid in visited:
-                break
-            visited.add(rid)
-            try:
-                br = cur.BoundingRectangle
-            except Exception:
-                br = None
+        if not ctrl: return None
+        chain = []; cur = ctrl; visited = set()
+        while cur and id(cur) not in visited:
+            visited.add(id(cur))
+            try: br = cur.BoundingRectangle
+            except: br = None
             chain.insert(0, {
-                "name": cur.Name or "",
-                "class_name": cur.ClassName or "",
-                "control_type": cur.ControlTypeName or "",
-                "automation_id": cur.AutomationId or "",
-                "rect": {
-                    "left": br.left, "top": br.top,
-                    "right": br.right, "bottom": br.bottom,
-                    "width": br.width() if br else 0,
-                    "height": br.height() if br else 0,
-                } if br else {},
+                "name": cur.Name or "", "class_name": cur.ClassName or "",
+                "control_type": cur.ControlTypeName or "", "automation_id": cur.AutomationId or "",
+                "rect": {"left": br.left, "top": br.top, "right": br.right, "bottom": br.bottom,
+                         "width": br.width() if br else 0, "height": br.height() if br else 0} if br else {},
             })
             try:
                 p = cur.GetParentControl()
-                if not p or p.ControlTypeName == "DesktopControl":
-                    break
+                if not p or p.ControlTypeName == "DesktopControl": break
                 cur = p
-            except Exception:
-                break
-
+            except: break
         leaf = chain[-1] if chain else {}
-        return {
-            "found": True,
-            "name": leaf.get("name", ""),
-            "class_name": leaf.get("class_name", ""),
-            "control_type": leaf.get("control_type", ""),
-            "automation_id": leaf.get("automation_id", ""),
-            "rect": leaf.get("rect", {}),
-            "path": chain,
-        }
-    except Exception:
+        return {"found": True, "name": leaf.get("name", ""), "class_name": leaf.get("class_name", ""),
+                "control_type": leaf.get("control_type", ""), "automation_id": leaf.get("automation_id", ""),
+                "rect": leaf.get("rect", {}), "path": chain}
+    except:
         return None
     finally:
+        try: import pythoncom; pythoncom.CoUninitialize()
+        except: pass
+
+
+def _get_uia_rect(x, y):
+    global _uia_module
+    uia = _uia_module
+    if not uia:
         try:
-            import pythoncom
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
-
-
-def draw_highlight(hwnd, color=0x0000FF):
-    """XOR 绘制/擦除目标控件的边框（在桌面 DC 上）。"""
+            import pythoncom; pythoncom.CoInitialize()
+            import uiautomation as uia
+            _uia_module = uia
+        except: return None
     try:
-        rect = wintypes.RECT()
-        if not _GetWindowRect(hwnd, ctypes.byref(rect)):
-            return
-        hdc = _GetWindowDC(0)
-        pen = _CreatePen(PS_SOLID, 3, color)
-        old_pen = _SelectObject(hdc, pen)
-        old_rop = _SetROP2(hdc, R2_NOTXORPEN)
-        _Rectangle(hdc, rect.left, rect.top, rect.right, rect.bottom)
-        _SetROP2(hdc, old_rop)
-        _SelectObject(hdc, old_pen)
-        _DeleteObject(pen)
-        _ReleaseDC(0, hdc)
-    except Exception:
-        pass
+        ctrl = uia.ControlFromPoint(x, y)
+        if not ctrl: return None
+        br = ctrl.BoundingRectangle
+        if br.width() > 0 and br.height() > 0:
+            return {"left": br.left, "top": br.top, "right": br.right, "bottom": br.bottom,
+                    "width": br.width(), "height": br.height()}
+    except: pass
+    return None
 
 
-def draw_highlight_rect(rect: dict, color=0x00FF00):
-    """在屏幕坐标上 XOR 绘制/擦除矩形。"""
+def _get_best_rect(hwnd, x, y):
+    hwnd_rect = _get_window_rect(hwnd)
+    uia_rect = _get_uia_rect(x, y)
+    # Only trust UIA for reasonably small elements (< 500x500)
+    if uia_rect and 0 < uia_rect.get("width", 0) <= 500 and 0 < uia_rect.get("height", 0) <= 500:
+        return uia_rect, uia_rect
+    return hwnd_rect, None
+
+
+_uia_module = None
+
+def _uia_init():
+    global _uia_module
+    if _uia_module is not None: return
     try:
-        hdc = _GetWindowDC(0)
-        pen = _CreatePen(PS_SOLID, 3, color)
-        old_pen = _SelectObject(hdc, pen)
-        old_rop = _SetROP2(hdc, R2_NOTXORPEN)
-        _Rectangle(hdc, rect["left"], rect["top"], rect["right"], rect["bottom"])
-        _SetROP2(hdc, old_rop)
-        _SelectObject(hdc, old_pen)
-        _DeleteObject(pen)
-        _ReleaseDC(0, hdc)
-    except Exception:
-        pass
+        import pythoncom; pythoncom.CoInitialize()
+        import uiautomation as uia
+        _uia_module = uia
+    except: pass
+
+def _uia_done():
+    global _uia_module
+    if _uia_module is not None:
+        try: import pythoncom; pythoncom.CoUninitialize()
+        except: pass
+        _uia_module = None
 
 
-def flash_element(element: ElementInfo, times=3, color_good=0x00FF00, color_bad=0x0000FF):
-    """闪烁元素边框：找到=绿色，没找到=红色。返回是否找到。"""
-    found = _validate_and_flash(element, times, color_good, color_bad)
-    return found
+# ─── Info overlay (top-center floating tip) ───
+
+_info_hwnd = None
+
+def _ensure_info_window():
+    global _info_hwnd
+    if _info_hwnd: return _info_hwnd
+    class WNDCLASSW(ctypes.Structure):
+        _fields_ = [("style", wintypes.UINT), ("lpfnWndProc", ctypes.c_void_p),
+                    ("cbClsExtra", ctypes.c_int), ("cbWndExtra", ctypes.c_int),
+                    ("hInstance", wintypes.HINSTANCE), ("hIcon", wintypes.HICON),
+                    ("hCursor", wintypes.HICON), ("hbrBackground", wintypes.HBRUSH),
+                    ("lpszMenuName", wintypes.LPCWSTR), ("lpszClassName", wintypes.LPCWSTR)]
+    hInst = _kernel32.GetModuleHandleW(None)
+    wc = WNDCLASSW()
+    wc.lpfnWndProc = ctypes.cast(_user32.DefWindowProcW, ctypes.c_void_p)
+    wc.hInstance = hInst; wc.lpszClassName = "RpaInfo"
+    wc.hbrBackground = _gdi32.CreateSolidBrush(_bgr(0x0f172a))
+    _user32.RegisterClassW(ctypes.byref(wc))
+    _info_hwnd = _user32.CreateWindowExW(
+        0x00000008 | 0x00000080 | 0x00000020, "RpaInfo", "", 0x80000000,
+        0, 0, 460, 156, None, None, hInst, None)
+    _user32.SetLayeredWindowAttributes(_info_hwnd, 0, 240, 0x02)
+    return _info_hwnd
+
+_info_side = False
+INFO_W = 460; INFO_H = 156; INFO_MARGIN = 6; INFO_PAD = 10
+
+def _info_box_contains(pt_x, pt_y, box_x, box_y):
+    """鼠标是否在悬浮框 +10px 缓冲区内。"""
+    return (pt_x >= box_x - 10 and pt_x <= box_x + INFO_W + 10 and
+            pt_y >= box_y - 10 and pt_y <= box_y + INFO_H + 10)
+
+def show_info(text: str):
+    global _info_side
+    hwnd = _ensure_info_window()
+    if text:
+        lines = text.split("\n")
+        hdc = _GetDC(hwnd)
+        r = wintypes.RECT(0, 0, INFO_W, INFO_H)
+        br = _CreateSolidBrush(_bgr(0x0f172a))
+        _FillRect(hdc, ctypes.byref(r), br)
+        _DeleteObject(br)
+        _SetBkMode(hdc, 1)
+        font = _CreateFontW(19, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, "Consolas")
+        old = _SelectObject(hdc, font)
+        for i, line in enumerate(lines[:7]):
+            is_current = (i == len(lines[:7]) - 2)  # 倒数第二行是当前选中
+            _SetTextColor(hdc, 0x0090CAF9 if is_current else 0x00A0A0B0)
+            buf = ctypes.create_unicode_buffer(line)
+            _DrawTextW(hdc, buf, -1, ctypes.byref(wintypes.RECT(INFO_PAD, 3 + i * 20, INFO_W - INFO_PAD, 23 + i * 20)), 0x0000 | 0x0010)
+        _SelectObject(hdc, old)
+        _DeleteObject(font)
+        _ReleaseDC(hwnd, hdc)
+        sw = _GetSystemMetrics(SM_CXSCREEN)
+        pt = wintypes.POINT(); _GetCursorPos(ctypes.byref(pt))
+        box_x = sw - INFO_W - INFO_MARGIN if _info_side else INFO_MARGIN
+        if _info_box_contains(pt.x, pt.y, box_x, INFO_MARGIN):
+            _info_side = not _info_side
+            box_x = sw - INFO_W - INFO_MARGIN if _info_side else INFO_MARGIN
+        _user32.MoveWindow(hwnd, box_x, INFO_MARGIN, INFO_W, INFO_H, True)
+        _user32.ShowWindow(hwnd, 1)
+    else:
+        _user32.ShowWindow(hwnd, 0)
 
 
-def _validate_and_flash(element: ElementInfo, times: int, color_good: int, color_bad: int) -> bool:
-    """反向查找元素并闪烁。"""
-    hwnd = _find_element_hwnd(element)
-    rect = element.rect if element.rect else None
+# ─── Border window (SetWindowRgn — always on top, never overwritten) ───
 
-    if not hwnd and not rect:
-        return False
+_border_hwnd = None
+_border_visible = False
 
-    if hwnd and not rect:
-        rect = _get_window_rect(hwnd)
 
-    if not rect or not rect.get("width"):
-        return False
+def _ensure_border_window():
+    global _border_hwnd
+    if _border_hwnd: return _border_hwnd
+    class WNDCLASSW(ctypes.Structure):
+        _fields_ = [("style", wintypes.UINT), ("lpfnWndProc", ctypes.c_void_p),
+                    ("cbClsExtra", ctypes.c_int), ("cbWndExtra", ctypes.c_int),
+                    ("hInstance", wintypes.HINSTANCE), ("hIcon", wintypes.HICON),
+                    ("hCursor", wintypes.HICON), ("hbrBackground", wintypes.HBRUSH),
+                    ("lpszMenuName", wintypes.LPCWSTR), ("lpszClassName", wintypes.LPCWSTR)]
+    hInst = _kernel32.GetModuleHandleW(None)
+    wc = WNDCLASSW()
+    wc.lpfnWndProc = ctypes.cast(_user32.DefWindowProcW, ctypes.c_void_p)
+    wc.hInstance = hInst; wc.lpszClassName = "RpaBorder"; wc.hbrBackground = _gdi32.CreateSolidBrush(_bgr(BORDER_COLOR))
+    _user32.RegisterClassW(ctypes.byref(wc))
+    _border_hwnd = _user32.CreateWindowExW(
+        0x00000008 | 0x00000080 | 0x00000020, "RpaBorder", "", 0x80000000,
+        # WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT
+        0, 0, 100, 100, None, None, hInst, None)
+    return _border_hwnd
 
-    color = color_good if hwnd else color_bad
-    for _ in range(times):
-        if hwnd:
-            draw_highlight(hwnd, color)
-        else:
-            draw_highlight_rect(rect, color)
-        time.sleep(0.2)
-        if hwnd:
-            draw_highlight(hwnd, color)
-        else:
-            draw_highlight_rect(rect, color)
-        time.sleep(0.2)
 
-    return hwnd is not None
+def _set_border_region(hwnd, w, h):
+    outer = _gdi32.CreateRectRgn(0, 0, w, h)
+    inner = _gdi32.CreateRectRgn(BORDER_T, BORDER_T, w - BORDER_T, h - BORDER_T)
+    _gdi32.CombineRgn(outer, outer, inner, 3)  # RGN_DIFF
+    _gdi32.DeleteObject(inner)
+    _user32.SetWindowRgn(hwnd, outer, True)
 
+
+def _set_window_color(hwnd, rgb):
+    _DeleteObject(_GetClassLongPtrW(hwnd, -10))
+    _SetClassLongPtrW(hwnd, -10, _CreateSolidBrush(_bgr(rgb)))
+
+
+def show_border(rect: dict | None):
+    global _border_visible
+    hwnd = _ensure_border_window()
+    if rect and rect.get("width", 0) > 0 and rect.get("height", 0) > 0:
+        _set_border_region(hwnd, rect["width"], rect["height"])
+        _user32.MoveWindow(hwnd, rect["left"], rect["top"], rect["width"], rect["height"], True)
+        _user32.ShowWindow(hwnd, 1); _border_visible = True
+        _user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010)
+        _user32.BringWindowToTop(hwnd)
+    elif _border_visible:
+        _user32.ShowWindow(hwnd, 0); _border_visible = False
+
+
+def _flash_once(hwnd, rect, color):
+    _set_window_color(hwnd, color)
+    _set_border_region(hwnd, rect["width"], rect["height"])  # hollow border
+    _user32.MoveWindow(hwnd, rect["left"], rect["top"], rect["width"], rect["height"], True)
+    _user32.ShowWindow(hwnd, 1); time.sleep(0.2)
+    _user32.ShowWindow(hwnd, 0); time.sleep(0.15)
+
+
+def flash_element(element: ElementInfo, times=3):
+    # 优先用 UIA 细粒度 rect（图标/菜单项等），其次 HWND rect
+    rect = None
+    if element.uia_path:
+        leaf = element.uia_path[-1]
+        if leaf.get("rect", {}).get("width", 0) > 0:
+            rect = leaf["rect"]
+    if not rect:
+        found = _find_element_hwnd(element)
+        rect = _get_window_rect(found) if found else element.rect
+    if not rect or not rect.get("width"): return False
+    found = _find_element_hwnd(element)
+    hwnd = _ensure_border_window(); show_border(None)
+    color = 0x22c55e if found else 0xdc2626
+    for _ in range(times): _flash_once(hwnd, rect, color)
+    _set_window_color(hwnd, BORDER_COLOR)
+    return found is not None
+
+
+# ─── Element lookup ───
 
 def _find_element_hwnd(element: ElementInfo) -> int | None:
-    """根据 element 的 win32_path 反向查找控件。"""
     path = element.win32_path
-    if not path:
-        return None
-
-    # 从路径第一层（顶层窗口）开始逐层匹配
-    top = path[0]
-    hwnd = _find_top_window(top)
-
-    if not hwnd:
-        return None
-    if len(path) == 1:
-        return hwnd
-
-    # 穿透子控件
+    if not path: return None
+    hwnd = _find_top_window(path[0])
+    if not hwnd or len(path) == 1: return hwnd
     from scripts.capture_gui.win32_utils import find_child_window
-    for level in path[1:]:
-        child = find_child_window(
-            hwnd,
-            class_name=level.get("class_name", ""),
-            title=level.get("title", ""),
-        )
-        if not child:
-            return None
-        hwnd = child
+    for lvl in path[1:]:
+        hwnd = find_child_window(hwnd, class_name=lvl.get("class_name", ""), title=lvl.get("title", ""))
+        if not hwnd: return None
     return hwnd
 
 
 def _find_top_window(info: dict) -> int | None:
-    """根据 path 第一层信息查找顶层窗口。"""
     from scripts.capture_gui.win32_utils import find_window, find_window_by_title_fuzzy
-
-    title = info.get("title", "")
-    cls = info.get("class_name", "")
-
-    if title:
-        matches = find_window_by_title_fuzzy(title)
-        if matches:
-            return matches[0]["hwnd"]
-        h = find_window(title=title)
-        if h:
-            return h
+    t, cls = info.get("title", ""), info.get("class_name", "")
+    if t:
+        m = find_window_by_title_fuzzy(t)
+        if m: return m[0]["hwnd"]
+        h = find_window(title=t)
+        if h: return h
     if cls:
         h = find_window(class_name=cls)
-        if h:
-            return h
+        if h: return h
     return None
 
 
+# ─── Main capture loop ───
+
+_SHELL_CLASSES = {"Shell_TrayWnd", "MSTaskSwWClass", "MSTaskListWClass",
+                   "TrayButton", "Start", "TrayNotifyWnd", "ReBarWindow32"}
+
+def _is_shell(hwnd) -> bool:
+    return _get_class_name(hwnd) in _SHELL_CLASSES
+
+
 def run_capture() -> ElementInfo | None:
-    """进入捕获模式。阻塞直到用户点击或取消。返回元素信息或 None。
-
-    由 tkinter 主线程调用（会短暂隐藏 tkinter 窗口）。
-    """
-    screen_w = _GetSystemMetrics(SM_CXSCREEN)
-    screen_h = _GetSystemMetrics(SM_CYSCREEN)
+    sw = _GetSystemMetrics(SM_CXSCREEN); sh = _GetSystemMetrics(SM_CYSCREEN)
     pt = wintypes.POINT()
-    last_highlight_hwnd = None
-    captured: ElementInfo | None = None
+    last_hwnd = None; captured = None
+    last_pt = (0, 0)  # track mouse position within same HWND
+    # 层级导航栈：记录用户按 ↑ 上走过的路径，↓ 可退回
+    parent_stack = []
+    VK_UP = 0x26; VK_DOWN = 0x28
 
-    print("[Capture] 移动鼠标到目标上，左键捕获，右键/Esc 取消...")
+    def _build_info_text(hwnd):
+        rect = _get_window_rect(hwnd)
+        path = _get_ancestor_path(hwnd)
+        # 最近 6 层祖先，不足用空行补齐
+        levels = path[-6:]
+        lines = []
+        n = len(levels)
+        for i in range(6):
+            if i < n:
+                cls = levels[i]["class_name"]
+                is_current = (i == n - 1)
+                prefix = "> " if is_current else "  "
+                lines.append(f"{prefix}{cls}")
+            else:
+                lines.append("")
+        lines.append(f"    {rect['width']}×{rect['height']}")
+        return "\n".join(lines)
+
+    def _select_hwnd(hwnd):
+        """选中并高亮指定 hwnd。"""
+        nonlocal last_hwnd
+        if hwnd:
+            rect = _get_window_rect(hwnd)
+            if rect["width"] > 0 and rect["height"] > 0:
+                show_border(rect)
+                last_hwnd = hwnd
+                show_info(_build_info_text(hwnd))
 
     try:
+        _uia_init()
         while True:
-            # 退出键
-            if _GetAsyncKeyState(VK_ESCAPE) & 0x8000:
-                print("[Capture] 已取消 (Esc)")
-                break
-            if _GetAsyncKeyState(VK_RBUTTON) & 0x8000:
-                print("[Capture] 已取消 (右键)")
-                break
+            if _GetAsyncKeyState(VK_ESCAPE) & 0x8000: break
+            if _GetAsyncKeyState(VK_RBUTTON) & 0x8000: break
 
             _GetCursorPos(ctypes.byref(pt))
-
-            # 边界检查（多显示器时可能出现负坐标）
-            if 0 <= pt.x < screen_w * 2 and -screen_h < pt.y < screen_h * 2:
-                target = _WindowFromPoint(pt)
-            else:
+            target = _WindowFromPoint(pt) if 0 <= pt.x < sw * 2 and -sh < pt.y < sh * 2 else None
+            if target and _get_class_name(target) == "RpaBorder":
                 target = None
+            # 透明边框窗导致空 target → 保持上一个
+            if not target and last_hwnd and _user32.IsWindow(last_hwnd):
+                target = last_hwnd
 
-            # 高亮切换
-            if target and target != last_highlight_hwnd:
-                if last_highlight_hwnd:
-                    draw_highlight(last_highlight_hwnd)
-                draw_highlight(target)
-                last_highlight_hwnd = target
+            # ↑ 上箭头 → 选父级
+            if _GetAsyncKeyState(VK_UP) & 0x8000:
+                if target:
+                    parent = _GetParent(target)
+                    if parent:
+                        parent_stack.append(target)
+                        target = parent
+                        _select_hwnd(target)
+                time.sleep(0.15)
+                continue
 
-            # 左键捕获
-            if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and target:
-                # 清除高亮
-                if last_highlight_hwnd:
-                    draw_highlight(last_highlight_hwnd)
-                time.sleep(0.1)  # 等鼠标释放
+            # ↓ 下箭头 → 退回子级
+            if _GetAsyncKeyState(VK_DOWN) & 0x8000:
+                if parent_stack:
+                    target = parent_stack.pop()
+                    _select_hwnd(target)
+                time.sleep(0.15)
+                continue
 
-                info = _build_element_info(target, pt.x, pt.y)
-                captured = info
-                print(f"[Capture] 捕获: {info.element_type} \"{info.name or info.class_name}\"")
+            # 鼠标移动 → 自动选最细粒度
+            if target != last_hwnd and not parent_stack:
+                last_pt = (pt.x, pt.y)
+                if target:
+                    rect = _get_window_rect(target)
+                    if rect["width"] > 0 and rect["height"] > 0:
+                        show_border(rect)
+                        show_info(_build_info_text(target))
+                    else:
+                        show_border(None); show_info("")
+                else:
+                    show_border(None); show_info("")
+                last_hwnd = target
+                parent_stack.clear()
+            elif target == last_hwnd and target and abs(pt.x - last_pt[0]) + abs(pt.y - last_pt[1]) > 6:
+                last_pt = (pt.x, pt.y)
+                uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
+                if uia_rect["width"] > 0:
+                    show_border(uia_rect)
+                    show_info(_build_info_text(target))
+
+            if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and last_hwnd:
+                show_border(None); show_info("")
+                time.sleep(0.1)
+                captured = _build_element_info(last_hwnd, pt.x, pt.y)
                 break
-
             time.sleep(0.03)
-
     finally:
-        if last_highlight_hwnd:
-            draw_highlight(last_highlight_hwnd)
-
+        show_border(None); show_info("")
+        _uia_done()
     return captured
 
 
-def _build_element_info(hwnd, x: int, y: int) -> ElementInfo:
-    """收集 Win32 + UIA 信息，构建 ElementInfo。"""
-    class_name = _get_class_name(hwnd)
-    title = _get_window_text(hwnd)
-    rect = _get_window_rect(hwnd)
-    win32_path = _get_ancestor_path(hwnd)
-
-    info = ElementInfo(
-        name=title or class_name,
-        element_type="win32",
-        class_name=class_name,
-        title=title,
-        rect=rect,
-        hwnd=hwnd,
-        win32_path=win32_path,
-    )
-
-    # 浏览器窗口 → 标记为 web
-    if _is_browser_window(class_name):
-        info.element_type = "web"
-
-    # UIA 捕获
-    uia_result = _try_uia_capture(x, y)
-    if uia_result:
-        info.control_type = uia_result.get("control_type", "")
-        info.automation_id = uia_result.get("automation_id", "")
-        info.uia_path = uia_result.get("path", [])
-        if not info.name:
-            info.name = uia_result.get("name", "")
-        # 如果是浏览器内的 DOM 元素，UIA 会给更细的类型
+def _build_element_info(hwnd, x, y) -> ElementInfo:
+    cls = _get_class_name(hwnd); title = _get_window_text(hwnd); rect = _get_window_rect(hwnd)
+    path = _get_ancestor_path(hwnd)
+    info = ElementInfo(name=title or cls, class_name=cls, title=title, rect=rect, hwnd=hwnd, win32_path=path)
+    if _is_browser_window(cls): info.element_type = "web"
+    uia = _try_uia_capture(x, y)
+    if uia:
+        info.control_type = uia.get("control_type", ""); info.automation_id = uia.get("automation_id", "")
+        info.uia_path = uia.get("path", [])
+        if not info.name: info.name = uia.get("name", "")
         if info.element_type == "web" and info.control_type in (
-            "EditControl", "ButtonControl", "HyperlinkControl",
-            "TextControl", "ComboBoxControl", "CheckBoxControl",
-            "ListItemControl", "TreeItemControl", "MenuBarControl",
-        ):
-            info.name = uia_result.get("name") or title
-
-    # 浏览器窗口里的元素 → 标记 web
-    is_browser_child = _is_browser_in_chain(win32_path)
-    if is_browser_child and info.element_type != "web":
+            "EditControl", "ButtonControl", "HyperlinkControl", "TextControl",
+            "ComboBoxControl", "CheckBoxControl", "ListItemControl", "TreeItemControl"):
+            info.name = uia.get("name") or title
+    if _is_browser_in_chain(path) and info.element_type != "web":
         info.element_type = "web"
-
     return info
-
-
-def _is_browser_in_chain(path: list) -> bool:
-    """检查祖先链中是否包含浏览器窗口。"""
-    for p in path:
-        if _is_browser_window(p.get("class_name", "")):
-            return True
-    return False

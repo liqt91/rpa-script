@@ -2232,13 +2232,22 @@
     if (!lockedElement || !document.body.contains(lockedElement)) return;
     const rect = lockedElement.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    const w = highlightCanvas.width;
+    const hh = highlightCanvas.height;
+
+    // clamp to canvas (avoid border cut-off at viewport edges)
+    const x1 = Math.max(0, rect.left * dpr);
+    const y1 = Math.max(0, rect.top * dpr);
+    const x2 = Math.min(w, rect.right * dpr);
+    const y2 = Math.min(hh, rect.bottom * dpr);
+
     highlightCtx.save();
     highlightCtx.strokeStyle = '#3b82f6';
     highlightCtx.lineWidth = 3 * dpr;
     highlightCtx.fillStyle = 'rgba(59, 130, 246, 0.10)';
-    highlightCtx.fillRect(rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
-    highlightCtx.strokeRect(rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
-    // label
+    highlightCtx.fillRect(x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1));
+    highlightCtx.strokeRect(x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1));
+    // label: draw below if not enough space above
     const tag = lockedElement.tagName.toLowerCase();
     const cls = lockedElement.className && typeof lockedElement.className === 'string'
       ? lockedElement.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).join('.')
@@ -2248,10 +2257,14 @@
     const tw = highlightCtx.measureText(text).width;
     const pad = 4 * dpr;
     const labelH = 15 * dpr;
+    const spaceAbove = rect.top * dpr;
+    const labelY = spaceAbove >= labelH + 4 * dpr
+      ? y1 - labelH - 2 * dpr   // above
+      : y2 + 2 * dpr;            // below
     highlightCtx.fillStyle = '#3b82f6';
-    highlightCtx.fillRect((rect.left + 2) * dpr, (rect.top - labelH - 2) * dpr, tw + pad * 2, labelH);
+    highlightCtx.fillRect((rect.left + 2) * dpr, labelY, tw + pad * 2, labelH);
     highlightCtx.fillStyle = '#fff';
-    highlightCtx.fillText(text, (rect.left + 2 + pad) * dpr, (rect.top - 5) * dpr);
+    highlightCtx.fillText(text, (rect.left + 2 + pad) * dpr, labelY + labelH - 4 * dpr);
     highlightCtx.restore();
   }
 
