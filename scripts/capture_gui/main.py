@@ -107,9 +107,8 @@ class CaptureGUI:
         # 选择器预览 (公用)
         sel_row = ttk.Frame(right); sel_row.pack(fill=tk.X, pady=(8, 0))
         ttk.Label(sel_row, text="选择器", width=5).pack(side=tk.LEFT)
-        self.var_selector = tk.StringVar()
-        self.entry_selector = ttk.Entry(sel_row, textvariable=self.var_selector, font=("Consolas", 9))
-        self.entry_selector.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
+        self.sel_text = tk.Text(sel_row, height=3, font=("Consolas", 9), wrap=tk.WORD)
+        self.sel_text.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
         ttk.Button(sel_row, text="📋", width=3, command=self._copy_selector).pack(side=tk.LEFT)
 
         # 按钮行
@@ -160,7 +159,7 @@ class CaptureGUI:
         sel = self.tree.selection()
         if not sel: return
         info = self.store.elements[int(sel[0])]
-        new_sel = self.var_selector.get().strip()
+        new_sel = self.sel_text.get("1.0", tk.END).strip().strip()
         if new_sel:
             info.css_selector = new_sel
             self.store.save()
@@ -178,19 +177,24 @@ class CaptureGUI:
     def _on_close(self):
         self.store.save(); self.root.destroy()
 
+    def _set_sel_text(self, text):
+        self.sel_text.configure(state=tk.NORMAL)
+        self.sel_text.delete("1.0", tk.END)
+        self.sel_text.insert("1.0", text)
+
     def _copy_selector(self):
-        val = self.var_selector.get()
+        val = self.sel_text.get("1.0", tk.END).strip()
         if val: self.root.clipboard_clear(); self.root.clipboard_append(val); self.set_status("已复制")
 
     # ── Selector tabs ──
     def _switch_sel_tab(self, tab):
         self.current_sel_tab = tab
         if tab == 0:
-            self.tab0.pack(fill=tk.X, before=self.entry_selector.master)
+            self.tab0.pack(fill=tk.X, before=self.sel_text.master)
             self.tab1.pack_forget()
         else:
             self.tab0.pack_forget()
-            self.tab1.pack(fill=tk.BOTH, expand=True, before=self.entry_selector.master)
+            self.tab1.pack(fill=tk.BOTH, expand=True, before=self.sel_text.master)
 
     _sort_cands_dir = {"syntax": False, "family": False, "match": False}
     def _sort_cands(self, col):
@@ -214,7 +218,7 @@ class CaptureGUI:
             idx = int(sel[0])
             if idx < len(self._candidates):
                 c = self._candidates[idx]
-                self.var_selector.set(c.get("syntax", ""))
+                self._set_sel_text(c.get("syntax", ""))
                 self._cur_sel = c.get("syntax", "")
 
     # ── Display ──
@@ -251,26 +255,26 @@ class CaptureGUI:
                                        values=(c.get("syntax", "")[:120], fam, mc_str))
             if filtered:
                 self.cand_tree.selection_set("0")
-                self.var_selector.set(filtered[0].get("syntax", ""))
+                self._set_sel_text(filtered[0].get("syntax", ""))
         elif not is_web:
-            self.cand_tree.insert("", tk.END, values=("(非web元素)", "", "", ""))
+            self.cand_tree.insert("", tk.END, values=("(非web元素)", "", ""))
 
         # 显示对应 tab
         if is_web:
             self.btn_recommend.configure(state=tk.NORMAL)
             self.btn_manual.configure(state=tk.NORMAL)
-            self.entry_selector.configure(state=tk.NORMAL)
+            self.sel_text.configure(state=tk.NORMAL)
             self.btn_save_sel.configure(state=tk.NORMAL)
             self._switch_sel_tab(self.current_sel_tab)
         else:
             self.tab0.pack_forget()
             self.tab1.pack_forget()
-            self.var_selector.set(info.css_selector or "")
-            self.entry_selector.configure(state=tk.DISABLED)
+            self._set_sel_text(info.css_selector or "")
+            self.sel_text.configure(state=tk.DISABLED)
             self.btn_recommend.configure(state=tk.DISABLED)
             self.btn_manual.configure(state=tk.DISABLED)
             self.btn_save_sel.configure(state=tk.DISABLED)
-            self.var_selector.set(info.css_selector or "")
+            self._set_sel_text(info.css_selector or "")
 
         # DOM 数据存好
         self._dom_path = info.dom_path if is_web else []
@@ -284,7 +288,7 @@ class CaptureGUI:
         self.thumb_btn.configure(image="", text="📷"); self._thumb_img = None
         self.cand_tree.delete(*self.cand_tree.get_children())
         self._candidates = []; self._dom_path = []; self._dom_checked = []
-        self.var_selector.set("")
+        self._set_sel_text("")
         self.tab0.pack_forget(); self.tab1.pack_forget()
         for w in self.dom_inner.winfo_children(): w.destroy()
         self.btn_validate.configure(state=tk.DISABLED)
@@ -325,7 +329,7 @@ class CaptureGUI:
                 parts.append(f"{tag}{sid}" + (f".{cls}" if cls else ""))
             else:
                 parts.append(str(node))
-        self.var_selector.set(" > ".join(parts) if parts else "")
+        self._set_sel_text(" > ".join(parts) if parts else "")
 
     # ── List ──
     def _refresh_list(self):

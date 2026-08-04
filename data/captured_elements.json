@@ -514,6 +514,292 @@
       ],
       "elem_attrs": {},
       "list_info": {}
+    },
+    {
+      "name": "div",
+      "element_type": "web",
+      "class_name": "Chrome_WidgetWin_1",
+      "title": "DeepSeek - 探索未至之境 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": -40,
+        "width": 1920,
+        "height": 1040
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 131596,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "DeepSeek - 探索未至之境 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        }
+      ],
+      "css_selector": "css:#root > div > div > div:nth-of-type(1) > div > div:nth-of-type(1)",
+      "xpath": "xpath://body/div[1]/div/div[2]/div[1]/div/div[1]",
+      "tag_name": "div",
+      "candidates": [
+        {
+          "syntax": "css:#root > div > div > div:nth-of-type(1) > div > div:nth-of-type(1)",
+          "family": "css",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "syntax": "css:#root > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(1)",
+          "family": "css",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "syntax": "css:#root > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1)",
+          "family": "css",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "syntax": "css:div:nth-of-type(1)",
+          "family": "css",
+          "score": 1,
+          "matchCount": 44,
+          "isList": false,
+          "pathMapping": [
+            5
+          ]
+        },
+        {
+          "syntax": "xpath://body/div[1]/div/div[2]/div[1]/div/div[1]",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "syntax": "xpath://div/div",
+          "family": "xpath",
+          "score": 94,
+          "matchCount": 70,
+          "isList": true,
+          "listContainer": "//div",
+          "listItem": "//div"
+        },
+        {
+          "syntax": "xpath://div//div",
+          "family": "xpath",
+          "score": 78,
+          "matchCount": 89,
+          "isList": true,
+          "listContainer": "//div",
+          "listItem": "//div"
+        },
+        {
+          "syntax": "xpath://div",
+          "family": "xpath",
+          "score": 61,
+          "matchCount": 89,
+          "isList": true,
+          "listItem": "//div"
+        },
+        {
+          "syntax": "xpath://div",
+          "family": "xpath",
+          "score": 51,
+          "matchCount": 89,
+          "isList": true,
+          "listContainer": "//div"
+        },
+        {
+          "syntax": "css:div",
+          "family": "css",
+          "score": 63,
+          "matchCount": 89,
+          "isList": true,
+          "listItem": "div"
+        }
+      ],
+      "dom_path": [
+        {
+          "tag": "div",
+          "id": "root",
+          "classes": [],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div",
+            "div",
+            "div",
+            "div",
+            "div",
+            "div",
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "cb86951c"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "c3ecdb44"
+          ],
+          "attrs": {},
+          "index": 1,
+          "realIndex": 1,
+          "childrenTags": [
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "dc04ec1d"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div",
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "b8812f16",
+            "a2f3d50e"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "_262baab"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div",
+            "div",
+            "div",
+            "div"
+          ],
+          "siblings": [
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "_262baab"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "_5a8ac7a",
+                "a084f19e"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "_3586175",
+                "ds-scroll-area",
+                "ds-scroll-area--show-on-focus-within",
+                "ds-scroll-area--enabled"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "_2afd28d"
+              ]
+            }
+          ]
+        }
+      ],
+      "elem_attrs": {},
+      "list_info": {
+        "listItem": "div",
+        "listSize": 2,
+        "listSimilarity": 0.56
+      }
     }
   ]
 }
