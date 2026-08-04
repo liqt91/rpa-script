@@ -407,6 +407,42 @@ _SHELL_CLASSES = {"Shell_TrayWnd", "MSTaskSwWClass", "MSTaskListWClass",
 def _is_shell(hwnd) -> bool:
     return _get_class_name(hwnd) in _SHELL_CLASSES
 
+BROWSER_CHROME_HEIGHT = 88
+
+def _screen_to_viewport(sx, sy, win_rect):
+    return (sx - win_rect["left"], max(0, sy - win_rect["top"] - BROWSER_CHROME_HEIGHT))
+
+def _viewport_rect_to_screen(dom_rect, win_rect):
+    return {
+        "left": dom_rect["left"] + win_rect["left"],
+        "top": dom_rect["top"] + win_rect["top"] + BROWSER_CHROME_HEIGHT,
+        "right": dom_rect["right"] + win_rect["left"],
+        "bottom": dom_rect["bottom"] + win_rect["top"] + BROWSER_CHROME_HEIGHT,
+        "width": dom_rect["width"], "height": dom_rect["height"],
+    }
+
+def _try_browser_pick(hwnd, sx, sy):
+    cls = _get_class_name(hwnd)
+    if not _is_browser_window(cls):
+        return None
+    win_rect = _get_window_rect(hwnd)
+    vx, vy = _screen_to_viewport(sx, sy, win_rect)
+    if vx < 0 or vy < 0:
+        return None
+    try:
+        from scripts.capture_gui.ws_client import pick_browser_element
+        result = pick_browser_element(vx, vy, timeout=3.0)
+        if result.get("error") or not result.get("rect"):
+            return None
+        dom = result["rect"]
+        if dom.get("width", 0) <= 0:
+            return None
+        return (_viewport_rect_to_screen(dom, win_rect),
+                result.get("css", ""), result.get("xpath", ""),
+                result.get("tagName", ""), result.get("text", ""))
+    except Exception:
+        return None
+
 
 def run_capture() -> ElementInfo | None:
     sw = _GetSystemMetrics(SM_CXSCREEN); sh = _GetSystemMetrics(SM_CYSCREEN)
@@ -482,10 +518,16 @@ def run_capture() -> ElementInfo | None:
             if target != last_hwnd and not parent_stack:
                 last_pt = (pt.x, pt.y)
                 if target:
-                    rect = _get_window_rect(target)
-                    if rect["width"] > 0 and rect["height"] > 0:
+                    bp = _try_browser_pick(target, pt.x, pt.y)
+                    if bp:
+                        rect, css, xpath, tag, text = bp
                         show_border(rect)
-                        show_info(_build_info_text(target))
+                        show_info(f"> {tag} \"{text[:30]}\"\n  css:{css[:40]}")
+                    else:
+                        rect = _get_window_rect(target)
+                        if rect["width"] > 0 and rect["height"] > 0:
+                            show_border(rect)
+                            show_info(_build_info_text(target))
                     else:
                         show_border(None); show_info("")
                 else:
@@ -494,10 +536,16 @@ def run_capture() -> ElementInfo | None:
                 parent_stack.clear()
             elif target == last_hwnd and target and abs(pt.x - last_pt[0]) + abs(pt.y - last_pt[1]) > 6:
                 last_pt = (pt.x, pt.y)
-                uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
-                if uia_rect["width"] > 0:
-                    show_border(uia_rect)
-                    show_info(_build_info_text(target))
+                bp = _try_browser_pick(target, pt.x, pt.y)
+                if bp:
+                    rect, css, xpath, tag, text = bp
+                    show_border(rect)
+                    show_info(f"> {tag} \"{text[:30]}\"\n  css:{css[:40]}")
+                else:
+                    uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
+                    if uia_rect["width"] > 0:
+                        show_border(uia_rect)
+                        show_info(_build_info_text(target))
 
             if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and last_hwnd:
                 show_border(None); show_info("")
@@ -527,4 +575,12 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
             info.name = uia.get("name") or title
     if _is_browser_in_chain(path) and info.element_type != "web":
         info.element_type = "web"
+    # 浏览器 DOM: 通过 WS 取选择器
+    bp = _try_browser_pick(hwnd, x, y)
+    if bp:
+        _, css, xpath, tag, text = bp
+        info.css_selector = css
+        info.xpath = xpath
+        info.tag_name = tag
+        info.name = text[:30] or info.name
     return info
