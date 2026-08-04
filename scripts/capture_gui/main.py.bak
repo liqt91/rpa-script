@@ -79,8 +79,7 @@ class CaptureGUI:
         self.btn_manual.pack(side=tk.LEFT)
 
         # 推荐方案 Treeview
-        mid = ttk.Frame(right); mid.pack(fill=tk.BOTH, expand=True)
-        self.tab0 = ttk.Frame(mid)
+        self.tab0 = ttk.Frame(right)
         rc_cols = ("syntax", "family", "match")
         self.cand_tree = ttk.Treeview(self.tab0, columns=rc_cols, show="headings",
                                        selectmode="browse", height=6)
@@ -91,12 +90,12 @@ class CaptureGUI:
         self.cand_tree.column("match", width=45, anchor=tk.CENTER)
         self.cand_tree.pack(fill=tk.X, pady=(4, 0))
         self.cand_tree.bind("<<TreeviewSelect>>", self._on_cand_tree_select)
-        self.tab0.pack(fill=tk.BOTH, expand=True)
+        self.tab0.pack(fill=tk.X, before=name_row)
         # Initially visible below tab buttons
-        pass  # tab0_forget
+        self.tab0.pack_forget()
 
         # 手动编辑: DOM 路径
-        self.tab1 = ttk.Frame(mid)
+        self.tab1 = ttk.Frame(right)
         self.dom_canvas = tk.Canvas(self.tab1, height=200, highlightthickness=0)
         dom_sb = ttk.Scrollbar(self.tab1, orient=tk.VERTICAL, command=self.dom_canvas.yview)
         self.dom_inner = ttk.Frame(self.dom_canvas)
@@ -104,18 +103,17 @@ class CaptureGUI:
         dom_sb.pack(side=tk.RIGHT, fill=tk.Y); self.dom_canvas.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
         self.dom_win = self.dom_canvas.create_window((0, 0), window=self.dom_inner, anchor="nw")
         self.dom_inner.bind("<Configure>", lambda e: self.dom_canvas.configure(scrollregion=self.dom_canvas.bbox("all")))
-        pass  # tab1_forget
+        self.tab1.pack_forget()
 
         # 选择器预览 (公用)
-        bot = ttk.Frame(right); bot.pack(fill=tk.X, pady=(6,0))
-        sel_row = ttk.Frame(bot); sel_row.pack(fill=tk.X)
+        sel_row = ttk.Frame(right); sel_row.pack(fill=tk.X, pady=(8, 0))
         ttk.Label(sel_row, text="选择器", width=5).pack(side=tk.LEFT)
         self.sel_text = tk.Text(sel_row, height=3, font=("Consolas", 9), wrap=tk.WORD)
         self.sel_text.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
         ttk.Button(sel_row, text="📋", width=3, command=self._copy_selector).pack(side=tk.LEFT)
 
         # 按钮行
-        btn_row = ttk.Frame(bot); btn_row.pack(fill=tk.X, pady=(6,0))
+        btn_row = ttk.Frame(right); btn_row.pack(fill=tk.X, pady=(8, 0))
         self.btn_validate = ttk.Button(btn_row, text="🔍 验证", command=self._on_validate, state=tk.DISABLED)
         self.btn_validate.pack(side=tk.LEFT, padx=(0, 8))
         self.btn_save_sel = ttk.Button(btn_row, text="💾 保存选择器", command=self._save_selector, state=tk.DISABLED)
@@ -218,9 +216,9 @@ class CaptureGUI:
         self.current_sel_tab = tab
         if tab == 0:
             self.tab0.pack(fill=tk.X, before=self.sel_text.master)
-            pass  # tab1_forget
+            self.tab1.pack_forget()
         else:
-            pass  # tab0_forget
+            self.tab0.pack_forget()
             self.tab1.pack(fill=tk.BOTH, expand=True, before=self.sel_text.master)
 
     _sort_cands_dir = {"syntax": False, "family": False, "match": False}
@@ -306,8 +304,8 @@ class CaptureGUI:
             self.btn_save_sel.configure(state=tk.NORMAL)
             self._switch_sel_tab(self.current_sel_tab)
         else:
-            pass  # tab0_forget
-            pass  # tab1_forget
+            self.tab0.pack_forget()
+            self.tab1.pack_forget()
             self._set_sel_text(info.css_selector or "")
             self.sel_text.configure(state=tk.DISABLED)
             self.btn_recommend.configure(state=tk.DISABLED)
@@ -329,7 +327,7 @@ class CaptureGUI:
         self.cand_tree.delete(*self.cand_tree.get_children())
         self._candidates = []; self._dom_path = []; self._dom_checked = []
         self._set_sel_text("")
-        pass  # tab0_forget; pass  # tab1_forget
+        self.tab0.pack_forget(); self.tab1.pack_forget()
         for w in self.dom_inner.winfo_children(): w.destroy()
         self.btn_validate.configure(state=tk.DISABLED)
         self.btn_save_sel.configure(state=tk.DISABLED)
