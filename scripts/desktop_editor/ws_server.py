@@ -31,16 +31,12 @@ def _make_conn(ws, client_id: str):
 
 
 async def _handle_connection(ws):
-    """处理单个 WebSocket 连接，生命周期 = 浏览器扩展连接。"""
+    """处理单个 WebSocket 连接。"""
     from src.runtime.websocket_manager import ext_manager
 
     client_id = f"ext_{id(ws)}"
     conn = _make_conn(ws, client_id)
-
-    # 注册
-    async with ext_manager._lock:
-        ext_manager._connections[client_id] = conn
-    logger.info(f"[WsServer] 扩展已连接: {client_id}")
+    is_extension = False
 
     try:
         async for raw in ws:
@@ -52,21 +48,69 @@ async def _handle_connection(ws):
             action = msg.get("action", "")
             payload = msg.get("payload", {})
 
-            # 注册消息：更新浏览器类型
             if action == "register":
+                is_extension = True
+                async with ext_manager._lock:
+                    ext_manager._connections[client_id] = conn
                 conn.browser = payload.get("browser", "")
                 conn.extension_id = payload.get("extensionId", "")
                 logger.info(f"[WsServer] {client_id} 注册: browser={conn.browser}")
+                continue
 
-            # 分发给 ext_manager（含 stepResult/stepError 唤醒 Future）
-            await ext_manager.dispatch(action, payload, client_id)
+            if action == "browserPickElement":
+                # GUI → 转发给扩展
+                x, y = msg.get("x", 0), msg.get("y", 0)
+                request_id = msg.get("requestId", str(time.time()))
+                result = await _pick_via_extension(ext_manager, x, y, request_id, timeout=5.0)
+                await ws.send(json.dumps({
+                    "action": "browserPickResult",
+                    "requestId": request_id,
+                    "payload": result,
+                }, ensure_ascii=False))
+                continue
+
+            if is_extension:
+                await ext_manager.dispatch(action, payload, client_id)
 
     except Exception:
         pass
     finally:
-        async with ext_manager._lock:
-            ext_manager._connections.pop(client_id, None)
-        logger.info(f"[WsServer] 扩展已断开: {client_id}")
+        if is_extension:
+            async with ext_manager._lock:
+                ext_manager._connections.pop(client_id, None)
+        logger.info(f"[WsServer] 断开: {client_id}")
+
+
+async def _pick_via_extension(ext_manager, x: int, y: int, request_id: str, timeout: float = 5.0) -> dict:
+    """通过扩展拾取浏览器 DOM 元素。"""
+    # 找一个活跃的扩展连接
+    async with ext_manager._lock:
+        if not ext_manager._connections:
+            return {"error": "没有浏览器扩展连接"}
+        ext_conn = next(iter(ext_manager._connections.values()))
+
+    # 注册 Future
+    fut = asyncio.get_event_loop().create_future()
+
+    async def _on_result(payload, cid):
+        if payload.get("requestId") == request_id and not fut.done():
+            fut.set_result(payload.get("result", {}))
+
+    ext_manager.on("browserPickResult", _on_result)
+
+    try:
+        await ext_conn.send({
+            "action": "browserPickElement",
+            "payload": {"x": x, "y": y, "requestId": request_id},
+        })
+        result = await asyncio.wait_for(fut, timeout=timeout)
+        return result
+    except asyncio.TimeoutError:
+        return {"error": "拾取超时"}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        ext_manager.off("browserPickResult", _on_result)
 
 
 async def run_ws_server(host: str = "127.0.0.1", port: int = 8000):

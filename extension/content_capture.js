@@ -3192,6 +3192,40 @@
       }
       return false;
     }
+
+    // ── browserPickElement: GUI 通过 WS 请求拾取 DOM 元素 ──
+    if (message.action === 'browserPickElement') {
+      const { x, y, requestId } = message.payload || {};
+      const el = document.elementFromPoint(x, y);
+      if (!el || el === document.documentElement || el === document.body) {
+        sendResponse({ result: { error: '未找到元素', requestId } });
+        return false;
+      }
+      try {
+        const rect = el.getBoundingClientRect();
+        const rectData = {
+          left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+          width: rect.width, height: rect.height,
+        };
+        // 用已有函数生成选择器
+        const candidates = generateLocators(el);
+        const cssCand = candidates.find(c => c.family === 'css');
+        const xpathCand = candidates.find(c => c.family === 'xpath');
+        sendResponse({
+          result: {
+            requestId,
+            tagName: el.tagName.toLowerCase(),
+            text: (el.textContent || '').trim().slice(0, 200),
+            css: cssCand ? cssCand.syntax : '',
+            xpath: xpathCand ? xpathCand.syntax : '',
+            rect: rectData,
+          },
+        });
+      } catch (e) {
+        sendResponse({ result: { error: e?.message || String(e), requestId } });
+      }
+      return false;
+    }
   });
 
   // 页面刷新/导航后，主动向 background 查询 side panel 是否已打开

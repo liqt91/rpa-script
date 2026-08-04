@@ -205,6 +205,27 @@ class AgentBackground {
       return;
     }
 
+    // GUI → Extension: 拾取浏览器 DOM 元素
+    if (action === 'browserPickElement') {
+      const { x, y, requestId } = payload || {};
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tab = tabs[0];
+        if (!tab) {
+          this._send('browserPickResult', { requestId, result: { error: '没有活动标签页' } });
+          return;
+        }
+        const resp = await chrome.tabs.sendMessage(tab.id, {
+          action: 'browserPickElement',
+          payload: { x, y, requestId },
+        });
+        this._send('browserPickResult', { requestId, result: resp?.result || resp || { error: '无响应' } });
+      } catch (e) {
+        this._send('browserPickResult', { requestId, result: { error: e?.message || String(e) } });
+      }
+      return;
+    }
+
     console.log('[Agent] Unknown backend action:', action);
   }
 
