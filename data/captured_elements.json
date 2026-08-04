@@ -2,7 +2,7 @@
   "version": 1,
   "elements": [
     {
-      "name": "svg",
+      "name": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
       "element_type": "web",
       "class_name": "Chrome_WidgetWin_1",
       "title": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
@@ -32,164 +32,194 @@
           }
         }
       ],
-      "css_selector": "css:.flex > div > .grid > .flex > .absolute > svg",
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": "",
+      "candidates": [],
+      "dom_path": [],
+      "elem_attrs": {},
+      "list_info": {}
+    },
+    {
+      "name": "div_探索未至之境_开始对话_与_DeepSe",
+      "element_type": "web",
+      "class_name": "Chrome_WidgetWin_1",
+      "title": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": -40,
+        "width": 1920,
+        "height": 1040
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 131596,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        }
+      ],
+      "css_selector": "css:div > div > div > .items-center",
       "xpath": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
-      "tag_name": "svg",
+      "tag_name": "div",
       "candidates": [
         {
-          "syntax": "css:.flex > div > .grid > .flex > .absolute > svg",
-          "family": "css",
-          "score": 28,
+          "syntax": "verse:探索未快速集",
+          "family": "drission",
+          "score": 86,
           "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "@@class:flex@@class:flex-col",
+          "family": "drission",
+          "score": 72,
+          "matchCount": -1,
           "isList": false,
           "pathMapping": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.flex-col > div > .grid > .flex > .absolute > svg",
+          "syntax": "css:div > div > div > .items-center",
           "family": "css",
-          "score": 28,
+          "score": 73,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:.flex > div > div:nth-of-type(3) > .flex",
+          "family": "css",
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.items-center > div > .grid > .flex > .absolute > svg",
+          "syntax": "css:.flex-col > div > div:nth-of-type(3) > .flex",
           "family": "css",
-          "score": 28,
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.justify-between > div > .grid > .flex > .absolute > svg",
+          "syntax": "css:.items-center > div > div:nth-of-type(3) > .flex",
           "family": "css",
-          "score": 28,
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.flex > div > .grid > .flex-col > .absolute > svg",
+          "syntax": "css:.justify-between > div > div:nth-of-type(3) > .flex",
           "family": "css",
-          "score": 28,
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.flex-col > div > .grid > .flex-col > .absolute > svg",
+          "syntax": "css:.flex > div > div:nth-of-type(3) > .flex-col",
           "family": "css",
-          "score": 28,
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.items-center > div > .grid > .flex-col > .absolute > svg",
+          "syntax": "css:.flex-col > div > div:nth-of-type(3) > .flex-col",
           "family": "css",
-          "score": 28,
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.justify-between > div > .grid > .flex-col > .absolute > svg",
+          "syntax": "css:.items-center > div > div:nth-of-type(3) > .flex-col",
           "family": "css",
-          "score": 28,
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.flex > div > .grid > .items-begin > .absolute > svg",
+          "syntax": "css:.justify-between > div > div:nth-of-type(3) > .flex-col",
           "family": "css",
-          "score": 28,
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
-          "syntax": "css:.flex-col > div > .grid > .items-begin > .absolute > svg",
+          "syntax": "css:.flex > div > div:nth-of-type(3) > .items-begin",
           "family": "css",
-          "score": 28,
+          "score": 3,
           "matchCount": 1,
           "isList": false,
           "pathMapping": [
             0,
             1,
             2,
-            3,
-            4,
-            5
+            3
           ]
         },
         {
           "syntax": "css:main.flex.flex-col.items-center.justify-between",
           "family": "css",
-          "score": 26,
+          "score": 32,
           "matchCount": 1,
           "isList": true,
           "listContainer": "main.flex.flex-col.items-center.justify-between"
@@ -197,87 +227,100 @@
         {
           "syntax": "css:main.flex.flex-col.items-center.justify-between > div",
           "family": "css",
-          "score": 69,
+          "score": 75,
           "matchCount": 2,
           "isList": true,
           "listContainer": "main.flex.flex-col.items-center.justify-between",
           "listItem": "div"
-        },
-        {
-          "syntax": "css:svg",
-          "family": "css",
-          "score": 68,
-          "matchCount": 7,
-          "isList": true,
-          "listItem": "svg"
         },
         {
           "syntax": "css:main.flex.flex-col.items-center.justify-between div",
           "family": "css",
-          "score": 63,
+          "score": 69,
           "matchCount": 38,
           "isList": true,
           "listContainer": "main.flex.flex-col.items-center.justify-between",
           "listItem": "div"
         },
         {
+          "syntax": "css:div.flex",
+          "family": "css",
+          "score": 68,
+          "matchCount": 10,
+          "isList": true
+        },
+        {
+          "syntax": "css:div.flex-col",
+          "family": "css",
+          "score": 68,
+          "matchCount": 8,
+          "isList": true
+        },
+        {
           "syntax": "css:div.grid",
           "family": "css",
-          "score": 60,
+          "score": 66,
           "matchCount": 4,
           "isList": true,
           "listItem": "div.grid"
         },
         {
+          "syntax": "css:main div.flex",
+          "family": "css",
+          "score": 66,
+          "matchCount": 10,
+          "isList": true
+        },
+        {
           "syntax": "css:div.grid",
           "family": "css",
-          "score": 59,
+          "score": 65,
           "matchCount": 4,
           "isList": true,
           "listItem": "div.grid"
         },
         {
-          "syntax": "css:.flex svg",
+          "syntax": "css:div.items-begin",
           "family": "css",
-          "score": 58,
-          "matchCount": 7,
-          "isList": true
-        },
-        {
-          "syntax": "css:.grid svg",
-          "family": "css",
-          "score": 58,
-          "matchCount": 7,
-          "isList": true
-        },
-        {
-          "syntax": "css:div",
-          "family": "css",
-          "score": 56,
-          "matchCount": 38,
-          "isList": true,
-          "listItem": "div"
-        },
-        {
-          "syntax": "css:div.flex.flex-col.items-begin",
-          "family": "css",
-          "score": 47,
+          "score": 64,
           "matchCount": 2,
+          "isList": true
+        },
+        {
+          "syntax": ".flex",
+          "family": "css",
+          "score": 63,
+          "matchCount": 12,
           "isList": true,
-          "listItem": "div.flex.flex-col.items-begin"
+          "pathMapping": [
+            3
+          ]
         },
         {
           "syntax": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
           "family": "xpath",
-          "score": 4,
+          "score": 10,
           "matchCount": 1,
           "isList": true,
           "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]"
         },
         {
+          "syntax": "xpath://body/main/div[1]/div[3]/div[1]",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
           "syntax": "xpath://div/div[contains(@class,'grid')]",
           "family": "xpath",
-          "score": 74,
+          "score": 80,
           "matchCount": 4,
           "isList": true,
           "listContainer": "//div",
@@ -286,7 +329,7 @@
         {
           "syntax": "xpath://div//div[contains(@class,'grid')]",
           "family": "xpath",
-          "score": 58,
+          "score": 64,
           "matchCount": 4,
           "isList": true,
           "listContainer": "//div",
@@ -295,7 +338,7 @@
         {
           "syntax": "xpath://div",
           "family": "xpath",
-          "score": 54,
+          "score": 60,
           "matchCount": 38,
           "isList": true,
           "listItem": "//div"
@@ -303,7 +346,7 @@
         {
           "syntax": "xpath://div",
           "family": "xpath",
-          "score": 47,
+          "score": 53,
           "matchCount": 38,
           "isList": true,
           "listContainer": "//div"
@@ -311,7 +354,7 @@
         {
           "syntax": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]/div",
           "family": "xpath",
-          "score": 47,
+          "score": 53,
           "matchCount": 2,
           "isList": true,
           "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
@@ -320,7 +363,7 @@
         {
           "syntax": "xpath://div[contains(@class,'grid')]",
           "family": "xpath",
-          "score": 42,
+          "score": 48,
           "matchCount": 4,
           "isList": true,
           "listItem": "//div[contains(@class,'grid')]"
@@ -328,7 +371,7 @@
         {
           "syntax": "xpath://div[contains(@class,'grid')]",
           "family": "xpath",
-          "score": 41,
+          "score": 47,
           "matchCount": 4,
           "isList": true,
           "listItem": "//div[contains(@class,'grid')]"
@@ -336,19 +379,11 @@
         {
           "syntax": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]//div",
           "family": "xpath",
-          "score": 31,
+          "score": 37,
           "matchCount": 38,
           "isList": true,
           "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
           "listItem": "//div"
-        },
-        {
-          "syntax": "xpath://div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-begin')]",
-          "family": "xpath",
-          "score": 29,
-          "matchCount": 2,
-          "isList": true,
-          "listItem": "//div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-begin')]"
         }
       ],
       "dom_path": [
@@ -453,91 +488,30 @@
             "div",
             "div"
           ],
-          "siblings": []
-        },
-        {
-          "tag": "div",
-          "id": "",
-          "classes": [
-            "absolute",
-            "top-4",
-            "left-4"
-          ],
-          "attrs": {},
-          "index": 0,
-          "realIndex": 0,
-          "childrenTags": [
-            "div",
-            "svg",
-            "div",
-            "div"
-          ],
-          "siblings": []
-        },
-        {
-          "tag": "svg",
-          "id": "",
-          "classes": [],
-          "attrs": {
-            "viewBox": "0 0 143 23",
-            "fill": "none"
-          },
-          "index": 0,
-          "realIndex": 0,
-          "childrenTags": [
-            "svg"
-          ],
           "siblings": [
             {
-              "tag": "svg",
+              "tag": "div",
               "id": "",
-              "classes": []
+              "classes": [
+                "flex",
+                "flex-col",
+                "items-begin",
+                "pb-20"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "hidden",
+                "md:flex",
+                "flex-1",
+                "pb-20"
+              ]
             }
           ]
         }
       ],
-      "elem_attrs": {
-        "viewBox": "0 0 143 23",
-        "fill": "none"
-      },
-      "list_info": {}
-    },
-    {
-      "name": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
-      "element_type": "web",
-      "class_name": "Chrome_WidgetWin_1",
-      "title": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
-      "rect": {
-        "left": 0,
-        "top": -1080,
-        "right": 1920,
-        "bottom": -40,
-        "width": 1920,
-        "height": 1040
-      },
-      "control_type": "",
-      "automation_id": "",
-      "uia_path": [],
-      "win32_path": [
-        {
-          "hwnd": 131596,
-          "class_name": "Chrome_WidgetWin_1",
-          "title": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
-          "rect": {
-            "left": 0,
-            "top": -1080,
-            "right": 1920,
-            "bottom": -40,
-            "width": 1920,
-            "height": 1040
-          }
-        }
-      ],
-      "css_selector": "",
-      "xpath": "",
-      "tag_name": "",
-      "candidates": [],
-      "dom_path": [],
       "elem_attrs": {},
       "list_info": {}
     }
