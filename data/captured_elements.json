@@ -1277,6 +1277,97 @@
       ],
       "elem_attrs": {},
       "list_info": {}
+    },
+    {
+      "name": "win32_",
+      "element_type": "win32",
+      "class_name": "",
+      "title": "",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 8783520,
+          "class_name": "",
+          "title": "",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": "",
+      "candidates": [],
+      "dom_path": [],
+      "elem_attrs": {},
+      "list_info": {}
+    },
+    {
+      "name": "开始",
+      "element_type": "win32",
+      "class_name": "Start",
+      "title": "开始",
+      "rect": {
+        "left": 0,
+        "top": 1040,
+        "right": 48,
+        "bottom": 1080,
+        "width": 48,
+        "height": 40
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 65810,
+          "class_name": "Shell_TrayWnd",
+          "title": "",
+          "rect": {
+            "left": 0,
+            "top": 1040,
+            "right": 1920,
+            "bottom": 1080,
+            "width": 1920,
+            "height": 40
+          }
+        },
+        {
+          "hwnd": 65818,
+          "class_name": "Start",
+          "title": "开始",
+          "rect": {
+            "left": 0,
+            "top": 1040,
+            "right": 48,
+            "bottom": 1080,
+            "width": 48,
+            "height": 40
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": "",
+      "candidates": [],
+      "dom_path": [],
+      "elem_attrs": {},
+      "list_info": {}
     }
   ]
 }

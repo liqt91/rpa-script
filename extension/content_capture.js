@@ -3205,11 +3205,25 @@
       return false;
     }
 
-    // ── verifySelector: GUI 验证选择器 ──
+    // ── verifySelector: GUI 验证选择器 + 视觉闪烁 ──
     if (message.action === 'verifySelector') {
       const { selector } = message.payload || {};
       try {
         const matches = document.querySelectorAll(selector);
+        if (matches.length > 0) {
+          // 对前3个匹配元素画闪烁边框
+          for (let i = 0; i < Math.min(matches.length, 3); i++) {
+            const el = matches[i];
+            const oldOutline = el.style.outline;
+            const oldOutlineOffset = el.style.outlineOffset;
+            el.style.outline = '3px solid #3b82f6';
+            el.style.outlineOffset = '2px';
+            setTimeout(() => {
+              el.style.outline = oldOutline;
+              el.style.outlineOffset = oldOutlineOffset;
+            }, 1500);
+          }
+        }
         sendResponse({ found: matches.length > 0, count: matches.length });
       } catch (e) {
         sendResponse({ found: false, count: 0, error: e.message });
