@@ -282,15 +282,22 @@ class CaptureGUI:
         r = info.rect
         self.prop_rect.set(f"({r.get('left',0)},{r.get('top',0)}) {r.get('width',0)}x{r.get('height',0)}")
 
-        # 候选列表
+        # 候选列表 (含 badges)
         self.selector_listbox.delete(0, tk.END)
         self._candidates = info.candidates
         self._cand_idx = -1
         if self._candidates:
             for c in self._candidates:
-                fam = c.get("family", "?").upper()
-                syn = c.get("syntax", "")[:100]
-                self.selector_listbox.insert(tk.END, f"[{fam}] {syn}")
+                fam = (c.get("family") or c.get("type") or "?").upper()
+                syn = c.get("syntax", "")[:80]
+                badges = []
+                mc = c.get("matchCount", -1)
+                if mc == 1: badges.append("✓唯一")
+                elif mc > 1: badges.append(f"×{mc}")
+                if c.get("isList"): badges.append("⊞列表")
+                if c.get("score"): badges.append(f"{c['score']:.0%}")
+                badge_str = " ".join(badges)
+                self.selector_listbox.insert(tk.END, f"[{fam}] {syn}  {badge_str}")
             self.selector_listbox.selection_set(0)
             self._cand_idx = 0
         else:
