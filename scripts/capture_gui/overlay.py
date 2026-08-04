@@ -528,8 +528,8 @@ def run_capture() -> ElementInfo | None:
                         if rect["width"] > 0 and rect["height"] > 0:
                             show_border(rect)
                             show_info(_build_info_text(target))
-                    else:
-                        show_border(None); show_info("")
+                        else:
+                            show_border(None); show_info("")
                 else:
                     show_border(None); show_info("")
                 last_hwnd = target
