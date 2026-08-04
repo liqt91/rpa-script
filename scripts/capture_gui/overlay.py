@@ -137,7 +137,15 @@ def _get_ancestor_path(hwnd) -> list:
 
 
 def _is_browser_window(cls: str) -> bool:
-    return any(c in cls for c in ("Chrome_WidgetWin_1", "MozillaWindowClass", "CASCADIA_HOSTING_WINDOW_CLASS"))
+    return any(c in cls for c in (
+        "Chrome_WidgetWin_1", "MozillaWindowClass",
+        "CASCADIA_HOSTING_WINDOW_CLASS", "ApplicationFrameWindow",
+    ))
+
+def _is_render_area(hwnd) -> bool:
+    """是否是浏览器页面渲染区域（而非标签栏/菜单/地址栏）。"""
+    cls = _get_class_name(hwnd)
+    return cls == "Chrome_RenderWidgetHostHWND"
 
 
 def _is_browser_in_chain(path: list) -> bool:
@@ -561,10 +569,10 @@ def run_capture() -> ElementInfo | None:
             if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and last_hwnd:
                 show_border(None); show_info("")
                 time.sleep(0.1)
-                # 浏览器窗口 → 插件捕获
+                # 浏览器网页渲染区 → 插件捕获；标签栏/菜单 → 桌面捕获
                 cls_last = _get_class_name(last_hwnd)
                 broot = _find_browser_root(last_hwnd) or (last_hwnd if _is_browser_window(cls_last) else None)
-                if broot:
+                if broot and _is_render_area(last_hwnd):
                     captured = _capture_via_extension(broot, pt.x, pt.y)
                 else:
                     captured = _build_element_info(last_hwnd, pt.x, pt.y)
