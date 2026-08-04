@@ -7,8 +7,6 @@
 
 (function () {
   'use strict';
-  if (window.__rpaCaptureInjected) return;
-  window.__rpaCaptureInjected = true;
 
   // ─── State ───────────────────────────────────────────────────────
   let captureMode = false;
@@ -3209,12 +3207,17 @@
 
     // ── launchBrowserCapture: GUI 激活原生捕获模式 ──
     if (message.action === 'launchBrowserCapture') {
+      console.log('[RPA Capture] launchBrowserCapture received, requestId=', (message.payload || {}).requestId);
       guiCaptureRequestId = (message.payload || {}).requestId || null;
       captureEnabled = true;
-      if (!captureMode) enterCaptureMode();
-      // 视觉确认: 页面红闪 + toast
-      const prevBg = document.body?.style?.background || '';
+      if (!captureMode) {
+        console.log('[RPA Capture] entering capture mode...');
+        enterCaptureMode();
+      }
+      console.log('[RPA Capture] capture mode active, guiRequestId=', guiCaptureRequestId);
+      // 视觉确认
       if (document.body) {
+        const prevBg = document.body.style.background || '';
         document.body.style.background = '#ff0000';
         setTimeout(() => { document.body.style.background = prevBg; }, 500);
       }
