@@ -318,7 +318,8 @@ class CaptureGUI:
         self._build_dom_checkboxes()
 
         self.btn_validate.configure(state=tk.NORMAL)
-        self._populating = False
+        # delayed: 让排在队列里的 selection_set 事件先走(它们会被 _populating 挡掉)
+        self.root.after(50, lambda: setattr(self, '_populating', False))
 
     def _clear_panel(self):
         self.var_name.set("")
