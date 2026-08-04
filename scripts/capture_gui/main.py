@@ -227,7 +227,7 @@ class CaptureGUI:
             self.tab1.pack(fill=tk.BOTH, expand=True)
             self.btn_recommend.configure(text="   推荐方案")
             self.btn_manual.configure(text="▶ 手动编辑")
-            self.tab1.pack(fill=tk.BOTH, expand=True, before=self.sel_text.master)
+            self.tab1.pack(fill=tk.BOTH, expand=True)
 
     _sort_cands_dir = {"syntax": False, "family": False, "match": False}
     def _sort_cands(self, col):
@@ -372,7 +372,7 @@ class CaptureGUI:
             ttk.Label(row, text=tag_str, font=("Consolas", 9, "bold" if is_last else "normal"),
                       foreground="#d4380d" if is_last else "#333").pack(side=tk.LEFT)
             if is_last and isinstance(node, dict):
-                attrs = self._dom_attrs or {}
+                attrs = getattr(self, "_dom_attrs", None) or {}
                 if attrs:
                     self._dom_attr_vars[i] = {}
                     for an, av in attrs.items():
