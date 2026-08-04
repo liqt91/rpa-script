@@ -12,6 +12,7 @@
 
   // ─── State ───────────────────────────────────────────────────────
   let captureMode = false;
+  let guiCaptureRequestId = null;  // GUI 原生捕获模式
   let lastHoveredEl = null;
   let lockedElement = null;
   let lockedCandidates = [];
@@ -2491,14 +2492,25 @@
 
       lastCapturePayload = payload;
       activeCandidate = null;
-      chrome.runtime.sendMessage({ action: 'captureElement', payload })
-        .catch((err) => {
-          if (isExtensionContextInvalidated(err)) {
-            showToast('扩展已重新加载，请刷新当前页面后重试');
-            return;
-          }
-          showToast('发送失败: ' + err.message);
-        });
+      // GUI 原生捕获模式 → 发送完整结果回 WS
+      if (guiCaptureRequestId) {
+        chrome.runtime.sendMessage({
+          action: 'browserCaptureComplete',
+          payload: { requestId: guiCaptureRequestId, result: payload },
+        }).catch(() => {});
+        guiCaptureRequestId = null;
+        captureEnabled = false;
+        if (captureMode) exitCaptureMode();
+      } else {
+        chrome.runtime.sendMessage({ action: 'captureElement', payload })
+          .catch((err) => {
+            if (isExtensionContextInvalidated(err)) {
+              showToast('扩展已重新加载，请刷新当前页面后重试');
+              return;
+            }
+            showToast('发送失败: ' + err.message);
+          });
+      }
     };
     if (typeof requestIdleCallback === 'function') {
       requestIdleCallback(computePayload, { timeout: 200 });
@@ -3190,6 +3202,16 @@
       } catch (e) {
         sendResponse({ error: e?.message || String(e), total: 0 });
       }
+      return false;
+    }
+
+    // ── launchBrowserCapture: GUI 激活原生捕获模式 ──
+    if (message.action === 'launchBrowserCapture') {
+      guiCaptureRequestId = (message.payload || {}).requestId || null;
+      captureEnabled = true;
+      if (!captureMode) enterCaptureMode();
+      showToast('捕获模式：Alt+Click 选取元素');
+      sendResponse({ ok: true });
       return false;
     }
 

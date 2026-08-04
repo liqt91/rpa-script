@@ -57,8 +57,18 @@ async def _handle_connection(ws):
                 logger.info(f"[WsServer] {client_id} 注册: browser={conn.browser}")
                 continue
 
+            if action == "launchBrowserCapture":
+                # GUI → 要求扩展进入原生捕获模式，等待 Alt+Click 选取
+                payload = msg.get("payload", {})
+                result = await _launch_browser_capture(ext_manager, payload, timeout=20.0)
+                await ws.send(json.dumps({
+                    "action": "launchBrowserCaptureResult",
+                    "payload": result,
+                }, ensure_ascii=False))
+                continue
+
             if action == "browserPickElement":
-                # GUI → 转发给扩展
+                # GUI → 转发给扩展 (保留兼容)
                 x, y = msg.get("x", 0), msg.get("y", 0)
                 request_id = msg.get("requestId", str(time.time()))
                 result = await _pick_via_extension(ext_manager, x, y, request_id, timeout=5.0)
@@ -111,6 +121,34 @@ async def _pick_via_extension(ext_manager, x: int, y: int, request_id: str, time
         return {"error": str(e)}
     finally:
         ext_manager.off("browserPickResult", _on_result)
+
+
+async def _launch_browser_capture(ext_manager, payload: dict, timeout: float = 20.0) -> dict:
+    """将扩展切到原生捕获模式，等待用户 Alt+Click 选取完成。"""
+    async with ext_manager._lock:
+        if not ext_manager._connections:
+            return {"error": "没有浏览器扩展连接"}
+        ext_conn = next(iter(ext_manager._connections.values()))
+
+    request_id = payload.get("requestId", str(time.time()))
+    fut = asyncio.get_event_loop().create_future()
+
+    async def _on_result(payload, cid):
+        if payload.get("requestId") == request_id and not fut.done():
+            fut.set_result(payload.get("result", {}))
+
+    ext_manager.on("browserCaptureComplete", _on_result)
+    try:
+        await ext_conn.send({
+            "action": "launchBrowserCapture",
+            "payload": {"requestId": request_id},
+        })
+        result = await asyncio.wait_for(fut, timeout=timeout)
+        return result
+    except asyncio.TimeoutError:
+        return {"error": "捕获超时 (20s)"}
+    finally:
+        ext_manager.off("browserCaptureComplete", _on_result)
 
 
 async def run_ws_server(host: str = "127.0.0.1", port: int = 8000):

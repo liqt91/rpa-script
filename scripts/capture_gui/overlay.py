@@ -428,11 +428,11 @@ def _find_browser_root(hwnd):
     return None
 
 def _try_browser_pick(hwnd, sx, sy):
+    """检测到浏览器窗口 → 激活插件原生捕获模式，GUI 等待结果。"""
     cls = _get_class_name(hwnd)
     path = _get_ancestor_path(hwnd)
     if not _is_browser_window(cls) and not _is_browser_in_chain(path):
         return None
-    # 找浏览器顶层窗口用于坐标转换
     browser_hwnd = hwnd if _is_browser_window(cls) else _find_browser_root(hwnd)
     if not browser_hwnd:
         return None
@@ -441,21 +441,19 @@ def _try_browser_pick(hwnd, sx, sy):
     if vx < 0 or vy < 0:
         return None
     try:
-        from scripts.capture_gui.ws_client import pick_browser_element
-        result = pick_browser_element(vx, vy, timeout=3.0)
+        from scripts.capture_gui.ws_client import pick_browser_element, launch_browser_capture, wait_browser_capture
+        # 隐藏 GUI 边框，让插件接管
+        show_border(None); show_info("插件捕获中... Alt+Click 选取元素")
+        result = launch_browser_capture(vx, vy, timeout=15.0)
         if result.get("error") or not result.get("rect"):
             return None
         dom = result["rect"]
         if dom.get("width", 0) <= 0:
             return None
-        # 取首选 CSS/XPath
-        candidates = result.get("candidates", [])
         css = xpath = ""
-        for c in candidates:
-            if not css and c.get("family") == "css":
-                css = c.get("syntax", "")
-            if not xpath and c.get("family") == "xpath":
-                xpath = c.get("syntax", "")
+        for c in result.get("candidates", []):
+            if not css and c.get("family") == "css": css = c.get("syntax", "")
+            if not xpath and c.get("family") == "xpath": xpath = c.get("syntax", "")
         return {
             "rect": _viewport_rect_to_screen(dom, win_rect),
             "css": css, "xpath": xpath,
@@ -463,7 +461,7 @@ def _try_browser_pick(hwnd, sx, sy):
             "text": result.get("text", ""),
             "features": result.get("features", {}),
             "screenshot": result.get("screenshot"),
-            "candidates": candidates,
+            "candidates": result.get("candidates", []),
             "listFamily": result.get("listFamily"),
         }
     except Exception:

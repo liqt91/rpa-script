@@ -205,6 +205,29 @@ class AgentBackground {
       return;
     }
 
+    // GUI → Extension: 激活原生捕获模式
+    if (action === 'launchBrowserCapture') {
+      const { requestId } = payload || {};
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tab = tabs[0];
+        if (!tab) {
+          this._send('browserCaptureComplete', { requestId, result: { error: '没有活动标签页' } });
+          return;
+        }
+        await chrome.tabs.sendMessage(tab.id, {
+          action: 'launchBrowserCapture',
+          payload: { requestId },
+        });
+        // 等待 content script 通过 WS 发送结果
+        // content_capture.js 会在捕获完成后通过 chrome.runtime.sendMessage
+        // 发送 browserCaptureComplete 回来
+      } catch (e) {
+        this._send('browserCaptureComplete', { requestId, result: { error: e?.message || String(e) } });
+      }
+      return;
+    }
+
     // GUI → Extension: 拾取浏览器 DOM 元素
     if (action === 'browserPickElement') {
       const { x, y, requestId } = payload || {};
@@ -570,6 +593,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // 4) Content script 通知捕获完成 → 缓存数据并打开 side panel（不保存到后台）
+  // content_capture.js → WS: GUI 原生捕获模式结果
+  if (message.action === 'browserCaptureComplete') {
+    agent._send('browserCaptureComplete', message.payload);
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (message.action === 'captureElement') {
     agent.lastCapturePayload = message.payload;
     agent.lastCaptureTabId = sender.tab?.id || null;
