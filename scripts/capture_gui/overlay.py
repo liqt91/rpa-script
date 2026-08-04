@@ -514,7 +514,7 @@ def run_capture() -> ElementInfo | None:
                 target = last_hwnd
 
             # 浏览器窗口 → 委托插件原生捕获
-            if target and not captureModeBrowser:
+            if target:
                 browser_root = _find_browser_root(target) or (target if _is_browser_window(_get_class_name(target)) else None)
                 if browser_root:
                     show_border(None); show_info("插件捕获中... Alt+Click 选取")
