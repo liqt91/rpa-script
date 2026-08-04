@@ -239,10 +239,12 @@ class CaptureGUI:
         sel = self.cand_tree.selection()
         if sel:
             idx = int(sel[0])
-            if idx < len(self._candidates):
-                c = self._candidates[idx]
-                self._set_sel_text(c.get("syntax", ""))
-                self._cur_sel = c.get("syntax", "")
+            cands = self._sorted_cands
+            if idx < len(cands):
+                syn = cands[idx].get("syntax", "")
+                for pf in ("css:", "xpath:", "drission:"):
+                    if syn.lower().startswith(pf): syn = syn[len(pf):]; break
+                self._set_sel_text(syn)
 
     # ── Display ──
     def _show_props(self, info: ElementInfo):
@@ -265,7 +267,6 @@ class CaptureGUI:
 
         # 候选
         self.cand_tree.delete(*self.cand_tree.get_children())
-        self._candidates = info.candidates
         if info.candidates and is_web:
             # 过滤: 只要 css/xpath
             filtered = [c for c in info.candidates if (c.get("family") or c.get("type","")).lower() in ("css","xpath")]
