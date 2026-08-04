@@ -23,7 +23,8 @@ class CaptureGUI:
         self.root.minsize(800, 500)
         self.store = ElementStore(DEFAULT_STORE_PATH)
         self._candidates = []
-        self._cur_sel = ""  # 当前选中的选择器
+        self._cur_sel = ""
+        self._populating = False
         self._build_toolbar()
         self._build_panels()
         self._refresh_list()
@@ -186,9 +187,8 @@ class CaptureGUI:
         if new_sel:
             info.css_selector = new_sel
             self.store.save()
+            self.tree.set(str(idx), "sel", new_sel[:50])
             self.set_status(f"已保存: {new_sel[:50]}...")
-            self._refresh_list()
-            self._show_props(info)
 
     def _show_screenshot_large(self, event=None):
         if not self._thumb_img: return
@@ -237,6 +237,7 @@ class CaptureGUI:
         return c.get(["syntax","family","match"][idx], "") or ""
 
     def _on_cand_tree_select(self, event=None):
+        if self._populating: return  # 初始化时不覆盖选择器
         sel = self.cand_tree.selection()
         if sel:
             idx = int(sel[0])
@@ -249,6 +250,7 @@ class CaptureGUI:
 
     # ── Display ──
     def _show_props(self, info: ElementInfo):
+        self._populating = True  # 防止 selection_set 触发覆盖
         self.var_name.set(info.name)
         is_web = info.element_type == "web"
 
@@ -315,6 +317,7 @@ class CaptureGUI:
         self._build_dom_checkboxes()
 
         self.btn_validate.configure(state=tk.NORMAL)
+        self._populating = False
 
     def _clear_panel(self):
         self.var_name.set("")
@@ -348,7 +351,6 @@ class CaptureGUI:
             else:
                 display = f"{indent}{str(node)[:120]}"
             ttk.Label(row, text=display, font=("Consolas", 9)).pack(side=tk.LEFT)
-        self._update_dom_sel()
 
     def _update_dom_sel(self):
         parts = []
