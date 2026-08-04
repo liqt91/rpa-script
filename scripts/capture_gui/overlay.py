@@ -513,18 +513,16 @@ def run_capture() -> ElementInfo | None:
             if not target and last_hwnd and _user32.IsWindow(last_hwnd):
                 target = last_hwnd
 
-            # 浏览器窗口 → 委托插件原生捕获
+            # 浏览器窗口 → 左键点击时委托插件捕获
             if target and not _browser_checked:
-                browser_root = _find_browser_root(target) or (target if _is_browser_window(_get_class_name(target)) else None)
-                if browser_root:
-                    _browser_checked = True
-                    try:
-                        show_border(None); show_info("插件捕获中... Alt+Click 选取")
-                        captured = _capture_via_extension(browser_root, pt.x, pt.y)
-                    except Exception as e:
-                        show_info(f"浏览器捕获失败: {e}")
-                        captured = None
-                    break
+                try:
+                    cls_t = _get_class_name(target)
+                    browser_root = _find_browser_root(target) or (target if _is_browser_window(cls_t) else None)
+                    if browser_root:
+                        _browser_checked = True
+                        show_info("浏览器窗口 → 左键点击用插件捕获")
+                except Exception as e:
+                    print(f"[capture] browser check error: {e}")
 
             # ↑ 上箭头 → 选父级
             if _GetAsyncKeyState(VK_UP) & 0x8000:
@@ -574,7 +572,13 @@ def run_capture() -> ElementInfo | None:
             if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and last_hwnd:
                 show_border(None); show_info("")
                 time.sleep(0.1)
-                captured = _build_element_info(last_hwnd, pt.x, pt.y)
+                # 浏览器窗口 → 插件捕获
+                cls_last = _get_class_name(last_hwnd)
+                broot = _find_browser_root(last_hwnd) or (last_hwnd if _is_browser_window(cls_last) else None)
+                if broot:
+                    captured = _capture_via_extension(broot, pt.x, pt.y)
+                else:
+                    captured = _build_element_info(last_hwnd, pt.x, pt.y)
                 break
             time.sleep(0.03)
     finally:
