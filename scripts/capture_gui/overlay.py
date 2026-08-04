@@ -469,6 +469,7 @@ def run_capture() -> ElementInfo | None:
     last_hwnd = None; captured = None
     last_pt = (0, 0); _browser_checked = False
     _browser_root = None; _browser_vxvy = (0, 0)
+    _loop_count = 0  # skip browser check first few iterations
     # 层级导航栈：记录用户按 ↑ 上走过的路径，↓ 可退回
     parent_stack = []
     VK_UP = 0x26; VK_DOWN = 0x28
@@ -514,8 +515,9 @@ def run_capture() -> ElementInfo | None:
             if not target and last_hwnd and _user32.IsWindow(last_hwnd):
                 target = last_hwnd
 
-            # 浏览器窗口 → break，去循环外同步等 WS
-            if target and not _browser_checked and not parent_stack:
+            # 浏览器窗口 → break，去循环外同步等 WS（前10帧跳过）
+            _loop_count += 1
+            if _loop_count > 10 and target and not _browser_checked and not parent_stack:
                 br = None
                 try:
                     cls_t = _get_class_name(target)
