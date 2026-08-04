@@ -118,12 +118,25 @@ class CaptureGUI:
         ttk.Button(btn_row, text="📋 复制", width=8, command=self._copy_candidate).pack(side=tk.LEFT, padx=(0, 4))
         ttk.Button(btn_row, text="✓ 测试", width=8, command=self._test_candidate).pack(side=tk.LEFT)
 
-        # 手动编辑
+        # 手动编辑 — 交互 DOM 路径
         self.manual_panel = ttk.Frame(right)
-        dom_frame = ttk.LabelFrame(self.manual_panel, text="DOM 层级", padding=4)
+        dom_frame = ttk.LabelFrame(self.manual_panel, text="DOM 层级 (勾选参与生成)", padding=4)
         dom_frame.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
-        self.dom_text = tk.Text(dom_frame, height=6, font=("Consolas", 9), state=tk.DISABLED)
-        self.dom_text.pack(fill=tk.BOTH, expand=True)
+        self.dom_canvas = tk.Canvas(dom_frame, height=150, highlightthickness=0)
+        self.dom_scroll = ttk.Scrollbar(dom_frame, orient=tk.VERTICAL, command=self.dom_canvas.yview)
+        self.dom_inner = ttk.Frame(self.dom_canvas)
+        self.dom_canvas.configure(yscrollcommand=self.dom_scroll.set)
+        self.dom_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.dom_canvas.pack(fill=tk.BOTH, expand=True)
+        self.dom_win = self.dom_canvas.create_window((0, 0), window=self.dom_inner, anchor="nw")
+        self.dom_inner.bind("<Configure>", lambda e: self.dom_canvas.configure(scrollregion=self.dom_canvas.bbox("all")))
+        # 选择器预览
+        selprev_frame = ttk.Frame(self.manual_panel)
+        selprev_frame.pack(fill=tk.X, pady=(6, 0))
+        ttk.Label(selprev_frame, text="生成：", font=("", 9)).pack(side=tk.LEFT)
+        self.selector_preview = ttk.Entry(selprev_frame, font=("Consolas", 9))
+        self.selector_preview.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
+        ttk.Button(selprev_frame, text="📋", width=3, command=self._copy_preview).pack(side=tk.LEFT)
         self.manual_panel.pack_forget()
 
         # 元素特征
@@ -240,6 +253,7 @@ class CaptureGUI:
         else:
             self.recommend_panel.pack_forget()
             self.manual_panel.pack(fill=tk.BOTH, expand=True, before=self.screenshot_frame)
+            self._build_dom_checkboxes()
 
     def _on_candidate_select(self, event=None):
         sel = self.selector_listbox.curselection()

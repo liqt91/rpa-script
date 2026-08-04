@@ -95,6 +95,9 @@ class ElementInfo:
     tag_name: str = ""
     candidates: list = field(default_factory=list)  # 全部选择器候选
     screenshot: str = ""  # base64
+    dom_path: list = field(default_factory=list)  # DOM层级路径
+    elem_attrs: dict = field(default_factory=dict)  # 元素属性
+    list_info: dict = field(default_factory=dict)  # 列表检测信息
 
 
 def _get_window_text(hwnd) -> str:
@@ -464,6 +467,9 @@ def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
             tag_name=result.get("tag", "") or result.get("tagName", ""),
             candidates=result.get("candidates", []),
             screenshot=result.get("screenshot", ""),
+            dom_path=result.get("path", []),
+            elem_attrs=result.get("attrs", {}),
+            list_info={k: result.get(k) for k in ("listContainer","listItem","listSize","listSimilarity") if result.get(k)},
         )
         return info
     except Exception:

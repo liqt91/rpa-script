@@ -53,6 +53,9 @@ def _dict_to_info(d: dict) -> ElementInfo:
         win32_path=d.get("win32_path", []),
         candidates=d.get("candidates", []),
         screenshot=d.get("screenshot", ""),
+        dom_path=d.get("dom_path", []),
+        elem_attrs=d.get("elem_attrs", {}),
+        list_info=d.get("list_info", {}),
     )
 
 
