@@ -439,33 +439,28 @@ def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
     """委托浏览器插件原生捕获。阻塞等待用户 Alt+Click。"""
     win_rect = _get_window_rect(browser_hwnd)
     vx, vy = _screen_to_viewport(sx, sy, win_rect)
+    show_info("插件捕获中... 点击页面元素")
     try:
         from scripts.capture_gui.ws_client import launch_browser_capture
         result = launch_browser_capture(vx, vy, timeout=20.0)
-        if result.get("error") or not result.get("rect"):
-            return None
-        dom = result["rect"]
-        if dom.get("width", 0) <= 0:
+        if result.get("error"):
             return None
         css = xpath = ""
         for c in result.get("candidates", []):
             if not css and c.get("family") == "css": css = c.get("syntax", "")
             if not xpath and c.get("family") == "xpath": xpath = c.get("syntax", "")
-        rect = _viewport_rect_to_screen(dom, win_rect)
+        name = result.get("name") or result.get("inner_text", "")[:30] or result.get("tag", "")
+        rect = _get_window_rect(browser_hwnd)
         cls = _get_class_name(browser_hwnd)
         title = _get_window_text(browser_hwnd)
         path = _get_ancestor_path(browser_hwnd)
         info = ElementInfo(
-            name=result.get("text", "")[:30] or result.get("tagName", ""),
+            name=name,
             element_type="web", class_name=cls, title=title,
             rect=rect, hwnd=browser_hwnd, win32_path=path,
             css_selector=css, xpath=xpath,
-            tag_name=result.get("tagName", ""),
+            tag_name=result.get("tag", "") or result.get("tagName", ""),
         )
-        uia_data = _try_uia_capture(sx, sy)
-        if uia_data:
-            info.control_type = uia_data.get("control_type", "")
-            info.uia_path = uia_data.get("path", [])
         return info
     except Exception:
         return None
