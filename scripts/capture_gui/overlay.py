@@ -467,7 +467,7 @@ def run_capture() -> ElementInfo | None:
     sw = _GetSystemMetrics(SM_CXSCREEN); sh = _GetSystemMetrics(SM_CYSCREEN)
     pt = wintypes.POINT()
     last_hwnd = None; captured = None
-    last_pt = (0, 0)  # track mouse position within same HWND
+    last_pt = (0, 0); _browser_checked = False  # 只检测一次浏览器
     # 层级导航栈：记录用户按 ↑ 上走过的路径，↓ 可退回
     parent_stack = []
     VK_UP = 0x26; VK_DOWN = 0x28
@@ -514,11 +514,16 @@ def run_capture() -> ElementInfo | None:
                 target = last_hwnd
 
             # 浏览器窗口 → 委托插件原生捕获
-            if target:
+            if target and not _browser_checked:
                 browser_root = _find_browser_root(target) or (target if _is_browser_window(_get_class_name(target)) else None)
                 if browser_root:
-                    show_border(None); show_info("插件捕获中... Alt+Click 选取")
-                    captured = _capture_via_extension(browser_root, pt.x, pt.y)
+                    _browser_checked = True
+                    try:
+                        show_border(None); show_info("插件捕获中... Alt+Click 选取")
+                        captured = _capture_via_extension(browser_root, pt.x, pt.y)
+                    except Exception as e:
+                        show_info(f"浏览器捕获失败: {e}")
+                        captured = None
                     break
 
             # ↑ 上箭头 → 选父级
