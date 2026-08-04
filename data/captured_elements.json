@@ -1452,7 +1452,7 @@
           }
         }
       ],
-      "css_selector": "//main[contains(@class,'flex')]/div[2]/div[2]/div/div[4]",
+      "css_selector": "//div[contains(@class,'relative')]/div[2]/div/div[4]",
       "xpath": "xpath://div[contains(@class,'grid')]/div[4]",
       "tag_name": "div",
       "candidates": [
