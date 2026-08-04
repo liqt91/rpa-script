@@ -311,6 +311,9 @@ class CaptureGUI:
                      self.prop_ctrl_type, self.prop_auto_id,
                      self.prop_rect, self.prop_path_count]:
             var.set("")
+        self.selector_combo['values'] = []
+        self.selector_var.set("")
+        self.screenshot_label.configure(image="", text="(选择web元素显示)")
         self.details_text.delete("1.0", tk.END)
         self.validate_btn.configure(state=tk.DISABLED)
 
