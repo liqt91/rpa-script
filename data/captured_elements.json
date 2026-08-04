@@ -800,6 +800,483 @@
         "listSize": 2,
         "listSimilarity": 0.56
       }
+    },
+    {
+      "name": "div_探索未至之境_开始对话_与_DeepSe",
+      "element_type": "web",
+      "class_name": "Chrome_WidgetWin_1",
+      "title": "DeepSeek | 深度求索 和另外 9 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": -40,
+        "width": 1920,
+        "height": 1040
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 131596,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "DeepSeek | 深度求索 和另外 9 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        }
+      ],
+      "css_selector": "css:div > div > div > .items-center",
+      "xpath": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+      "tag_name": "div",
+      "candidates": [
+        {
+          "syntax": "verse:探索未快速集",
+          "family": "drission",
+          "score": 86,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "@@class:flex@@class:flex-col",
+          "family": "drission",
+          "score": 72,
+          "matchCount": -1,
+          "isList": false,
+          "pathMapping": [
+            3
+          ]
+        },
+        {
+          "syntax": "css:div > div > div > .items-center",
+          "family": "css",
+          "score": 73,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:.flex > div > div:nth-of-type(3) > .flex",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:.flex-col > div > div:nth-of-type(3) > .flex",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:.items-center > div > div:nth-of-type(3) > .flex",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:.justify-between > div > div:nth-of-type(3) > .flex",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:.flex > div > div:nth-of-type(3) > .flex-col",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:.flex-col > div > div:nth-of-type(3) > .flex-col",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:.items-center > div > div:nth-of-type(3) > .flex-col",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:.justify-between > div > div:nth-of-type(3) > .flex-col",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:.flex > div > div:nth-of-type(3) > .items-begin",
+          "family": "css",
+          "score": 3,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "css:main.flex.flex-col.items-center.justify-between",
+          "family": "css",
+          "score": 32,
+          "matchCount": 1,
+          "isList": true,
+          "listContainer": "main.flex.flex-col.items-center.justify-between"
+        },
+        {
+          "syntax": "css:main.flex.flex-col.items-center.justify-between > div",
+          "family": "css",
+          "score": 75,
+          "matchCount": 2,
+          "isList": true,
+          "listContainer": "main.flex.flex-col.items-center.justify-between",
+          "listItem": "div"
+        },
+        {
+          "syntax": "css:main.flex.flex-col.items-center.justify-between div",
+          "family": "css",
+          "score": 69,
+          "matchCount": 38,
+          "isList": true,
+          "listContainer": "main.flex.flex-col.items-center.justify-between",
+          "listItem": "div"
+        },
+        {
+          "syntax": "css:div.flex",
+          "family": "css",
+          "score": 68,
+          "matchCount": 10,
+          "isList": true
+        },
+        {
+          "syntax": "css:div.flex-col",
+          "family": "css",
+          "score": 68,
+          "matchCount": 8,
+          "isList": true
+        },
+        {
+          "syntax": "css:div.grid",
+          "family": "css",
+          "score": 66,
+          "matchCount": 4,
+          "isList": true,
+          "listItem": "div.grid"
+        },
+        {
+          "syntax": "css:main div.flex",
+          "family": "css",
+          "score": 66,
+          "matchCount": 10,
+          "isList": true
+        },
+        {
+          "syntax": "css:div.grid",
+          "family": "css",
+          "score": 65,
+          "matchCount": 4,
+          "isList": true,
+          "listItem": "div.grid"
+        },
+        {
+          "syntax": "css:div.items-begin",
+          "family": "css",
+          "score": 64,
+          "matchCount": 2,
+          "isList": true
+        },
+        {
+          "syntax": ".flex",
+          "family": "css",
+          "score": 63,
+          "matchCount": 12,
+          "isList": true,
+          "pathMapping": [
+            3
+          ]
+        },
+        {
+          "syntax": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+          "family": "xpath",
+          "score": 10,
+          "matchCount": 1,
+          "isList": true,
+          "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]"
+        },
+        {
+          "syntax": "xpath://body/main/div[1]/div[3]/div[1]",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "syntax": "xpath://div/div[contains(@class,'grid')]",
+          "family": "xpath",
+          "score": 80,
+          "matchCount": 4,
+          "isList": true,
+          "listContainer": "//div",
+          "listItem": "//div[contains(@class,'grid')]"
+        },
+        {
+          "syntax": "xpath://div//div[contains(@class,'grid')]",
+          "family": "xpath",
+          "score": 64,
+          "matchCount": 4,
+          "isList": true,
+          "listContainer": "//div",
+          "listItem": "//div[contains(@class,'grid')]"
+        },
+        {
+          "syntax": "xpath://div",
+          "family": "xpath",
+          "score": 60,
+          "matchCount": 38,
+          "isList": true,
+          "listItem": "//div"
+        },
+        {
+          "syntax": "xpath://div",
+          "family": "xpath",
+          "score": 53,
+          "matchCount": 38,
+          "isList": true,
+          "listContainer": "//div"
+        },
+        {
+          "syntax": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]/div",
+          "family": "xpath",
+          "score": 53,
+          "matchCount": 2,
+          "isList": true,
+          "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+          "listItem": "//div"
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'grid')]",
+          "family": "xpath",
+          "score": 48,
+          "matchCount": 4,
+          "isList": true,
+          "listItem": "//div[contains(@class,'grid')]"
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'grid')]",
+          "family": "xpath",
+          "score": 47,
+          "matchCount": 4,
+          "isList": true,
+          "listItem": "//div[contains(@class,'grid')]"
+        },
+        {
+          "syntax": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]//div",
+          "family": "xpath",
+          "score": 37,
+          "matchCount": 38,
+          "isList": true,
+          "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+          "listItem": "//div"
+        }
+      ],
+      "dom_path": [
+        {
+          "tag": "main",
+          "id": "",
+          "classes": [
+            "flex",
+            "flex-col",
+            "items-center",
+            "justify-between"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "main",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "next-route-announcer",
+            "div",
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "w-full",
+            "bg-center",
+            "bg-cover",
+            "px-8",
+            "md:px-20"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "grid",
+            "grid-cols-1",
+            "md:grid-cols-2",
+            "lg:grid-cols-7",
+            "gap-12",
+            "lg:gap-28",
+            "max-w-6xl",
+            "m-auto",
+            "mb-16"
+          ],
+          "attrs": {},
+          "index": 2,
+          "realIndex": 2,
+          "childrenTags": [
+            "div",
+            "div",
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "flex",
+            "flex-col",
+            "items-begin",
+            "pb-20",
+            "md:pb-40",
+            "col-span-1",
+            "lg:col-span-4"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div",
+            "div"
+          ],
+          "siblings": [
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "flex",
+                "flex-col",
+                "items-begin",
+                "pb-20"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "hidden",
+                "md:flex",
+                "flex-1",
+                "pb-20"
+              ]
+            }
+          ]
+        }
+      ],
+      "elem_attrs": {},
+      "list_info": {}
     }
   ]
 }

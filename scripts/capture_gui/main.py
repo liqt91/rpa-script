@@ -148,6 +148,8 @@ class CaptureGUI:
 
     def _verify_web(self):
         t = self.sel_text.get("1.0", tk.END).strip()
+        for prefix in ("css:", "xpath:", "drission:"):
+            if t.lower().startswith(prefix): t = t[len(prefix):]; break
         if not t: self.set_status("选择器为空"); return
         self.set_status(f"验证: {t[:50]}...")
         try:
@@ -276,7 +278,10 @@ class CaptureGUI:
                                        values=(c.get("syntax", "")[:120], fam, mc_str))
             if filtered:
                 self.cand_tree.selection_set("0")
-                self._set_sel_text(filtered[0].get("syntax", ""))
+                syn0 = filtered[0].get("syntax", "")
+                for pf in ("css:", "xpath:", "drission:"):
+                    if syn0.lower().startswith(pf): syn0 = syn0[len(pf):]; break
+                self._set_sel_text(syn0)
         elif not is_web:
             self.cand_tree.insert("", tk.END, values=("(非web元素)", "", ""))
 
