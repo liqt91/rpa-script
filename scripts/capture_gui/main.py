@@ -25,11 +25,10 @@ class CaptureGUI:
         self._candidates = []
         self._cur_sel = ""
         self._populating = False
-        s = ttk.Style()
-        s.configure("Active.TButton", background="#3b82f6", foreground="white")
         self._build_toolbar()
         self._build_panels()
         self._refresh_list()
+        self.root.after(50, lambda: self._switch_sel_tab(0))
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ── Toolbar ──
@@ -221,13 +220,13 @@ class CaptureGUI:
         if tab == 0:
             self.tab1.pack_forget()
             self.tab0.pack(fill=tk.BOTH, expand=True)
-            self.btn_recommend.configure(style="Active.TButton")
-            self.btn_manual.configure(style="TButton")
+            self.btn_recommend.configure(text="▶ 推荐方案")
+            self.btn_manual.configure(text="   手动编辑")
         else:
             self.tab0.pack_forget()
             self.tab1.pack(fill=tk.BOTH, expand=True)
-            self.btn_recommend.configure(style="TButton")
-            self.btn_manual.configure(style="Active.TButton")
+            self.btn_recommend.configure(text="   推荐方案")
+            self.btn_manual.configure(text="▶ 手动编辑")
             self.tab1.pack(fill=tk.BOTH, expand=True, before=self.sel_text.master)
 
     _sort_cands_dir = {"syntax": False, "family": False, "match": False}
