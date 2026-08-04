@@ -3215,11 +3215,12 @@
         enterCaptureMode();
       }
       console.log('[RPA Capture] capture mode active, guiRequestId=', guiCaptureRequestId);
-      // 视觉确认
+      // 视觉确认 — 蓝色半透明闪烁
       if (document.body) {
-        const prevBg = document.body.style.background || '';
-        document.body.style.background = '#ff0000';
-        setTimeout(() => { document.body.style.background = prevBg; }, 500);
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;background:rgba(59,130,246,0.15);transition:opacity .3s';
+        document.body.appendChild(overlay);
+        setTimeout(() => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 500); }, 300);
       }
       showToast('✅ GUI捕获模式已激活 | 直接点击页面元素', 'success');
       sendResponse({ ok: true });

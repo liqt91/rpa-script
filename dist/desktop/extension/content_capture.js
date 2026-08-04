@@ -7,11 +7,10 @@
 
 (function () {
   'use strict';
-  if (window.__rpaCaptureInjected) return;
-  window.__rpaCaptureInjected = true;
 
   // ─── State ───────────────────────────────────────────────────────
   let captureMode = false;
+  let guiCaptureRequestId = null;  // GUI 原生捕获模式
   let lastHoveredEl = null;
   let lockedElement = null;
   let lockedCandidates = [];
@@ -2232,13 +2231,22 @@
     if (!lockedElement || !document.body.contains(lockedElement)) return;
     const rect = lockedElement.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    const w = highlightCanvas.width;
+    const hh = highlightCanvas.height;
+
+    // clamp to canvas (avoid border cut-off at viewport edges)
+    const x1 = Math.max(0, rect.left * dpr);
+    const y1 = Math.max(0, rect.top * dpr);
+    const x2 = Math.min(w, rect.right * dpr);
+    const y2 = Math.min(hh, rect.bottom * dpr);
+
     highlightCtx.save();
-    highlightCtx.strokeStyle = '#ff4444';
-    highlightCtx.lineWidth = 2 * dpr;
-    highlightCtx.fillStyle = 'rgba(255, 68, 68, 0.08)';
-    highlightCtx.fillRect(rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
-    highlightCtx.strokeRect(rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
-    // label
+    highlightCtx.strokeStyle = '#3b82f6';
+    highlightCtx.lineWidth = 3 * dpr;
+    highlightCtx.fillStyle = 'rgba(59, 130, 246, 0.10)';
+    highlightCtx.fillRect(x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1));
+    highlightCtx.strokeRect(x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1));
+    // label: draw below if not enough space above
     const tag = lockedElement.tagName.toLowerCase();
     const cls = lockedElement.className && typeof lockedElement.className === 'string'
       ? lockedElement.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).join('.')
@@ -2246,11 +2254,16 @@
     const text = tag + (lockedElement.id ? '#' + lockedElement.id : '') + (cls ? '.' + cls : '');
     highlightCtx.font = (11 * dpr) + 'px monospace';
     const tw = highlightCtx.measureText(text).width;
-    const pad = 3 * dpr;
-    highlightCtx.fillStyle = '#ff4444';
-    highlightCtx.fillRect((rect.left + 2) * dpr, (rect.top - 16) * dpr, tw + pad * 2, 14 * dpr);
+    const pad = 4 * dpr;
+    const labelH = 15 * dpr;
+    const spaceAbove = rect.top * dpr;
+    const labelY = spaceAbove >= labelH + 4 * dpr
+      ? y1 - labelH - 2 * dpr   // above
+      : y2 + 2 * dpr;            // below
+    highlightCtx.fillStyle = '#3b82f6';
+    highlightCtx.fillRect((rect.left + 2) * dpr, labelY, tw + pad * 2, labelH);
     highlightCtx.fillStyle = '#fff';
-    highlightCtx.fillText(text, (rect.left + 2 + pad) * dpr, (rect.top - 5) * dpr);
+    highlightCtx.fillText(text, (rect.left + 2 + pad) * dpr, labelY + labelH - 4 * dpr);
     highlightCtx.restore();
   }
 
@@ -2477,14 +2490,25 @@
 
       lastCapturePayload = payload;
       activeCandidate = null;
-      chrome.runtime.sendMessage({ action: 'captureElement', payload })
-        .catch((err) => {
-          if (isExtensionContextInvalidated(err)) {
-            showToast('扩展已重新加载，请刷新当前页面后重试');
-            return;
-          }
-          showToast('发送失败: ' + err.message);
-        });
+      // GUI 原生捕获模式 → 发送完整结果回 WS
+      if (guiCaptureRequestId) {
+        chrome.runtime.sendMessage({
+          action: 'browserCaptureComplete',
+          payload: { requestId: guiCaptureRequestId, result: payload },
+        }).catch(() => {});
+        guiCaptureRequestId = null;
+        captureEnabled = false;
+        if (captureMode) exitCaptureMode();
+      } else {
+        chrome.runtime.sendMessage({ action: 'captureElement', payload })
+          .catch((err) => {
+            if (isExtensionContextInvalidated(err)) {
+              showToast('扩展已重新加载，请刷新当前页面后重试');
+              return;
+            }
+            showToast('发送失败: ' + err.message);
+          });
+      }
     };
     if (typeof requestIdleCallback === 'function') {
       requestIdleCallback(computePayload, { timeout: 200 });
@@ -2494,14 +2518,17 @@
   }
 
   async function onCaptureClick(e) {
-    if (!captureMode || !e.altKey) return;
+    if (!captureMode) return;
+    // GUI 模式不需要 Alt；Side panel 需要 Alt
+    if (!guiCaptureRequestId && !e.altKey) return;
     e.preventDefault();
     e.stopPropagation();
     const el = lockedElement;
     if (!el) {
-      showToast('没有可捕获的元素');
+      showToast('没有可捕获的元素', 'error');
       return;
     }
+    flashCaptureSuccess(el);
     exitCaptureMode();
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     await performCapture(el);
@@ -2876,21 +2903,47 @@
 
   // ─── Toast ───────────────────────────────────────────────────────
 
-  function showToast(message) {
+  function showToast(message, type = 'info') {
     const existing = document.getElementById('rpa-capture-toast');
     if (existing) existing.remove();
+    const colors = { info: '#1e40af', success: '#059669', error: '#dc2626' };
     const toast = document.createElement('div');
     toast.id = 'rpa-capture-toast';
     toast.style.cssText = `
-      position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
-      background: rgba(0,0,0,0.8); color: #fff; padding: 10px 16px;
-      border-radius: 6px; font-size: 13px; font-family: system-ui, sans-serif;
-      max-width: 400px; word-break: break-word; pointer-events: none;
-      transition: opacity 0.3s;
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 2147483647; background: ${colors[type] || colors.info};
+      color: #fff; padding: 10px 24px; border-radius: 8px;
+      font-size: 14px; font-family: system-ui, -apple-system, sans-serif;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25); pointer-events: none;
+      transition: opacity 0.3s; white-space: nowrap;
     `;
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2500);
+  }
+
+  // ─── Green flash on capture success ────────────────────────────────
+
+  function flashCaptureSuccess(el) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const flash = document.createElement('div');
+    flash.style.cssText = `
+      position: fixed; pointer-events: none; z-index: 2147483646;
+      left: ${rect.left - 1}px; top: ${rect.top - 1}px;
+      width: ${rect.width + 2}px; height: ${rect.height + 2}px;
+      border: 3px solid #22c55e; background: rgba(34, 197, 94, 0.25);
+      border-radius: 4px;
+      animation: rpa-capture-flash 0.3s ease-out forwards;
+    `;
+    if (!document.getElementById('rpa-capture-flash-style')) {
+      const s = document.createElement('style');
+      s.id = 'rpa-capture-flash-style';
+      s.textContent = '@keyframes rpa-capture-flash{0%{opacity:1}100%{opacity:0;transform:scale(1.02)}}';
+      document.head.appendChild(s);
+    }
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 350);
   }
 
   // ─── Keyboard shortcuts ──────────────────────────────────────────
@@ -3150,6 +3203,94 @@
         sendResponse({ error: e?.message || String(e), total: 0 });
       }
       return false;
+    }
+
+    // ── launchBrowserCapture: GUI 激活原生捕获模式 ──
+    if (message.action === 'launchBrowserCapture') {
+      console.log('[RPA Capture] launchBrowserCapture received, requestId=', (message.payload || {}).requestId);
+      guiCaptureRequestId = (message.payload || {}).requestId || null;
+      captureEnabled = true;
+      if (!captureMode) {
+        console.log('[RPA Capture] entering capture mode...');
+        enterCaptureMode();
+      }
+      console.log('[RPA Capture] capture mode active, guiRequestId=', guiCaptureRequestId);
+      // 视觉确认 — 蓝色半透明闪烁
+      if (document.body) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;background:rgba(59,130,246,0.15);transition:opacity .3s';
+        document.body.appendChild(overlay);
+        setTimeout(() => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 500); }, 300);
+      }
+      showToast('✅ GUI捕获模式已激活 | 直接点击页面元素', 'success');
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    // ── browserPickElement: GUI 通过 WS 请求拾取 DOM 元素 ──
+    if (message.action === 'browserPickElement') {
+      const { x, y, requestId } = message.payload || {};
+      const el = document.elementFromPoint(x, y);
+      if (!el || el === document.documentElement || el === document.body) {
+        sendResponse({ result: { error: '未找到元素', requestId } });
+        return false;
+      }
+      (async () => {
+        try {
+          const rect = el.getBoundingClientRect();
+          const rectData = {
+            left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+            width: rect.width, height: rect.height,
+          };
+          // 全套选择器
+          const candidates = generateLocators(el);
+          const features = buildFeatureSnapshot(el);
+          const domPath = buildElementPath(el);
+          const listFamily = detectListFamily(el, { maxDepth: 6, minItems: 2, similarityThreshold: 0.55 });
+          // 截图
+          let screenshot = null;
+          try {
+            const resp = await chrome.runtime.sendMessage({
+              action: 'captureElementScreenshot',
+              rect: rectData,
+              dpr: window.devicePixelRatio || 1,
+            });
+            if (resp?.dataUrl) screenshot = resp.dataUrl;
+          } catch (_) {}
+          // Per-family top 10
+          function pickCandidates(all, limit = 10) {
+            const byFamily = {};
+            for (const c of all) {
+              const k = c.family || c.type || 'css';
+              if (!byFamily[k]) byFamily[k] = [];
+              byFamily[k].push(c);
+            }
+            const sel = [];
+            for (const k of Object.keys(byFamily)) sel.push(...byFamily[k].slice(0, limit));
+            return sel;
+          }
+          sendResponse({
+            result: {
+              requestId,
+              tagName: el.tagName.toLowerCase(),
+              text: features.inner_text || (el.textContent || '').trim().slice(0, 200),
+              rect: rectData,
+              features,
+              domPath,
+              candidates: pickCandidates(candidates),
+              listFamily: listFamily.container ? {
+                container: listFamily.containerSelector,
+                item: listFamily.itemSelector,
+                size: listFamily.items.length,
+              } : null,
+              screenshot,
+            },
+          });
+        } catch (e) {
+          sendResponse({ result: { error: e?.message || String(e), requestId } });
+        }
+      })();
+      return true;  // async response
     }
   });
 

@@ -185,6 +185,7 @@ class AgentBackground {
    */
   async _onBackendMessage(msg) {
     const { action, payload } = msg;
+    console.log('[Agent] onBackendMessage:', action, JSON.stringify(payload).slice(0, 100));
 
     if (action === 'pong') return;
 
