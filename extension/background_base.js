@@ -216,6 +216,7 @@ class AgentBackground {
           return;
         }
         await ensureContentScripts(tab.id);
+        await new Promise(r => setTimeout(r, 200));  // 等脚本初始化
         await chrome.tabs.sendMessage(tab.id, {
           action: 'launchBrowserCapture',
           payload: { requestId },
