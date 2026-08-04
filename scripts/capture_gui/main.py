@@ -141,6 +141,27 @@ class CaptureGUI:
         sel = self.tree.selection()
         if not sel: return
         info = self.store.elements[int(sel[0])]
+        if info.element_type == "web":
+            self._verify_web()
+        else:
+            self._verify_desktop(info)
+
+    def _verify_web(self):
+        t = self.sel_text.get("1.0", tk.END).strip()
+        if not t: self.set_status("选择器为空"); return
+        self.set_status(f"验证: {t[:50]}...")
+        try:
+            import urllib.request, json, uuid
+            data = json.dumps({"selector": t, "requestId": str(uuid.uuid4())[:8]}).encode()
+            req = urllib.request.Request("http://127.0.0.1:8000/api/extension/verify-selector",
+                                          data=data, headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                r = json.loads(resp.read().decode())
+            self.set_status(f"✅ 匹配 {r.get('count',1)} 个" if r.get("found") else f"❌ {r.get('error','未找到')}")
+        except Exception as e:
+            self.set_status(f"验证失败: {e}")
+
+    def _verify_desktop(self, info):
         self.set_status("验证中...")
         self.root.withdraw(); self.root.update()
         try: alive = flash_element(info, times=3)

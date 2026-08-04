@@ -69,6 +69,35 @@ async def gui_browser_capture(request: dict = None):
         ext_manager.off("browserCaptureComplete", _on_result)
 
 
+# ── 验证选择器 ──
+
+@router.post("/verify-selector")
+async def verify_selector(request: dict = None):
+    """GUI 调用：验证 CSS/XPath 选择器是否匹配页面元素。"""
+    import uuid
+    selector = (request or {}).get("selector", "")
+    if not selector:
+        return {"error": "选择器为空"}
+    request_id = (request or {}).get("requestId", str(uuid.uuid4())[:8])
+    async with ext_manager._lock:
+        if not ext_manager._connections:
+            return {"error": "没有浏览器扩展连接", "requestId": request_id}
+        conn = next(iter(ext_manager._connections.values()))
+    fut = asyncio.get_event_loop().create_future()
+    async def _on_result(payload, cid):
+        if payload.get("requestId") == request_id and not fut.done():
+            fut.set_result(payload.get("result", {}))
+    ext_manager.on("verifySelectorResult", _on_result)
+    try:
+        await conn.send({"action": "verifySelector", "payload": {"requestId": request_id, "selector": selector}})
+        result = await asyncio.wait_for(fut, timeout=5.0)
+        return result
+    except asyncio.TimeoutError:
+        return {"error": "验证超时", "requestId": request_id}
+    finally:
+        ext_manager.off("verifySelectorResult", _on_result)
+
+
 # ── WebSocket 长连接 ──
 
 @router.websocket("/ws")

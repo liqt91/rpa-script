@@ -3205,6 +3205,18 @@
       return false;
     }
 
+    // ── verifySelector: GUI 验证选择器 ──
+    if (message.action === 'verifySelector') {
+      const { selector } = message.payload || {};
+      try {
+        const matches = document.querySelectorAll(selector);
+        sendResponse({ found: matches.length > 0, count: matches.length });
+      } catch (e) {
+        sendResponse({ found: false, count: 0, error: e.message });
+      }
+      return false;
+    }
+
     // ── launchBrowserCapture: GUI 激活原生捕获模式 ──
     if (message.action === 'launchBrowserCapture') {
       console.log('[RPA Capture] launchBrowserCapture received, requestId=', (message.payload || {}).requestId);

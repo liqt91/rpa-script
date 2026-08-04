@@ -240,6 +240,28 @@ class AgentBackground {
       return;
     }
 
+    // GUI → Extension: 验证选择器
+    if (action === 'verifySelector') {
+      const { requestId, selector } = payload || {};
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tab = tabs[0];
+        if (!tab) {
+          this._send('verifySelectorResult', { requestId, result: { error: '没有活动标签页' } });
+          return;
+        }
+        await ensureContentScripts(tab.id);
+        const resp = await chrome.tabs.sendMessage(tab.id, {
+          action: 'verifySelector',
+          payload: { requestId, selector },
+        });
+        this._send('verifySelectorResult', { requestId, result: resp || { found: false } });
+      } catch (e) {
+        this._send('verifySelectorResult', { requestId, result: { error: e?.message || String(e) } });
+      }
+      return;
+    }
+
     // GUI → Extension: 拾取浏览器 DOM 元素
     if (action === 'browserPickElement') {
       const { x, y, requestId } = payload || {};
