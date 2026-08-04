@@ -352,7 +352,12 @@ class CaptureGUI:
         if info.dom_path:
             lines.append(f"Depth:   {len(info.dom_path)} 层")
             if info.dom_path:
-                lines.append(f"Leaf:    {info.dom_path[-1][:100]}")
+                leaf = info.dom_path[-1]
+                if isinstance(leaf, dict):
+                    leaf_str = leaf.get("tag","?") + (f"#{leaf['id']}" if leaf.get("id") else "")
+                    lines.append(f"Leaf:    {leaf_str}")
+                else:
+                    lines.append(f"Leaf:    {str(leaf)[:100]}")
         if info.css_selector:
             lines.append(f"CSS:     {info.css_selector[:120]}")
         if info.xpath:
@@ -428,20 +433,39 @@ class CaptureGUI:
         path = getattr(self, '_dom_path', [])
         if not reuse_checkboxes or not hasattr(self, '_dom_checked') or len(self._dom_checked) != len(path):
             self._dom_checked = [tk.BooleanVar(value=True) for _ in path]
-        for i, seg in enumerate(path):
+        for i, node in enumerate(path):
             row = ttk.Frame(self.dom_inner)
             row.pack(fill=tk.X, pady=1)
             cb = ttk.Checkbutton(row, variable=self._dom_checked[i],
                                   command=self._update_selector_preview)
             cb.pack(side=tk.LEFT)
             indent = "  " * i
-            ttk.Label(row, text=f"{indent}{seg[:120]}", font=("Consolas", 9)).pack(side=tk.LEFT)
+            if isinstance(node, dict):
+                tag = node.get("tag", "div")
+                sid = f"#{node['id']}" if node.get("id") else ""
+                cls = ".".join(node.get("classes", [])[:3]) if node.get("classes") else ""
+                cls_str = f".{cls}" if cls else ""
+                display = f"{indent}<{tag}>{sid}{cls_str}"
+            else:
+                display = f"{indent}{str(node)[:120]}"
+            ttk.Label(row, text=display, font=("Consolas", 9)).pack(side=tk.LEFT)
         self._update_selector_preview()
 
     def _update_selector_preview(self):
         path = getattr(self, '_dom_path', [])
         checked = getattr(self, '_dom_checked', [])
-        parts = [seg for i, seg in enumerate(path) if i < len(checked) and checked[i].get()]
+        parts = []
+        for i, node in enumerate(path):
+            if i >= len(checked) or not checked[i].get():
+                continue
+            if isinstance(node, dict):
+                tag = node.get("tag", "div")
+                sid = f"#{node['id']}" if node.get("id") else ""
+                cls = ".".join(node.get("classes", [])[:3]) if node.get("classes") else ""
+                cls_str = f".{cls}" if cls else ""
+                parts.append(f"{tag}{sid}{cls_str}")
+            else:
+                parts.append(str(node))
         selector = " > ".join(parts) if parts else "(未选择层级)"
         self.selector_preview.delete(0, tk.END)
         self.selector_preview.insert(0, selector)
