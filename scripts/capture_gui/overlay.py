@@ -437,9 +437,24 @@ def _try_browser_pick(hwnd, sx, sy):
         dom = result["rect"]
         if dom.get("width", 0) <= 0:
             return None
-        return (_viewport_rect_to_screen(dom, win_rect),
-                result.get("css", ""), result.get("xpath", ""),
-                result.get("tagName", ""), result.get("text", ""))
+        # 取首选 CSS/XPath
+        candidates = result.get("candidates", [])
+        css = xpath = ""
+        for c in candidates:
+            if not css and c.get("family") == "css":
+                css = c.get("syntax", "")
+            if not xpath and c.get("family") == "xpath":
+                xpath = c.get("syntax", "")
+        return {
+            "rect": _viewport_rect_to_screen(dom, win_rect),
+            "css": css, "xpath": xpath,
+            "tag": result.get("tagName", ""),
+            "text": result.get("text", ""),
+            "features": result.get("features", {}),
+            "screenshot": result.get("screenshot"),
+            "candidates": candidates,
+            "listFamily": result.get("listFamily"),
+        }
     except Exception:
         return None
 
@@ -520,9 +535,8 @@ def run_capture() -> ElementInfo | None:
                 if target:
                     bp = _try_browser_pick(target, pt.x, pt.y)
                     if bp:
-                        rect, css, xpath, tag, text = bp
-                        show_border(rect)
-                        show_info(f"> {tag} \"{text[:30]}\"\n  css:{css[:40]}")
+                        show_border(bp["rect"])
+                        show_info(f"> {bp['tag']} \"{bp['text'][:30]}\"\n  css:{bp['css'][:40]}")
                     else:
                         rect = _get_window_rect(target)
                         if rect["width"] > 0 and rect["height"] > 0:
@@ -538,9 +552,8 @@ def run_capture() -> ElementInfo | None:
                 last_pt = (pt.x, pt.y)
                 bp = _try_browser_pick(target, pt.x, pt.y)
                 if bp:
-                    rect, css, xpath, tag, text = bp
-                    show_border(rect)
-                    show_info(f"> {tag} \"{text[:30]}\"\n  css:{css[:40]}")
+                    show_border(bp["rect"])
+                    show_info(f"> {bp['tag']} \"{bp['text'][:30]}\"\n  css:{bp['css'][:40]}")
                 else:
                     uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
                     if uia_rect["width"] > 0:
@@ -578,9 +591,8 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
     # 浏览器 DOM: 通过 WS 取选择器
     bp = _try_browser_pick(hwnd, x, y)
     if bp:
-        _, css, xpath, tag, text = bp
-        info.css_selector = css
-        info.xpath = xpath
-        info.tag_name = tag
-        info.name = text[:30] or info.name
+        info.css_selector = bp["css"]
+        info.xpath = bp["xpath"]
+        info.tag_name = bp["tag"]
+        info.name = bp["text"][:30] or info.name
     return info

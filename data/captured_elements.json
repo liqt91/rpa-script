@@ -475,6 +475,111 @@
       "css_selector": "",
       "xpath": "",
       "tag_name": ""
+    },
+    {
+      "name": "Chrome Legacy Window",
+      "element_type": "win32",
+      "class_name": "Chrome_RenderWidgetHostHWND",
+      "title": "Chrome Legacy Window",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 1679,
+        "bottom": 996,
+        "width": 1679,
+        "height": 996
+      },
+      "control_type": "PaneControl",
+      "automation_id": "",
+      "uia_path": [
+        {
+          "name": "",
+          "class_name": "SidebarContentsSplitView",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 236,
+            "top": -1040,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1684,
+            "height": 1000
+          }
+        },
+        {
+          "name": "",
+          "class_name": "View",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 236,
+            "top": -1040,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1684,
+            "height": 1000
+          }
+        },
+        {
+          "name": "",
+          "class_name": "MultiContentsView",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 236,
+            "top": -1040,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1684,
+            "height": 1000
+          }
+        },
+        {
+          "name": "",
+          "class_name": "View",
+          "control_type": "PaneControl",
+          "automation_id": "",
+          "rect": {
+            "left": 236,
+            "top": -1040,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1684,
+            "height": 1000
+          }
+        }
+      ],
+      "win32_path": [
+        {
+          "hwnd": 131686,
+          "class_name": "Chrome_WidgetWin_0",
+          "title": "",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "hwnd": 460766,
+          "class_name": "Chrome_RenderWidgetHostHWND",
+          "title": "Chrome Legacy Window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1679,
+            "bottom": 996,
+            "width": 1679,
+            "height": 996
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": ""
     }
   ]
 }

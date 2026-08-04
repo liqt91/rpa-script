@@ -3201,30 +3201,62 @@
         sendResponse({ result: { error: '未找到元素', requestId } });
         return false;
       }
-      try {
-        const rect = el.getBoundingClientRect();
-        const rectData = {
-          left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
-          width: rect.width, height: rect.height,
-        };
-        // 用已有函数生成选择器
-        const candidates = generateLocators(el);
-        const cssCand = candidates.find(c => c.family === 'css');
-        const xpathCand = candidates.find(c => c.family === 'xpath');
-        sendResponse({
-          result: {
-            requestId,
-            tagName: el.tagName.toLowerCase(),
-            text: (el.textContent || '').trim().slice(0, 200),
-            css: cssCand ? cssCand.syntax : '',
-            xpath: xpathCand ? xpathCand.syntax : '',
-            rect: rectData,
-          },
-        });
-      } catch (e) {
-        sendResponse({ result: { error: e?.message || String(e), requestId } });
-      }
-      return false;
+      (async () => {
+        try {
+          const rect = el.getBoundingClientRect();
+          const rectData = {
+            left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+            width: rect.width, height: rect.height,
+          };
+          // 全套选择器
+          const candidates = generateLocators(el);
+          const features = buildFeatureSnapshot(el);
+          const domPath = buildElementPath(el);
+          const listFamily = detectListFamily(el, { maxDepth: 6, minItems: 2, similarityThreshold: 0.55 });
+          // 截图
+          let screenshot = null;
+          try {
+            const resp = await chrome.runtime.sendMessage({
+              action: 'captureElementScreenshot',
+              rect: rectData,
+              dpr: window.devicePixelRatio || 1,
+            });
+            if (resp?.dataUrl) screenshot = resp.dataUrl;
+          } catch (_) {}
+          // Per-family top 10
+          function pickCandidates(all, limit = 10) {
+            const byFamily = {};
+            for (const c of all) {
+              const k = c.family || c.type || 'css';
+              if (!byFamily[k]) byFamily[k] = [];
+              byFamily[k].push(c);
+            }
+            const sel = [];
+            for (const k of Object.keys(byFamily)) sel.push(...byFamily[k].slice(0, limit));
+            return sel;
+          }
+          sendResponse({
+            result: {
+              requestId,
+              tagName: el.tagName.toLowerCase(),
+              text: features.inner_text || (el.textContent || '').trim().slice(0, 200),
+              rect: rectData,
+              features,
+              domPath,
+              candidates: pickCandidates(candidates),
+              listFamily: listFamily.container ? {
+                container: listFamily.containerSelector,
+                item: listFamily.itemSelector,
+                size: listFamily.items.length,
+              } : null,
+              screenshot,
+            },
+          });
+        } catch (e) {
+          sendResponse({ result: { error: e?.message || String(e), requestId } });
+        }
+      })();
+      return true;  // async response
     }
   });
 
