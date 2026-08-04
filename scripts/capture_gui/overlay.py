@@ -427,24 +427,13 @@ def _find_browser_root(hwnd):
             return p["hwnd"]
     return None
 
-def _try_browser_pick(hwnd, sx, sy):
-    """检测到浏览器窗口 → 激活插件原生捕获模式，GUI 等待结果。"""
-    cls = _get_class_name(hwnd)
-    path = _get_ancestor_path(hwnd)
-    if not _is_browser_window(cls) and not _is_browser_in_chain(path):
-        return None
-    browser_hwnd = hwnd if _is_browser_window(cls) else _find_browser_root(hwnd)
-    if not browser_hwnd:
-        return None
+def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
+    """委托浏览器插件原生捕获。阻塞等待用户 Alt+Click。"""
     win_rect = _get_window_rect(browser_hwnd)
     vx, vy = _screen_to_viewport(sx, sy, win_rect)
-    if vx < 0 or vy < 0:
-        return None
     try:
-        from scripts.capture_gui.ws_client import pick_browser_element, launch_browser_capture, wait_browser_capture
-        # 隐藏 GUI 边框，让插件接管
-        show_border(None); show_info("插件捕获中... Alt+Click 选取元素")
-        result = launch_browser_capture(vx, vy, timeout=15.0)
+        from scripts.capture_gui.ws_client import launch_browser_capture
+        result = launch_browser_capture(vx, vy, timeout=20.0)
         if result.get("error") or not result.get("rect"):
             return None
         dom = result["rect"]
@@ -454,16 +443,22 @@ def _try_browser_pick(hwnd, sx, sy):
         for c in result.get("candidates", []):
             if not css and c.get("family") == "css": css = c.get("syntax", "")
             if not xpath and c.get("family") == "xpath": xpath = c.get("syntax", "")
-        return {
-            "rect": _viewport_rect_to_screen(dom, win_rect),
-            "css": css, "xpath": xpath,
-            "tag": result.get("tagName", ""),
-            "text": result.get("text", ""),
-            "features": result.get("features", {}),
-            "screenshot": result.get("screenshot"),
-            "candidates": result.get("candidates", []),
-            "listFamily": result.get("listFamily"),
-        }
+        rect = _viewport_rect_to_screen(dom, win_rect)
+        cls = _get_class_name(browser_hwnd)
+        title = _get_window_text(browser_hwnd)
+        path = _get_ancestor_path(browser_hwnd)
+        info = ElementInfo(
+            name=result.get("text", "")[:30] or result.get("tagName", ""),
+            element_type="web", class_name=cls, title=title,
+            rect=rect, hwnd=browser_hwnd, win32_path=path,
+            css_selector=css, xpath=xpath,
+            tag_name=result.get("tagName", ""),
+        )
+        uia_data = _try_uia_capture(sx, sy)
+        if uia_data:
+            info.control_type = uia_data.get("control_type", "")
+            info.uia_path = uia_data.get("path", [])
+        return info
     except Exception:
         return None
 
@@ -515,9 +510,16 @@ def run_capture() -> ElementInfo | None:
             target = _WindowFromPoint(pt) if 0 <= pt.x < sw * 2 and -sh < pt.y < sh * 2 else None
             if target and _get_class_name(target) == "RpaBorder":
                 target = None
-            # 透明边框窗导致空 target → 保持上一个
             if not target and last_hwnd and _user32.IsWindow(last_hwnd):
                 target = last_hwnd
+
+            # 浏览器窗口 → 委托插件原生捕获
+            if target and not captureModeBrowser:
+                browser_root = _find_browser_root(target) or (target if _is_browser_window(_get_class_name(target)) else None)
+                if browser_root:
+                    show_border(None); show_info("插件捕获中... Alt+Click 选取")
+                    captured = _capture_via_extension(browser_root, pt.x, pt.y)
+                    break
 
             # ↑ 上箭头 → 选父级
             if _GetAsyncKeyState(VK_UP) & 0x8000:
@@ -542,27 +544,22 @@ def run_capture() -> ElementInfo | None:
             if target != last_hwnd and not parent_stack:
                 last_pt = (pt.x, pt.y)
                 if target:
-                    bp = _try_browser_pick(target, pt.x, pt.y)
-                    if bp:
-                        show_border(bp["rect"])
-                        show_info(f"> {bp['tag']} \"{bp['text'][:30]}\"\n  css:{bp['css'][:40]}")
+                    rect = _get_window_rect(target)
+                    if rect["width"] > 0 and rect["height"] > 0:
+                        show_border(rect)
+                        show_info(_build_info_text(target))
                     else:
-                        rect = _get_window_rect(target)
-                        if rect["width"] > 0 and rect["height"] > 0:
-                            show_border(rect)
-                            show_info(_build_info_text(target))
-                        else:
-                            show_border(None); show_info("")
+                        show_border(None); show_info("")
                 else:
                     show_border(None); show_info("")
                 last_hwnd = target
                 parent_stack.clear()
             elif target == last_hwnd and target and abs(pt.x - last_pt[0]) + abs(pt.y - last_pt[1]) > 6:
                 last_pt = (pt.x, pt.y)
-                bp = _try_browser_pick(target, pt.x, pt.y)
-                if bp:
-                    show_border(bp["rect"])
-                    show_info(f"> {bp['tag']} \"{bp['text'][:30]}\"\n  css:{bp['css'][:40]}")
+                uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
+                if uia_rect["width"] > 0:
+                    show_border(uia_rect)
+                    show_info(_build_info_text(target))
                 else:
                     uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
                     if uia_rect["width"] > 0:
@@ -597,11 +594,4 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
             info.name = uia.get("name") or title
     if _is_browser_in_chain(path) and info.element_type != "web":
         info.element_type = "web"
-    # 浏览器 DOM: 通过 WS 取选择器
-    bp = _try_browser_pick(hwnd, x, y)
-    if bp:
-        info.css_selector = bp["css"]
-        info.xpath = bp["xpath"]
-        info.tag_name = bp["tag"]
-        info.name = bp["text"][:30] or info.name
     return info

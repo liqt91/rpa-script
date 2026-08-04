@@ -685,6 +685,111 @@
       "css_selector": "",
       "xpath": "",
       "tag_name": ""
+    },
+    {
+      "name": "Chrome Legacy Window",
+      "element_type": "web",
+      "class_name": "Chrome_RenderWidgetHostHWND",
+      "title": "Chrome Legacy Window",
+      "rect": {
+        "left": 237,
+        "top": -1040,
+        "right": 1916,
+        "bottom": -44,
+        "width": 1679,
+        "height": 996
+      },
+      "control_type": "GroupControl",
+      "automation_id": "",
+      "uia_path": [
+        {
+          "name": "",
+          "class_name": "information-container",
+          "control_type": "GroupControl",
+          "automation_id": "explore-guide-menu",
+          "rect": {
+            "left": 237,
+            "top": -160,
+            "right": 327,
+            "bottom": -44,
+            "width": 90,
+            "height": 116
+          }
+        },
+        {
+          "name": "",
+          "class_name": "about-us-block",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 253,
+            "top": -112,
+            "right": 311,
+            "bottom": -64,
+            "width": 58,
+            "height": 48
+          }
+        },
+        {
+          "name": "",
+          "class_name": "reds-tooltip__trigger",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 253,
+            "top": -112,
+            "right": 311,
+            "bottom": -64,
+            "width": 58,
+            "height": 48
+          }
+        },
+        {
+          "name": "",
+          "class_name": "information-wrapper-ai-sideCollapse information-wrapper-ai",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 253,
+            "top": -112,
+            "right": 311,
+            "bottom": -64,
+            "width": 58,
+            "height": 48
+          }
+        }
+      ],
+      "win32_path": [
+        {
+          "hwnd": 131596,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "天天基金 - 小红书搜索 和另外 4 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        },
+        {
+          "hwnd": 460032,
+          "class_name": "Chrome_RenderWidgetHostHWND",
+          "title": "Chrome Legacy Window",
+          "rect": {
+            "left": 237,
+            "top": -1040,
+            "right": 1916,
+            "bottom": -44,
+            "width": 1679,
+            "height": 996
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": ""
     }
   ]
 }
