@@ -320,19 +320,10 @@ class CaptureGUI:
         # 元素特征
         self._show_features(info)
 
-        # DOM 路径
-        self.dom_text.configure(state=tk.NORMAL)
-        self.dom_text.delete("1.0", tk.END)
-        for c in self._candidates:
-            extra = c.get("extra", {}) or {}
-            path = extra.get("domPath", []) or extra.get("path", [])
-            if isinstance(path, list) and path:
-                self.dom_text.insert("1.0", "\n".join(path))
-                break
-            elif isinstance(path, str) and path:
-                self.dom_text.insert("1.0", path)
-                break
-        self.dom_text.configure(state=tk.DISABLED)
+        # DOM 路径 — 存为 path_vars 供手动编辑用
+        self._dom_path = info.dom_path
+        self._dom_attrs = info.elem_attrs
+        self._dom_checked = [tk.BooleanVar(value=True) for _ in self._dom_path]
 
         # 截图
         if info.screenshot and info.screenshot.startswith("data:"):
@@ -356,27 +347,29 @@ class CaptureGUI:
 
     def _show_features(self, info: ElementInfo):
         lines = []
-        for c in self._candidates:
-            extra = c.get("extra", {}) or {}
-            fid = extra.get("id", "")
-            fcls = extra.get("classes", "") or extra.get("className", "")
-            ftext = extra.get("inner_text", "") or extra.get("text", "")
-            if info.tag_name:
-                lines.append(f"Tag:  {info.tag_name}")
-            if fid:
-                lines.append(f"Id:   #{fid}")
-            if fcls:
-                lines.append(f"Class: {str(fcls)[:120]}")
-            if ftext:
-                lines.append(f"Text:  {str(ftext)[:120]}")
-            break
-        if not lines:
-            if info.tag_name:
-                lines.append(f"Tag: {info.tag_name}")
-            if info.css_selector:
-                lines.append(f"CSS:  {info.css_selector[:120]}")
-            if info.xpath:
-                lines.append(f"XPath: {info.xpath[:120]}")
+        if info.tag_name:
+            lines.append(f"Tag:     {info.tag_name}")
+        if info.dom_path:
+            lines.append(f"Depth:   {len(info.dom_path)} 层")
+            if info.dom_path:
+                lines.append(f"Leaf:    {info.dom_path[-1][:100]}")
+        if info.css_selector:
+            lines.append(f"CSS:     {info.css_selector[:120]}")
+        if info.xpath:
+            lines.append(f"XPath:   {info.xpath[:120]}")
+        # 候选匹配
+        mcs = {c.get("matchCount") for c in (self._candidates or []) if c.get("matchCount")}
+        if mcs:
+            lines.append(f"Matches: {', '.join(str(m) for m in sorted(mcs))}")
+        # 列表检测
+        li = info.list_info or {}
+        if li:
+            parts = []
+            if li.get("listContainer"): parts.append(f"容器:{li['listContainer']}")
+            if li.get("listItem"): parts.append(f"项:{li['listItem']}")
+            if li.get("listSize"): parts.append(f"数量:{li['listSize']}")
+            if li.get("listSimilarity"): parts.append(f"相似度:{li['listSimilarity']:.0%}")
+            if parts: lines.append("List:    " + " | ".join(parts))
         self.feat_text.configure(state=tk.NORMAL)
         self.feat_text.delete("1.0", tk.END)
         self.feat_text.insert("1.0", "\n".join(lines) or "(无)")
@@ -389,12 +382,11 @@ class CaptureGUI:
         self.selector_listbox.delete(0, tk.END)
         self._candidates = []
         self._cand_idx = -1
+        self._dom_path = []
+        self._dom_checked = []
         self.feat_text.configure(state=tk.NORMAL)
         self.feat_text.delete("1.0", tk.END)
         self.feat_text.configure(state=tk.DISABLED)
-        self.dom_text.configure(state=tk.NORMAL)
-        self.dom_text.delete("1.0", tk.END)
-        self.dom_text.configure(state=tk.DISABLED)
         self.screenshot_label.configure(image="", text="(选择web元素显示)")
         self.validate_btn.configure(state=tk.DISABLED)
         self.json_btn.configure(state=tk.DISABLED)
@@ -427,6 +419,39 @@ class CaptureGUI:
     def set_status(self, text: str):
         self.status_label.configure(text=text)
         print(f"[CaptureGUI] {text}")
+
+    # ── DOM 交互 ──
+
+    def _build_dom_checkboxes(self, reuse_checkboxes=False):
+        for w in self.dom_inner.winfo_children():
+            w.destroy()
+        path = getattr(self, '_dom_path', [])
+        if not reuse_checkboxes or not hasattr(self, '_dom_checked') or len(self._dom_checked) != len(path):
+            self._dom_checked = [tk.BooleanVar(value=True) for _ in path]
+        for i, seg in enumerate(path):
+            row = ttk.Frame(self.dom_inner)
+            row.pack(fill=tk.X, pady=1)
+            cb = ttk.Checkbutton(row, variable=self._dom_checked[i],
+                                  command=self._update_selector_preview)
+            cb.pack(side=tk.LEFT)
+            indent = "  " * i
+            ttk.Label(row, text=f"{indent}{seg[:120]}", font=("Consolas", 9)).pack(side=tk.LEFT)
+        self._update_selector_preview()
+
+    def _update_selector_preview(self):
+        path = getattr(self, '_dom_path', [])
+        checked = getattr(self, '_dom_checked', [])
+        parts = [seg for i, seg in enumerate(path) if i < len(checked) and checked[i].get()]
+        selector = " > ".join(parts) if parts else "(未选择层级)"
+        self.selector_preview.delete(0, tk.END)
+        self.selector_preview.insert(0, selector)
+
+    def _copy_preview(self):
+        val = self.selector_preview.get()
+        if val:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(val)
+            self.set_status(f"已复制: {val[:60]}...")
 
 
 if __name__ == "__main__":
