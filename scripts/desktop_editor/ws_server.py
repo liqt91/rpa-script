@@ -156,6 +156,6 @@ async def run_ws_server(host: str = "127.0.0.1", port: int = 8000):
     import websockets
     from websockets.asyncio.server import serve
 
-    async with serve(_handle_connection, host, port):
+    async with serve(_handle_connection, host, port, origins=None):
         logger.info(f"[WsServer] 启动: ws://{host}:{port}")
         await asyncio.Future()  # 永远运行
