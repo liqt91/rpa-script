@@ -1452,7 +1452,7 @@
           }
         }
       ],
-      "css_selector": "css:div > div > div:nth-of-type(2) > div",
+      "css_selector": "//div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-start')]",
       "xpath": "xpath://div[contains(@class,'grid')]/div[4]",
       "tag_name": "div",
       "candidates": [

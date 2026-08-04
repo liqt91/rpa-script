@@ -279,10 +279,16 @@ class CaptureGUI:
                                        values=(c.get("syntax", "")[:120], fam, mc_str))
             if filtered:
                 self.cand_tree.selection_set("0")
-                syn0 = filtered[0].get("syntax", "")
-                for pf in ("css:", "xpath:", "drission:"):
-                    if syn0.lower().startswith(pf): syn0 = syn0[len(pf):]; break
-                self._set_sel_text(syn0)
+                if info.css_selector:
+                    syn_d = info.css_selector
+                    for pf in ("css:", "xpath:", "drission:"):
+                        if syn_d.lower().startswith(pf): syn_d = syn_d[len(pf):]; break
+                    self._set_sel_text(syn_d)
+                else:
+                    syn0 = filtered[0].get("syntax", "")
+                    for pf in ("css:", "xpath:", "drission:"):
+                        if syn0.lower().startswith(pf): syn0 = syn0[len(pf):]; break
+                    self._set_sel_text(syn0)
         elif not is_web:
             self.cand_tree.insert("", tk.END, values=("(非web元素)", "", ""))
 
@@ -301,7 +307,6 @@ class CaptureGUI:
             self.btn_recommend.configure(state=tk.DISABLED)
             self.btn_manual.configure(state=tk.DISABLED)
             self.btn_save_sel.configure(state=tk.DISABLED)
-            self._set_sel_text(info.css_selector or "")
 
         # DOM 数据存好
         self._dom_path = info.dom_path if is_web else []
