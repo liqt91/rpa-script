@@ -182,7 +182,8 @@ class CaptureGUI:
     def _save_selector(self):
         sel = self.tree.selection()
         if not sel: return
-        info = self.store.elements[int(sel[0])]
+        idx = int(sel[0])
+        info = self.store.elements[idx]
         new_sel = self.sel_text.get("1.0", tk.END).strip()
         if new_sel:
             info.css_selector = new_sel
