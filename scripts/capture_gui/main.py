@@ -79,13 +79,14 @@ class CaptureGUI:
 
         # 推荐方案 Treeview
         self.tab0 = ttk.Frame(right)
-        rc_cols = ("syntax", "family", "match", "mode")
+        rc_cols = ("syntax", "family", "match")
         self.cand_tree = ttk.Treeview(self.tab0, columns=rc_cols, show="headings",
                                        selectmode="browse", height=6)
-        self.cand_tree.heading("syntax", text="选择器"); self.cand_tree.heading("family", text="类型")
-        self.cand_tree.heading("match", text="匹配"); self.cand_tree.heading("mode", text="模式")
-        self.cand_tree.column("syntax", width=200); self.cand_tree.column("family", width=50, anchor=tk.CENTER)
-        self.cand_tree.column("match", width=50, anchor=tk.CENTER); self.cand_tree.column("mode", width=50, anchor=tk.CENTER)
+        self.cand_tree.heading("syntax", text="选择器", command=lambda: self._sort_cands("syntax"))
+        self.cand_tree.heading("family", text="类型", command=lambda: self._sort_cands("family"))
+        self.cand_tree.heading("match", text="匹配", command=lambda: self._sort_cands("match"))
+        self.cand_tree.column("syntax", width=240); self.cand_tree.column("family", width=50, anchor=tk.CENTER)
+        self.cand_tree.column("match", width=45, anchor=tk.CENTER)
         self.cand_tree.pack(fill=tk.X, pady=(4, 0))
         self.cand_tree.bind("<<TreeviewSelect>>", self._on_cand_tree_select)
         self.tab0.pack(fill=tk.X, before=name_row)
@@ -191,6 +192,22 @@ class CaptureGUI:
             self.tab0.pack_forget()
             self.tab1.pack(fill=tk.BOTH, expand=True, before=self.entry_selector.master)
 
+    _sort_cands_dir = {"syntax": False, "family": False, "match": False}
+    def _sort_cands(self, col):
+        self._sort_cands_dir[col] = not self._sort_cands_dir[col]
+        rev = self._sort_cands_dir[col]
+        idx = {"syntax": 0, "family": 1, "match": 2}[col]
+        self._sorted_cands.sort(key=lambda x: str(self._cand_sort_key(x, idx)), reverse=rev)
+        self.cand_tree.delete(*self.cand_tree.get_children())
+        for i, c in enumerate(self._sorted_cands):
+            fam = (c.get("family") or "?").upper()
+            mc_str = str(c.get("matchCount", ""))
+            self.cand_tree.insert("", tk.END, iid=str(i), values=(c.get("syntax","")[:120], fam, mc_str))
+
+    def _cand_sort_key(self, c, idx):
+        if idx == 2: return c.get("matchCount", 0) or 0
+        return c.get(["syntax","family","match"][idx], "") or ""
+
     def _on_cand_tree_select(self, event=None):
         sel = self.cand_tree.selection()
         if sel:
@@ -223,16 +240,18 @@ class CaptureGUI:
         self.cand_tree.delete(*self.cand_tree.get_children())
         self._candidates = info.candidates
         if info.candidates and is_web:
-            for i, c in enumerate(info.candidates):
+            # 过滤: 只要 css/xpath
+            filtered = [c for c in info.candidates if (c.get("family") or c.get("type","")).lower() in ("css","xpath")]
+            self._sorted_cands = filtered[:]
+            for i, c in enumerate(filtered):
                 fam = (c.get("family") or "?").upper()
                 mc = c.get("matchCount", "")
-                mc_str = "✓1" if mc == 1 else str(mc) if mc else ""
-                mode = "列表" if c.get("isList") else ""
+                mc_str = str(mc) if mc else ""
                 self.cand_tree.insert("", tk.END, iid=str(i),
-                                       values=(c.get("syntax", "")[:100], fam, mc_str, mode))
-            if info.candidates:
+                                       values=(c.get("syntax", "")[:120], fam, mc_str))
+            if filtered:
                 self.cand_tree.selection_set("0")
-                self.var_selector.set(info.candidates[0].get("syntax", ""))
+                self.var_selector.set(filtered[0].get("syntax", ""))
         elif not is_web:
             self.cand_tree.insert("", tk.END, values=("(非web元素)", "", "", ""))
 
