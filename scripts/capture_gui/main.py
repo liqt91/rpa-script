@@ -371,12 +371,12 @@ class CaptureGUI:
                 tag_str = f"{indent}{node}"
             ttk.Label(row, text=tag_str, font=("Consolas", 9, "bold" if is_last else "normal"),
                       foreground="#d4380d" if is_last else "#333").pack(side=tk.LEFT)
-            if is_last and isinstance(node, dict):
-                attrs = getattr(self, "_dom_attrs", None) or {}
+            # 每层属性
+            if isinstance(node, dict):
+                attrs = node.get("attrs", {})
                 if attrs:
                     self._dom_attr_vars[i] = {}
                     for an, av in attrs.items():
-                        if an in ("id", "class", "style"): continue
                         var = tk.BooleanVar(value=False)
                         self._dom_attr_vars[i][an] = var
                         ar = ttk.Frame(self.dom_inner); ar.pack(fill=tk.X)
@@ -401,10 +401,11 @@ class CaptureGUI:
                 sid = f"#{node.get('id','')}" if node.get("id") else ""
                 cls = ".".join(node.get("classes", [])[:3]) if node.get("classes") else ""
                 part = f"{tag}{sid}" + (f".{cls}" if cls else "")
-                if i == len(self._dom_path) - 1 and i in self._dom_attr_vars:
+                if i in self._dom_attr_vars:
+                    node_attrs = node.get("attrs", {})
                     for an in self._dom_attr_vars[i]:
                         if self._dom_attr_vars[i][an].get():
-                            part += f"[{an}=\"{self._dom_attrs.get(an,"")}\"]"
+                            part += f"[{an}=\"{node_attrs.get(an,"")}\"]"
                 parts.append(part)
             else:
                 parts.append(str(node))
