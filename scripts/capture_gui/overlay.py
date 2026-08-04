@@ -468,7 +468,7 @@ def run_capture() -> ElementInfo | None:
     pt = wintypes.POINT()
     last_hwnd = None; captured = None
     last_pt = (0, 0); _browser_checked = False
-    _browser_root = None; _browser_result = [None]
+    _browser_root = None; _browser_vxvy = (0, 0)
     # 层级导航栈：记录用户按 ↑ 上走过的路径，↓ 可退回
     parent_stack = []
     VK_UP = 0x26; VK_DOWN = 0x28
@@ -514,54 +514,22 @@ def run_capture() -> ElementInfo | None:
             if not target and last_hwnd and _user32.IsWindow(last_hwnd):
                 target = last_hwnd
 
-            # 浏览器窗口 → 隐藏 GUI 边框，激活插件捕捉
+            # 浏览器窗口 → 激活插件原生捕获
             if target and not _browser_checked:
                 try:
                     cls_t = _get_class_name(target)
-                    browser_root = _find_browser_root(target) or (target if _is_browser_window(cls_t) else None)
-                    if browser_root:
+                    br = _find_browser_root(target) or (target if _is_browser_window(cls_t) else None)
+                    if br:
                         _browser_checked = True
-                        _browser_root_ = browser_root
                         show_border(None); show_info("插件捕获中... Alt+Click 选取")
-                        win_rect = _get_window_rect(browser_root)
-                        vx, vy = _screen_to_viewport(pt.x, pt.y, win_rect)
-                        import threading
-                        def _bg_capture():
-                            try:
-                                from scripts.capture_gui.ws_client import launch_browser_capture as _lbc
-                                _browser_result[0] = _lbc(vx, vy, 20.0)
-                            except Exception as e:
-                                _browser_result[0] = {"error": str(e)}
-                        t = threading.Thread(target=_bg_capture, daemon=True)
-                        t.start()
+                        _browser_root = br
+                        _browser_vxvy = _screen_to_viewport(pt.x, pt.y, _get_window_rect(br))
                 except Exception as e:
                     print(f"[capture] browser check error: {e}")
 
             # 浏览器窗口不画 GUI 边框
             if target and _browser_checked:
                 continue
-
-            # 插件捕捉完成 → 构造 ElementInfo 并返回
-            if _browser_result[0] is not None:
-                result = _browser_result[0]
-                if result.get("error"):
-                    captured = None
-                else:
-                    dom = result.get("rect", {})
-                    css = xpath = ""
-                    for c in result.get("candidates", []):
-                        if not css and c.get("family") == "css": css = c.get("syntax", "")
-                        if not xpath and c.get("family") == "xpath": xpath = c.get("syntax", "")
-                    winr = _get_window_rect(_browser_root_)
-                    rect = _viewport_rect_to_screen(dom, winr)
-                    captured = ElementInfo(
-                        name=result.get("text", "")[:30] or result.get("tagName", ""),
-                        element_type="web", class_name=_get_class_name(_browser_root_),
-                        rect=rect, hwnd=_browser_root_,
-                        css_selector=css, xpath=xpath,
-                        tag_name=result.get("tagName", ""),
-                    )
-                break
 
             # ↑ 上箭头 → 选父级
             if _GetAsyncKeyState(VK_UP) & 0x8000:
