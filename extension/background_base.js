@@ -215,6 +215,7 @@ class AgentBackground {
           this._send('browserCaptureComplete', { requestId, result: { error: '没有活动标签页' } });
           return;
         }
+        await ensureContentScripts(tab.id);
         await chrome.tabs.sendMessage(tab.id, {
           action: 'launchBrowserCapture',
           payload: { requestId },
