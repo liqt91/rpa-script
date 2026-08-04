@@ -514,22 +514,19 @@ def run_capture() -> ElementInfo | None:
             if not target and last_hwnd and _user32.IsWindow(last_hwnd):
                 target = last_hwnd
 
-            # 浏览器窗口 → 激活插件原生捕获
-            if target and not _browser_checked:
+            # 浏览器窗口 → break，去循环外同步等 WS
+            if target and not _browser_checked and not parent_stack:
+                br = None
                 try:
                     cls_t = _get_class_name(target)
                     br = _find_browser_root(target) or (target if _is_browser_window(cls_t) else None)
-                    if br:
-                        _browser_checked = True
-                        show_border(None); show_info("插件捕获中... Alt+Click 选取")
-                        _browser_root = br
-                        _browser_vxvy = _screen_to_viewport(pt.x, pt.y, _get_window_rect(br))
-                except Exception as e:
-                    print(f"[capture] browser check error: {e}")
-
-            # 浏览器窗口不画 GUI 边框
-            if target and _browser_checked:
-                continue
+                except: pass
+                if br:
+                    _browser_root = br
+                    _browser_vxvy = _screen_to_viewport(pt.x, pt.y, _get_window_rect(br))
+                    _browser_checked = True
+                    show_border(None); show_info("浏览器 → Alt+Click 选取")
+                    break
 
             # ↑ 上箭头 → 选父级
             if _GetAsyncKeyState(VK_UP) & 0x8000:
@@ -579,18 +576,16 @@ def run_capture() -> ElementInfo | None:
             if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and last_hwnd:
                 show_border(None); show_info("")
                 time.sleep(0.1)
-                # 浏览器窗口 → 插件捕获
-                cls_last = _get_class_name(last_hwnd)
-                broot = _find_browser_root(last_hwnd) or (last_hwnd if _is_browser_window(cls_last) else None)
-                if broot:
-                    captured = _capture_via_extension(broot, pt.x, pt.y)
-                else:
-                    captured = _build_element_info(last_hwnd, pt.x, pt.y)
+                captured = _build_element_info(last_hwnd, pt.x, pt.y)
                 break
             time.sleep(0.03)
     finally:
         show_border(None); show_info("")
         _uia_done()
+    # 浏览器模式：break 后同步阻塞等 WS
+    if _browser_checked and _browser_root and not captured:
+        vx, vy = _browser_vxvy
+        captured = _capture_via_extension(_browser_root, vx, vy)
     return captured
 
 
