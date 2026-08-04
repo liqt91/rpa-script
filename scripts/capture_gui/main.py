@@ -217,8 +217,8 @@ class CaptureGUI:
     def _switch_sel_tab(self, tab):
         self.current_sel_tab = tab
         if tab == 0:
-            self.tab0.pack(fill=tk.BOTH, expand=True, before=self.tab1)
             self.tab1.pack_forget()
+            self.tab0.pack(fill=tk.BOTH, expand=True)
         else:
             self.tab0.pack_forget()
             self.tab1.pack(fill=tk.BOTH, expand=True)
