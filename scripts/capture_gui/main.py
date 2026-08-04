@@ -24,24 +24,6 @@ if _project_root not in sys.path:
 from scripts.capture_gui.overlay import ElementInfo, run_capture, flash_element
 from scripts.capture_gui.store import ElementStore
 
-# 自动启动 WS 服务（供浏览器插件连接）
-def _ensure_ws_server():
-    try:
-        import socket
-        s = socket.socket()
-        s.settimeout(0.3)
-        s.connect(("127.0.0.1", 8000))
-        s.close()
-    except Exception:
-        import asyncio, threading
-        def _run():
-            from scripts.desktop_editor.ws_server import run_ws_server
-            asyncio.run(run_ws_server(port=8000))
-        t = threading.Thread(target=_run, daemon=True)
-        t.start()
-
-_ensure_ws_server()
-
 DEFAULT_STORE_PATH = os.path.join(_project_root, "data", "captured_elements.json")
 
 TYPE_LABELS = {"win32": "窗口", "uia": "UIA", "web": "网页"}

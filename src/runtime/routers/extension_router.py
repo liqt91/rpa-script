@@ -34,6 +34,41 @@ def _safe_json_loads(value, default=None):
 router = APIRouter(prefix="/api/extension", tags=["extension"])
 
 
+# ── GUI 浏览器捕获（阻塞等待 Alt+Click） ──
+
+@router.post("/gui-browser-capture")
+async def gui_browser_capture(request: dict = None):
+    """GUI 调用：激活插件捕获模式，阻塞等待用户选取元素。"""
+    import time, uuid
+    request_id = (request or {}).get("requestId", str(uuid.uuid4())[:8])
+    timeout = (request or {}).get("timeout", 20)
+
+    # 找活跃扩展连接
+    async with ext_manager._lock:
+        if not ext_manager._connections:
+            return {"error": "没有浏览器扩展连接", "requestId": request_id}
+        conn = next(iter(ext_manager._connections.values()))
+
+    fut = asyncio.get_event_loop().create_future()
+
+    async def _on_result(payload, cid):
+        if payload.get("requestId") == request_id and not fut.done():
+            fut.set_result(payload.get("result", {}))
+
+    ext_manager.on("browserCaptureComplete", _on_result)
+    try:
+        await conn.send({
+            "action": "launchBrowserCapture",
+            "payload": {"requestId": request_id},
+        })
+        result = await asyncio.wait_for(fut, timeout=timeout)
+        return result
+    except asyncio.TimeoutError:
+        return {"error": "捕获超时", "requestId": request_id}
+    finally:
+        ext_manager.off("browserCaptureComplete", _on_result)
+
+
 # ── WebSocket 长连接 ──
 
 @router.websocket("/ws")

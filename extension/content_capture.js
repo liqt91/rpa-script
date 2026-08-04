@@ -2520,7 +2520,9 @@
   }
 
   async function onCaptureClick(e) {
-    if (!captureMode || !e.altKey) return;
+    if (!captureMode) return;
+    // GUI 模式不需要 Alt；Side panel 需要 Alt
+    if (!guiCaptureRequestId && !e.altKey) return;
     e.preventDefault();
     e.stopPropagation();
     const el = lockedElement;
@@ -3210,7 +3212,13 @@
       guiCaptureRequestId = (message.payload || {}).requestId || null;
       captureEnabled = true;
       if (!captureMode) enterCaptureMode();
-      showToast('捕获模式：Alt+Click 选取元素');
+      // 视觉确认: 页面红闪 + toast
+      const prevBg = document.body?.style?.background || '';
+      if (document.body) {
+        document.body.style.background = '#ff0000';
+        setTimeout(() => { document.body.style.background = prevBg; }, 500);
+      }
+      showToast('✅ GUI捕获模式已激活 | 直接点击页面元素', 'success');
       sendResponse({ ok: true });
       return false;
     }
