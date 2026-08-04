@@ -93,6 +93,8 @@ class ElementInfo:
     css_selector: str = ""
     xpath: str = ""
     tag_name: str = ""
+    candidates: list = field(default_factory=list)  # 全部选择器候选
+    screenshot: str = ""  # base64
 
 
 def _get_window_text(hwnd) -> str:
@@ -460,6 +462,8 @@ def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
             rect=rect, hwnd=browser_hwnd, win32_path=path,
             css_selector=css, xpath=xpath,
             tag_name=result.get("tag", "") or result.get("tagName", ""),
+            candidates=result.get("candidates", []),
+            screenshot=result.get("screenshot", ""),
         )
         return info
     except Exception:

@@ -31,8 +31,8 @@ from scripts.capture_gui.overlay import ElementInfo
 
 def _info_to_dict(info: ElementInfo) -> dict:
     d = asdict(info)
-    # HWND 不可序列化，每次启动会重新获取
     d.pop("hwnd", None)
+    d.pop("screenshot", None)  # 不存到文件，太大
     return d
 
 
@@ -51,6 +51,8 @@ def _dict_to_info(d: dict) -> ElementInfo:
         xpath=d.get("xpath", ""),
         tag_name=d.get("tag_name", ""),
         win32_path=d.get("win32_path", []),
+        candidates=d.get("candidates", []),
+        screenshot=d.get("screenshot", ""),
     )
 
 

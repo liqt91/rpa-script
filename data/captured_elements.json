@@ -1,4 +1,40 @@
 {
   "version": 1,
-  "elements": []
+  "elements": [
+    {
+      "name": "svg",
+      "element_type": "web",
+      "class_name": "Chrome_WidgetWin_1",
+      "title": "DeepSeek | 深度求索 和另外 10 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": -40,
+        "width": 1920,
+        "height": 1040
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 131596,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "DeepSeek | 深度求索 和另外 10 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        }
+      ],
+      "css_selector": "css:main.flex.flex-col.items-center.justify-between",
+      "xpath": "xpath://main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+      "tag_name": "svg"
+    }
+  ]
 }

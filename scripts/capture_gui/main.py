@@ -109,7 +109,7 @@ class CaptureGUI:
         paned.add(right, weight=1)
 
         props = ttk.LabelFrame(right, text="属性", padding=10)
-        props.pack(fill=tk.BOTH, expand=True)
+        props.pack(fill=tk.X)
 
         self.prop_name = self._add_prop_row(props, "名称", editable=True)
         self.prop_type = self._add_prop_row(props, "类型")
@@ -118,6 +118,20 @@ class CaptureGUI:
         self.prop_auto_id = self._add_prop_row(props, "AutomationId")
         self.prop_rect = self._add_prop_row(props, "位置")
         self.prop_path_count = self._add_prop_row(props, "层级数")
+
+        # 选择器面板 (web only)
+        sel_frame = ttk.LabelFrame(right, text="选择器候选", padding=6)
+        sel_frame.pack(fill=tk.X, pady=(6, 0))
+        self.selector_var = tk.StringVar()
+        self.selector_combo = ttk.Combobox(sel_frame, textvariable=self.selector_var, state="readonly")
+        self.selector_combo.pack(fill=tk.X)
+        self.selector_combo.bind("<<ComboboxSelected>>", self._on_selector_change)
+
+        # 截图 (web only)
+        self.screenshot_frame = ttk.LabelFrame(right, text="截图", padding=4)
+        self.screenshot_frame.pack(fill=tk.X, pady=(6, 0))
+        self.screenshot_label = ttk.Label(self.screenshot_frame, text="(选择web元素显示)")
+        self.screenshot_label.pack()
 
         # 按钮行
         btn_frame = ttk.Frame(props)
@@ -243,21 +257,54 @@ class CaptureGUI:
         self.prop_ctrl_type.set(info.control_type)
         self.prop_auto_id.set(info.automation_id)
         r = info.rect
-        self.prop_rect.set(
-            f"({r.get('left', 0)}, {r.get('top', 0)}) "
-            f"{r.get('width', 0)}x{r.get('height', 0)}"
-        )
+        self.prop_rect.set(f"({r.get('left', 0)}, {r.get('top', 0)}) {r.get('width', 0)}x{r.get('height', 0)}")
         path_len = max(len(info.win32_path), len(info.uia_path))
         self.prop_path_count.set(str(path_len))
+
+        # 选择器候选
+        candidates = info.candidates
+        if candidates:
+            values = [f"{c.get('family','?')}: {c.get('syntax','')[:80]}" for c in candidates]
+            self.selector_combo['values'] = values
+            if values:
+                self.selector_var.set(values[0])
+        else:
+            self.selector_combo['values'] = []
+            self.selector_var.set("(无)")
+
+        # 截图
+        if info.screenshot and info.screenshot.startswith("data:"):
+            try:
+                import base64, io
+                from PIL import Image, ImageTk
+                data_url = info.screenshot
+                header, encoded = data_url.split(",", 1)
+                img_data = base64.b64decode(encoded)
+                img = Image.open(io.BytesIO(img_data))
+                img.thumbnail((280, 200))
+                self._screenshot_img = ImageTk.PhotoImage(img)
+                self.screenshot_label.configure(image=self._screenshot_img, text="")
+            except Exception:
+                self.screenshot_label.configure(image="", text="(截图加载失败)")
+        else:
+            self.screenshot_label.configure(image="", text="(选择web元素显示)")
 
         # 详情 JSON
         from scripts.capture_gui.store import _info_to_dict
         data = _info_to_dict(info)
         self.details_text.delete("1.0", tk.END)
         self.details_text.insert("1.0", json.dumps(data, ensure_ascii=False, indent=2))
-
-        # 启用按钮
         self.validate_btn.configure(state=tk.NORMAL)
+
+    def _on_selector_change(self, event=None):
+        sel = self.tree.selection()
+        if not sel: return
+        info = self.store.elements[int(sel[0])]
+        idx = self.selector_combo.current()
+        if 0 <= idx < len(info.candidates):
+            c = info.candidates[idx]
+            self.details_text.delete("1.0", tk.END)
+            self.details_text.insert("1.0", json.dumps(c, ensure_ascii=False, indent=2))
 
     def _clear_props(self):
         for var in [self.prop_name, self.prop_type, self.prop_class,
