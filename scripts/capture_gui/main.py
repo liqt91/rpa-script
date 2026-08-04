@@ -182,12 +182,13 @@ class CaptureGUI:
         sel = self.tree.selection()
         if not sel: return
         info = self.store.elements[int(sel[0])]
-        new_sel = self.sel_text.get("1.0", tk.END).strip().strip()
+        new_sel = self.sel_text.get("1.0", tk.END).strip()
         if new_sel:
             info.css_selector = new_sel
             self.store.save()
-            self.set_status(f"已保存选择器: {new_sel[:50]}...")
+            self.set_status(f"已保存: {new_sel[:50]}...")
             self._refresh_list()
+            self._show_props(info)
 
     def _show_screenshot_large(self, event=None):
         if not self._thumb_img: return
