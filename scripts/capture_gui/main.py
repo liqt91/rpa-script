@@ -342,26 +342,55 @@ class CaptureGUI:
         self.btn_recommend.configure(state=tk.DISABLED)
         self.btn_manual.configure(state=tk.DISABLED)
 
-    # ── DOM interaction ──
+    # -- DOM interaction --
     def _build_dom_checkboxes(self):
         for w in self.dom_inner.winfo_children(): w.destroy()
         path = self._dom_path
-        if not path: return
+        if not path:
+            ttk.Label(self.dom_inner, text="(无 DOM 数据)", foreground="gray").pack(pady=10)
+            return
+        tb = ttk.Frame(self.dom_inner); tb.pack(fill=tk.X, pady=(0,4))
+        ttk.Button(tb, text="全选", width=5, command=self._dom_select_all).pack(side=tk.LEFT, padx=2)
+        ttk.Button(tb, text="全不选", width=5, command=self._dom_select_none).pack(side=tk.LEFT, padx=2)
+        ttk.Separator(tb, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6, pady=2)
+        ttk.Label(tb, text="勾选层级参与选择器生成", foreground="gray").pack(side=tk.LEFT)
         self._dom_checked = [tk.BooleanVar(value=True) for _ in path]
+        self._dom_attr_vars = {}
         for i, node in enumerate(path):
-            row = ttk.Frame(self.dom_inner); row.pack(fill=tk.X, pady=1)
+            is_last = (i == len(path) - 1)
+            row = ttk.Frame(self.dom_inner); row.pack(fill=tk.X, pady=(3 if i==0 else 1, 0 if is_last else 1))
             cb = ttk.Checkbutton(row, variable=self._dom_checked[i], command=self._update_dom_sel)
-            cb.pack(side=tk.LEFT)
-            indent = "  " * i
+            cb.pack(side=tk.LEFT, padx=(4,0))
+            indent = "│  " * i
             if isinstance(node, dict):
-                tag = node.get("tag", "div")
-                sid = f"#{node['id']}" if node.get("id") else ""
-                cls = ".".join(node.get("classes", [])[:3]) if node.get("classes") else ""
-                display = f"{indent}<{tag}>{sid}" + (f".{cls}" if cls else "")
+                tag = node.get("tag", "?")
+                sid = node.get("id", "")
+                classes = node.get("classes", [])
+                tag_str = f"{indent}<{tag}>" + (f" #{sid}" if sid else "") + (f" .{".".join(classes[:3])}" if classes else "")
             else:
-                display = f"{indent}{str(node)[:120]}"
-            ttk.Label(row, text=display, font=("Consolas", 9)).pack(side=tk.LEFT)
-
+                tag_str = f"{indent}{node}"
+            ttk.Label(row, text=tag_str, font=("Consolas", 9, "bold" if is_last else "normal"),
+                      foreground="#d4380d" if is_last else "#333").pack(side=tk.LEFT)
+            if is_last and isinstance(node, dict):
+                attrs = self._dom_attrs or {}
+                if attrs:
+                    self._dom_attr_vars[i] = {}
+                    for an, av in attrs.items():
+                        if an in ("id", "class", "style"): continue
+                        var = tk.BooleanVar(value=False)
+                        self._dom_attr_vars[i][an] = var
+                        ar = ttk.Frame(self.dom_inner); ar.pack(fill=tk.X)
+                        ttk.Label(ar, text=indent + "│  ", foreground="#aaa").pack(side=tk.LEFT)
+                        acb = ttk.Checkbutton(ar, variable=var, command=self._update_dom_sel)
+                        acb.pack(side=tk.LEFT)
+                        ttk.Label(ar, text=f'{an}="{av}"', font=("Consolas", 9),
+                                  foreground="#531dab").pack(side=tk.LEFT)
+    def _dom_select_all(self):
+        for v in self._dom_checked: v.set(True)
+        self._update_dom_sel()
+    def _dom_select_none(self):
+        for v in self._dom_checked: v.set(False)
+        self._update_dom_sel()
     def _update_dom_sel(self):
         parts = []
         for i, node in enumerate(self._dom_path):
@@ -369,14 +398,17 @@ class CaptureGUI:
                 continue
             if isinstance(node, dict):
                 tag = node.get("tag", "div")
-                sid = f"#{node['id']}" if node.get("id") else ""
+                sid = f"#{node.get('id','')}" if node.get("id") else ""
                 cls = ".".join(node.get("classes", [])[:3]) if node.get("classes") else ""
-                parts.append(f"{tag}{sid}" + (f".{cls}" if cls else ""))
+                part = f"{tag}{sid}" + (f".{cls}" if cls else "")
+                if i == len(self._dom_path) - 1 and i in self._dom_attr_vars:
+                    for an in self._dom_attr_vars[i]:
+                        if self._dom_attr_vars[i][an].get():
+                            part += f"[{an}=\"{self._dom_attrs.get(an,"")}\"]"
+                parts.append(part)
             else:
                 parts.append(str(node))
         self._set_sel_text(" > ".join(parts) if parts else "")
-
-    # ── List ──
     def _refresh_list(self):
         sel_idx = int(self.tree.selection()[0]) if self.tree.selection() else -1
         self.tree.delete(*self.tree.get_children())
