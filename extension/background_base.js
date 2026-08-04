@@ -216,11 +216,20 @@ class AgentBackground {
           return;
         }
         await ensureContentScripts(tab.id);
-        await new Promise(r => setTimeout(r, 200));  // 等脚本初始化
-        await chrome.tabs.sendMessage(tab.id, {
-          action: 'launchBrowserCapture',
-          payload: { requestId },
-        });
+        await new Promise(r => setTimeout(r, 300));  // 等脚本初始化
+        // 重试 3 次
+        for (let i = 0; i < 3; i++) {
+          try {
+            await chrome.tabs.sendMessage(tab.id, {
+              action: 'launchBrowserCapture',
+              payload: { requestId },
+            });
+            break;  // 成功
+          } catch (e) {
+            if (i === 2) throw e;
+            await new Promise(r => setTimeout(r, 300));
+          }
+        }
         // 等待 content script 通过 WS 发送结果
         // content_capture.js 会在捕获完成后通过 chrome.runtime.sendMessage
         // 发送 browserCaptureComplete 回来
