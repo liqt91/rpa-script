@@ -249,6 +249,7 @@ class CaptureGUI:
 
     # ── Display ──
     def _show_props(self, info: ElementInfo):
+        print(f"[TRACE] _show_props: name={info.name} type={info.element_type} css={info.css_selector[:40] if info.css_selector else 'EMPTY'}")
         self.var_name.set(info.name)
         is_web = info.element_type == "web"
 
@@ -377,6 +378,8 @@ class CaptureGUI:
             self.tree.selection_set(str(sel_idx)); self.tree.see(str(sel_idx))
 
     def _on_select(self, event):
+        sel = self.tree.selection()
+        print(f"[TRACE] _on_select: sel={sel}")
         sel = self.tree.selection()
         if not sel: self._clear_panel(); return
         idx = int(sel[0])
