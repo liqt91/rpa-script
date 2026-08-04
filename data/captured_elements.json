@@ -1368,6 +1368,486 @@
       "dom_path": [],
       "elem_attrs": {},
       "list_info": {}
+    },
+    {
+      "name": "Chrome Legacy Window",
+      "element_type": "win32",
+      "class_name": "Chrome_RenderWidgetHostHWND",
+      "title": "Chrome Legacy Window",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 1679,
+        "bottom": 996,
+        "width": 1679,
+        "height": 996
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 131686,
+          "class_name": "Chrome_WidgetWin_0",
+          "title": "",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "hwnd": 15731890,
+          "class_name": "Chrome_RenderWidgetHostHWND",
+          "title": "Chrome Legacy Window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1679,
+            "bottom": 996,
+            "width": 1679,
+            "height": 996
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": "",
+      "candidates": [],
+      "dom_path": [],
+      "elem_attrs": {},
+      "list_info": {}
+    },
+    {
+      "name": "div_法务_&_安全_隐私政策_用户协议_反馈",
+      "element_type": "web",
+      "class_name": "Chrome_WidgetWin_1",
+      "title": "DeepSeek | 深度求索 和另外 9 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": -40,
+        "width": 1920,
+        "height": 1040
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 131596,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "DeepSeek | 深度求索 和另外 9 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        }
+      ],
+      "css_selector": "css:div > div > div:nth-of-type(2) > div",
+      "xpath": "xpath://div[contains(@class,'grid')]/div[4]",
+      "tag_name": "div",
+      "candidates": [
+        {
+          "syntax": "verse:法务安透明度",
+          "family": "drission",
+          "score": 86,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "@@class:flex@@class:flex-col",
+          "family": "drission",
+          "score": 72,
+          "matchCount": -1,
+          "isList": false,
+          "pathMapping": [
+            4
+          ]
+        },
+        {
+          "syntax": "css:div > div > div:nth-of-type(2) > div",
+          "family": "css",
+          "score": 23,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div.grid > div.flex:nth-of-type(4)",
+          "family": "css",
+          "score": 22,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            3,
+            4
+          ]
+        },
+        {
+          "syntax": "css:.relative div > div > div:nth-of-type(2) > div",
+          "family": "css",
+          "score": 8,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:main.flex > div.relative:nth-of-type(2) > div:nth-of-type(2) > div.grid > div.flex:nth-of-type(4)",
+          "family": "css",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'grid')]/div[4]",
+          "family": "xpath",
+          "score": 9,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            4
+          ]
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'relative')]/div[2]/div/div[4]",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            4
+          ]
+        },
+        {
+          "syntax": "xpath://main[contains(@class,'flex')]/div[2]/div[2]/div/div[4]",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            4
+          ]
+        },
+        {
+          "syntax": "xpath://body/main/div[2]/div[2]/div/div[4]",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'grid')]/div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-start')]",
+          "family": "xpath",
+          "score": 54,
+          "matchCount": 5,
+          "isList": true,
+          "listContainer": "//div[contains(@class,'grid')]",
+          "listItem": "//div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-start')]"
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'grid')]//div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-start')]",
+          "family": "xpath",
+          "score": 38,
+          "matchCount": 6,
+          "isList": true,
+          "listContainer": "//div[contains(@class,'grid')]",
+          "listItem": "//div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-start')]"
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'grid')]",
+          "family": "xpath",
+          "score": 35,
+          "matchCount": 4,
+          "isList": true,
+          "listContainer": "//div[contains(@class,'grid')]"
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-start')]",
+          "family": "xpath",
+          "score": 29,
+          "matchCount": 6,
+          "isList": true,
+          "listItem": "//div[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-start')]"
+        },
+        {
+          "syntax": "css:div.grid > div.flex.flex-col.items-start",
+          "family": "css",
+          "score": 76,
+          "matchCount": 5,
+          "isList": true,
+          "listContainer": "div.grid",
+          "listItem": "div.flex.flex-col.items-start"
+        },
+        {
+          "syntax": "css:div.grid div.flex.flex-col.items-start",
+          "family": "css",
+          "score": 70,
+          "matchCount": 6,
+          "isList": true,
+          "listContainer": "div.grid",
+          "listItem": "div.flex.flex-col.items-start"
+        },
+        {
+          "syntax": "css:div.flex",
+          "family": "css",
+          "score": 68,
+          "matchCount": 10,
+          "isList": true
+        },
+        {
+          "syntax": "css:div.flex-col",
+          "family": "css",
+          "score": 68,
+          "matchCount": 8,
+          "isList": true
+        },
+        {
+          "syntax": "css:div.items-start",
+          "family": "css",
+          "score": 64,
+          "matchCount": 6,
+          "isList": true
+        },
+        {
+          "syntax": ".flex",
+          "family": "css",
+          "score": 63,
+          "matchCount": 12,
+          "isList": true,
+          "pathMapping": [
+            4
+          ]
+        },
+        {
+          "syntax": "css:.grid div.flex",
+          "family": "css",
+          "score": 62,
+          "matchCount": 9,
+          "isList": true
+        },
+        {
+          "syntax": "css:.grid > div",
+          "family": "css",
+          "score": 60,
+          "matchCount": 8,
+          "isList": true
+        },
+        {
+          "syntax": "css:.grid div",
+          "family": "css",
+          "score": 58,
+          "matchCount": 31,
+          "isList": true
+        },
+        {
+          "syntax": "css:.grid div.flex-col",
+          "family": "css",
+          "score": 58,
+          "matchCount": 8,
+          "isList": true
+        }
+      ],
+      "dom_path": [
+        {
+          "tag": "main",
+          "id": "",
+          "classes": [
+            "flex",
+            "flex-col",
+            "items-center",
+            "justify-between"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "main",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "next-route-announcer",
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "w-full",
+            "relative"
+          ],
+          "attrs": {},
+          "index": 1,
+          "realIndex": 1,
+          "childrenTags": [
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "pt-16",
+            "border-slate-200",
+            "px-8",
+            "md:px-20"
+          ],
+          "attrs": {},
+          "index": 1,
+          "realIndex": 1,
+          "childrenTags": [
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "grid",
+            "grid-cols-1",
+            "sm:grid-cols-2",
+            "md:grid-cols-3",
+            "lg:grid-cols-4",
+            "xl:grid-cols-6",
+            "gap-10",
+            "max-w-6xl",
+            "m-auto",
+            "mb-16"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "flex",
+            "flex-col",
+            "gap-1",
+            "t",
+            "text-slate-600",
+            "col-span-1",
+            "items-start"
+          ],
+          "attrs": {},
+          "index": 3,
+          "realIndex": 3,
+          "childrenTags": [
+            "div",
+            "div",
+            "div",
+            "div",
+            "div"
+          ],
+          "siblings": [
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "flex",
+                "flex-col",
+                "gap-2",
+                "col-span-1"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "flex",
+                "flex-col",
+                "gap-1",
+                "text-slate-600"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "flex",
+                "flex-col",
+                "gap-1",
+                "text-slate-600"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "flex",
+                "flex-col",
+                "gap-1",
+                "t"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "flex",
+                "flex-col",
+                "gap-1",
+                "t"
+              ]
+            }
+          ]
+        }
+      ],
+      "elem_attrs": {},
+      "list_info": {
+        "listContainer": "div.grid",
+        "listItem": "div.flex.flex-col.items-start",
+        "listSize": 5,
+        "listSimilarity": 0.84
+      }
     }
   ]
 }

@@ -3209,7 +3209,16 @@
     if (message.action === 'verifySelector') {
       const { selector } = message.payload || {};
       try {
-        const matches = document.querySelectorAll(selector);
+        let matches;
+        if (selector.startsWith('/') || selector.startsWith('xpath:') || selector.startsWith('XPath:')) {
+          // XPath
+          const xpath = selector.replace(/^(xpath:|XPath:)/i, '');
+          const result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          matches = [];
+          for (let i = 0; i < result.snapshotLength; i++) matches.push(result.snapshotItem(i));
+        } else {
+          matches = document.querySelectorAll(selector);
+        }
         if (matches.length > 0) {
           // 对前3个匹配元素画闪烁边框
           for (let i = 0; i < Math.min(matches.length, 3); i++) {
