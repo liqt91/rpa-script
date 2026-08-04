@@ -580,6 +580,111 @@
       "css_selector": "",
       "xpath": "",
       "tag_name": ""
+    },
+    {
+      "name": "Chrome Legacy Window",
+      "element_type": "web",
+      "class_name": "Chrome_RenderWidgetHostHWND",
+      "title": "Chrome Legacy Window",
+      "rect": {
+        "left": 237,
+        "top": -1040,
+        "right": 1916,
+        "bottom": -44,
+        "width": 1679,
+        "height": 996
+      },
+      "control_type": "TextControl",
+      "automation_id": "",
+      "uia_path": [
+        {
+          "name": "",
+          "class_name": "flex flex-col items-center justify-between",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 237,
+            "top": -1040,
+            "right": 1901,
+            "bottom": 131,
+            "width": 1664,
+            "height": 1171
+          }
+        },
+        {
+          "name": "",
+          "class_name": "w-full relative",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 237,
+            "top": -258,
+            "right": 1901,
+            "bottom": 131,
+            "width": 1664,
+            "height": 389
+          }
+        },
+        {
+          "name": "",
+          "class_name": "text-slate-700 font-bold mb-1",
+          "control_type": "GroupControl",
+          "automation_id": "",
+          "rect": {
+            "left": 890,
+            "top": -194,
+            "right": 921,
+            "bottom": -170,
+            "width": 31,
+            "height": 24
+          }
+        },
+        {
+          "name": "研究",
+          "class_name": "",
+          "control_type": "TextControl",
+          "automation_id": "",
+          "rect": {
+            "left": 890,
+            "top": -193,
+            "right": 921,
+            "bottom": -173,
+            "width": 31,
+            "height": 20
+          }
+        }
+      ],
+      "win32_path": [
+        {
+          "hwnd": 131596,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "DeepSeek | 深度求索 和另外 4 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        },
+        {
+          "hwnd": 7408880,
+          "class_name": "Chrome_RenderWidgetHostHWND",
+          "title": "Chrome Legacy Window",
+          "rect": {
+            "left": 237,
+            "top": -1040,
+            "right": 1916,
+            "bottom": -44,
+            "width": 1679,
+            "height": 996
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": ""
     }
   ]
 }

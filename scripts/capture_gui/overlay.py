@@ -421,11 +421,22 @@ def _viewport_rect_to_screen(dom_rect, win_rect):
         "width": dom_rect["width"], "height": dom_rect["height"],
     }
 
+def _find_browser_root(hwnd):
+    for p in reversed(_get_ancestor_path(hwnd)):
+        if _is_browser_window(p.get("class_name", "")):
+            return p["hwnd"]
+    return None
+
 def _try_browser_pick(hwnd, sx, sy):
     cls = _get_class_name(hwnd)
-    if not _is_browser_window(cls):
+    path = _get_ancestor_path(hwnd)
+    if not _is_browser_window(cls) and not _is_browser_in_chain(path):
         return None
-    win_rect = _get_window_rect(hwnd)
+    # 找浏览器顶层窗口用于坐标转换
+    browser_hwnd = hwnd if _is_browser_window(cls) else _find_browser_root(hwnd)
+    if not browser_hwnd:
+        return None
+    win_rect = _get_window_rect(browser_hwnd)
     vx, vy = _screen_to_viewport(sx, sy, win_rect)
     if vx < 0 or vy < 0:
         return None
