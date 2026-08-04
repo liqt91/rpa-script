@@ -25,6 +25,8 @@ class CaptureGUI:
         self._candidates = []
         self._cur_sel = ""
         self._populating = False
+        s = ttk.Style()
+        s.configure("Active.TButton", background="#3b82f6", foreground="white")
         self._build_toolbar()
         self._build_panels()
         self._refresh_list()
@@ -219,9 +221,13 @@ class CaptureGUI:
         if tab == 0:
             self.tab1.pack_forget()
             self.tab0.pack(fill=tk.BOTH, expand=True)
+            self.btn_recommend.configure(style="Active.TButton")
+            self.btn_manual.configure(style="TButton")
         else:
             self.tab0.pack_forget()
             self.tab1.pack(fill=tk.BOTH, expand=True)
+            self.btn_recommend.configure(style="TButton")
+            self.btn_manual.configure(style="Active.TButton")
             self.tab1.pack(fill=tk.BOTH, expand=True, before=self.sel_text.master)
 
     _sort_cands_dir = {"syntax": False, "family": False, "match": False}
