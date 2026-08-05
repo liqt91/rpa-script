@@ -34,27 +34,23 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   useEffect(() => { loadElements(); }, [wfId]);
 
   // 启动浏览器捕获
-  const startBrowserCapture = async () => {
+  const startDesktopCapture = async () => {
     setCapturing(true);
     setCaptureError('');
     try {
-      const r = await fetch('/api/extension/gui-browser-capture', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId: Math.random().toString(36).slice(2, 10), timeout: 30 }),
-      });
-      const data = await r.json();
-      if (data.error) { setCaptureError(data.error); return; }
-      // 保存到元素库
+      const data = await api.runPicker();
+      if (data.cancelled) return;
+      const target = data.path?.[data.path.length - 1];
+      const name = ((target && target.class_name) || data.element_type || '元素') + ((target && target.title) ? ' "' + target.title + '"' : '');
       await api.createWorkflowElement(wfId, {
-        name: data.name || data.tag || 'web元素',
-        element_kind: 'plain',
+        name: name.substring(0, 128) || '桌面元素',
+        element_kind: 'win32',
         attributes: data,
       });
       await loadElements();
       showToast('捕获成功', 'success');
     } catch (e) {
-      setCaptureError(String(e));
+      if (e.message !== 'cancelled') setCaptureError(String(e));
     } finally {
       setCapturing(false);
     }
@@ -174,11 +170,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
             <div className="flex items-center gap-3">
               <h2 className="text-sm font-semibold text-gray-800">元素捕获工具</h2>
               <button
-                onClick={startBrowserCapture}
+                onClick={startDesktopCapture}
                 disabled={capturing}
                 className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-xs rounded transition-colors"
               >
-                {capturing ? '捕获中... Alt+Click 选取' : '🔍 捕获网页元素'}
+                {capturing ? '捕获中... 左键选取目标' : '🔍 捕获元素'}
               </button>
               {captureError && <span className="text-xs text-red-500">{captureError}</span>}
             </div>
