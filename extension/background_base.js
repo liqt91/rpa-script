@@ -240,7 +240,7 @@ class AgentBackground {
       return;
     }
 
-    // GUI → Extension: 验证选择器 (定向到捕获时的标签页, 否则查聚焦窗口)
+    // GUI → Extension: 验证选择器 (定向到捕获时的标签页, 否则聚焦窗口活动页)
     if (action === 'verifySelector') {
       const { requestId, selector, tabId } = payload || {};
       try {
@@ -253,46 +253,35 @@ class AgentBackground {
           try {
             const wins = await chrome.windows.getAll({});
             const focused = wins.find(w => w.focused) || wins[0];
-            if (focused) tabs = await chrome.tabs.query({ windowId: focused.id });
+            if (focused) tabs = await chrome.tabs.query({ windowId: focused.id, active: true });
           } catch (e) {
-            tabs = await chrome.tabs.query({});
+            tabs = await chrome.tabs.query({ active: true });
           }
         }
         if (!tabs.length) {
           this._send('verifySelectorResult', { requestId, result: { error: '没有标签页' } });
           return;
         }
-        // 过滤: 只验证可注入的 http/https 页面, 跳过编辑器/扩展页
-        tabs = tabs.filter(t =>
+        // 过滤: 跳过编辑器/扩展页
+        const tab = tabs.find(t =>
           t.url && /^https?:/i.test(t.url) &&
           !/127\.0\.0\.1:8000|localhost:8000/i.test(t.url) &&
           !/chrome-extension:|chrome:|edge:|devtools:/i.test(t.url)
         );
-        if (!tabs.length) {
-          this._send('verifySelectorResult', { requestId, result: { error: '没有可验证的网页标签页' } });
+        if (!tab) {
+          this._send('verifySelectorResult', { requestId, result: { found: false, count: 0, error: '没有可验证的网页标签页' } });
           return;
         }
-        // 活动页优先, 其余按顺序
-        tabs.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
-        let best = null; // {found, count}
-        const START = Date.now();
-        for (const tab of tabs) {
-          // 整体 12s 兜底: 超时直接返回已收集结果
-          if (Date.now() - START > 12000) break;
-          try {
-            await ensureContentScripts(tab.id);
-            const resp = await chrome.tabs.sendMessage(tab.id, {
-              action: 'verifySelector',
-              payload: { requestId, selector },
-            });
-            if (resp && resp.found) {
-              this._send('verifySelectorResult', { requestId, result: resp });
-              return;
-            }
-            if (resp && !best) best = resp;
-          } catch (e) { /* 该标签页无内容脚本, 跳过 */ }
+        try {
+          await ensureContentScripts(tab.id);
+          const resp = await chrome.tabs.sendMessage(tab.id, {
+            action: 'verifySelector',
+            payload: { requestId, selector },
+          });
+          this._send('verifySelectorResult', { requestId, result: resp || { found: false, count: 0 } });
+        } catch (e) {
+          this._send('verifySelectorResult', { requestId, result: { found: false, count: 0, error: e?.message || String(e) } });
         }
-        this._send('verifySelectorResult', { requestId, result: best || { found: false, count: 0 } });
       } catch (e) {
         this._send('verifySelectorResult', { requestId, result: { error: e?.message || String(e) } });
       }
