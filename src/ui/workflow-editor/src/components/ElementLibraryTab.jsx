@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 import DataTableTab from './DataTableTab';
+import CaptureToolModal from './CaptureToolModal';
 import WorkflowParametersPanel from './WorkflowParametersPanel';
 import ApiSettingsPanel from './ApiSettingsPanel';
 
@@ -919,29 +920,13 @@ export default function ElementLibraryTab() {
         </div>
       )}
 
-    {/* 元素捕获工具模态框 */}
+    {/* 元素捕获工具 — 原生模态框 */}
     {captureModal && (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-        onClick={(e) => e.target === e.currentTarget && setCaptureModal(false)}
-      >
-        <div className="bg-white rounded-lg shadow-2xl w-[95vw] h-[90vh] max-w-6xl flex flex-col">
-          <div className="flex items-center justify-between px-4 py-2 border-b">
-            <h2 className="text-sm font-medium text-gray-700">元素捕获工具</h2>
-            <button
-              onClick={() => setCaptureModal(false)}
-              className="text-gray-400 hover:text-gray-600 text-lg leading-none px-2"
-            >
-              ×
-            </button>
-          </div>
-          <iframe
-            src="http://127.0.0.1:8000/capture"
-            className="flex-1 border-0"
-            title="元素捕获"
-          />
-        </div>
-      </div>
+      <CaptureToolModal
+        wfId={wfId}
+        onClose={() => setCaptureModal(false)}
+        onSaved={loadElements}
+      />
     )}
     </div>
   );
