@@ -240,11 +240,11 @@ class AgentBackground {
       return;
     }
 
-    // GUI → Extension: 验证选择器 (遍历所有标签页, 任意页匹配即成功)
+    // GUI → Extension: 验证选择器 (只查当前窗口的标签页)
     if (action === 'verifySelector') {
       const { requestId, selector } = payload || {};
       try {
-        const tabs = await chrome.tabs.query({});
+        const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
         if (!tabs.length) {
           this._send('verifySelectorResult', { requestId, result: { error: '没有标签页' } });
           return;
