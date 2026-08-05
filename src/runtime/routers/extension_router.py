@@ -90,7 +90,7 @@ async def verify_selector(request: dict = None):
     ext_manager.on("verifySelectorResult", _on_result)
     try:
         await conn.send({"action": "verifySelector", "payload": {"requestId": request_id, "selector": selector}})
-        result = await asyncio.wait_for(fut, timeout=5.0)
+        result = await asyncio.wait_for(fut, timeout=15.0)
         return result
     except asyncio.TimeoutError:
         return {"error": "验证超时", "requestId": request_id}

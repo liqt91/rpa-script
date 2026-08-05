@@ -240,16 +240,25 @@ class AgentBackground {
       return;
     }
 
-    // GUI → Extension: 验证选择器 (只查当前窗口的标签页)
+    // GUI → Extension: 验证选择器 (先活动页, 再查聚焦窗口其他标签页)
     if (action === 'verifySelector') {
       const { requestId, selector } = payload || {};
       try {
-        const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
+        let tabs = [];
+        try {
+          const wins = await chrome.windows.getAll({});
+          const focused = wins.find(w => w.focused) || wins[0];
+          if (focused) tabs = await chrome.tabs.query({ windowId: focused.id });
+        } catch (e) {
+          tabs = await chrome.tabs.query({});
+        }
         if (!tabs.length) {
           this._send('verifySelectorResult', { requestId, result: { error: '没有标签页' } });
           return;
         }
-        let best = null; // {found, count, tabId}
+        // 活动页优先, 其余按顺序
+        tabs.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+        let best = null; // {found, count}
         for (const tab of tabs) {
           try {
             await ensureContentScripts(tab.id);
