@@ -24,10 +24,13 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const strip = (s) => (s || '').replace(/^(css:|xpath:|drission:)/i, '');
 
   // 加载流程元素
-  const loadElements = async () => {
+  const loadElements = async (selectLast = false) => {
     try {
       const list = await api.getWorkflowElements(wfId);
       setElements(list || []);
+      if (selectLast && list && list.length) {
+        showElement(list.length - 1);
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -47,7 +50,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
         element_kind: 'win32',
         attributes: data,
       });
-      await loadElements();
+      await loadElements(true);
       showToast('捕获成功', 'success');
     } catch (e) {
       if (e.message !== 'cancelled') setCaptureError(String(e));
