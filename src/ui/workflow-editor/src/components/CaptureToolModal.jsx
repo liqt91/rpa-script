@@ -259,8 +259,9 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
               {/* 推荐方案 */}
               {mode === 0 && (
                 <div className="flex-1 bg-white rounded border overflow-hidden flex flex-col min-h-0">
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50">
+                  <div className="flex-1 overflow-y-auto min-h-0">
+                    <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
                       <tr>
                         <th className="px-3 py-2 text-left font-medium text-gray-500 cursor-pointer hover:text-blue-500" onClick={() => sortCands('syntax')}>选择器</th>
                         <th className="w-16 px-2 py-2 font-medium text-gray-500 cursor-pointer hover:text-blue-500" onClick={() => sortCands('family')}>类型</th>
@@ -282,6 +283,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                       {!cands.length && <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-400">暂无候选方案</td></tr>}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
 
