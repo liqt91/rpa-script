@@ -794,7 +794,7 @@ def run_gui_picker(user=Depends(auth.get_current_user)):
     try:
         proc = subprocess.run(
             [sys.executable, str(picker_path)],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60,
             cwd=str(_ROOT),
         )
         stdout = (proc.stdout or '').strip()
