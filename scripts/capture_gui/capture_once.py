@@ -17,8 +17,13 @@ from scripts.capture_gui.store import _info_to_dict
 
 
 def main():
+    import contextlib
+    import io as _io
+    # 压制 libpng/无头警告到 stderr
+    err_sink = _io.StringIO()
     try:
-        info = run_capture()
+        with contextlib.redirect_stderr(err_sink):
+            info = run_capture()
         if not info:
             print(json.dumps({"cancelled": True}))
             return

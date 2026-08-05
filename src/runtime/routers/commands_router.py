@@ -797,11 +797,15 @@ def run_gui_picker(user=Depends(auth.get_current_user)):
             capture_output=True, text=True, timeout=60,
             cwd=str(_ROOT),
         )
-        if proc.returncode != 0:
-            raise HTTPException(status_code=500, detail=proc.stderr.strip() or "capture failed")
         stdout = proc.stdout.strip()
-        if not stdout:
-            return {"cancelled": True}
+        if proc.returncode != 0 or not stdout:
+            # 优先解析 stdout 中的错误信息, 忽略 libpng 等 stderr 噪音
+            if stdout:
+                try:
+                    return json.loads(stdout)
+                except json.JSONDecodeError:
+                    pass
+            raise HTTPException(status_code=500, detail=proc.stderr.strip() or "capture failed")
         return json.loads(stdout)
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=408, detail="capture timeout")
