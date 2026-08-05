@@ -794,23 +794,21 @@ def run_gui_picker(user=Depends(auth.get_current_user)):
     try:
         proc = subprocess.run(
             [sys.executable, str(picker_path)],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=60,
+            capture_output=True, text=True, timeout=60,
             cwd=str(_ROOT),
         )
-        stdout = proc.stdout.strip()
-        if proc.returncode != 0 or not stdout:
-            # 优先解析 stdout 中的错误信息, 忽略 libpng 等 stderr 噪音
-            if stdout:
-                try:
-                    return json.loads(stdout)
-                except json.JSONDecodeError:
-                    pass
-            raise HTTPException(status_code=500, detail=proc.stderr.strip() or "capture failed")
-        return json.loads(stdout)
+        stdout = (proc.stdout or '').strip()
+        if stdout:
+            try:
+                return json.loads(stdout)
+            except json.JSONDecodeError:
+                pass
+        # 无有效 stdout → 失败（忽略 stderr 中的 libpng 噪音）
+        raise HTTPException(status_code=500, detail="捕获失败(无输出)" if proc.returncode != 0 else "已取消")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=408, detail="capture timeout")
     except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail=f"invalid capture output: {proc.stdout[:200]}")
+        raise HTTPException(status_code=500, detail="invalid capture output")
 
 
 @router.post("/picker_uia")
