@@ -44,10 +44,13 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
       const data = await api.runGuiPicker();
       if (data.cancelled) return;
       const target = data.path?.[data.path.length - 1];
-      const name = ((target && target.class_name) || data.element_type || '元素') + ((target && target.title) ? ' "' + target.title + '"' : '');
+      // 优先用捕获的名称, 否则从 class/tag/type 生成
+      const name = data.name
+        || ((target && target.class_name) || data.tag_name || data.element_type || '元素')
+        + ((target && target.title) ? ' "' + target.title + '"' : '');
       await api.createWorkflowElement(wfId, {
-        name: name.substring(0, 128) || '桌面元素',
-        element_kind: 'win32',
+        name: String(name).substring(0, 128) || '捕获元素',
+        element_kind: data.element_type === 'web' ? 'plain' : 'win32',
         attributes: data,
       });
       await loadElements(true);
