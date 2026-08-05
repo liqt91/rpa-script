@@ -3220,17 +3220,23 @@
           matches = document.querySelectorAll(selector);
         }
         if (matches.length > 0) {
-          // 对前3个匹配元素画闪烁边框
+          // 对前3个匹配元素闪烁边框 3 次后消失
           for (let i = 0; i < Math.min(matches.length, 3); i++) {
             const el = matches[i];
             const oldOutline = el.style.outline;
             const oldOutlineOffset = el.style.outlineOffset;
-            el.style.outline = '3px solid #3b82f6';
-            el.style.outlineOffset = '2px';
-            setTimeout(() => {
-              el.style.outline = oldOutline;
-              el.style.outlineOffset = oldOutlineOffset;
-            }, 1500);
+            const flash = () => {
+              el.style.outline = '3px solid #3b82f6';
+              el.style.outlineOffset = '2px';
+              setTimeout(() => {
+                el.style.outline = oldOutline;
+                el.style.outlineOffset = oldOutlineOffset;
+              }, 180);
+            };
+            // 闪烁 3 次: 180ms 亮 + 120ms 灭
+            flash();
+            setTimeout(flash, 300);
+            setTimeout(flash, 600);
           }
         }
         sendResponse({ found: matches.length > 0, count: matches.length });
