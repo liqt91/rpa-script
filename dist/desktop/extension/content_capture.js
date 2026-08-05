@@ -3028,6 +3028,9 @@
   // ─── Listen for cross-tab broadcast from background.js ───────────
   // Use window.postMessage to notify page main world (bypasses CSP)
 
+  // 防重复注入: 多个 content_capture.js 实例只注册一个监听器
+  if (!window.__rpaCaptureListener) {
+  window.__rpaCaptureListener = true;
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'setCaptureEnabled') {
       captureEnabled = message.enabled;
@@ -3334,6 +3337,7 @@
       return true;  // async response
     }
   });
+  }
 
   // 页面刷新/导航后，主动向 background 查询 side panel 是否已打开
   //（避免 side panel 已打开但新页面收不到 setCaptureEnabled 广播）
