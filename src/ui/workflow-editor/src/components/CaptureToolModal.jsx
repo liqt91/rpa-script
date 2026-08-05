@@ -134,8 +134,16 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const verify = async () => {
     if (!cur) return showToast('请先选择元素');
     try {
-      const d = await api.runGuiVerify(cur);
-      showToast(d.found ? '✅ 元素存在' : '❌ 元素失效', d.found ? 'success' : 'error');
+      if (cur.element_type === 'web' && (cur.css_selector || selector)) {
+        // web 元素: 浏览器验证选择器 (extension querySelectorAll)
+        const sel = selector || cur.css_selector;
+        const d = await api.verifyWebSelector(sel);
+        showToast(d.found ? `✅ 匹配 ${d.count || 1} 个` : `❌ ${d.error || '未找到'}`, d.found ? 'success' : 'error');
+      } else {
+        // 桌面元素: GUI flash_element 闪烁
+        const d = await api.runGuiVerify(cur);
+        showToast(d.found ? '✅ 元素存在' : '❌ 元素失效', d.found ? 'success' : 'error');
+      }
     } catch (e) { showToast('验证失败: ' + e.message, 'error'); }
   };
 
