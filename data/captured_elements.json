@@ -1887,6 +1887,369 @@
       "dom_path": [],
       "elem_attrs": {},
       "list_info": {}
+    },
+    {
+      "name": "a_返_回",
+      "element_type": "web",
+      "class_name": "Chrome_WidgetWin_1",
+      "title": "归墟 - Stage1st - stage1/s1 游戏动漫论坛 和另外 8 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "rect": {
+        "left": 0,
+        "top": -1080,
+        "right": 1920,
+        "bottom": -40,
+        "width": 1920,
+        "height": 1040
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 66750,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "归墟 - Stage1st - stage1/s1 游戏动漫论坛 和另外 8 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 0,
+            "top": -1080,
+            "right": 1920,
+            "bottom": -40,
+            "width": 1920,
+            "height": 1040
+          }
+        }
+      ],
+      "css_selector": "css:#visitedforums a",
+      "xpath": "xpath://span[@id='visitedforums']/a",
+      "tag_name": "a",
+      "candidates": [
+        {
+          "syntax": "css:#visitedforums a",
+          "family": "css",
+          "score": 94,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div > #visitedforums > a",
+          "family": "css",
+          "score": 67,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div > #visitedforums > a",
+          "family": "css",
+          "score": 67,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div > #visitedforums > a",
+          "family": "css",
+          "score": 63,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div > #visitedforums > [href=\"forum.php\"]",
+          "family": "css",
+          "score": 58,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div > #visitedforums > [href=\"forum.php\"]",
+          "family": "css",
+          "score": 58,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div > #visitedforums > a",
+          "family": "css",
+          "score": 58,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div > #visitedforums > [href=\"forum.php\"]",
+          "family": "css",
+          "score": 54,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:div > #visitedforums > [href=\"forum.php\"]",
+          "family": "css",
+          "score": 49,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "css:.boardnav > div > div > .bw0 > #visitedforums > a",
+          "family": "css",
+          "score": 33,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "syntax": "xpath://span[@id='visitedforums']/a",
+          "family": "xpath",
+          "score": 82,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            6
+          ]
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'bw0')]/span[2]/a",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            6
+          ]
+        },
+        {
+          "syntax": "xpath://div[contains(@class,'boardnav')]/div/div/div[4]/span[2]/a",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            6
+          ]
+        },
+        {
+          "syntax": "xpath://body/div[6]/div[4]/div/div/div[4]/span[2]/a",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "syntax": "xpath://div",
+          "family": "xpath",
+          "score": 50,
+          "matchCount": 17,
+          "isList": true,
+          "listContainer": "//div"
+        },
+        {
+          "syntax": "xpath://div",
+          "family": "xpath",
+          "score": 41,
+          "matchCount": 17,
+          "isList": true,
+          "listContainer": "//div"
+        },
+        {
+          "syntax": "css:.bw0 a",
+          "family": "css",
+          "score": 58,
+          "matchCount": 13,
+          "isList": true
+        },
+        {
+          "syntax": "css:a",
+          "family": "css",
+          "score": 20,
+          "matchCount": 224,
+          "isList": true,
+          "pathMapping": [
+            6
+          ]
+        }
+      ],
+      "dom_path": [
+        {
+          "tag": "div",
+          "id": "wp",
+          "classes": [
+            "wp"
+          ],
+          "attrs": {},
+          "index": 5,
+          "realIndex": 12,
+          "childrenTags": [
+            "div",
+            "div",
+            "div",
+            "ul",
+            "ul",
+            "div",
+            "div",
+            "script",
+            "script",
+            "script",
+            "link",
+            "script",
+            "div",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "div",
+            "div",
+            "script",
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "boardnav"
+          ],
+          "attrs": {},
+          "index": 3,
+          "realIndex": 4,
+          "childrenTags": [
+            "style",
+            "div",
+            "div",
+            "div",
+            "div",
+            "ul",
+            "div",
+            "script",
+            "script",
+            "div",
+            "script"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "ct",
+          "classes": [
+            "wp",
+            "cl"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "mn"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "pgt",
+          "classes": [
+            "bm",
+            "bw0",
+            "pgs",
+            "cl"
+          ],
+          "attrs": {},
+          "index": 3,
+          "realIndex": 3,
+          "childrenTags": [
+            "div",
+            "div",
+            "div",
+            "div",
+            "ul",
+            "script",
+            "div",
+            "div",
+            "div",
+            "div",
+            "div",
+            "a",
+            "script",
+            "div",
+            "div",
+            "script",
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "span",
+          "id": "visitedforums",
+          "classes": [
+            "pgb",
+            "y"
+          ],
+          "attrs": {
+            "initialized": "true"
+          },
+          "index": 1,
+          "realIndex": 1,
+          "childrenTags": [
+            "span",
+            "span",
+            "a"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "a",
+          "id": "",
+          "classes": [],
+          "attrs": {
+            "href": "forum.php"
+          },
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "a"
+          ],
+          "siblings": [
+            {
+              "tag": "a",
+              "id": "",
+              "classes": []
+            }
+          ]
+        }
+      ],
+      "elem_attrs": {
+        "href": "forum.php"
+      },
+      "list_info": {}
     }
   ]
 }

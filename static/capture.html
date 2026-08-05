@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>元素捕获</title>
+<style>
+:root {
+  --bg: #1a1a2e; --surface: #16213e; --border: #0f3460;
+  --text: #e0e0e0; --muted: #888; --accent: #3b82f6;
+  --red: #d4380d; --purple: #531dab; --green: #52c41a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; }
+#left { width: 260px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+#left h2 { padding: 16px; font-size: 15px; border-bottom: 1px solid var(--border); }
+#list { flex: 1; overflow-y: auto; padding: 8px; }
+.item { padding: 8px 10px; cursor: pointer; border-radius: 6px; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.item:hover { background: var(--surface); }
+.item.active { background: var(--border); }
+.item .icon { font-size: 16px; }
+.item .sel { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#right { flex: 1; padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.row label { width: 50px; font-size: 13px; color: var(--muted); flex-shrink: 0; }
+.row input { flex: 1; padding: 6px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
+
+.tabs { display: flex; gap: 6px; }
+.tab { padding: 6px 18px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; }
+.tab.on { background: var(--bg); color: var(--accent); border-bottom-color: var(--bg); }
+
+#candidates { background: var(--surface); border: 1px solid var(--border); border-radius: 0 6px 6px 6px; overflow: hidden; flex: 1; }
+#candidates table { width: 100%; border-collapse: collapse; font-size: 12px; }
+#candidates th { background: var(--border); padding: 6px 10px; text-align: left; font-weight: 500; cursor: pointer; }
+#candidates td { padding: 5px 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
+#candidates tr:hover td { background: rgba(59,130,246,0.1); }
+#candidates tr.sel td { background: rgba(59,130,246,0.2); }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+.badge.css { background: #fff2e8; color: #fa8c16; }
+.badge.xpath { background: #f6ffed; color: #52c41a; }
+.badge.match { background: #52c41a; color: #fff; }
+
+#dom-tree { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; flex: 1; overflow-y: auto; font-family: monospace; font-size: 12px; }
+.dom-node { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
+.dom-node input { margin: 0; }
+.dom-node .tag { color: var(--accent); }
+.dom-node .tag.leaf { color: var(--red); font-weight: 600; }
+.dom-node .id { color: var(--green); }
+.dom-node .cls { color: var(--purple); }
+
+#attrs { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; }
+#attrs h4 { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.attr-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-family: monospace; font-size: 12px; }
+.attr-row input { margin: 0; }
+.attr-row .key { color: var(--purple); }
+
+#selector-box { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 13px; min-height: 60px; white-space: pre-wrap; word-break: break-all; }
+.actions { display: flex; gap: 8px; }
+.btn { padding: 7px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.default { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+#toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 14px; z-index: 9999; opacity: 0; transition: opacity .2s; }
+#toast.show { opacity: 1; }
+#thumb { width: 40px; height: 30px; border-radius: 4px; cursor: pointer; object-fit: contain; background: var(--border); }
+#screenshot-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; z-index: 9998; }
+#screenshot-overlay img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="left">
+  <h2>元素列表</h2>
+  <div id="list"></div>
+</div>
+<div id="right">
+  <div class="row">
+    <label>名称</label>
+    <input id="el-name" placeholder="元素名称">
+    <img id="thumb" src="" title="点击放大" onclick="showScreenshotLarge()">
+  </div>
+  <div class="tabs">
+    <button class="tab on" id="tab-rec" onclick="switchTab(0)">推荐方案</button>
+    <button class="tab" id="tab-man" onclick="switchTab(1)">手动编辑</button>
+  </div>
+  <div id="candidates" style="flex:1">
+    <table><thead><tr>
+      <th onclick="sortCands('syntax')">选择器</th>
+      <th style="width:50px" onclick="sortCands('family')">类型</th>
+      <th style="width:50px" onclick="sortCands('match')">匹配</th>
+    </tr></thead><tbody id="cand-body"></tbody></table>
+  </div>
+  <div id="dom-tree" style="display:none"></div>
+  <div id="attrs" style="display:none"><h4>元素属性</h4><div id="attrs-body"></div></div>
+  <div class="row">
+    <label>选择器</label>
+    <div id="selector-box" contenteditable="true"></div>
+  </div>
+  <div class="actions">
+    <button class="btn primary" onclick="verifySelector()">🔍 验证</button>
+    <button class="btn default" onclick="saveSelector()">💾 保存</button>
+    <button class="btn default" onclick="copySelector()">📋 复制</button>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="screenshot-overlay" onclick="this.style.display='none'">
+  <img id="screenshot-large">
+</div>
+
+<script>
+// ── State ──
+let elements = [];
+let currentIdx = -1;
+let currentData = null;
+let candidates = [];
+let domPath = [];
+let domChecked = [];
+let attrVars = {};
+let selLevel = -1;
+let sortDir = { syntax: false, family: false, match: false };
+let tab = 0;
+
+// ── API ──
+async function api(url, body) {
+  const r = await fetch(url, { method: body ? 'POST' : 'GET', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+}
+
+async function loadElements() {
+  try {
+    const r = await api('/api/elements/list');
+    elements = r.elements || [];
+    renderList();
+  } catch(e) { console.error(e); }
+}
+
+function renderList() {
+  const l = document.getElementById('list');
+  l.innerHTML = elements.map((e, i) => `<div class="item${i === currentIdx ? ' active' : ''}" onclick="selectElement(${i})">
+    <span class="icon">${e.element_type === 'web' ? '🌐' : '🪟'}</span>
+    <span>${e.name}</span>
+    <span class="sel">${(e.css_selector || '').slice(0, 30)}</span>
+  </div>`).join('');
+}
+
+async function selectElement(i) {
+  currentIdx = i;
+  currentData = elements[i];
+  document.getElementById('el-name').value = currentData.name || '';
+  document.getElementById('thumb').src = currentData.screenshot ? currentData.screenshot : '';
+  candidates = currentData.candidates?.filter(c => ['css','xpath'].includes((c.family||c.type||'').toLowerCase())) || [];
+  domPath = currentData.dom_path || [];
+  domChecked = domPath.map(() => true);
+  attrVars = {};
+  selLevel = -1;
+  renderCandidates();
+  renderDom();
+  document.getElementById('attrs').style.display = 'none';
+  setSelector(currentData.css_selector || (candidates[0]?.syntax || ''));
+  switchTab(0);
+  renderList();
+}
+
+// ── Candidates ──
+function sortCands(col) {
+  sortDir[col] = !sortDir[col];
+  const idx = { syntax: 0, family: 1, match: 2 }[col];
+  candidates.sort((a, b) => {
+    let va = idx === 2 ? (a.matchCount || 0) : (a[['syntax','family','match'][idx]] || '');
+    let vb = idx === 2 ? (b.matchCount || 0) : (b[['syntax','family','match'][idx]] || '');
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return sortDir[col] ? (va > vb ? -1 : 1) : (va < vb ? -1 : 1);
+  });
+  renderCandidates();
+}
+
+function renderCandidates() {
+  const tbody = document.getElementById('cand-body');
+  tbody.innerHTML = candidates.map((c, i) => {
+    const fam = (c.family || c.type || '?').toUpperCase();
+    const mc = c.matchCount || '';
+    return `<tr onclick="pickCandidate(${i})">
+      <td>${c.syntax || ''}</td>
+      <td><span class="badge ${fam.toLowerCase()}">${fam}</span></td>
+      <td>${mc}</td>
+    </tr>`;
+  }).join('');
+}
+
+function pickCandidate(i) {
+  setSelector(candidates[i].syntax || '');
+}
+
+// ── DOM ──
+function renderDom() {
+  const el = document.getElementById('dom-tree');
+  if (!domPath.length) { el.innerHTML = '(无 DOM 数据)'; return; }
+  el.innerHTML = domPath.map((node, i) => {
+    let tag = node.tag || '?';
+    let extra = '';
+    if (typeof node === 'object') {
+      if (node.id) extra += `<span class="id">#${node.id}</span>`;
+      if (node.classes?.length) extra += `<span class="cls">.${node.classes.slice(0,3).join('.')}</span>`;
+    }
+    const isLeaf = i === domPath.length - 1;
+    const indent = '│  '.repeat(i);
+    return `<div class="dom-node" style="padding-left:${i*16}px" onclick="selectDomLevel(${i})">
+      <input type="checkbox" ${domChecked[i] ? 'checked' : ''} onchange="domChecked[${i}]=this.checked;updateDomSel()">
+      <span class="tag${isLeaf?' leaf':''}">${indent}&lt;${tag}&gt;</span>${extra}
+    </div>`;
+  }).join('');
+}
+
+function selectDomLevel(i) {
+  selLevel = i;
+  domChecked[i] = !domChecked[i];
+  renderDom();
+  renderAttrs(i);
+  updateDomSel();
+}
+
+function renderAttrs(i) {
+  const el = document.getElementById('attrs');
+  const body = document.getElementById('attrs-body');
+  if (i < 0 || i >= domPath.length) { el.style.display = 'none'; return; }
+  const node = domPath[i];
+  const attrs = node.attrs || {};
+  const keys = Object.keys(attrs);
+  if (!keys.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  if (!attrVars[i]) attrVars[i] = {};
+  body.innerHTML = keys.map(k => {
+    if (!attrVars[i][k]) attrVars[i][k] = false;
+    return `<div class="attr-row">
+      <input type="checkbox" ${attrVars[i][k]?'checked':''} onchange="attrVars[${i}]['${k}']=this.checked;updateDomSel()">
+      <span class="key">${k}="${attrs[k]}"</span>
+    </div>`;
+  }).join('');
+}
+
+function updateDomSel() {
+  const parts = [];
+  for (let i = 0; i < domPath.length; i++) {
+    if (!domChecked[i]) continue;
+    const n = domPath[i];
+    let p = typeof n === 'object' ? (n.tag || 'div') : String(n);
+    if (n.id) p += '#' + n.id;
+    if (n.classes?.length) p += '.' + n.classes.slice(0,3).join('.');
+    if (attrVars[i]) {
+      for (const [k, v] of Object.entries(attrVars[i])) {
+        if (v) p += `[${k}="${(n.attrs||{})[k]||''}"]`;
+      }
+    }
+    parts.push(p);
+  }
+  setSelector(parts.join(' > ') || '');
+}
+
+// ── Selector ──
+function setSelector(s) {
+  const el = document.getElementById('selector-box');
+  if (el.textContent !== s) {
+    // strip prefix
+    s = (s||'').replace(/^(css:|xpath:|drission:)/i, '');
+    el.textContent = s;
+  }
+}
+function getSelector() { return document.getElementById('selector-box').textContent.trim(); }
+function copySelector() { navigator.clipboard.writeText(getSelector()); toast('已复制'); }
+async function saveSelector() {
+  if (currentIdx < 0) return;
+  await api('/api/elements/update', { index: currentIdx, css_selector: getSelector() });
+  // reload
+  await loadElements();
+  selectElement(currentIdx);
+  toast('已保存');
+}
+
+// ── Verify ──
+async function verifySelector() {
+  const sel = getSelector();
+  if (!sel) return toast('选择器为空');
+  try {
+    const r = await api('/api/extension/verify-selector', { selector: sel, requestId: Math.random().toString(36).slice(2,10) });
+    toast(r.found ? `✅ 匹配 ${r.count || 1} 个` : `❌ ${r.error || '未找到'}`);
+  } catch(e) { toast('验证失败: ' + e); }
+}
+
+// ── Tab ──
+function switchTab(t) {
+  tab = t;
+  document.getElementById('tab-rec').className = 'tab' + (t === 0 ? ' on' : '');
+  document.getElementById('tab-man').className = 'tab' + (t === 1 ? ' on' : '');
+  document.getElementById('candidates').style.display = t === 0 ? '' : 'none';
+  document.getElementById('dom-tree').style.display = t === 1 ? '' : 'none';
+  document.getElementById('attrs').style.display = t === 1 && selLevel >= 0 ? '' : 'none';
+}
+
+// ── Screenshot ──
+function showScreenshotLarge() {
+  const s = document.getElementById('thumb').src;
+  if (!s) return;
+  const o = document.getElementById('screenshot-overlay');
+  document.getElementById('screenshot-large').src = s;
+  o.style.display = 'flex';
+}
+
+// ── Toast ──
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show';
+  setTimeout(() => t.className = '', 2000);
+}
+
+// ── Init ──
+loadElements();
+</script>
+</body>
+</html>
