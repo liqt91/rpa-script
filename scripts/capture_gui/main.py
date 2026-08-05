@@ -349,16 +349,22 @@ class CaptureGUI:
         if not path:
             ttk.Label(self.dom_inner, text="(无 DOM 数据)", foreground="gray").pack(pady=10)
             return
+
+        self._dom_checked = [tk.BooleanVar(value=True) for _ in path]
+        self._dom_attr_vars = {}
+        self._dom_sel_idx = -1  # 当前选中层级
+
+        # 工具栏
         tb = ttk.Frame(self.dom_inner); tb.pack(fill=tk.X, pady=(0,4))
         ttk.Button(tb, text="全选", width=5, command=self._dom_select_all).pack(side=tk.LEFT, padx=2)
         ttk.Button(tb, text="全不选", width=5, command=self._dom_select_none).pack(side=tk.LEFT, padx=2)
-        ttk.Separator(tb, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6, pady=2)
-        ttk.Label(tb, text="勾选层级参与选择器生成", foreground="gray").pack(side=tk.LEFT)
-        self._dom_checked = [tk.BooleanVar(value=True) for _ in path]
-        self._dom_attr_vars = {}
+
+        # === 页面层级 ===
+        lf_path = ttk.LabelFrame(self.dom_inner, text="页面层级", padding=6)
+        lf_path.pack(fill=tk.X, pady=(0,6))
         for i, node in enumerate(path):
             is_last = (i == len(path) - 1)
-            row = ttk.Frame(self.dom_inner); row.pack(fill=tk.X, pady=(3 if i==0 else 1, 0 if is_last else 1))
+            row = ttk.Frame(lf_path); row.pack(fill=tk.X, pady=(3 if i==0 else 1, 0))
             cb = ttk.Checkbutton(row, variable=self._dom_checked[i], command=self._update_dom_sel)
             cb.pack(side=tk.LEFT, padx=(4,0))
             indent = "│  " * i
@@ -366,30 +372,57 @@ class CaptureGUI:
                 tag = node.get("tag", "?")
                 sid = node.get("id", "")
                 classes = node.get("classes", [])
-                tag_str = f"{indent}<{tag}>" + (f" #{sid}" if sid else "") + (f" .{".".join(classes[:3])}" if classes else "")
+                cls_str = "." + ".".join(classes[:3]) if classes else ""
+                tag_str = f"{indent}<{tag}>" + (f" #{sid}" if sid else "") + cls_str
             else:
                 tag_str = f"{indent}{node}"
-            ttk.Label(row, text=tag_str, font=("Consolas", 9, "bold" if is_last else "normal"),
-                      foreground="#d4380d" if is_last else "#333").pack(side=tk.LEFT)
-            # 每层属性
-            if isinstance(node, dict):
-                attrs = node.get("attrs", {})
-                if attrs:
-                    self._dom_attr_vars[i] = {}
-                    for an, av in attrs.items():
-                        var = tk.BooleanVar(value=False)
-                        self._dom_attr_vars[i][an] = var
-                        ar = ttk.Frame(self.dom_inner); ar.pack(fill=tk.X)
-                        ttk.Label(ar, text=indent + "│  ", foreground="#aaa").pack(side=tk.LEFT)
-                        acb = ttk.Checkbutton(ar, variable=var, command=self._update_dom_sel)
-                        acb.pack(side=tk.LEFT)
-                        ttk.Label(ar, text=f'{an}="{av}"', font=("Consolas", 9),
-                                  foreground="#531dab").pack(side=tk.LEFT)
+            lbl = ttk.Label(row, text=tag_str, font=("Consolas", 9, "bold" if is_last else "normal"),
+                            foreground="#d4380d" if is_last else "#333", cursor="hand2")
+            lbl.pack(side=tk.LEFT)
+            lbl.bind("<Button-1>", lambda e, idx=i: self._dom_select_level(idx))
+
+        # === 元素属性 ===
+        lf_attr = ttk.LabelFrame(self.dom_inner, text="元素属性", padding=6)
+        lf_attr.pack(fill=tk.X)
+        self._dom_attr_frame = ttk.Frame(lf_attr)
+        self._dom_attr_frame.pack(fill=tk.X)
+
+    def _dom_select_level(self, idx):
+        """选中 DOM 层级，展示该层的属性。"""
+        self._dom_sel_idx = idx
+        for w in self._dom_attr_frame.winfo_children(): w.destroy()
+        path = self._dom_path
+        if idx < 0 or idx >= len(path):
+            ttk.Label(self._dom_attr_frame, text="(点击层级查看属性)", foreground="gray").pack()
+            return
+        node = path[idx]
+        if not isinstance(node, dict): return
+        attrs = node.get("attrs", {})
+        if not attrs:
+            ttk.Label(self._dom_attr_frame, text="(无属性)", foreground="gray").pack()
+            return
+        # 初始化为空 vars 字典
+        if idx not in self._dom_attr_vars:
+            self._dom_attr_vars[idx] = {}
+        for an, av in attrs.items():
+            if an not in self._dom_attr_vars[idx]:
+                self._dom_attr_vars[idx][an] = tk.BooleanVar(value=False)
+            var = self._dom_attr_vars[idx][an]
+            arow = ttk.Frame(self._dom_attr_frame); arow.pack(fill=tk.X, pady=1)
+            acb = ttk.Checkbutton(arow, variable=var, command=self._update_dom_sel)
+            acb.pack(side=tk.LEFT)
+            ttk.Label(arow, text=f'{an}=\"{av}\"', font=("Consolas", 9),
+                      foreground="#531dab").pack(side=tk.LEFT, padx=(4,0))
     def _dom_select_all(self):
         for v in self._dom_checked: v.set(True)
+        if self._dom_sel_idx >= 0 and self._dom_sel_idx in self._dom_attr_vars:
+            for v in self._dom_attr_vars[self._dom_sel_idx].values(): v.set(True)
         self._update_dom_sel()
+
     def _dom_select_none(self):
         for v in self._dom_checked: v.set(False)
+        if self._dom_sel_idx >= 0 and self._dom_sel_idx in self._dom_attr_vars:
+            for v in self._dom_attr_vars[self._dom_sel_idx].values(): v.set(False)
         self._update_dom_sel()
     def _update_dom_sel(self):
         parts = []

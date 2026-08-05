@@ -1848,6 +1848,45 @@
         "listSize": 5,
         "listSimilarity": 0.84
       }
+    },
+    {
+      "name": "管理员: Windows PowerShell",
+      "element_type": "web",
+      "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
+      "title": "管理员: Windows PowerShell",
+      "rect": {
+        "left": 562,
+        "top": -1048,
+        "right": 1677,
+        "bottom": -420,
+        "width": 1115,
+        "height": 628
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 329016,
+          "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
+          "title": "管理员: Windows PowerShell",
+          "rect": {
+            "left": 562,
+            "top": -1048,
+            "right": 1677,
+            "bottom": -420,
+            "width": 1115,
+            "height": 628
+          }
+        }
+      ],
+      "css_selector": "",
+      "xpath": "",
+      "tag_name": "",
+      "candidates": [],
+      "dom_path": [],
+      "elem_attrs": {},
+      "list_info": {}
     }
   ]
 }
