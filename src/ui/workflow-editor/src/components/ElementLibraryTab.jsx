@@ -24,7 +24,6 @@ export default function ElementLibraryTab() {
   const [selectedElementId, setSelectedElementId] = useState(null);
   const [expandedNames, setExpandedNames] = useState(new Set());
   const [extOnline, setExtOnline] = useState(false);
-  const [captureModal, setCaptureModal] = useState(false);
   const [extCount, setExtCount] = useState(0);
   const [extBrowsers, setExtBrowsers] = useState([]);  // [{browser, count}]
   const [targetBrowser, setTargetBrowser] = useState(''); // '' = all, 'chrome', 'edge'
@@ -272,7 +271,7 @@ export default function ElementLibraryTab() {
   };
 
   const handleCaptureTool = () => {
-    setCaptureModal(true);
+    window.open('http://127.0.0.1:8000/capture', 'element-capture', 'width=1100,height=750');
   };
 
   const updateAnchor = async (el, anchorName) => {
@@ -919,13 +918,9 @@ export default function ElementLibraryTab() {
           </div>
         </div>
       )}
-    </div>
 
     {/* 元素捕获工具模态框 */}
-    {captureModal && (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-        onClick={(e) => e.target === e.currentTarget && setCaptureModal(false)}
+
       >
         <div className="bg-white rounded-lg shadow-2xl w-[95vw] h-[90vh] max-w-6xl flex flex-col">
           <div className="flex items-center justify-between px-4 py-2 border-b">
