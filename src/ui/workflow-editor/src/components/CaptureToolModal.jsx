@@ -173,9 +173,9 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
     if (!el) return;
     el.textContent = msg;
     el.style.background = type === 'success' ? '#52c41a' : type === 'error' ? '#ef4444' : '#3b82f6';
-    el.className = 'capture-toast show';
+    el.classList.add('show');  // 保留定位类, 只追加 show
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.className = 'capture-toast', 2000);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
   };
 
   return (
