@@ -143,7 +143,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
     try {
       if (cur.element_type === 'web' && (cur.css_selector || selector)) {
         // web 元素: 浏览器验证选择器 (extension querySelectorAll)
-        const sel = selector || cur.css_selector;
+        const sel = strip(selector || cur.css_selector);
         const d = await api.verifyWebSelector(sel);
         showToast(d.found ? `✅ 匹配 ${d.count || 1} 个` : `❌ ${d.error || '未找到'}`, d.found ? 'success' : 'error');
       } else {
@@ -258,7 +258,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                     <tbody>
                       {cands.map((c, i) => (
                         <tr key={i} onClick={() => setSelector(strip(c.syntax))} className="cursor-pointer hover:bg-blue-50 border-t border-gray-100">
-                          <td className="px-3 py-2 font-mono">{c.syntax}</td>
+                          <td className="px-3 py-2 font-mono">{strip(c.syntax)}</td>
                           <td className="px-2 py-2">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] ${(c.family||'').toLowerCase()==='css' ? 'bg-orange-50 text-orange-500' : 'bg-green-50 text-green-600'}`}>
                               {(c.family || '?').toUpperCase()}

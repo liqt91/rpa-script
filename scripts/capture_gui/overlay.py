@@ -450,10 +450,19 @@ def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
         result = launch_browser_capture(vx, vy, timeout=20.0)
         if result.get("error"):
             return None
+        def _strip_pf(s):
+            for pf in ("css:", "xpath:", "drission:", "verse:"):
+                if s.lower().startswith(pf): return s[len(pf):]
+            return s
         css = xpath = ""
+        candidates = []
         for c in result.get("candidates", []):
-            if not css and c.get("family") == "css": css = c.get("syntax", "")
-            if not xpath and c.get("family") == "xpath": xpath = c.get("syntax", "")
+            fam = c.get("family", "")
+            syn = _strip_pf(c.get("syntax", ""))
+            cc = dict(c); cc["syntax"] = syn
+            candidates.append(cc)
+            if not css and fam == "css": css = syn
+            if not xpath and fam == "xpath": xpath = syn
         name = result.get("name") or result.get("inner_text", "")[:30] or result.get("tag", "")
         rect = _get_window_rect(browser_hwnd)
         cls = _get_class_name(browser_hwnd)
@@ -465,7 +474,7 @@ def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
             rect=rect, hwnd=browser_hwnd, win32_path=path,
             css_selector=css, xpath=xpath,
             tag_name=result.get("tag", "") or result.get("tagName", ""),
-            candidates=result.get("candidates", []),
+            candidates=candidates,
             screenshot=result.get("screenshot", ""),
             dom_path=result.get("path", []),
             elem_attrs=result.get("attrs", {}),
