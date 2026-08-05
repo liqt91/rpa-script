@@ -271,7 +271,7 @@ export default function ElementLibraryTab() {
   };
 
   const handleCaptureTool = () => {
-    window.open('/capture', 'element-capture', 'width=1100,height=750');
+    window.open('http://127.0.0.1:8000/capture', 'element-capture', 'width=1100,height=750');
   };
 
   const updateAnchor = async (el, anchorName) => {
