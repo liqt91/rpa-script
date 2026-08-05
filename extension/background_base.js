@@ -262,10 +262,23 @@ class AgentBackground {
           this._send('verifySelectorResult', { requestId, result: { error: '没有标签页' } });
           return;
         }
+        // 过滤: 只验证可注入的 http/https 页面, 跳过编辑器/扩展页
+        tabs = tabs.filter(t =>
+          t.url && /^https?:/i.test(t.url) &&
+          !/127\.0\.0\.1:8000|localhost:8000/i.test(t.url) &&
+          !/chrome-extension:|chrome:|edge:|devtools:/i.test(t.url)
+        );
+        if (!tabs.length) {
+          this._send('verifySelectorResult', { requestId, result: { error: '没有可验证的网页标签页' } });
+          return;
+        }
         // 活动页优先, 其余按顺序
         tabs.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
         let best = null; // {found, count}
+        const START = Date.now();
         for (const tab of tabs) {
+          // 整体 12s 兜底: 超时直接返回已收集结果
+          if (Date.now() - START > 12000) break;
           try {
             await ensureContentScripts(tab.id);
             const resp = await chrome.tabs.sendMessage(tab.id, {
