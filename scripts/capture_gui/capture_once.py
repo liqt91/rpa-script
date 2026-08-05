@@ -12,18 +12,18 @@ _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
-from scripts.capture_gui.overlay import run_capture
-from scripts.capture_gui.store import _info_to_dict
+import contextlib
+import io as _io
+_sink = _io.StringIO()
+# 压制 PIL/libpng 的 C 级警告到 stderr
+with contextlib.redirect_stderr(_sink):
+    from scripts.capture_gui.overlay import run_capture
+    from scripts.capture_gui.store import _info_to_dict
 
 
 def main():
-    import contextlib
-    import io as _io
-    # 压制 libpng/无头警告到 stderr
-    err_sink = _io.StringIO()
     try:
-        with contextlib.redirect_stderr(err_sink):
-            info = run_capture()
+        info = run_capture()
         if not info:
             print(json.dumps({"cancelled": True}))
             return
