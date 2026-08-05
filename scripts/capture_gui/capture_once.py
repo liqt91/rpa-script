@@ -23,7 +23,8 @@ with contextlib.redirect_stderr(_sink):
 
 def main():
     try:
-        info = run_capture()
+        with contextlib.redirect_stderr(_io.StringIO()):  # 压制 libpng 警告
+            info = run_capture()
         if not info:
             print(json.dumps({"cancelled": True}))
             return
