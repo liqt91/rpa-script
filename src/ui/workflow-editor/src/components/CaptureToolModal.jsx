@@ -167,6 +167,13 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
 
   const copySel = () => { navigator.clipboard.writeText(selector); showToast('已复制'); };
 
+  // 生成控制台验证 JS 代码 (CSS vs XPath)
+  const jsCode = selector
+    ? (selector.startsWith('/')
+        ? `const r = document.evaluate(\`${selector}\`, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);\nconsole.log('匹配:', r.snapshotLength); r.snapshotItem(0)?.scrollIntoView();`
+        : `const el = document.querySelectorAll(\`${selector}\`);\nconsole.log('匹配:', el.length); el[0]?.scrollIntoView();`)
+    : '';
+
   let toastTimer;
   const showToast = (msg, type = 'info') => {
     const el = document.getElementById('capture-toast');
@@ -331,6 +338,20 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                   />
                   <button onClick={copySel} className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 rounded border">📋</button>
                 </div>
+
+                {/* JS 验证代码 */}
+                {selector && (
+                  <div className="mt-2 bg-gray-900 rounded border border-gray-700 p-2 font-mono text-[11px] text-green-400 relative">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-gray-500 text-[10px]">控制台手动验证 (F12 → Console)</span>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(jsCode); showToast('JS 已复制'); }}
+                        className="text-gray-400 hover:text-white text-[10px] px-1.5 border border-gray-700 rounded"
+                      >复制</button>
+                    </div>
+                    <pre className="whitespace-pre-wrap break-all">{jsCode}</pre>
+                  </div>
+                )}
               </div>
 
               {/* 操作按钮 */}
