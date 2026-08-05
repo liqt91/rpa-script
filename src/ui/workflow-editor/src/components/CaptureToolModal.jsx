@@ -342,7 +342,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
           </div>
         </div>
       </div>
-      <div id="capture-toast" className="fixed top-4 left-1/2 -translate-x-1/2 text-white px-5 py-2.5 rounded-lg text-sm z-[9999] opacity-0 pointer-events-none transition-opacity duration-200" />
+      <div id="capture-toast" className="capture-toast fixed top-4 left-1/2 -translate-x-1/2 text-white px-5 py-2.5 rounded-lg text-sm z-[9999] opacity-0 pointer-events-none transition-opacity duration-200" />
       <style>{`
         .capture-toast.show { opacity: 1 !important; }
       `}</style>
