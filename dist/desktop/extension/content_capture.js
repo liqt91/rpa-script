@@ -3223,24 +3223,41 @@
           matches = document.querySelectorAll(selector);
         }
         if (matches.length > 0) {
-          // 对前3个匹配元素闪烁边框 3 次后消失
-          for (let i = 0; i < Math.min(matches.length, 3); i++) {
-            const el = matches[i];
-            const oldOutline = el.style.outline;
-            const oldOutlineOffset = el.style.outlineOffset;
-            const flash = () => {
-              el.style.outline = '3px solid #3b82f6';
-              el.style.outlineOffset = '2px';
-              setTimeout(() => {
-                el.style.outline = oldOutline;
-                el.style.outlineOffset = oldOutlineOffset;
-              }, 180);
-            };
-            // 闪烁 3 次: 180ms 亮 + 120ms 灭
-            flash();
-            setTimeout(flash, 300);
-            setTimeout(flash, 600);
-          }
+          // 复用侧边栏高亮机制: 固定div边框 (outline在容器元素上不可见)
+          const type = (selector.startsWith('/') || selector.startsWith('xpath:') || selector.startsWith('XPath:')) ? 'xpath' : 'css';
+          removeEditorHighlights();
+          const nodes = resolveAllForVerify(selector, type);
+          nodes.slice(0, 3).forEach((node) => {
+            if (!node.getBoundingClientRect) return;
+            const rect = node.getBoundingClientRect();
+            const hl = document.createElement('div');
+            hl.className = 'rpa-editor-highlight';
+            hl.style.setProperty('position', 'fixed', 'important');
+            hl.style.setProperty('pointer-events', 'none', 'important');
+            hl.style.setProperty('z-index', '2147483646', 'important');
+            hl.style.setProperty('left', rect.left + 'px', 'important');
+            hl.style.setProperty('top', rect.top + 'px', 'important');
+            hl.style.setProperty('width', rect.width + 'px', 'important');
+            hl.style.setProperty('height', rect.height + 'px', 'important');
+            hl.style.setProperty('border', '3px solid #3b82f6', 'important');
+            hl.style.setProperty('background', 'rgba(59,130,246,0.15)', 'important');
+            hl.style.setProperty('box-sizing', 'border-box', 'important');
+            const parent = document.body || document.documentElement;
+            if (parent) parent.appendChild(hl);
+            editorHighlights.push({ node, el: hl });
+          });
+          // 闪烁 3 次后移除
+          const els = editorHighlights.map(h => h.el);
+          const setVis = (v) => els.forEach(e => { if (e) e.style.visibility = v ? 'visible' : 'hidden'; });
+          setVis(true);
+          setTimeout(() => setVis(false), 180);
+          setTimeout(() => setVis(true), 300);
+          setTimeout(() => setVis(false), 480);
+          setTimeout(() => setVis(true), 600);
+          setTimeout(removeEditorHighlights, 780);
+          // 用可见节点数作为匹配数
+          sendResponse({ found: nodes.length > 0, count: nodes.length });
+          return false;
         }
         sendResponse({ found: matches.length > 0, count: matches.length });
       } catch (e) {
