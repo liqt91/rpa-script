@@ -152,7 +152,7 @@ export const api = {
   runPicker: () => request('/api/commands/picker', { method: 'POST' }),
   runGuiPicker: () => request('/api/commands/gui-picker', { method: 'POST' }),
   runGuiVerify: (payload) => request('/api/commands/gui-verify', { method: 'POST', body: JSON.stringify(payload) }),
-  verifyWebSelector: (selector, tabId = 0) => request('/api/extension/verify-selector', { method: 'POST', body: JSON.stringify({ selector, tabId, requestId: Math.random().toString(36).slice(2,10) }) }),
+  verifyWebSelector: (selector) => request('/api/extension/verify-selector', { method: 'POST', body: JSON.stringify({ selector, requestId: Math.random().toString(36).slice(2,10) }) }),
   runPickerUia: () => request('/api/commands/picker_uia', { method: 'POST' }),
 
   // Command categories

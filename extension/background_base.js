@@ -240,23 +240,17 @@ class AgentBackground {
       return;
     }
 
-    // GUI → Extension: 验证选择器 (定向到捕获时的标签页, 否则聚焦窗口活动页)
+    // GUI → Extension: 验证选择器 (只查可见页面: 聚焦窗口的活动页)
     if (action === 'verifySelector') {
-      const { requestId, selector, tabId } = payload || {};
+      const { requestId, selector } = payload || {};
       try {
         let tabs = [];
-        if (tabId) {
-          // 定向验证捕获时的标签页
-          tabs = await chrome.tabs.query({ tabId: parseInt(tabId) }).catch(() => []);
-        }
-        if (!tabs.length) {
-          try {
-            const wins = await chrome.windows.getAll({});
-            const focused = wins.find(w => w.focused) || wins[0];
-            if (focused) tabs = await chrome.tabs.query({ windowId: focused.id, active: true });
-          } catch (e) {
-            tabs = await chrome.tabs.query({ active: true });
-          }
+        try {
+          const wins = await chrome.windows.getAll({});
+          const focused = wins.find(w => w.focused) || wins[0];
+          if (focused) tabs = await chrome.tabs.query({ windowId: focused.id, active: true });
+        } catch (e) {
+          tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         }
         if (!tabs.length) {
           this._send('verifySelectorResult', { requestId, result: { error: '没有标签页' } });
@@ -269,7 +263,7 @@ class AgentBackground {
           !/chrome-extension:|chrome:|edge:|devtools:/i.test(t.url)
         );
         if (!tab) {
-          this._send('verifySelectorResult', { requestId, result: { found: false, count: 0, error: '没有可验证的网页标签页' } });
+          this._send('verifySelectorResult', { requestId, result: { found: false, count: 0, error: '没有可验证的网页标签页(请切到目标页面)' } });
           return;
         }
         try {
@@ -655,12 +649,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 4) Content script 通知捕获完成 → 缓存数据并打开 side panel（不保存到后台）
   // content_capture.js → WS: GUI 原生捕获模式结果
   if (message.action === 'browserCaptureComplete') {
-    // 附加捕获来源 tabId, 供验证时定向
-    const payload = { ...(message.payload || {}), tabId: sender.tab?.id || null };
-    if (payload.result && typeof payload.result === 'object') {
-      payload.result.tabId = sender.tab?.id || null;
-    }
-    agent._send('browserCaptureComplete', payload);
+    agent._send('browserCaptureComplete', message.payload);
     sendResponse({ ok: true });
     return false;
   }

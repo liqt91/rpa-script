@@ -149,7 +149,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
       if (cur.element_type === 'web' && (cur.css_selector || selector)) {
         // web 元素: 浏览器验证选择器 (extension querySelectorAll)
         const sel = strip(selector || cur.css_selector);
-        const d = await api.verifyWebSelector(sel, cur.tab_id || 0);
+        const d = await api.verifyWebSelector(sel);
         showToast(d.found ? `✅ 匹配 ${d.count || 1} 个` : `❌ ${d.error || '未找到'}`, d.found ? 'success' : 'error');
       } else {
         // 桌面元素: GUI flash_element 闪烁
