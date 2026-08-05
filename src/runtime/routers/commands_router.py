@@ -779,6 +779,36 @@ def run_picker(user=Depends(auth.get_current_user)):
         raise HTTPException(status_code=500, detail=f"invalid picker output: {proc.stdout[:200]}")
 
 
+@router.post("/gui-picker")
+def run_gui_picker(user=Depends(auth.get_current_user)):
+    """启动 GUI 捕获浮窗（overlay.py），返回捕获元素。
+
+    支持桌面(Win32+UIA) + 浏览器(代理到扩展)统一捕获。
+    """
+    import subprocess
+    import sys
+    _ROOT = _Path(__file__).resolve().parent.parent.parent.parent
+    picker_path = _ROOT / "scripts" / "capture_gui" / "capture_once.py"
+    if not picker_path.exists():
+        raise HTTPException(status_code=500, detail="capture_once.py not found")
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(picker_path)],
+            capture_output=True, text=True, timeout=60,
+            cwd=str(_ROOT),
+        )
+        if proc.returncode != 0:
+            raise HTTPException(status_code=500, detail=proc.stderr.strip() or "capture failed")
+        stdout = proc.stdout.strip()
+        if not stdout:
+            return {"cancelled": True}
+        return json.loads(stdout)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=408, detail="capture timeout")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"invalid capture output: {proc.stdout[:200]}")
+
+
 @router.post("/picker_uia")
 def run_picker_uia(user=Depends(auth.get_current_user)):
     """启动 UIA 控件拾取器，返回捕获的 UIA 控件信息。

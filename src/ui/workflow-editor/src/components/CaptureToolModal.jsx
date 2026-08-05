@@ -38,7 +38,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
     setCapturing(true);
     setCaptureError('');
     try {
-      const data = await api.runPicker();
+      const data = await api.runGuiPicker();
       if (data.cancelled) return;
       const target = data.path?.[data.path.length - 1];
       const name = ((target && target.class_name) || data.element_type || '元素') + ((target && target.title) ? ' "' + target.title + '"' : '');

@@ -150,6 +150,7 @@ export const api = {
 
   // Desktop picker
   runPicker: () => request('/api/commands/picker', { method: 'POST' }),
+  runGuiPicker: () => request('/api/commands/gui-picker', { method: 'POST' }),
   runPickerUia: () => request('/api/commands/picker_uia', { method: 'POST' }),
 
   // Command categories
