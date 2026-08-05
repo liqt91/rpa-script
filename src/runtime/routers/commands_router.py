@@ -796,6 +796,7 @@ def run_gui_picker(user=Depends(auth.get_current_user)):
             [sys.executable, str(picker_path)],
             capture_output=True, text=True, timeout=60,
             cwd=str(_ROOT),
+            stderr=subprocess.DEVNULL,  # 丢弃 libpng 等 C 级警告
         )
         stdout = proc.stdout.strip()
         if proc.returncode != 0 or not stdout:
