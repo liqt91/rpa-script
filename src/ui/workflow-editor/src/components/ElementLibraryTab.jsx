@@ -35,6 +35,7 @@ export default function ElementLibraryTab() {
   const [renameValue, setRenameValue] = useState('');
   const renameRef = useRef(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [captureModal, setCaptureModal] = useState(false);
   const logsRef = useRef(null);
   const panelRef = useRef(null);
   const importRef = useRef(null);
