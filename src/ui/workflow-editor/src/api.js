@@ -151,7 +151,7 @@ export const api = {
   // Desktop picker
   runPicker: () => request('/api/commands/picker', { method: 'POST' }),
   runGuiPicker: () => request('/api/commands/gui-picker', { method: 'POST' }),
-  runGuiVerify: (payload) => request('/api/commands/gui-verify', { method: 'POST', body: payload }),
+  runGuiVerify: (payload) => request('/api/commands/gui-verify', { method: 'POST', body: JSON.stringify(payload) }),
   runPickerUia: () => request('/api/commands/picker_uia', { method: 'POST' }),
 
   // Command categories
