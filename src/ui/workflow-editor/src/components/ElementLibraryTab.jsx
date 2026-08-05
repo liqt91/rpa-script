@@ -270,6 +270,10 @@ export default function ElementLibraryTab() {
     }
   };
 
+  const handleCaptureTool = () => {
+    window.open('/capture', 'element-capture', 'width=1100,height=750');
+  };
+
   const updateAnchor = async (el, anchorName) => {
     const payload = { ...el, anchor_element_name: anchorName || null };
     if (anchorName) {
@@ -507,6 +511,14 @@ export default function ElementLibraryTab() {
                 >
                   <i className="fas fa-crosshairs text-[10px]"></i>
                   <span>UIA</span>
+                </button>
+                <button
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-blue-500 hover:bg-blue-600 text-white"
+                  onClick={handleCaptureTool}
+                  title="打开元素捕获工具"
+                >
+                  <i className="fas fa-tools text-[10px]"></i>
+                  <span>工具</span>
                 </button>
               </div>
               {selectedElement ? (
