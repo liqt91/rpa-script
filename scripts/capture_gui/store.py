@@ -56,6 +56,7 @@ def _dict_to_info(d: dict) -> ElementInfo:
         dom_path=d.get("dom_path", []),
         elem_attrs=d.get("elem_attrs", {}),
         list_info=d.get("list_info", {}),
+        tab_id=d.get("tab_id", 0) or 0,
     )
 
 

@@ -79,6 +79,7 @@ async def verify_selector(request: dict = None):
     if not selector:
         return {"error": "选择器为空"}
     request_id = (request or {}).get("requestId", str(uuid.uuid4())[:8])
+    tab_id = (request or {}).get("tabId") or 0  # 定向验证: 捕获时的标签页
     async with ext_manager._lock:
         if not ext_manager._connections:
             return {"error": "没有浏览器扩展连接", "requestId": request_id}
@@ -89,7 +90,7 @@ async def verify_selector(request: dict = None):
             fut.set_result(payload.get("result", {}))
     ext_manager.on("verifySelectorResult", _on_result)
     try:
-        await conn.send({"action": "verifySelector", "payload": {"requestId": request_id, "selector": selector}})
+        await conn.send({"action": "verifySelector", "payload": {"requestId": request_id, "selector": selector, "tabId": tab_id}})
         result = await asyncio.wait_for(fut, timeout=15.0)
         return result
     except asyncio.TimeoutError:

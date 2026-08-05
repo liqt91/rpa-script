@@ -98,6 +98,7 @@ class ElementInfo:
     dom_path: list = field(default_factory=list)  # DOM层级路径
     elem_attrs: dict = field(default_factory=dict)  # 元素属性
     list_info: dict = field(default_factory=dict)  # 列表检测信息
+    tab_id: int = 0  # 捕获来源浏览器标签页(web元素验证用)
 
 
 def _get_window_text(hwnd) -> str:
@@ -479,6 +480,7 @@ def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
             dom_path=result.get("path", []),
             elem_attrs=result.get("attrs", {}),
             list_info={k: result.get(k) for k in ("listContainer","listItem","listSize","listSimilarity") if result.get(k)},
+            tab_id=result.get("tabId", 0) or 0,
         )
         return info
     except Exception:
