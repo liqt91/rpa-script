@@ -129,15 +129,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const selectNone = () => { const nd = domChecked.map(() => false); setDomChecked(nd); updateDomSel(nd, attrVars, selLevel); };
 
   const verify = async () => {
-    if (!selector) return showToast('选择器为空');
+    if (!cur) return showToast('请先选择元素');
     try {
-      const r = await fetch('/api/extension/verify-selector', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selector, requestId: Math.random().toString(36).slice(2, 10) }),
-      });
-      const d = await r.json();
-      showToast(d.found ? `✅ 匹配 ${d.count || 1} 个` : `❌ ${d.error || '未找到'}`, d.found ? 'success' : 'error');
-    } catch (e) { showToast('验证失败: ' + e, 'error'); }
+      const d = await api.runGuiVerify(cur);
+      showToast(d.found ? '✅ 元素存在' : '❌ 元素失效', d.found ? 'success' : 'error');
+    } catch (e) { showToast('验证失败: ' + e.message, 'error'); }
   };
 
   const save = async () => {

@@ -811,6 +811,33 @@ def run_gui_picker(user=Depends(auth.get_current_user)):
         raise HTTPException(status_code=500, detail="invalid capture output")
 
 
+@router.post("/gui-verify")
+def run_gui_verify(payload: dict = None, user=Depends(auth.get_current_user)):
+    """启动 GUI 浮窗验证（flash_element），验证捕获的元素是否仍存在。"""
+    import subprocess
+    import sys
+    _ROOT = _Path(__file__).resolve().parent.parent.parent.parent
+    verify_path = _ROOT / "scripts" / "capture_gui" / "verify_once.py"
+    if not verify_path.exists():
+        raise HTTPException(status_code=500, detail="verify_once.py not found")
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(verify_path)],
+            input=json.dumps(payload or {}), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=30,
+            cwd=str(_ROOT),
+        )
+        stdout = (proc.stdout or "").strip()
+        if stdout:
+            try:
+                return json.loads(stdout)
+            except json.JSONDecodeError:
+                pass
+        raise HTTPException(status_code=500, detail="验证失败(无输出)")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=408, detail="verify timeout")
+
+
 @router.post("/picker_uia")
 def run_picker_uia(user=Depends(auth.get_current_user)):
     """启动 UIA 控件拾取器，返回捕获的 UIA 控件信息。
