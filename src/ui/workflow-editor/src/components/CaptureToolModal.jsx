@@ -101,14 +101,19 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
     setCands(sorted);
   };
 
-  const toggleDomLevel = (i) => {
+  // 勾选/取消勾选层级 (参与选择器生成)
+  const toggleDomCheck = (i) => {
     const nd = [...domChecked]; nd[i] = !nd[i];
     setDomChecked(nd);
+    updateDomSel(nd, attrVars, selLevel);
+  };
+
+  // 选中层级 (显示该层属性)
+  const selectDomLevel = (i) => {
     setSelLevel(i);
     const node = domPath[i];
     const nodeAttrs = (node && typeof node === 'object' && node.attrs) || {};
     setDomAttrs(nodeAttrs);
-    updateDomSel(nd, attrVars, i);
   };
 
   const toggleAttr = (i, key) => {
@@ -294,9 +299,15 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                     {domPath.map((node, i) => {
                       const isLeaf = i === domPath.length - 1;
                       const n = typeof node === 'object' ? node : { tag: String(node) };
+                      const isSel = i === selLevel;
                       return (
-                        <div key={i} className="flex items-center gap-1.5 py-1 cursor-pointer" style={{ paddingLeft: i * 14 }} onClick={() => toggleDomLevel(i)}>
-                          <input type="checkbox" checked={domChecked[i]} onChange={() => toggleDomLevel(i)} />
+                        <div
+                          key={i}
+                          className={`flex items-center gap-1.5 py-1 cursor-pointer rounded ${isSel ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-gray-50'}`}
+                          style={{ paddingLeft: i * 14 }}
+                          onClick={() => selectDomLevel(i)}
+                        >
+                          <input type="checkbox" checked={domChecked[i]} onChange={(e) => { e.stopPropagation(); toggleDomCheck(i); }} />
                           <span className={`font-mono text-xs ${isLeaf ? 'text-red-500 font-semibold' : 'text-gray-600'}`}>
                             {'│  '.repeat(i)}&lt;{n.tag || 'div'}&gt;
                           </span>
