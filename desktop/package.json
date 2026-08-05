@@ -1,0 +1,12 @@
+{
+  "name": "rpa-desktop",
+  "version": "1.0.0",
+  "description": "RPA 脚本编辑器 - 桌面版",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}
