@@ -45,11 +45,18 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
       if (data.cancelled) return;
       const target = data.path?.[data.path.length - 1];
       // 优先用捕获的名称, 否则从 class/tag/type 生成
-      const name = data.name
+      let name = String(data.name
         || ((target && target.class_name) || data.tag_name || data.element_type || '元素')
-        + ((target && target.title) ? ' "' + target.title + '"' : '');
+        + ((target && target.title) ? ' "' + target.title + '"' : '')).substring(0, 128) || '捕获元素';
+      // 查重: 同名追加 _2 _3 ...
+      const existNames = new Set((elements || []).map(e => e.name));
+      if (existNames.has(name)) {
+        let i = 2;
+        while (existNames.has(`${name}_${i}`)) i++;
+        name = `${name}_${i}`;
+      }
       await api.createWorkflowElement(wfId, {
-        name: String(name).substring(0, 128) || '捕获元素',
+        name,
         element_kind: data.element_type === 'web' ? 'plain' : 'win32',
         attributes: data,
       });
