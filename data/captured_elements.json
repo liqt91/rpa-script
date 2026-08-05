@@ -2250,6 +2250,292 @@
         "href": "forum.php"
       },
       "list_info": {}
+    },
+    {
+      "name": "div_🎉_DeepSeek-V4-Flash",
+      "element_type": "web",
+      "class_name": "Chrome_WidgetWin_1",
+      "title": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
+      "rect": {
+        "left": 172,
+        "top": -1079,
+        "right": 1920,
+        "bottom": -84,
+        "width": 1748,
+        "height": 995
+      },
+      "control_type": "",
+      "automation_id": "",
+      "uia_path": [],
+      "win32_path": [
+        {
+          "hwnd": 66750,
+          "class_name": "Chrome_WidgetWin_1",
+          "title": "DeepSeek | 深度求索 和另外 11 个页面 - 用户配置 1 - Microsoft​ Edge",
+          "rect": {
+            "left": 172,
+            "top": -1079,
+            "right": 1920,
+            "bottom": -84,
+            "width": 1748,
+            "height": 995
+          }
+        }
+      ],
+      "css_selector": "div:nth-of-type(1) > .items-center",
+      "xpath": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+      "tag_name": "div",
+      "candidates": [
+        {
+          "syntax": "dvfe",
+          "family": "drission",
+          "score": 86,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": "div:nth-of-type(1) > .items-center",
+          "family": "css",
+          "score": 43,
+          "matchCount": 1,
+          "isList": false
+        },
+        {
+          "syntax": ".items-center > div:nth-of-type(1)",
+          "family": "css",
+          "score": 33,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1
+          ]
+        },
+        {
+          "syntax": ".justify-between > div:nth-of-type(1)",
+          "family": "css",
+          "score": 33,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1
+          ]
+        },
+        {
+          "syntax": "main.flex > div:nth-of-type(1)",
+          "family": "css",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1
+          ]
+        },
+        {
+          "syntax": "div:nth-of-type(1)",
+          "family": "css",
+          "score": 1,
+          "matchCount": 20,
+          "isList": false,
+          "pathMapping": [
+            1
+          ]
+        },
+        {
+          "syntax": "main.flex.flex-col.items-center.justify-between",
+          "family": "css",
+          "score": 33,
+          "matchCount": 1,
+          "isList": true,
+          "listContainer": "main.flex.flex-col.items-center.justify-between"
+        },
+        {
+          "syntax": "main.flex.flex-col.items-center.justify-between > div",
+          "family": "css",
+          "score": 76,
+          "matchCount": 2,
+          "isList": true,
+          "listContainer": "main.flex.flex-col.items-center.justify-between",
+          "listItem": "div"
+        },
+        {
+          "syntax": "main.flex.flex-col.items-center.justify-between div",
+          "family": "css",
+          "score": 70,
+          "matchCount": 36,
+          "isList": true,
+          "listContainer": "main.flex.flex-col.items-center.justify-between",
+          "listItem": "div"
+        },
+        {
+          "syntax": "div",
+          "family": "css",
+          "score": 63,
+          "matchCount": 36,
+          "isList": true,
+          "listItem": "div"
+        },
+        {
+          "syntax": "main > div",
+          "family": "css",
+          "score": 60,
+          "matchCount": 2,
+          "isList": true
+        },
+        {
+          "syntax": "main div",
+          "family": "css",
+          "score": 58,
+          "matchCount": 36,
+          "isList": true
+        },
+        {
+          "syntax": "div",
+          "family": "css",
+          "score": 33,
+          "matchCount": 36,
+          "isList": true
+        },
+        {
+          "syntax": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+          "family": "xpath",
+          "score": 11,
+          "matchCount": 1,
+          "isList": true,
+          "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]"
+        },
+        {
+          "syntax": "//body/main/div[1]",
+          "family": "xpath",
+          "score": 1,
+          "matchCount": 1,
+          "isList": false,
+          "pathMapping": [
+            0,
+            1
+          ]
+        },
+        {
+          "syntax": "//div",
+          "family": "xpath",
+          "score": 61,
+          "matchCount": 36,
+          "isList": true,
+          "listItem": "//div"
+        },
+        {
+          "syntax": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]/div",
+          "family": "xpath",
+          "score": 54,
+          "matchCount": 2,
+          "isList": true,
+          "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+          "listItem": "//div"
+        },
+        {
+          "syntax": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]//div",
+          "family": "xpath",
+          "score": 38,
+          "matchCount": 36,
+          "isList": true,
+          "listContainer": "//main[contains(@class,'flex')][contains(@class,'flex-col')][contains(@class,'items-center')][contains(@class,'justify-between')]",
+          "listItem": "//div"
+        }
+      ],
+      "dom_path": [
+        {
+          "tag": "main",
+          "id": "",
+          "classes": [
+            "flex",
+            "flex-col",
+            "items-center",
+            "justify-between"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "main",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "script",
+            "next-route-announcer",
+            "div",
+            "div",
+            "div",
+            "div",
+            "div",
+            "div",
+            "div",
+            "div"
+          ],
+          "siblings": []
+        },
+        {
+          "tag": "div",
+          "id": "",
+          "classes": [
+            "w-full",
+            "bg-center",
+            "bg-cover",
+            "px-8",
+            "md:px-20"
+          ],
+          "attrs": {},
+          "index": 0,
+          "realIndex": 0,
+          "childrenTags": [
+            "div",
+            "div"
+          ],
+          "siblings": [
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "w-full",
+                "bg-center",
+                "bg-cover",
+                "px-8"
+              ]
+            },
+            {
+              "tag": "div",
+              "id": "",
+              "classes": [
+                "w-full",
+                "relative"
+              ]
+            }
+          ]
+        }
+      ],
+      "elem_attrs": {},
+      "list_info": {
+        "listContainer": "main.flex.flex-col.items-center.justify-between",
+        "listItem": "div",
+        "listSize": 2,
+        "listSimilarity": 0.58
+      }
     }
   ]
 }
