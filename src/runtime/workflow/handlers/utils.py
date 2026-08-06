@@ -1,7 +1,16 @@
 """Handler 工具函数 — 变量插值、值转换等公共逻辑。"""
+import json as _json
 import re
 
 _VAR_RE = re.compile(r"\{\{([^}]+)\}\}|\$\{([^}]+)\}")
+
+# 旧类型名兼容映射 (str-input→string, int-number→number, etc.)
+_LEGACY_TYPE_MAP = {
+    "str-input": "string", "str-textarea": "text", "str-var": "string",
+    "str-dropdown": "select", "str-element": "element",
+    "int-number": "number", "bool-check": "boolean",
+    "any-expr": "code", "list-input": "code", "dict-input": "code",
+}
 
 
 def resolve_vars(text: str, runner_vars: dict) -> str:
@@ -17,16 +26,12 @@ def resolve_vars_json(text: str, runner_vars: dict) -> str:
 
     [{{a}}, {{b}}] -> ["值A", "值B"]  <- 合法 JSON，json.loads 可用
     """
-    import json as _json
-
     def _replacer(m):
         name = m.group(1) or m.group(2)
         if name not in runner_vars:
             return m.group(0)
         val = runner_vars[name]
-        if isinstance(val, str):
-            return _json.dumps(val, ensure_ascii=False)
-        if isinstance(val, (list, dict)):
+        if isinstance(val, (str, list, dict)):
             return _json.dumps(val, ensure_ascii=False)
         return str(val)
     return _VAR_RE.sub(_replacer, str(text))
@@ -47,19 +52,11 @@ def convert_value(value, value_type: str, vars: dict | None = None):
 
     value_type: 参数类型名，见 commands/value_types.json
     """
-    # 旧类型名兼容映射 (str-input→string, int-number→number, etc.)
-    _LEGACY = {
-        "str-input": "string", "str-textarea": "text", "str-var": "string",
-        "str-dropdown": "select", "str-element": "element",
-        "int-number": "number", "bool-check": "boolean",
-        "any-expr": "code", "list-input": "code", "dict-input": "code",
-    }
-    value_type = _LEGACY.get(value_type, value_type)
+    value_type = _LEGACY_TYPE_MAP.get(value_type, value_type)
 
     # any-input 保持自动推断：先尝试 JSON，再退回字符串
     if value_type == "any-input":
         s = str(value)
-        import json as _json
         resolved = resolve_vars_json(s, vars or {})
         try:
             return _json.loads(resolved)
@@ -80,7 +77,6 @@ def convert_value(value, value_type: str, vars: dict | None = None):
             resolved = resolve_vars(s[1:], vars or {})
             return _eval_expression(resolved, vars or {})
         # 否则：{{}} 替换 → JSON 推断 → 兜底表达式求值
-        import json as _json
         resolved = resolve_vars_json(s, vars or {})
         try:
             return _json.loads(resolved)
