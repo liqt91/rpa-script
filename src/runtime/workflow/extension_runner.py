@@ -1426,7 +1426,10 @@ class ExtensionRunner:
                 # ── OS key press (pressKey command: trusted keystroke) ──
                 if isinstance(result, dict) and result.get("osKey"):
                     _os_press_key(result["osKey"], result.get("osModifiers") or "")
-                    logger.info(f"[ExtensionRunner] OS key: {result['osKey']} modifiers={result.get('osModifiers') or ''}")
+                    logger.info(
+                        "[ExtensionRunner] OS key: %s modifiers=%s",
+                        result["osKey"], result.get("osModifiers") or "",
+                    )
 
                 await self._emit({
                     "type": "stepComplete",

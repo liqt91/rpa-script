@@ -656,7 +656,9 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
             "ComboBoxControl", "CheckBoxControl", "ListItemControl", "TreeItemControl"):
             info.name = uia.get("name") or title
         uia_rect = uia.get("rect") or {}
-        if uia_rect.get("width", 0) > 0 and 0 < uia_rect.get("width", 0) <= 500 and 0 < uia_rect.get("height", 0) <= 500:
+        if (uia_rect.get("width", 0) > 0
+                and 0 < uia_rect.get("width", 0) <= 500
+                and 0 < uia_rect.get("height", 0) <= 500):
             best_rect = uia_rect
     if _is_browser_in_chain(path) and info.element_type != "web":
         info.element_type = "web"

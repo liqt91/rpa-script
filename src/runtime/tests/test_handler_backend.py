@@ -3,7 +3,7 @@
 使用 run_handler / run_sequence 快速构建测试场景。
 """
 import pytest
-from .handler_test_utils import make_runner, run_handler, run_sequence
+from .handler_test_utils import make_runner, run_handler
 
 
 class TestSetVar:

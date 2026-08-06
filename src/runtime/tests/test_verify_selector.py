@@ -80,13 +80,15 @@ def test_verify_selector_fanout_all_miss_aggregates_scanned():
             await ext_manager.dispatch("verifySelectorResult", {
                 "requestId": "r2",
                 "result": {"found": False, "count": 0, "visible": 0, "invisible": 0,
-                           "scanned": [{"tabUrl": "https://a.com", "tabTitle": "A", "count": 1, "visible": 0, "invisible": 1}]},
+                           "scanned": [{"tabUrl": "https://a.com", "tabTitle": "A",
+                                       "count": 1, "visible": 0, "invisible": 1}]},
             }, "c1")
             await asyncio.sleep(0.05)
             await ext_manager.dispatch("verifySelectorResult", {
                 "requestId": "r2",
                 "result": {"found": False, "count": 0, "visible": 0, "invisible": 0,
-                           "scanned": [{"tabUrl": "https://b.com", "tabTitle": "B", "count": 0, "visible": 0, "invisible": 0}]},
+                           "scanned": [{"tabUrl": "https://b.com", "tabTitle": "B",
+                                       "count": 0, "visible": 0, "invisible": 0}]},
             }, "c2")
 
         t = asyncio.ensure_future(responder())

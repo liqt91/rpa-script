@@ -218,7 +218,11 @@ def build_command_registry() -> dict[str, dict]:
             "isBranch": hdef["isBranch"],
             "isStructural": hdef["isStructural"],
             "closesWith": hdef["closesWith"],
-            "fields": _merge_fields_registry(hdef["params"], [] if is_structural else _generic_params_for(hdef["runtime"]), exclude=exclude),
+            "fields": _merge_fields_registry(
+                hdef["params"],
+                [] if is_structural else _generic_params_for(hdef["runtime"]),
+                exclude=exclude,
+            ),
             "description": hdef["description"],
             "categoryOrder": hdef["categoryOrder"],
             "commandOrder": hdef["commandOrder"],
@@ -238,7 +242,11 @@ def get_command(type_name: str) -> dict | None:
     is_structural = h.get("isContainer") or h.get("isBranch") or h.get("isStructural")
     is_control = h["runtime"] == "control"
     exclude = h.get("excludeGeneric") or ()
-    fields = _merge_fields_registry(h["params"], [] if is_structural else _generic_params_for(h["runtime"]), exclude=exclude)
+    fields = _merge_fields_registry(
+        h["params"],
+        [] if is_structural else _generic_params_for(h["runtime"]),
+        exclude=exclude,
+    )
 
     return {
         "cmd": h["cmd"], "label": h["label"], "category": h["category"],

@@ -39,7 +39,7 @@ router = APIRouter(prefix="/api/extension", tags=["extension"])
 @router.post("/gui-browser-capture")
 async def gui_browser_capture(request: dict = None):
     """GUI 调用：激活插件捕获模式，阻塞等待用户选取元素。"""
-    import time, uuid
+    import uuid
     request_id = (request or {}).get("requestId", str(uuid.uuid4())[:8])
     timeout = (request or {}).get("timeout", 20)
 
