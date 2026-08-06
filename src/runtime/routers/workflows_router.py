@@ -34,7 +34,12 @@ from src.providers.workflow_lock import (
     workflow_lock,
 )
 from src.repo.browser_utils import detect_browser_paths
-from src.service.elements_service import build_element_tree, compute_selector_chain
+from src.service.elements_service import (
+    build_element_tree,
+    compute_selector_chain,
+    normalize_element_capture,
+    _looks_like_capture,
+)
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -592,6 +597,44 @@ def list_workflow_elements(wf_id: int, db: Session = Depends(get_db), user=Depen
     return items
 
 
+def _resolve_element_payload(payload: schemas.WorkflowElementIn) -> dict:
+    """Resolve DB field values from a WorkflowElementIn payload.
+
+    When attributes is an ElementInfo-shaped capture (from the unified capture
+    tool), normalize it into canonical columns so web_selector/candidates/dom_path
+    are populated and desktop elements get a `path` the runtime can consume.
+    """
+    fields = {
+        "name": payload.name,
+        "element_type": payload.element_type,
+        "element_kind": payload.element_kind,
+        "target_mode": payload.target_mode,
+        "css_candidates": payload.css_candidates,
+        "xpath_candidates": payload.xpath_candidates,
+        "drission_candidates": payload.drission_candidates,
+        "web_selector": payload.web_selector,
+        "drission_selector": payload.drission_selector,
+        "relative_selector": payload.relative_selector,
+        "anchor_selector": payload.anchor_selector,
+        "anchor_element_name": payload.anchor_element_name,
+        "anchor_mode": payload.anchor_mode,
+        "dom_path": payload.dom_path,
+        "attributes": payload.attributes,
+        "screenshot": payload.screenshot,
+        "page_url": payload.page_url,
+    }
+    if _looks_like_capture(payload.attributes):
+        norm = normalize_element_capture(payload.attributes)
+        fields.update({k: norm.get(k) for k in (
+            "element_type", "element_kind", "web_selector", "drission_selector",
+            "css_candidates", "xpath_candidates", "drission_candidates",
+            "dom_path", "attributes", "screenshot", "page_url",
+        )})
+        if not fields["name"]:
+            fields["name"] = norm.get("name") or "捕获元素"
+    return fields
+
+
 @router.post("/{wf_id}/elements", response_model=schemas.WorkflowElementOut)
 def create_workflow_element(
     wf_id: int, payload: schemas.WorkflowElementIn,
@@ -601,24 +644,26 @@ def create_workflow_element(
     wf = db.get(models.Workflow, wf_id)
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
+    f = _resolve_element_payload(payload)
     el = models.WorkflowElement(
         workflow_id=wf_id,
-        name=payload.name,
-        element_kind=payload.element_kind,
-        target_mode=payload.target_mode,
-        css_candidates=json.dumps(payload.css_candidates),
-        xpath_candidates=json.dumps(payload.xpath_candidates),
-        drission_candidates=json.dumps(payload.drission_candidates),
-        web_selector=payload.web_selector,
-        drission_selector=payload.drission_selector,
-        relative_selector=payload.relative_selector,
-        anchor_selector=payload.anchor_selector,
-        anchor_element_name=payload.anchor_element_name,
-        anchor_mode=payload.anchor_mode,
-        dom_path=json.dumps(payload.dom_path),
-        attributes=json.dumps(payload.attributes),
-        screenshot=payload.screenshot,
-        page_url=payload.page_url,
+        name=f["name"],
+        element_type=f["element_type"],
+        element_kind=f["element_kind"],
+        target_mode=f["target_mode"],
+        css_candidates=json.dumps(f["css_candidates"]),
+        xpath_candidates=json.dumps(f["xpath_candidates"]),
+        drission_candidates=json.dumps(f["drission_candidates"]),
+        web_selector=f["web_selector"],
+        drission_selector=f["drission_selector"],
+        relative_selector=f["relative_selector"],
+        anchor_selector=f["anchor_selector"],
+        anchor_element_name=f["anchor_element_name"],
+        anchor_mode=f["anchor_mode"],
+        dom_path=json.dumps(f["dom_path"]),
+        attributes=json.dumps(f["attributes"]),
+        screenshot=f["screenshot"],
+        page_url=f["page_url"],
     )
     db.add(el)
     db.commit()
@@ -658,24 +703,26 @@ def update_workflow_element(
     ).first()
     if not el:
         raise HTTPException(status_code=404, detail="Element not found")
-    el.name = payload.name
-    el.element_kind = payload.element_kind
-    el.target_mode = payload.target_mode
-    el.css_candidates = json.dumps(payload.css_candidates)
-    el.xpath_candidates = json.dumps(payload.xpath_candidates)
-    el.drission_candidates = json.dumps(payload.drission_candidates)
-    el.web_selector = payload.web_selector
-    el.drission_selector = payload.drission_selector
-    el.relative_selector = payload.relative_selector
-    el.anchor_selector = payload.anchor_selector
-    el.anchor_element_name = payload.anchor_element_name
-    el.anchor_mode = payload.anchor_mode
-    el.dom_path = json.dumps(payload.dom_path)
-    el.attributes = json.dumps(payload.attributes)
-    if payload.screenshot is not None:
-        el.screenshot = payload.screenshot
-    if payload.page_url is not None:
-        el.page_url = payload.page_url
+    f = _resolve_element_payload(payload)
+    el.name = f["name"]
+    el.element_type = f["element_type"]
+    el.element_kind = f["element_kind"]
+    el.target_mode = f["target_mode"]
+    el.css_candidates = json.dumps(f["css_candidates"])
+    el.xpath_candidates = json.dumps(f["xpath_candidates"])
+    el.drission_candidates = json.dumps(f["drission_candidates"])
+    el.web_selector = f["web_selector"]
+    el.drission_selector = f["drission_selector"]
+    el.relative_selector = f["relative_selector"]
+    el.anchor_selector = f["anchor_selector"]
+    el.anchor_element_name = f["anchor_element_name"]
+    el.anchor_mode = f["anchor_mode"]
+    el.dom_path = json.dumps(f["dom_path"])
+    el.attributes = json.dumps(f["attributes"])
+    if f["screenshot"] is not None:
+        el.screenshot = f["screenshot"]
+    if f["page_url"] is not None:
+        el.page_url = f["page_url"]
     db.commit()
     db.refresh(el)
     try:

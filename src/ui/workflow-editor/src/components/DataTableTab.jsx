@@ -167,7 +167,11 @@ export default function DataTableTab({ wfId }) {
   // Global keyboard: Ctrl+C, Escape
   useEffect(() => {
     const onKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      const inEditable = e.target && (
+        e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT'
+        || e.target.isContentEditable
+      );
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !inEditable) {
         if (selectedCells.size > 0 && !editingCell) {
           e.preventDefault();
           copyCellsAsTSV(table?.rows || [], table?.columns || [], selectedCells);

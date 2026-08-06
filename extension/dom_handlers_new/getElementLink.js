@@ -1,8 +1,10 @@
 /**
  * getElementLink — DOM handler.
- * Extracts the href attribute from an element.
+ *
+ * Self-contained implementation: extracts the href attribute.
  */
-registerHandler('getElementLink', async (args) => {
-  args.extra = { ...(args.extra || {}), action: 'getAttr', attribute: 'href' };
-  return doExtract(args);
+registerHandler('getElementLink', async function getElementLink({ locator, selectorFamily }) {
+  const el = findTarget(locator, selectorFamily);
+  const value = (el && el.getAttribute) ? (el.getAttribute('href') || '') : '';
+  return { value, text: value, extracted: value };
 });

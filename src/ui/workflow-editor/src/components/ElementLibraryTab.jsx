@@ -8,7 +8,6 @@ import ApiSettingsPanel from './ApiSettingsPanel';
 
 const BOTTOM_TABS = [
   { key: 'elements', label: '元素库', icon: 'fa-crosshairs' },
-  { key: 'images', label: '图像库', icon: 'fa-image' },
   { key: 'dataTable', label: '数据表格', icon: 'fa-table' },
   { key: 'logs', label: '运行日志', icon: 'fa-terminal' },
   { key: 'params', label: '流程参数', icon: 'fa-sliders-h' },
@@ -24,12 +23,8 @@ export default function ElementLibraryTab() {
   });
   const [selectedElementId, setSelectedElementId] = useState(null);
   const [expandedNames, setExpandedNames] = useState(new Set());
-  const [extOnline, setExtOnline] = useState(false);
-  const [extCount, setExtCount] = useState(0);
-  const [extBrowsers, setExtBrowsers] = useState([]);  // [{browser, count}]
-  const [targetBrowser, setTargetBrowser] = useState(''); // '' = all, 'chrome', 'edge'
+  const [extBrowsers, setExtBrowsers] = useState({});  // {chrome: count, edge: count}
   const [capturing, setCapturing] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
   const [toast, setToast] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
@@ -38,7 +33,6 @@ export default function ElementLibraryTab() {
   const [captureModal, setCaptureModal] = useState(false);
   const logsRef = useRef(null);
   const panelRef = useRef(null);
-  const importRef = useRef(null);
 
   function toggleExpanded(next) {
     try { localStorage.setItem('wf_editor_bottom_expanded', String(next)); } catch {}
@@ -97,13 +91,17 @@ export default function ElementLibraryTab() {
     setExpandedNames(new Set(elements.map(e => e.name)));
   }, [elements]);
 
-  const kindLabel = { plain: '普通', anchor: '锚点', child: '子元素', win32: '桌面', uia: 'UIA' };
+  const typeLabel = { web: '网页', win32: '桌面', uia: 'UIA' };
+  const typeClass = {
+    web: 'bg-blue-100 text-blue-600',
+    win32: 'bg-purple-100 text-purple-600',
+    uia: 'bg-green-100 text-green-600',
+  };
+  const kindLabel = { plain: '普通', anchor: '锚点', child: '子元素' };
   const kindClass = {
     plain: 'bg-gray-100 text-gray-500',
     anchor: 'bg-blue-100 text-blue-600',
     child: 'bg-orange-100 text-orange-600',
-    win32: 'bg-purple-100 text-purple-600',
-    uia: 'bg-green-100 text-green-600',
   };
 
   function toggleExpandedName(name) {
@@ -129,29 +127,23 @@ export default function ElementLibraryTab() {
     refresh();
   }, []);
 
-  // 轮询扩展在线状态
+  // 轮询扩展在线状态（按浏览器细分）
   useEffect(() => {
     let timer = null;
     const checkStatus = async () => {
       try {
         const data = await api.getExtensionStatus();
-        setExtOnline(data.online);
-        setExtCount(data.count);
-        setExtBrowsers(data.browsers || []);
-        // 如果只有一个浏览器在线，自动选它
-        if ((data.browsers || []).length === 1 && !targetBrowser) {
-          setTargetBrowser(data.browsers[0].browser);
-        }
+        const browsers = {};
+        (data.browsers || []).forEach(b => { browsers[b.browser] = b.count; });
+        setExtBrowsers(browsers);
       } catch {
-        setExtOnline(false);
-        setExtCount(0);
-        setExtBrowsers([]);
+        setExtBrowsers({});
       }
     };
     checkStatus();
     timer = setInterval(checkStatus, 3000);
     return () => clearInterval(timer);
-  }, [targetBrowser]);
+  }, []);
 
   // 捕获完成后自动刷新（轮询检测新元素）
   useEffect(() => {
@@ -229,48 +221,6 @@ export default function ElementLibraryTab() {
   };
 
   const cancelRename = () => setShowRenameModal(false);
-
-  const handleCapture = () => {
-    setShowGuide(true);
-  };
-
-  const handleDesktopPicker = async () => {
-    try {
-      const data = await api.runPicker();
-      if (data.cancelled) return;
-      const target = data.path?.[data.path.length - 1];
-      if (!target) return;
-      const name = `${target.class_name}${target.title ? ' "' + target.title + '"' : ''}`;
-      await api.createWorkflowElement(wfId, {
-        name: name.substring(0, 128),
-        element_kind: 'win32',
-        attributes: data,
-      });
-      showToast(`已添加桌面元素: ${name}`, 'success');
-      await loadElements();
-    } catch (e) {
-      if (e.message !== 'cancelled') showToast('拾取失败: ' + e.message, 'error');
-    }
-  };
-
-  const handleUiaPicker = async () => {
-    try {
-      const data = await api.runPickerUia();
-      if (data.cancelled) return;
-      const target = data.path?.[data.path.length - 1];
-      if (!target) return;
-      const name = `${target.control_type || target.class_name}${target.name ? ' "' + target.name + '"' : ''}`;
-      await api.createWorkflowElement(wfId, {
-        name: name.substring(0, 128),
-        element_kind: 'uia',
-        attributes: data,
-      });
-      showToast(`已添加 UIA 元素: ${name}`, 'success');
-      await loadElements();
-    } catch (e) {
-      if (e.message !== 'cancelled') showToast('UIA拾取失败: ' + e.message, 'error');
-    }
-  };
 
   const handleCaptureTool = () => {
     setCaptureModal(true);
@@ -466,62 +416,30 @@ export default function ElementLibraryTab() {
             {/* 右侧详情区 */}
             <div className="flex-1 overflow-y-auto p-4">
               <div className="flex items-center justify-end mb-4 gap-2">
-                {/* 浏览器选择器（多浏览器时显示） */}
-                {extBrowsers.length > 1 && (
-                  <select
-                    value={targetBrowser}
-                    onChange={(e) => setTargetBrowser(e.target.value)}
-                    className="px-2 py-1 bg-[#fafafa] border border-[#d9d9d9] rounded text-xs text-gray-700 outline-none"
-                  >
-                    <option value="">所有浏览器</option>
-                    {extBrowsers.map(b => (
-                      <option key={b.browser} value={b.browser}>
-                        {b.browser === 'edge' ? 'Edge' : 'Chrome'} ({b.count})
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <div className="flex items-center gap-1.5 mr-1">
-                  <div
-                    className={`w-2 h-2 rounded-full ${extOnline ? 'bg-green-500' : 'bg-gray-300'}`}
-                    title={extOnline ? `扩展在线 (${extCount})` : '扩展未连接'}
-                  />
-                  <span className="text-[10px] text-gray-400">
-                    {extOnline ? `在线 (${extCount})` : '未连接'}
-                  </span>
-                </div>
-                <button
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-orange-500 hover:bg-orange-600 text-white"
-                  onClick={handleCapture}
-                  title="捕获网页元素指南"
-                >
-                  <i className="fas fa-globe text-[10px]"></i>
-                  <span>网页</span>
-                </button>
-                <button
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-purple-500 hover:bg-purple-600 text-white"
-                  onClick={handleDesktopPicker}
-                  title="Alt+左键拾取桌面控件(Win32)"
-                >
-                  <i className="fas fa-crosshairs text-[10px]"></i>
-                  <span>桌面</span>
-                </button>
-                <button
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-green-500 hover:bg-green-600 text-white"
-                  onClick={handleUiaPicker}
-                  title="Alt+左键拾取桌面控件(UIA)"
-                >
-                  <i className="fas fa-crosshairs text-[10px]"></i>
-                  <span>UIA</span>
-                </button>
-                <button
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-blue-500 hover:bg-blue-600 text-white"
-                  onClick={handleCaptureTool}
-                  title="打开元素捕获工具"
-                >
-                  <i className="fas fa-tools text-[10px]"></i>
-                  <span>工具</span>
-                </button>
+              <div className="flex items-center gap-1.5 mr-1">
+                {['chrome', 'edge'].map(b => {
+                  const online = !!extBrowsers[b];
+                  const label = b === 'edge' ? 'Edge' : 'Chrome';
+                  return (
+                    <span
+                      key={b}
+                      className="flex items-center gap-1 text-[10px] text-gray-400"
+                      title={`${label} 扩展${online ? '在线' : '离线'}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                      {label} {online ? '在线' : '离线'}
+                    </span>
+                  );
+                })}
+              </div>
+              <button
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-blue-500 hover:bg-blue-600 text-white"
+                onClick={handleCaptureTool}
+                title="捕获元素（统一捕获网页/桌面/UIA 元素）"
+              >
+                <i className="fas fa-tools text-[10px]"></i>
+                <span>捕获元素</span>
+              </button>
               </div>
               {selectedElement ? (
                 <div className="max-w-2xl">
@@ -529,9 +447,14 @@ export default function ElementLibraryTab() {
                   <div className="flex items-center gap-2 mb-2">
                     <i className="fas fa-crosshairs text-blue-500"></i>
                     <h3 className="text-sm font-medium text-gray-800">{selectedElement.name}</h3>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${kindClass[selectedElement.element_kind || 'plain']}`}>
-                      {kindLabel[selectedElement.element_kind || 'plain']}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${typeClass[selectedElement.element_type || 'web']}`}>
+                      {typeLabel[selectedElement.element_type || 'web']}
                     </span>
+                    {selectedElement.element_kind && selectedElement.element_kind !== 'plain' && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${kindClass[selectedElement.element_kind]}`}>
+                        {kindLabel[selectedElement.element_kind]}
+                      </span>
+                    )}
                     {selectedElement.tag && (
                       <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500">
                         {selectedElement.tag}
@@ -568,12 +491,24 @@ export default function ElementLibraryTab() {
                   )}
 
                   {/* ─── Win32 / UIA 桌面元素 ─── */}
-                  {(selectedElement.element_kind === 'win32' || selectedElement.element_kind === 'uia') && (() => {
+                  {(selectedElement.element_type === 'win32' || selectedElement.element_type === 'uia') && (() => {
                     const attr = selectedElement.attributes || {};
                     const target = attr.path?.[attr.path.length - 1];
-                    const isUia = selectedElement.element_kind === 'uia';
+                    const isUia = selectedElement.element_type === 'uia';
                     return (
                       <div className="space-y-2 mb-4">
+                        {/* 截图（图像兜底参考） */}
+                        {selectedElement.screenshot && (
+                          <div className="mb-2">
+                            <div className="text-xs text-gray-500 mb-1">截图</div>
+                            <img
+                              src={selectedElement.screenshot}
+                              alt={selectedElement.name}
+                              className="max-h-40 border border-gray-200 rounded cursor-zoom-in hover:border-blue-300"
+                              onClick={() => window.open(selectedElement.screenshot, '_blank')}
+                            />
+                          </div>
+                        )}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <div className="text-[10px] text-gray-400">{isUia ? '名称' : '类名'}</div>
@@ -633,7 +568,7 @@ export default function ElementLibraryTab() {
                   })()}
 
                   {/* ─── Web 元素（非 win32/uia） ─── */}
-                  {selectedElement.element_kind !== 'win32' && selectedElement.element_kind !== 'uia' && (<>
+                  {selectedElement.element_type !== 'win32' && selectedElement.element_type !== 'uia' && (<>
 
                   {/* 截图 */}
                   {selectedElement.screenshot && (
@@ -796,7 +731,7 @@ export default function ElementLibraryTab() {
             </div>
           </>
         )}
-        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && activeTab !== 'params' && activeTab !== 'images' && activeTab !== 'api' && (
+        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && activeTab !== 'params' && activeTab !== 'api' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
               <i className="fas fa-inbox text-gray-400 text-xl"></i>
@@ -826,73 +761,6 @@ export default function ElementLibraryTab() {
           toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'
         }`}>
           {toast.msg}
-        </div>
-      )}
-
-      {/* 捕获指南弹窗 */}
-      {showGuide && (
-        <div
-          className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
-          onClick={() => setShowGuide(false)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-gray-800">
-                <i className="fas fa-info-circle text-orange-500 mr-1.5"></i>
-                捕获新元素
-              </h3>
-              <button
-                onClick={() => setShowGuide(false)}
-                className="text-gray-400 hover:text-gray-600 w-6 h-6 flex items-center justify-center"
-              >
-                <i className="fas fa-times text-xs"></i>
-              </button>
-            </div>
-            <div className="space-y-3 text-xs text-gray-600">
-              <p className="text-orange-600 font-medium bg-orange-50 px-3 py-2 rounded">
-                请在已安装插件的浏览器中完成元素捕获。
-              </p>
-
-              <div>
-                <div className="font-medium text-gray-700 mb-1.5 flex items-center gap-1">
-                  <i className="fas fa-list-ol text-[10px] text-gray-400"></i>
-                  捕获步骤
-                </div>
-                <ol className="list-decimal pl-4 space-y-1 text-gray-600">
-                  <li>打开需要捕获元素的网页</li>
-                  <li>点击浏览器工具栏中的 RPA 扩展图标</li>
-                  <li>点击"捕获元素"按钮进入捕获模式</li>
-                  <li>将鼠标悬停在目标元素上，点击左键确认捕获</li>
-                  <li>输入元素名称后保存，元素将自动同步到编辑器</li>
-                </ol>
-              </div>
-
-              <div>
-                <div className="font-medium text-gray-700 mb-1.5 flex items-center gap-1">
-                  <i className="fas fa-puzzle-piece text-[10px] text-gray-400"></i>
-                  插件安装方式
-                </div>
-                <ol className="list-decimal pl-4 space-y-1 text-gray-600">
-                  <li>打开 Chrome/Edge 的扩展管理页面（<code className="bg-gray-100 px-1 rounded text-[10px]">chrome://extensions</code> 或 <code className="bg-gray-100 px-1 rounded text-[10px]">edge://extensions</code>）</li>
-                  <li>开启右上角"开发者模式"</li>
-                  <li>点击"加载已解压的扩展程序"</li>
-                  <li>选择项目目录下的 <code className="bg-gray-100 px-1 rounded text-[10px]">extension/</code> 文件夹</li>
-                  <li>扩展图标将出现在浏览器工具栏中，点击即可使用</li>
-                </ol>
-              </div>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setShowGuide(false)}
-                className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors"
-              >
-                知道了
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

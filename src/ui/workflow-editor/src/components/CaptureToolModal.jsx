@@ -9,6 +9,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const [mode, setMode] = useState(0); // 0=推荐方案 1=手动编辑
   const [capturing, setCapturing] = useState(false);
   const [captureError, setCaptureError] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
   const [savedId, setSavedId] = useState(null); // 已保存元素ID, null=未保存
   const [cur, setCur] = useState(null); // 当前编辑元素
   const [cands, setCands] = useState([]);
@@ -109,10 +110,19 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
     if (!cur) return showToast('请先捕获元素');
     try {
       if (cur.element_type === 'web' && (cur.css_selector || selector)) {
-        // web 元素: 浏览器验证选择器 (extension querySelectorAll)
+        // web 元素: 浏览器验证选择器 (extension querySelectorAll + 可见/不可见统计)
         const sel = strip(selector || cur.css_selector);
         const d = await api.verifyWebSelector(sel);
-        showToast(d.found ? `✅ 匹配 ${d.count || 1} 个` : `❌ ${d.error || '未找到'}`, d.found ? 'success' : 'error');
+        if (d.found) {
+          const hitPage = d.tabUrl ? ` · ${String(d.tabUrl).replace(/^https?:\/\//, '').slice(0, 40)}` : '';
+          const dupHint = (d.sameUrlCount || 1) > 1 ? ` · ⚠️ 打开 ${d.sameUrlCount} 个相同页面，仅验证其中一个` : '';
+          showToast(`✅ 命中 ${d.count ?? 0} 个 · 可见 ${d.visible ?? 0} · 不可见 ${d.invisible ?? 0}${hitPage}${dupHint}`, 'success');
+        } else if ((d.count || 0) > 0) {
+          showToast(`❌ 匹配 ${d.count} 个但均不可见`, 'error');
+        } else {
+          const scannedN = d.scanned?.length;
+          showToast(`❌ ${d.error || '未找到'}${scannedN ? `（已扫描 ${scannedN} 个可见标签页）` : ''}`, 'error');
+        }
       } else {
         // 桌面元素: GUI flash_element 闪烁
         const d = await api.runGuiVerify(cur);
@@ -125,19 +135,16 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
     if (!cur) return showToast('请先捕获元素');
     try {
       const payload = { ...cur, css_selector: selector, name: cur.name || '捕获元素' };
+      const name = String(cur.name || '捕获元素').substring(0, 128) || '捕获元素';
       if (savedId) {
-        await api.updateWorkflowElement(wfId, savedId, { attributes: payload });
+        await api.updateWorkflowElement(wfId, savedId, { name, attributes: payload });
       } else {
-        const name = String(cur.name || '捕获元素').substring(0, 128) || '捕获元素';
-        const created = await api.createWorkflowElement(wfId, {
-          name,
-          element_kind: (cur.element_type === 'web') ? 'plain' : 'win32',
-          attributes: payload,
-        });
+        const created = await api.createWorkflowElement(wfId, { name, attributes: payload });
         if (created && created.id) setSavedId(created.id);
       }
       showToast('已保存', 'success');
       onSaved && onSaved();
+      onClose();
     } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
   };
 
@@ -163,7 +170,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
         <div className="bg-gray-50 rounded-lg shadow-2xl w-[95vw] h-[90vh] max-w-6xl flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b shrink-0">
@@ -178,8 +185,32 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
               </button>
               {captureError && <span className="text-xs text-red-500">{captureError}</span>}
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none px-2">×</button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowHelp(v => !v)}
+                className={`w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 ${showHelp ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'}`}
+                title="使用说明"
+              >
+                <i className="fas fa-question-circle text-sm"></i>
+              </button>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none px-2">×</button>
+            </div>
           </div>
+
+          {/* 使用说明（可折叠） */}
+          {showHelp && (
+            <div className="px-4 py-3 bg-blue-50 border-b text-xs text-gray-600 space-y-2">
+              <p className="text-blue-600 font-medium">
+                请在已安装插件的浏览器中完成网页元素捕获；桌面控件直接在当前屏幕上框选。
+              </p>
+              <ol className="list-decimal pl-4 space-y-1">
+                <li>点击「🔍 捕获元素」，鼠标移动到目标上（蓝色边框高亮），左键确认</li>
+                <li>桌面控件捕获区域高亮；网页元素需鼠标落在浏览器页面内（自动转插件捕获）</li>
+                <li>网页捕获：打开 Chrome/Edge → chrome://extensions（edge://extensions）→ 开发者模式 → 加载已解压的扩展 → 选择项目目录下 <code className="bg-gray-100 px-1 rounded">extension/</code> 文件夹</li>
+                <li>捕获后编辑名称/选择器，验证通过后保存，元素自动同步到元素库</li>
+              </ol>
+            </div>
+          )}
 
           {/* Body */}
           <div className="flex-1 flex flex-col gap-3 p-4 overflow-y-auto">

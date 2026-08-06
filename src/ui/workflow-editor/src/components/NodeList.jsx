@@ -68,17 +68,25 @@ export default function NodeList() {
 
   // ─── 复制 / 粘贴快捷键 ─────────────────────────────────────────
   useEffect(() => {
-    const isTextField = (el) => {
+    const isEditable = (el) => {
       if (!el) return false;
-      const tag = el.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-      return el.isContentEditable;
+      return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
+        || el.isContentEditable;
+    };
+
+    // 事件目标或当前真实焦点落在可编辑区域时，绝不拦截 Ctrl+C/V（交给浏览器原生处理）
+    const editableHasFocus = (e) => {
+      if (isEditable(e.target)) return true;
+      if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]')) return true;
+      const ae = document.activeElement;
+      if (ae && ae !== document.body && isEditable(ae)) return true;
+      return false;
     };
 
     const onKeyDown = (e) => {
       const isMeta = e.ctrlKey || e.metaKey;
       if (!isMeta) return;
-      if (isTextField(e.target)) return;
+      if (editableHasFocus(e)) return;
       if (e.key === 'c' || e.key === 'C') {
         // 如果页面上有文字被选中（运行日志、代码注释等），交给浏览器原生复制
         const selection = window.getSelection();

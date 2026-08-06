@@ -3212,19 +3212,11 @@
     if (message.action === 'verifySelector') {
       const { selector } = message.payload || {};
       try {
-        let matches;
-        if (selector.startsWith('/') || selector.startsWith('xpath:') || selector.startsWith('XPath:')) {
-          // XPath
-          const xpath = selector.replace(/^(xpath:|XPath:)/i, '');
-          const result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-          matches = [];
-          for (let i = 0; i < result.snapshotLength; i++) matches.push(result.snapshotItem(i));
-        } else {
-          matches = document.querySelectorAll(selector);
-        }
-        if (matches.length > 0) {
+        const type = (selector.startsWith('/') || selector.startsWith('xpath:') || selector.startsWith('XPath:')) ? 'xpath' : 'css';
+        const stats = resolveAllForVerifyStats(selector, type);
+        const found = stats.visible > 0;
+        if (found) {
           // 复用侧边栏高亮机制: 固定div边框 (outline在容器元素上不可见)
-          const type = (selector.startsWith('/') || selector.startsWith('xpath:') || selector.startsWith('XPath:')) ? 'xpath' : 'css';
           removeEditorHighlights();
           const nodes = resolveAllForVerify(selector, type);
           nodes.slice(0, 3).forEach((node) => {
@@ -3255,13 +3247,12 @@
           setTimeout(() => setVis(false), 480);
           setTimeout(() => setVis(true), 600);
           setTimeout(removeEditorHighlights, 780);
-          // 用可见节点数作为匹配数
-          sendResponse({ found: nodes.length > 0, count: nodes.length });
-          return false;
         }
-        sendResponse({ found: matches.length > 0, count: matches.length });
+        // 返回可见/不可见统计
+        sendResponse({ found, count: stats.total, visible: stats.visible, invisible: stats.invisible });
+        return false;
       } catch (e) {
-        sendResponse({ found: false, count: 0, error: e.message });
+        sendResponse({ found: false, count: 0, visible: 0, invisible: 0, error: e.message });
       }
       return false;
     }
@@ -3333,6 +3324,7 @@
           sendResponse({
             result: {
               requestId,
+              pageUrl: window.location.href,
               tagName: el.tagName.toLowerCase(),
               text: features.inner_text || (el.textContent || '').trim().slice(0, 200),
               rect: rectData,

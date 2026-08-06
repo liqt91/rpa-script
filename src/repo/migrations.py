@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine
 
-_SCHEMA_VERSION = 13  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 14  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -475,6 +475,36 @@ def _migrate_013():
             conn.commit()
 
 
+# ── Migration 014: split element_kind into element_kind + element_type ────────
+
+def _migrate_014():
+    """Add element_type capture-channel column and move win32/uia kinds into it.
+
+    - element_kind keeps only web structural roles {plain, anchor, child}.
+    - New element_type column holds the capture channel {web, win32, uia}, default 'web'.
+    - Legacy rows with element_kind in ('win32','uia') are remapped: their kind
+      becomes 'plain' and element_type is set to the former kind.
+    """
+    inspector = inspect(engine)
+    if "workflow_elements" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("workflow_elements")}
+    with engine.connect() as conn:
+        if "element_type" not in cols:
+            conn.execute(text("ALTER TABLE workflow_elements ADD COLUMN element_type VARCHAR(16) DEFAULT 'web'"))
+        conn.execute(text("""
+            UPDATE workflow_elements
+            SET element_type = element_kind
+            WHERE element_kind IN ('win32', 'uia')
+        """))
+        conn.execute(text("""
+            UPDATE workflow_elements
+            SET element_kind = 'plain'
+            WHERE element_kind IN ('win32', 'uia')
+        """))
+        conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
@@ -491,6 +521,7 @@ _MIGRATIONS = {
     11: _migrate_011,
     12: _migrate_012,
     13: _migrate_013,
+    14: _migrate_014,
 }
 
 

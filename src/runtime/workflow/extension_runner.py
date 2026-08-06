@@ -13,9 +13,12 @@ Flows:
 from __future__ import annotations
 
 import asyncio
+import ctypes
+from ctypes import wintypes
 import json
 import logging
 import os
+import random
 import re
 from typing import Any, Callable
 
@@ -160,6 +163,101 @@ def _os_press_key(key: str, modifiers: str = "") -> bool:
         return False
 
 
+# ── SendInput 结构（x64 下 sizeof(INPUT)=40：union 含 MOUSEINPUT=32 字节）──
+# 只定义 KEYBDINPUT 会算出 32，SendInput 会以 ERROR_INVALID_PARAMETER(87) 拒绝。
+
+_KEYEVENTF_KEYUP = 0x0002
+_KEYEVENTF_UNICODE = 0x0004
+
+
+class _MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG), ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_void_p),
+    ]
+
+
+class _KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", wintypes.WORD), ("wScan", wintypes.WORD),
+        ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.c_void_p),
+    ]
+
+
+class _HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [
+        ("uMsg", wintypes.DWORD), ("wParamL", wintypes.WORD), ("wParamH", wintypes.WORD),
+    ]
+
+
+class _INPUTUNION(ctypes.Union):
+    _fields_ = [("mi", _MOUSEINPUT), ("ki", _KEYBDINPUT), ("hi", _HARDWAREINPUT)]
+
+
+class _INPUT(ctypes.Structure):
+    _anonymous_ = ("u",)
+    _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
+
+
+def _send_unicode_char(code: int) -> bool:
+    """Send one Unicode character via SendInput (down + up)."""
+    if os.name != "nt":
+        return False
+    user32 = ctypes.windll.user32
+    user32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(_INPUT), ctypes.c_int]
+    user32.SendInput.restype = wintypes.UINT
+    arr = (_INPUT * 2)()
+    arr[0].type = 1
+    arr[0].ki.wVk = 0
+    arr[0].ki.wScan = code
+    arr[0].ki.dwFlags = _KEYEVENTF_UNICODE
+    arr[1].type = 1
+    arr[1].ki.wVk = 0
+    arr[1].ki.wScan = code
+    arr[1].ki.dwFlags = _KEYEVENTF_UNICODE | _KEYEVENTF_KEYUP
+    sent = user32.SendInput(2, arr, ctypes.sizeof(_INPUT))
+    return sent == 2
+
+
+_TYPO_PROB = 0.06          # 每次击键打错字的概率
+_TYPO_POOL = "qwertyuiopasdfghjklzxcvbnm0123456789"
+
+
+def _os_type_text(text: str, clear_first: bool = False) -> bool:
+    """Type a string with real OS keystrokes (SendInput + KEYEVENTF_UNICODE).
+
+    Human-like typing: character by character with variable intervals, and a
+    small chance of typing a wrong character then deleting it and retyping the
+    correct one. Works for any Unicode char (incl. CJK); the browser receives
+    trusted key events. Optionally clears existing content first.
+    """
+    if os.name != "nt":
+        return False
+    if clear_first:
+        _os_press_key("a", "Ctrl")   # Ctrl+A select all
+        time.sleep(random.uniform(0.04, 0.12))
+        _os_press_key("Backspace", "")  # Delete selected
+        time.sleep(random.uniform(0.04, 0.12))
+
+    ok = True
+    for ch in text:
+        # 可变击键间隔（拟人节奏）
+        time.sleep(random.uniform(0.03, 0.18))
+        # 概率打错字 → 删除 → 重打正确字符
+        if random.random() < _TYPO_PROB:
+            wrong = random.choice(_TYPO_POOL)
+            if _send_unicode_char(ord(wrong)):
+                time.sleep(random.uniform(0.08, 0.25))
+                _os_press_key("Backspace", "")
+                time.sleep(random.uniform(0.08, 0.25))
+        if not _send_unicode_char(ord(ch)):
+            ok = False
+    time.sleep(0.05)
+    return ok
+
+
 DEFAULT_STEP_TIMEOUT = 30.0
 
 _VAR_PLACEHOLDER_RE = re.compile(r"\$\{(\w+)\}|\{\{(\w+)\}\}")
@@ -177,6 +275,26 @@ def _resolve_wf_var(m: re.Match) -> str:
     logger.warning(f"[ExtensionRunner] cross-wf ref: wf={wf_id} var={var_name} not found in cached outputs")
     return m.group(0)
 
+def _clean_var_ref(val):
+    """Strip ${var} or {{var}} wrapper from a variable name field."""
+    if not isinstance(val, str):
+        return str(val) if val is not None else ""
+    m = re.match(r'^\$\{(\w+)\}$|^\{\{(\w+)\}\}$', val.strip())
+    if m:
+        return m.group(1) or m.group(2)
+    return val.strip()
+
+
+class LoopBreak(Exception):
+    """Raised by break instruction to exit the current loop."""
+    pass
+
+
+class LoopContinue(Exception):
+    """Raised by continue instruction to skip to next loop iteration."""
+    pass
+
+
 # ─── Local command registry ───────────────────────────────────────
 # Handlers registered here execute backend-only commands without an
 # extension round-trip. New local commands just need a function + decorator.
@@ -189,7 +307,12 @@ def _populate_local_handlers():
 
     Any handler with an execute() method is eligible — this includes backend
     handlers and extension handlers that do Python-side pre-work (e.g. launchBrowser).
+    auto_register() is idempotent; calling it here guarantees the registry is
+    fully populated regardless of import order (extension_runner is imported
+    during control-command registration via forEachElement).
     """
+    from src.runtime.commands import auto_register
+    auto_register()
     from .handlers.registry import get_all_handlers
     for htype, hdef in get_all_handlers().items():
         cls = hdef.get("handler_class")
@@ -204,16 +327,6 @@ def register_local(name: str):
         LOCAL_HANDLERS[name] = fn
         return fn
     return decorator
-
-
-def _clean_var_ref(val):
-    """Strip ${var} or {{var}} wrapper from a variable name field."""
-    if not isinstance(val, str):
-        return str(val) if val is not None else ""
-    m = re.match(r'^\$\{(\w+)\}$|^\{\{(\w+)\}\}$', val.strip())
-    if m:
-        return m.group(1) or m.group(2)
-    return val.strip()
 
 
 def _get_output_var(extra: dict) -> str:
@@ -285,16 +398,6 @@ async def wait_for_extension(
         launch_browser_with_extension(browser_type)
         await asyncio.sleep(3.0)
     return await wait_for_extension_connection(browser_type, ext_manager, timeout)
-
-
-class LoopBreak(Exception):
-    """Raised by break instruction to exit the current loop."""
-    pass
-
-
-class LoopContinue(Exception):
-    """Raised by continue instruction to skip to next loop iteration."""
-    pass
 
 
 class _TableAccessor:
@@ -1296,18 +1399,34 @@ class ExtensionRunner:
                         f"{result['matchedCount']} element(s) for locator={resolved_instr.get('locator')}"
                     )
 
-                # ── OS mouse move for element operations (hover/click/input) ──
+                # ── OS mouse move + click for element operations (hover/click/input) ──
                 if isinstance(result, dict) and "viewX" in result:
                     human_like = extra.get("humanLike", True)
                     if human_like:
-                        await self._handle_mouse_op(cmd_type, result, extra)
+                        await self._handle_mouse_op(result, extra)
 
-                # ── OS key press (no mouse move needed) ──
-                if cmd_type == "pressKey":
-                    human_like = extra.get("humanLike", True)
-                    if human_like:
-                        _os_press_key(extra.get("key", "Enter"), extra.get("modifiers", ""))
-                        logger.info(f"[ExtensionRunner] OS pressKey: {extra.get('key')} modifiers={extra.get('modifiers')}")
+                # ── OS text input (inputElement 模拟键盘输入: real keystrokes) ──
+                # Content decides via result fields (osType/osEnter); no re-gate here.
+                # SendInput failure → surface a clear error instead of silently
+                # reporting success with nothing typed.
+                if isinstance(result, dict) and result.get("osType"):
+                    ok = _os_type_text(result["osType"], clear_first=result.get("osClear", False))
+                    if not ok:
+                        raise RuntimeError(
+                            "模拟键盘输入失败：真实按键未送达。请确认目标浏览器窗口在前台，"
+                            "且输入框已通过前面的「点击元素」指令获取焦点。"
+                        )
+                    logger.info(f"[ExtensionRunner] OS typed {len(result['osType'])} chars")
+
+                # ── OS Enter after input (inputElement pressEnter) ──
+                if isinstance(result, dict) and result.get("osEnter"):
+                    _os_press_key("Enter", "")
+                    logger.info("[ExtensionRunner] OS Enter after input")
+
+                # ── OS key press (pressKey command: trusted keystroke) ──
+                if isinstance(result, dict) and result.get("osKey"):
+                    _os_press_key(result["osKey"], result.get("osModifiers") or "")
+                    logger.info(f"[ExtensionRunner] OS key: {result['osKey']} modifiers={result.get('osModifiers') or ''}")
 
                 await self._emit({
                     "type": "stepComplete",
@@ -1422,8 +1541,8 @@ class ExtensionRunner:
         else:
             return False
 
-    async def _handle_mouse_op(self, cmd_type: str, result: dict, extra: dict) -> None:
-        """Move OS mouse to element + optionally click. Calibrates on first call."""
+    async def _handle_mouse_op(self, result: dict, extra: dict) -> None:
+        """Move OS mouse to element + optionally click (result.osClick). Calibrates on first call."""
         sx = result.get("screenX"); sy = result.get("screenY")
         if result.get("_needsCalib"):
             if sx is not None: _os_move_mouse(sx, sy, instant=True)
@@ -1442,8 +1561,8 @@ class ExtensionRunner:
             _os_move_mouse(sx, sy)
             result["screenX"] = sx; result["screenY"] = sy
             result.pop("_needsCalib", None)
-        # Real OS click for clickElement
-        if cmd_type == "clickElement":
+        # Real OS click (clickElement, or input focus for OS typing)
+        if result.get("osClick"):
             await asyncio.sleep(0.1)
             _os_click()
 

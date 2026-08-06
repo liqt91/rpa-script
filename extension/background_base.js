@@ -240,42 +240,75 @@ class AgentBackground {
       return;
     }
 
-    // GUI → Extension: 验证选择器 (只查可见页面: 聚焦窗口的活动页)
+    // GUI → Extension: 验证选择器 (只查物理可见页面: 非最小化窗口的 active tab)
     if (action === 'verifySelector') {
       const { requestId, selector } = payload || {};
       try {
-        let tabs = [];
-        try {
-          const wins = await chrome.windows.getAll({});
-          const focused = wins.find(w => w.focused) || wins[0];
-          if (focused) tabs = await chrome.tabs.query({ windowId: focused.id, active: true });
-        } catch (e) {
-          tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const wins = await chrome.windows.getAll({ populate: true });
+        // 1. 过滤物理可见窗口（最小化 = 内容不在屏幕上）
+        const visibleWins = wins.filter(w => w.state !== 'minimized');
+        const focused = wins.find(w => w.focused) || null;
+        // 2. 取每个可见窗口的 active tab（同窗口内只有 active tab 在屏幕上展示）
+        let candidates = [];
+        for (const w of visibleWins) {
+          let tabs = [];
+          try { tabs = await chrome.tabs.query({ windowId: w.id, active: true }); } catch (_) { continue; }
+          const tab = tabs[0];
+          if (!tab || tab.id == null || tab.discarded) continue;  // discarded = 内容已卸载，跳过
+          candidates.push(tab);
         }
-        if (!tabs.length) {
-          this._send('verifySelectorResult', { requestId, result: { error: '没有标签页' } });
-          return;
-        }
-        // 过滤: 跳过编辑器/扩展页
-        const tab = tabs.find(t =>
+        // 3. 过滤编辑器/扩展/chrome 内部页
+        candidates = candidates.filter(t =>
           t.url && /^https?:/i.test(t.url) &&
           !/127\.0\.0\.1:8000|localhost:8000/i.test(t.url) &&
           !/chrome-extension:|chrome:|edge:|devtools:/i.test(t.url)
         );
-        if (!tab) {
-          this._send('verifySelectorResult', { requestId, result: { found: false, count: 0, error: '没有可验证的网页标签页(请切到目标页面)' } });
+        if (!candidates.length) {
+          this._send('verifySelectorResult', { requestId, result: { found: false, count: 0, visible: 0, invisible: 0, error: '没有可见的网页标签页(请打开并展示目标页面)' } });
           return;
         }
-        try {
-          await ensureContentScripts(tab.id);
-          const resp = await chrome.tabs.sendMessage(tab.id, {
-            action: 'verifySelector',
-            payload: { requestId, selector },
+        // 4. 排序: focused 窗口优先, 其余按 lastAccessed 降序（最近看的优先）
+        candidates.sort((a, b) => {
+          const af = focused && a.windowId === focused.id ? 0 : 1;
+          const bf = focused && b.windowId === focused.id ? 0 : 1;
+          if (af !== bf) return af - bf;
+          return (b.lastAccessed || 0) - (a.lastAccessed || 0);
+        });
+        // 5. 逐个验证, 首个可见命中即返回
+        const scanned = [];
+        for (const tab of candidates) {
+          let resp = null;
+          try {
+            await ensureContentScripts(tab.id);
+            resp = await chrome.tabs.sendMessage(tab.id, {
+              action: 'verifySelector',
+              payload: { requestId, selector },
+            });
+          } catch (e) {
+            resp = null;  // 注入/页面异常, 跳过继续
+          }
+          if (resp && resp.visible > 0) {
+            // 提示: 打开多个相同页面时, 仅验证命中匹配到的这一个
+            const sameUrlCount = candidates.filter(t => t.url === tab.url).length;
+            this._send('verifySelectorResult', {
+              requestId,
+              result: {
+                found: true, count: resp.count || 0, visible: resp.visible || 0, invisible: resp.invisible || 0,
+                tabUrl: tab.url, tabTitle: tab.title || '',
+                sameUrlCount,
+              },
+            });
+            return;
+          }
+          scanned.push({
+            tabUrl: tab.url, tabTitle: tab.title || '',
+            count: resp?.count || 0, visible: resp?.visible || 0, invisible: resp?.invisible || 0,
           });
-          this._send('verifySelectorResult', { requestId, result: resp || { found: false, count: 0 } });
-        } catch (e) {
-          this._send('verifySelectorResult', { requestId, result: { found: false, count: 0, error: e?.message || String(e) } });
         }
+        this._send('verifySelectorResult', {
+          requestId,
+          result: { found: false, count: 0, visible: 0, invisible: 0, scanned },
+        });
       } catch (e) {
         this._send('verifySelectorResult', { requestId, result: { error: e?.message || String(e) } });
       }
@@ -501,6 +534,25 @@ chrome.commands.onCommand.addListener(async (command) => {
 // ── Handle messages from content scripts and side panel ──
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // 0a) Content script 请求把当前标签页所在窗口置前台（输入前窗口前置）
+  if (message.action === 'activateWindow') {
+    const tab = sender.tab;
+    if (!tab || tab.id == null) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    (async () => {
+      try {
+        await chrome.tabs.update(tab.id, { active: true });
+        await chrome.windows.update(tab.windowId, { focused: true });
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: e?.message || String(e) });
+      }
+    })();
+    return true; // async
+  }
+
   // 0) 选项页面请求立即重连
   if (message.action === 'reconnect') {
     (async () => {

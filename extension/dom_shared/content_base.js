@@ -1225,7 +1225,9 @@ console.log({
     _bannerTimer = setTimeout(hideRunningUI, 8000);
   }
 
-  // ─── Element action helpers ──────────────────────────────────────────
+  // ─── Element resolution helper ─────────────────────────────────────
+  // Action implementations live in each command's own handler file under
+  // dom_handlers_new/; content_base only provides shared infrastructure.
 
   function findTarget(locator, selectorFamily) {
     const el = resolveLocator(locator, selectorFamily, 'visible');
@@ -1233,171 +1235,20 @@ console.log({
     return el;
   }
 
-  async function doClick({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    const humanLike = extra?.humanLike ?? true;
-    if (humanLike) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      await sleep(randNormal(400, 150));
-    }
-    const rect = el.getBoundingClientRect();
-    const viewX = Math.round(rect.left + rect.width / 2);
-    const viewY = Math.round(rect.top + rect.height / 2);
-    _ensureCalibrationCapture();
-    // When humanLike=true, runner handles real OS click — skip synthetic
-    if (!humanLike) {
-      const action = extra?.action || 'click';
-      if (action === 'rightClick') {
-        el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-      } else if (action === 'doubleClick') {
-        el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
-      } else {
-        el.click();
-      }
-    }
-    if (humanLike) await sleep(randNormal(300, 100));
+  // Shared calibration-coordinates result used by click/input/hover handlers.
+  // Lets the runner position the real OS cursor at the element.
+  function coordsResult(viewX, viewY) {
     let cal = null;
     try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
     if (cal) {
       const dpr = window.devicePixelRatio || 1;
-      return { clicked: true, viewX, viewY,
+      return {
+        viewX, viewY,
         screenX: Math.round((cal.offX + viewX) * dpr),
-        screenY: Math.round((cal.offY + viewY) * dpr) };
+        screenY: Math.round((cal.offY + viewY) * dpr),
+      };
     }
-    return { clicked: true, viewX, viewY, dpr: window.devicePixelRatio || 1, _needsCalib: true };
-  }
-
-  async function doInput({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    const text = extra?.text ?? '';
-    const humanLike = extra?.humanLike ?? true;
-    if (humanLike) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      await sleep(randNormal(300, 100));
-    }
-    const rect2 = el.getBoundingClientRect();
-    const viewX2 = Math.round(rect2.left + rect2.width / 2);
-    const viewY2 = Math.round(rect2.top + rect2.height / 2);
-    _ensureCalibrationCapture();
-    el.focus();
-    if (extra?.clearFirst !== false) el.value = '';
-    if (humanLike) {
-      for (const ch of text) {
-        el.value += ch;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        await sleep(randNormal(80, 30));
-      }
-    } else {
-      el.value = text;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    if (extra?.action === 'inputAndPressEnter') {
-      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-      el.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-    }
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    let cal = null;
-    try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
-    if (cal) {
-      const dpr = window.devicePixelRatio || 1;
-      return { input: text, length: text.length, viewX: viewX2, viewY: viewY2,
-        screenX: Math.round((cal.offX + viewX2) * dpr),
-        screenY: Math.round((cal.offY + viewY2) * dpr) };
-    }
-    return { input: text, length: text.length, viewX: viewX2, viewY: viewY2,
-      dpr: window.devicePixelRatio || 1, _needsCalib: true };
-  }
-
-  async function doExtract({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    const action = extra?.action || 'getText';
-    let value;
-    switch (action) {
-      case 'getAttr':
-        value = (el && el.getAttribute) ? (el.getAttribute(extra?.attribute || 'value') || '') : '';
-        break;
-      case 'getHtml':
-        value = el ? (el.innerHTML || '') : '';
-        break;
-      case 'getValue':
-        value = el ? (el.value ?? el.getAttribute?.('value') ?? '') : '';
-        break;
-      case 'getText':
-      default:
-        value = el ? (el.textContent || el.innerText || '').trim() : '';
-    }
-    return { value, text: value, extracted: value };
-  }
-
-  async function doScroll({ locator, selectorFamily, extra }) {
-    const action = extra?.action || 'scrollIntoView';
-    if (action === 'scrollToBottom') return window.scrollTo(0, document.body.scrollHeight), { scrolled: true };
-    if (action === 'scrollToTop') return window.scrollTo(0, 0), { scrolled: true };
-    if (action === 'scrollOneScreen') return window.scrollBy(0, window.innerHeight * 0.8), { scrolled: true };
-    if (action === 'scrollBy') {
-      const dx = extra?.dx || 0, dy = extra?.dy || 0;
-      window.scrollBy(dx, dy);
-      return { scrolled: true };
-    }
-    // scrollIntoView
-    const el = findTarget(locator, selectorFamily);
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return { scrolled: true };
-  }
-
-  async function doHover({ locator, selectorFamily }) {
-    const el = findTarget(locator, selectorFamily);
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    await sleep(400);
-
-    const rect = el.getBoundingClientRect();
-    const viewX = Math.round(rect.left + rect.width / 2);
-    const viewY = Math.round(rect.top + rect.height / 2);
-    const dpr = window.devicePixelRatio || 1;
-
-    // ── Auto-calibration ──
-    _ensureCalibrationCapture();
-
-    let cal = null;
-    try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
-
-    if (cal) {
-      return { hovered: true, viewX, viewY,
-        screenX: Math.round((cal.offX + viewX) * dpr),
-        screenY: Math.round((cal.offY + viewY) * dpr) };
-    }
-    return { hovered: true, viewX, viewY, dpr, _needsCalib: true };
-  }
-
-  async function doUnhover({ locator, selectorFamily }) {
-    const el = findTarget(locator, selectorFamily);
-    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
-    el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true }));
-    return { unhovered: true };
-  }
-
-  async function doClearInput({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    el.focus(); el.value = '';
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return { cleared: true };
-  }
-
-  async function doSelectOption({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    const value = extra?.value ?? extra?.label ?? extra?.text;
-    if (el.tagName === 'SELECT') {
-      el.value = value;
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    return { selected: value };
-  }
-
-  async function doClickCurrentLoopItem({ extra }) {
-    // The iteration target is resolved from the loop context
-    return { clicked: true };
+    return { viewX, viewY, dpr: window.devicePixelRatio || 1, _needsCalib: true };
   }
 
   // ─── Calibration helper ──────────────────────────────────────────

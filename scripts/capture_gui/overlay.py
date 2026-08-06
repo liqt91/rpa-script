@@ -98,6 +98,11 @@ class ElementInfo:
     dom_path: list = field(default_factory=list)  # DOM层级路径
     elem_attrs: dict = field(default_factory=dict)  # 元素属性
     list_info: dict = field(default_factory=dict)  # 列表检测信息
+    page_url: str = ""  # 页面 URL（web 元素）
+    region: dict = field(default_factory=dict)  # 元素屏幕区域（图像兜底）
+    threshold: float = 0.8  # 图像匹配阈值
+    match_method: str = "template"  # 图像匹配方法
+    screen_size: dict = field(default_factory=dict)  # 捕获时屏幕分辨率
 
 
 def _get_window_text(hwnd) -> str:
@@ -420,6 +425,28 @@ _SHELL_CLASSES = {"Shell_TrayWnd", "MSTaskSwWClass", "MSTaskListWClass",
 def _is_shell(hwnd) -> bool:
     return _get_class_name(hwnd) in _SHELL_CLASSES
 
+
+def _screen_size() -> dict:
+    return {"w": _GetSystemMetrics(SM_CXSCREEN), "h": _GetSystemMetrics(SM_CYSCREEN)}
+
+
+def _grab_region_screenshot(rect: dict | None) -> str:
+    """截取屏幕指定区域，返回 base64 dataURL。失败返回空串。"""
+    if not rect or not rect.get("width", 0) > 0 or not rect.get("height", 0) > 0:
+        return ""
+    try:
+        from PIL import ImageGrab
+        import io
+        bbox = (int(rect["left"]), int(rect["top"]),
+                int(rect["left"] + rect["width"]), int(rect["top"] + rect["height"]))
+        img = ImageGrab.grab(bbox=bbox)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        import base64
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        return ""
+
 BROWSER_CHROME_HEIGHT = 88
 
 def _screen_to_viewport(sx, sy, win_rect):
@@ -464,10 +491,22 @@ def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
             if not css and fam == "css": css = syn
             if not xpath and fam == "xpath": xpath = syn
         name = result.get("name") or result.get("inner_text", "")[:30] or result.get("tag", "")
-        rect = _get_window_rect(browser_hwnd)
+        win_rect = _get_window_rect(browser_hwnd)
+        rect = win_rect
+        elem_rect = result.get("rect") or {}
+        if elem_rect.get("width", 0) > 0:
+            rect = _viewport_rect_to_screen(elem_rect, win_rect)
         cls = _get_class_name(browser_hwnd)
         title = _get_window_text(browser_hwnd)
         path = _get_ancestor_path(browser_hwnd)
+        list_info = {}
+        lf = result.get("listFamily") or {}
+        if lf.get("container"):
+            list_info = {
+                "listContainer": lf.get("container", ""),
+                "listItem": lf.get("item", ""),
+                "listSize": lf.get("size", 0),
+            }
         info = ElementInfo(
             name=name,
             element_type="web", class_name=cls, title=title,
@@ -476,9 +515,12 @@ def _capture_via_extension(browser_hwnd, sx, sy) -> ElementInfo | None:
             tag_name=result.get("tag", "") or result.get("tagName", ""),
             candidates=candidates,
             screenshot=result.get("screenshot", ""),
-            dom_path=result.get("path", []),
-            elem_attrs=result.get("attrs", {}),
-            list_info={k: result.get(k) for k in ("listContainer","listItem","listSize","listSimilarity") if result.get(k)},
+            dom_path=result.get("domPath", []),
+            elem_attrs=result.get("features", {}) or {},
+            list_info=list_info,
+            page_url=result.get("pageUrl") or result.get("url") or "",
+            region=rect,
+            screen_size=_screen_size(),
         )
         return info
     except Exception:
@@ -604,6 +646,7 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
     info = ElementInfo(name=title or cls, class_name=cls, title=title, rect=rect, hwnd=hwnd, win32_path=path)
     if _is_browser_window(cls): info.element_type = "web"
     uia = _try_uia_capture(x, y)
+    best_rect = rect
     if uia:
         info.control_type = uia.get("control_type", ""); info.automation_id = uia.get("automation_id", "")
         info.uia_path = uia.get("path", [])
@@ -612,6 +655,13 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
             "EditControl", "ButtonControl", "HyperlinkControl", "TextControl",
             "ComboBoxControl", "CheckBoxControl", "ListItemControl", "TreeItemControl"):
             info.name = uia.get("name") or title
+        uia_rect = uia.get("rect") or {}
+        if uia_rect.get("width", 0) > 0 and 0 < uia_rect.get("width", 0) <= 500 and 0 < uia_rect.get("height", 0) <= 500:
+            best_rect = uia_rect
     if _is_browser_in_chain(path) and info.element_type != "web":
         info.element_type = "web"
+    # 所有元素统一捕获区域快照（图像兜底数据）
+    info.region = best_rect
+    info.screen_size = _screen_size()
+    info.screenshot = _grab_region_screenshot(best_rect)
     return info

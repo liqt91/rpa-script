@@ -20,7 +20,7 @@ import json
 class PickFromPathHandler:
     params = [
         Param("elementName", "桌面元素", "string", required=True,
-              placeholder="元素库中 element_kind=win32 的元素名称，如 Edit \"\"",
+              placeholder="元素库中 element_type=win32 的元素名称，如 Edit \"\"",
               group="主属性"),
         Param("levelIndex", "层级序号", "number", default="0",
               placeholder="0=顶层窗口，-1=最后一层(目标控件)"),

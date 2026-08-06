@@ -19,7 +19,7 @@ import json
 class PickElementUiaHandler:
     params = [
         Param("elementName", "桌面元素", "string", required=True,
-              placeholder="元素库中 element_kind=uia 的元素名称",
+              placeholder="元素库中 element_type=uia 的元素名称",
               group="主属性"),
         Param("levelIndex", "层级序号", "number", default="-1",
               placeholder="0=顶层窗口，-1=最后一层(目标控件)"),

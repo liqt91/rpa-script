@@ -1,5 +1,0 @@
-
-
-registerHandler('getCurrentUrl', function getCurrentUrl() {
-      return window.location.href;
-    });

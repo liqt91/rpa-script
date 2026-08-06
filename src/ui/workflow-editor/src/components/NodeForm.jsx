@@ -283,14 +283,22 @@ export default function NodeForm() {
                     {selectedElement && (
                       <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 rounded px-2 py-1.5 space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                            selectedElement.element_kind === 'anchor' ? 'bg-blue-100 text-blue-600' :
-                            selectedElement.element_kind === 'child' ? 'bg-orange-100 text-orange-600' :
-                            'bg-gray-100 text-gray-500'
-                          }`}>
-                            {selectedElement.element_kind === 'anchor' ? '锚点' :
-                             selectedElement.element_kind === 'child' ? '子元素' : '普通'}
-                          </span>
+                          {selectedElement.element_type === 'win32' || selectedElement.element_type === 'uia' ? (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                              selectedElement.element_type === 'uia' ? 'bg-green-100 text-green-600' : 'bg-purple-100 text-purple-600'
+                            }`}>
+                              {selectedElement.element_type === 'uia' ? 'UIA' : '桌面'}
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                              selectedElement.element_kind === 'anchor' ? 'bg-blue-100 text-blue-600' :
+                              selectedElement.element_kind === 'child' ? 'bg-orange-100 text-orange-600' :
+                              'bg-gray-100 text-gray-500'
+                            }`}>
+                              {selectedElement.element_kind === 'anchor' ? '锚点' :
+                               selectedElement.element_kind === 'child' ? '子元素' : '普通'}
+                            </span>
+                          )}
                           {selectedElement.relative_selector && (
                             <span className="px-1.5 py-0.5 bg-[#1677ff]/10 text-[#1677ff] rounded text-[10px]">相对定位</span>
                           )}

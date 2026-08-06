@@ -23,6 +23,13 @@
       "required": true
     },
     {
+      "name": "simulateKeyboard",
+      "label": "模拟键盘输入",
+      "type": "boolean",
+      "default": true,
+      "description": "勾选后使用操作系统真实键盘逐字输入（事件可信、抗反检测）；输入前需元素已获焦点，请在前面添加「点击元素」指令获取焦点。不勾选则用 DOM 合成输入（快速）。"
+    },
+    {
       "name": "pressEnter",
       "label": "输入后按回车",
       "type": "boolean",

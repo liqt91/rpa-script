@@ -21,7 +21,6 @@ from .routers.auth_router import router as auth_router
 from .routers.tasks_router import router as tasks_router
 from .routers.workflows_router import router as workflows_router
 from .routers.extension_router import router as extension_router
-from .routers.capture_router import router as capture_router
 from .routers.commands_router import router as commands_router, cat_router
 from .routers.data_tables_router import router as data_tables_router
 from .routers.other_routers import (
@@ -234,7 +233,6 @@ app.include_router(data_tables_router)
 app.include_router(extension_router)
 app.include_router(commands_router)
 app.include_router(cat_router)
-app.include_router(capture_router)
 app.include_router(result_router)
 app.include_router(script_router)
 app.include_router(client_router)
@@ -281,7 +279,13 @@ def workflow_editor_spa(request: Request, path: str = "", db: Session = Depends(
 
     # Return index.html with injected user data
     html = _inject_user_to_index(user)
-    return HTMLResponse(content=html)
+    resp = HTMLResponse(content=html)
+    # SPA entry must never be cached: it references hashed, immutable assets,
+    # so always revalidate it or users keep loading a stale build.
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @app.get("/")

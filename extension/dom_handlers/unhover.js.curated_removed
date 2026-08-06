@@ -1,3 +1,0 @@
-
-
-registerHandler('unhover', async function unhover(args) { return doUnhover(args); });

@@ -23,13 +23,19 @@ from dataclasses import dataclass
 _GENERIC_PARAMS_CACHE: dict | None = None
 
 
-def _merge_fields_registry(specific, generic):
-    """Merge generic params into specific, dedup by name (specific wins)."""
+def _merge_fields_registry(specific, generic, exclude=()):
+    """Merge generic params into specific, dedup by name (specific wins).
+
+    :param exclude: names of generic params to skip entirely (per-command
+        override, e.g. inputElement renames the generic humanLike field).
+    """
+    excluded = set(exclude or ())
     seen = {f.get("name") for f in specific if f.get("name")}
     merged = list(specific)
     for f in generic:
-        if f.get("name") and f["name"] not in seen:
-            seen.add(f["name"])
+        name = f.get("name")
+        if name and name not in seen and name not in excluded:
+            seen.add(name)
             merged.append(f)
     return merged
 
@@ -129,6 +135,7 @@ def register_handler(
     command_order: int = 0,
     enabled: bool = True,
     summary_tpl: str = "",  # "{windowTitle} ({searchMode})" — stepStart 日志摘要模板
+    exclude_generic: tuple[str, ...] = (),  # 通用参数名，本指令不注入（如 inputElement 用 simulateKeyboard 替代 humanLike）
 ):
     """装饰器：注册一个 handler 及其参数声明。
     
@@ -165,6 +172,7 @@ def register_handler(
             "commandOrder": command_order,
             "enabled": enabled,
             "summaryTpl": summary_tpl,
+            "excludeGeneric": list(exclude_generic),
             "handler_class": cls,
         }
         return cls
@@ -197,6 +205,7 @@ def build_command_registry() -> dict[str, dict]:
             runtimes = {}
 
         is_structural = hdef.get("isContainer") or hdef.get("isBranch") or hdef.get("isStructural")
+        exclude = hdef.get("excludeGeneric") or ()
 
         entry = {
             "cmd": handler_type,
@@ -209,7 +218,7 @@ def build_command_registry() -> dict[str, dict]:
             "isBranch": hdef["isBranch"],
             "isStructural": hdef["isStructural"],
             "closesWith": hdef["closesWith"],
-            "fields": _merge_fields_registry(hdef["params"], [] if is_structural else _generic_params_for(hdef["runtime"])),
+            "fields": _merge_fields_registry(hdef["params"], [] if is_structural else _generic_params_for(hdef["runtime"]), exclude=exclude),
             "description": hdef["description"],
             "categoryOrder": hdef["categoryOrder"],
             "commandOrder": hdef["commandOrder"],
@@ -228,7 +237,8 @@ def get_command(type_name: str) -> dict | None:
 
     is_structural = h.get("isContainer") or h.get("isBranch") or h.get("isStructural")
     is_control = h["runtime"] == "control"
-    fields = _merge_fields_registry(h["params"], [] if is_structural else _generic_params_for(h["runtime"]))
+    exclude = h.get("excludeGeneric") or ()
+    fields = _merge_fields_registry(h["params"], [] if is_structural else _generic_params_for(h["runtime"]), exclude=exclude)
 
     return {
         "cmd": h["cmd"], "label": h["label"], "category": h["category"],

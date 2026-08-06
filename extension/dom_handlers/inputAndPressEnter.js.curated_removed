@@ -1,3 +1,0 @@
-
-
-registerHandler('inputAndPressEnter', async (args) => doInput(args));

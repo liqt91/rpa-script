@@ -54,6 +54,159 @@ def _selector_family(value: str) -> str:
     return "css"
 
 
+def _looks_like_capture(attributes: dict) -> bool:
+    """Whether an attributes dict is an ElementInfo-shaped capture payload.
+
+    The unified capture tool (GUI) sends the raw ElementInfo structure inside
+    `attributes`. Detect it so create/update can normalize to canonical columns.
+
+    Detection is intentionally narrow: it matches only the *raw* capture shape,
+    not already-normalized stored attributes (which carry `path`, not
+    `win32_path`/`uia_path`, and no top-level `candidates`/`dom_path`/`css_selector`).
+    """
+    if not isinstance(attributes, dict):
+        return False
+    # Raw desktop capture (ElementInfo) carries the ancestor chains.
+    if "win32_path" in attributes or "uia_path" in attributes:
+        return True
+    # Raw web capture carries candidates + dom_path + css_selector at top level.
+    if (isinstance(attributes.get("candidates"), list)
+            and isinstance(attributes.get("dom_path"), list)
+            and "css_selector" in attributes):
+        return True
+    return False
+
+
+def _uia_path_meaningful(path: list) -> bool:
+    """UIA chain is worth keeping when the leaf carries UIA-specific info."""
+    if not path or not isinstance(path, list):
+        return False
+    leaf = path[-1] if isinstance(path[-1], dict) else {}
+    if leaf.get("control_type") or leaf.get("automation_id") or leaf.get("name"):
+        rect = leaf.get("rect") or {}
+        if rect.get("width", 0) > 0 and rect.get("height", 0) > 0:
+            return True
+    return False
+
+
+def normalize_element_capture(attributes: dict) -> dict:
+    """Normalize an ElementInfo-shaped capture payload into canonical storage fields.
+
+    Applied at the create/update boundary so every capture path (GUI web/win32/uia)
+    produces elements the runtime can consume:
+      - web     → web_selector + candidates/dom_path/attributes columns
+      - win32   → attributes.path = win32 ancestor chain
+      - uia     → attributes.path = uia ancestor chain
+
+    All channels keep a screenshot + image-fallback metadata (region/threshold/
+    match_method/screen_size) so the runtime can later do image-based fallback.
+    Returns a dict of fields; caller merges into the create/update payload.
+    """
+    et = attributes.get("element_type") or "web"
+    name = attributes.get("name") or ""
+    screenshot = attributes.get("screenshot") or None
+    if isinstance(screenshot, str) and len(screenshot) > 5_000_000:
+        screenshot = None
+    page_url = (attributes.get("page_url") or attributes.get("pageUrl") or "")[:2048]
+
+    image_meta = {
+        "region": attributes.get("region") or attributes.get("rect") or {},
+        "threshold": attributes.get("threshold", 0.8),
+        "match_method": attributes.get("match_method", "template"),
+        "screen_size": attributes.get("screen_size") or {},
+    }
+
+    if et == "web":
+        candidates = attributes.get("candidates") or []
+        css, xpath, drission = _partition_candidates(candidates)
+        selector = attributes.get("css_selector") or ""
+        if not selector and css:
+            selector = css[0].get("syntax", "")
+        if not selector and xpath:
+            selector = xpath[0].get("syntax", "")
+        web_selector = selector[:4000]
+        drission_selector = (attributes.get("drission_selector") or "")
+        if not drission_selector and drission:
+            drission_selector = drission[0].get("syntax", "")[:4000]
+        dom_path = attributes.get("dom_path") or []
+        attrs = dict(attributes.get("elem_attrs") or {})
+        attrs["element_type"] = "web"
+        attrs.update(image_meta)
+        return {
+            "element_type": "web",
+            "element_kind": "plain",
+            "web_selector": web_selector,
+            "drission_selector": drission_selector,
+            "css_candidates": css,
+            "xpath_candidates": xpath,
+            "drission_candidates": drission,
+            "dom_path": dom_path,
+            "attributes": attrs,
+            "page_url": page_url,
+            "screenshot": screenshot,
+        }
+
+    # ── Desktop: win32 vs uia channel ──
+    win32_path = attributes.get("win32_path") or []
+    uia_path = attributes.get("uia_path") or []
+    if _uia_path_meaningful(uia_path):
+        element_type = "uia"
+        path = uia_path
+        leaf = uia_path[-1] if isinstance(uia_path[-1], dict) else {}
+        desktop_attrs = {
+            "element_type": "uia",
+            "name": leaf.get("name", "") or name,
+            "class_name": leaf.get("class_name", ""),
+            "control_type": leaf.get("control_type", ""),
+            "automation_id": leaf.get("automation_id", ""),
+            "rect": leaf.get("rect") or attributes.get("rect") or {},
+        }
+    elif attributes.get("element_type") in ("win32", "uia") and not win32_path:
+        # Already-canonical desktop attributes (no raw chains): keep as-is.
+        element_type = attributes["element_type"]
+        path = attributes.get("path") or []
+        desktop_attrs = {
+            "element_type": element_type,
+            "name": attributes.get("name", ""),
+            "class_name": attributes.get("class_name", ""),
+            "control_type": attributes.get("control_type", ""),
+            "automation_id": attributes.get("automation_id", ""),
+            "hwnd": attributes.get("hwnd", 0),
+            "title": attributes.get("title", ""),
+            "rect": attributes.get("rect") or {},
+        }
+    else:
+        element_type = "win32"
+        path = win32_path or attributes.get("path") or []
+        desktop_attrs = {
+            "element_type": "win32",
+            "hwnd": attributes.get("hwnd", 0),
+            "class_name": attributes.get("class_name", ""),
+            "title": attributes.get("title", ""),
+            "rect": attributes.get("rect") or {},
+        }
+    desktop_attrs["path"] = path
+    desktop_attrs.update(image_meta)
+    if uia_path and element_type == "win32":
+        # Keep the finer UIA chain as a bonus for future reclassification.
+        desktop_attrs["uia_path"] = uia_path
+
+    return {
+        "element_type": element_type,
+        "element_kind": "plain",
+        "web_selector": "",
+        "drission_selector": "",
+        "css_candidates": [],
+        "xpath_candidates": [],
+        "drission_candidates": [],
+        "dom_path": [],
+        "attributes": desktop_attrs,
+        "page_url": page_url,
+        "screenshot": screenshot,
+    }
+
+
+
 def build_element_index(elements: list[models.WorkflowElement]) -> dict[str, models.WorkflowElement]:
     """Return a name -> element lookup for a workflow's element library."""
     return {el.name: el for el in elements}
@@ -402,6 +555,7 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
 
             # Update existing element
             existing.name = name
+            existing.element_type = "web"
             existing.element_kind = element_kind
             existing.target_mode = target_mode
             existing.css_candidates = json.dumps(css_cands)
@@ -426,6 +580,7 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
         el = models.WorkflowElement(
             workflow_id=workflow_id,
             name=name,
+            element_type="web",
             element_kind=element_kind,
             target_mode=target_mode,
             css_candidates=json.dumps(css_cands),

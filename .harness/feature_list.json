@@ -78,6 +78,49 @@
         { "id": "test", "title": "Status endpoint + smoke tests pass", "done": true }
       ],
       "domain": "workflows"
+    },
+    {
+      "id": "capture-unified-entry-storage",
+      "title": "元素捕获统一入口 + 统一存储结构（element_type 两维判别）",
+      "passes": false,
+      "steps": [
+        { "id": "migration", "title": "Migration 014: element_type column + win32/uia 迁移", "done": true },
+        { "id": "normalize", "title": "elements_service.normalize_element_capture + create/update 边界接入", "done": true },
+        { "id": "overlay", "title": "GUI 捕获链路修复：domPath/features/listFamily 映射 + 桌面截图 + 新字段", "done": true },
+        { "id": "modal", "title": "CaptureToolModal 保存 {name, attributes} + 帮助指南折叠", "done": true },
+        { "id": "cleanup", "title": "移除旧入口（网页/桌面/UIA 按钮、picker 端点/脚本、capture_router、图像库 tab）", "done": true },
+        { "id": "test", "title": "端到端：GUI 捕获 → 保存 → 元素库显示/验证通过", "done": false }
+      ],
+      "domain": "workflows"
+    },
+    {
+      "id": "verify-visible-tabs-stats",
+      "title": "元素验证：可见标签页遍历 + 可见/不可见统计",
+      "passes": true,
+      "steps": [
+        { "id": "content", "title": "content_capture.js verifySelector 返回 total/visible/invisible 统计", "done": true },
+        { "id": "background", "title": "background 遍历物理可见窗口 active tab（非最小化/discarded/URL过滤/focused+lastAccessed 排序）", "done": true },
+        { "id": "backend", "title": "verify-selector 跨浏览器 fan-out 汇总（含 browser 标识）", "done": true },
+        { "id": "ui", "title": "CaptureToolModal 展示「命中 N 个 · 可见 X · 不可见 Y」+ 命中页", "done": true },
+        { "id": "deploy", "title": "重建 dist/desktop/extension + 前端 bundle", "done": true },
+        { "id": "test", "title": "fan-out 单测（3 例）+ 全量 pytest + 结构测试通过", "done": true }
+      ],
+      "domain": "workflows"
+    },
+    {
+      "id": "web-command-arch-refactor",
+      "title": "web 指令动作下沉到各 JS handler + 移除遗留指令系统",
+      "passes": true,
+      "steps": [
+        { "id": "js", "title": "各指令 handler 自实现动作，content_base 仅留共享基建 + coordsResult", "done": true },
+        { "id": "js-delete", "title": "删除遗留 dom_handlers/elementAction，navigate/newTab/closeBrowser 移入 new", "done": true },
+        { "id": "py-registry", "title": "删 workflow/handlers/{extension,backend,flow} 旧注册 + LEGACY_MAP", "done": true },
+        { "id": "pressenter", "title": "inputElement 按数据参数 pressEnter 执行 + Enter 可靠性(requestSubmit 兜底)", "done": true },
+        { "id": "runner", "title": "runner 按 result.osKey 数据发 OS 键（去除指令名特判）", "done": true },
+        { "id": "registry-fix", "title": "auto_register 幂等 + LOCAL_HANDLERS 懒加载（依赖注册表全量）", "done": true },
+        { "id": "test", "title": "重写指令集测试 + 全量 pytest(117) + 结构测试通过", "done": true }
+      ],
+      "domain": "workflows"
     }
   ]
 }

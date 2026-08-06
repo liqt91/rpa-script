@@ -32,7 +32,7 @@ def main():
         if not info:
             print(json.dumps({"cancelled": True}))
             return
-        print(json.dumps(_info_to_dict(info), ensure_ascii=False))
+        print(json.dumps(_info_to_dict(info, keep_screenshot=True), ensure_ascii=False))
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)

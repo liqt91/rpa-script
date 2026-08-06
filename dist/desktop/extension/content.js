@@ -1225,7 +1225,9 @@ console.log({
     _bannerTimer = setTimeout(hideRunningUI, 8000);
   }
 
-  // ─── Element action helpers ──────────────────────────────────────────
+  // ─── Element resolution helper ─────────────────────────────────────
+  // Action implementations live in each command's own handler file under
+  // dom_handlers_new/; content_base only provides shared infrastructure.
 
   function findTarget(locator, selectorFamily) {
     const el = resolveLocator(locator, selectorFamily, 'visible');
@@ -1233,171 +1235,20 @@ console.log({
     return el;
   }
 
-  async function doClick({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    const humanLike = extra?.humanLike ?? true;
-    if (humanLike) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      await sleep(randNormal(400, 150));
-    }
-    const rect = el.getBoundingClientRect();
-    const viewX = Math.round(rect.left + rect.width / 2);
-    const viewY = Math.round(rect.top + rect.height / 2);
-    _ensureCalibrationCapture();
-    // When humanLike=true, runner handles real OS click — skip synthetic
-    if (!humanLike) {
-      const action = extra?.action || 'click';
-      if (action === 'rightClick') {
-        el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-      } else if (action === 'doubleClick') {
-        el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
-      } else {
-        el.click();
-      }
-    }
-    if (humanLike) await sleep(randNormal(300, 100));
+  // Shared calibration-coordinates result used by click/input/hover handlers.
+  // Lets the runner position the real OS cursor at the element.
+  function coordsResult(viewX, viewY) {
     let cal = null;
     try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
     if (cal) {
       const dpr = window.devicePixelRatio || 1;
-      return { clicked: true, viewX, viewY,
+      return {
+        viewX, viewY,
         screenX: Math.round((cal.offX + viewX) * dpr),
-        screenY: Math.round((cal.offY + viewY) * dpr) };
+        screenY: Math.round((cal.offY + viewY) * dpr),
+      };
     }
-    return { clicked: true, viewX, viewY, dpr: window.devicePixelRatio || 1, _needsCalib: true };
-  }
-
-  async function doInput({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    const text = extra?.text ?? '';
-    const humanLike = extra?.humanLike ?? true;
-    if (humanLike) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      await sleep(randNormal(300, 100));
-    }
-    const rect2 = el.getBoundingClientRect();
-    const viewX2 = Math.round(rect2.left + rect2.width / 2);
-    const viewY2 = Math.round(rect2.top + rect2.height / 2);
-    _ensureCalibrationCapture();
-    el.focus();
-    if (extra?.clearFirst !== false) el.value = '';
-    if (humanLike) {
-      for (const ch of text) {
-        el.value += ch;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        await sleep(randNormal(80, 30));
-      }
-    } else {
-      el.value = text;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    if (extra?.action === 'inputAndPressEnter') {
-      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-      el.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-    }
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    let cal = null;
-    try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
-    if (cal) {
-      const dpr = window.devicePixelRatio || 1;
-      return { input: text, length: text.length, viewX: viewX2, viewY: viewY2,
-        screenX: Math.round((cal.offX + viewX2) * dpr),
-        screenY: Math.round((cal.offY + viewY2) * dpr) };
-    }
-    return { input: text, length: text.length, viewX: viewX2, viewY: viewY2,
-      dpr: window.devicePixelRatio || 1, _needsCalib: true };
-  }
-
-  async function doExtract({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    const action = extra?.action || 'getText';
-    let value;
-    switch (action) {
-      case 'getAttr':
-        value = (el && el.getAttribute) ? (el.getAttribute(extra?.attribute || 'value') || '') : '';
-        break;
-      case 'getHtml':
-        value = el ? (el.innerHTML || '') : '';
-        break;
-      case 'getValue':
-        value = el ? (el.value ?? el.getAttribute?.('value') ?? '') : '';
-        break;
-      case 'getText':
-      default:
-        value = el ? (el.textContent || el.innerText || '').trim() : '';
-    }
-    return { value, text: value, extracted: value };
-  }
-
-  async function doScroll({ locator, selectorFamily, extra }) {
-    const action = extra?.action || 'scrollIntoView';
-    if (action === 'scrollToBottom') return window.scrollTo(0, document.body.scrollHeight), { scrolled: true };
-    if (action === 'scrollToTop') return window.scrollTo(0, 0), { scrolled: true };
-    if (action === 'scrollOneScreen') return window.scrollBy(0, window.innerHeight * 0.8), { scrolled: true };
-    if (action === 'scrollBy') {
-      const dx = extra?.dx || 0, dy = extra?.dy || 0;
-      window.scrollBy(dx, dy);
-      return { scrolled: true };
-    }
-    // scrollIntoView
-    const el = findTarget(locator, selectorFamily);
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return { scrolled: true };
-  }
-
-  async function doHover({ locator, selectorFamily }) {
-    const el = findTarget(locator, selectorFamily);
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    await sleep(400);
-
-    const rect = el.getBoundingClientRect();
-    const viewX = Math.round(rect.left + rect.width / 2);
-    const viewY = Math.round(rect.top + rect.height / 2);
-    const dpr = window.devicePixelRatio || 1;
-
-    // ── Auto-calibration ──
-    _ensureCalibrationCapture();
-
-    let cal = null;
-    try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
-
-    if (cal) {
-      return { hovered: true, viewX, viewY,
-        screenX: Math.round((cal.offX + viewX) * dpr),
-        screenY: Math.round((cal.offY + viewY) * dpr) };
-    }
-    return { hovered: true, viewX, viewY, dpr, _needsCalib: true };
-  }
-
-  async function doUnhover({ locator, selectorFamily }) {
-    const el = findTarget(locator, selectorFamily);
-    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
-    el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true }));
-    return { unhovered: true };
-  }
-
-  async function doClearInput({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    el.focus(); el.value = '';
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return { cleared: true };
-  }
-
-  async function doSelectOption({ locator, selectorFamily, extra }) {
-    const el = findTarget(locator, selectorFamily);
-    const value = extra?.value ?? extra?.label ?? extra?.text;
-    if (el.tagName === 'SELECT') {
-      el.value = value;
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    return { selected: value };
-  }
-
-  async function doClickCurrentLoopItem({ extra }) {
-    // The iteration target is resolved from the loop context
-    return { clicked: true };
+    return { viewX, viewY, dpr: window.devicePixelRatio || 1, _needsCalib: true };
   }
 
   // ─── Calibration helper ──────────────────────────────────────────
@@ -1420,343 +1271,172 @@ console.log({
   });
 
 
-  // ── checkElementExists ──
-// ─── Condition check handlers ───────────────────────────────────
-
-registerHandler('checkElementExists', async function checkElementExists({ locator, selectorFamily, extra }) {
-      const mode = getVisibilityMode(extra);
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      try {
-        await waitForElementWithContext(locator, selectorFamily, extra, mode, timeoutMs);
-        return { exists: true };
-      } catch (e) {
-        return { exists: false };
-      }
-    });
-
-
-  // ── click ──
-
-
-registerHandler('click', async function click(args) { return doClick(args); });
+  // ── clickElement ──
+/**
+ * clickElement — DOM handler.
+ *
+ * Self-contained click implementation. Uses shared infra from content_base.js
+ * (findTarget / sleep / randNormal / _ensureCalibrationCapture / coordsResult).
+ * humanLike=true: runner performs the real OS click at the returned coords.
+ * humanLike=false: dispatch synthetic click (left/right/double via clickType).
+ */
+registerHandler('clickElement', async function clickElement({ locator, selectorFamily, extra }) {
+  const el = findTarget(locator, selectorFamily);
+  const humanLike = extra?.humanLike ?? true;
+  if (humanLike) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await sleep(randNormal(400, 150));
+  }
+  const rect = el.getBoundingClientRect();
+  const viewX = Math.round(rect.left + rect.width / 2);
+  const viewY = Math.round(rect.top + rect.height / 2);
+  _ensureCalibrationCapture();
+  if (!humanLike) {
+    const clickType = extra?.clickType || 'left';
+    if (clickType === 'right') {
+      el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    } else if (clickType === 'double') {
+      el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    } else {
+      el.click();
+    }
+  }
+  if (humanLike) await sleep(randNormal(300, 100));
+  return { clicked: true, osClick: true, ...coordsResult(viewX, viewY) };
+});
 
 
   // ── closeBrowser ──
-
-
+/**
+ * closeBrowser — DOM handler. Closing is handled by background.js.
+ */
 registerHandler('closeBrowser', function closeBrowser() {
-      // handled by background.js (chrome.windows.remove)
-      return {};
-    });
-
-
-  // ── elementAction ──
-
-
-registerHandler('elementAction', async function elementAction({ locator, selectorFamily, extra }) {
-    const action = extra?.action;
-    if (!action) throw new Error('elementAction: extra.action is required');
-    switch (action) {
-      case 'click':
-      case 'doubleClick':
-      case 'rightClick':
-        return doClick({ locator, selectorFamily, extra });
-      case 'clickCurrentLoopItem':
-        return doClickCurrentLoopItem({ extra });
-      case 'input':
-      case 'inputAndPressEnter':
-        return doInput({ locator, selectorFamily, extra });
-      case 'extract':
-      case 'getText':
-      case 'getAttr':
-      case 'getHtml':
-      case 'getValue':
-        return doExtract({ locator, selectorFamily, extra });
-      case 'scroll':
-      case 'scrollToBottom':
-      case 'scrollToTop':
-      case 'scrollOneScreen':
-      case 'scrollIntoView':
-      case 'scrollBy':
-        return doScroll({ locator, selectorFamily, extra });
-      case 'hover':
-        return doHover({ locator, selectorFamily, extra });
-      case 'unhover':
-        return doUnhover({ locator, selectorFamily, extra });
-      case 'clearInput':
-        return doClearInput({ locator, selectorFamily, extra });
-      case 'selectOption':
-        return doSelectOption({ locator, selectorFamily, extra });
-      default:
-        throw new Error(`elementAction: unknown action "${action}"`);
-    }
-  });
-
-
-  // ── executeJs ──
-
-
-registerHandler('executeJs', function executeJs({ extra }) {
-      const script = extra?.script;
-      if (!script) throw new Error('executeJs: script required');
-      // eslint-disable-next-line no-eval
-      const result = eval(script);
-      return { executed: true, result: String(result) };
-    });
-
-
-  // ── extract ──
-
-
-registerHandler('extract', async function extract(args) { return doExtract(args); });
-
-
-  // ── findElements ──
-
-
-registerHandler('findElements', async function findElements({ locator, selectorFamily, extra }) {
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const mode = getVisibilityMode(extra);
-      const ctxLocator = extra?.contextLocator;
-      const ctxLocatorType = extra?.contextLocatorType;
-      const ctxIndex = extra?.contextIndex ?? 0;
-      const srcLocator = extra?.sourceLocator;
-      const srcLocatorType = extra?.sourceSelectorFamily;
-      const srcIndex = extra?.sourceIndex ?? 0;
-      const start = Date.now();
-      let elements = [];
-      while (Date.now() - start < timeoutMs) {
-        let parent = null;
-        if (ctxLocator) {
-          const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
-          parent = parents[ctxIndex];
-        }
-        if (!parent && srcLocator) {
-          const parents = resolveAllLocators(srcLocator, srcLocatorType);
-          parent = parents[srcIndex];
-        }
-        if (extra?.useRelative && extra?.relativeLocator && parent) {
-          elements = resolveAllRelativeInContext(extra.relativeLocator, extra.relativeSelectorFamily, parent);
-        } else if (parent) {
-          elements = resolveAllLocatorsInContext(locator, selectorFamily, parent);
-        } else {
-          elements = resolveAllLocators(locator, selectorFamily);
-        }
-        const rawCount = elements.length;
-        if (mode !== 'any') {
-          elements = elements.filter(el => checkVisibility(el, mode));
-        }
-        console.log(`[RPA findElements] raw=${rawCount} filtered=${elements.length} mode=${mode} locator=${JSON.stringify(locator)} ctx=${ctxLocator ? 'yes' : 'no'}`);
-        if (elements.length > 0) break;
-        await sleep(200);
-      }
-      const items = elements.map((el, idx) => ({
-        text: el.textContent?.trim() ?? '',
-        html: el.innerHTML?.slice(0, 500) ?? '',
-        tagName: el.tagName,
-        index: idx,
-        contextLocator: getElementXPath(el),
-        contextLocatorType: 'xpath',
-      }));
-      return { count: items.length, items };
-    });
-
-
-  // ── getAttribute ──
-
-
-registerHandler('getAttribute', async (args) => {
-      args.extra = { ...(args.extra || {}), action: 'getAttr' };
-      return doExtract(args);
-  });
-
-
-  // ── getText ──
-
-
-registerHandler('getText', async (args) => {
-      args.extra = { ...(args.extra || {}), action: 'getText' };
-      return doExtract(args);
-  });
-
-
-  // ── getValue ──
-
-
-registerHandler('getValue', async (args) => {
-      args.extra = { ...(args.extra || {}), action: 'getValue' };
-      return doExtract(args);
-  });
-
-
-  // ── hover ──
-
-
-registerHandler('hover', async function hover(args) { return doHover(args); });
-
-
-  // ── input ──
-
-
-registerHandler('input', async function input(args) { return doInput(args); });
-
-
-  // ── inputText ──
-
-
-registerHandler('inputText', async (args) => doInput(args));
-
-
-  // ── navigate ──
-
-
-registerHandler('navigate', function navigate({ extra }) {
-      const url = extra?.url;
-      if (!url) throw new Error('navigate: url required');
-      window.location.href = url;
-      return { navigatedTo: url };
-    });
-
-
-  // ── newTab ──
-
-
-registerHandler('newTab', function newTab({ extra }) {
-      const url = extra?.url;
-      if (!url) throw new Error('newTab: url required');
-      window.open(url, '_blank');
-      return { opened: url };
-    });
-
-
-  // ── pressKey ──
-
-
-registerHandler('pressKey', async function pressKey({ extra }) {
-      const key = extra?.key || 'Enter';
-      const humanLike = extra?.humanLike ?? true;
-      const modifiers = ['Control', 'Alt', 'Shift', 'Meta'];
-      const isModifier = modifiers.includes(key);
-      const hasModifier = extra?.modifiers?.some(m => modifiers.includes(m));
-
-      if (humanLike && (isModifier || hasModifier)) {
-        await sleep(rand(30, 100));
-      }
-      if (humanLike && (key === 'Enter' || key === 'Tab')) {
-        await sleep(rand(200, 600));
-      }
-
-      document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
-      if (humanLike && !isModifier) await sleep(rand(80, 200));
-      document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
-      return { pressed: key };
-    });
-
-
-  // ── scroll ──
-
-
-registerHandler('scroll', async function scroll(args) { return doScroll(args); });
-
-
-  // ── scrollIntoView ──
-
-
-registerHandler('scrollIntoView', async (args) => {
-      args.extra = { ...(args.extra || {}), action: 'scrollIntoView' };
-      return doScroll(args);
-  });
-
-
-  // ── scrollToBottom ──
-
-
-registerHandler('scrollToBottom', async (args) => {
-      args.extra = { ...(args.extra || {}), action: 'scrollToBottom' };
-      return doScroll(args);
-  });
-
-
-  // ── takeScreenshot ──
-// ─── takeScreenshot ──────────────────────────────────────────────
-
-registerHandler('takeScreenshot', async function takeScreenshotHandler({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    if (locator) {
-      // Screenshot of a specific element
-      const timeoutMs = (extra?.timeout ?? 10) * 1000;
-      const el = await waitForElement(locator, selectorFamily, mode, timeoutMs);
-      el.scrollIntoView({ block: 'center', behavior: 'instant' });
-      await sleep(200);
-      const rect = el.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const resp = await chrome.runtime.sendMessage({
-        action: 'captureElementScreenshot',
-        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-        dpr,
-      });
-      if (resp?.error) throw new Error(`截图失败: ${resp.error}`);
-      return { dataUrl: resp.dataUrl, elementScreenshot: true };
-    }
-    // Full page screenshot
-    const resp = await chrome.runtime.sendMessage({ action: 'captureScreenshot' });
-    if (resp?.error) throw new Error(`截图失败: ${resp.error}`);
-    return { dataUrl: resp.dataUrl, elementScreenshot: false };
-  });
-
-
-  // ── waitForElement ──
-// ─── waitForElement / waitForElementHide ─────────────────────────
-
-registerHandler('waitForElement', async function waitForElementHandler({ locator, selectorFamily, extra }) {
-    const mode = getVisibilityMode(extra);
-    const timeoutMs = (extra?.timeout ?? 10) * 1000;
-    await waitForElement(locator, selectorFamily, mode, timeoutMs);
-    return { appeared: true };
-  });
-
-
-  // ── clickElement ──
-
-registerHandler('clickElement', async (args) => doClick(args));
+  return {};
+});
 
 
   // ── getElementLink ──
 /**
  * getElementLink — DOM handler.
- * Extracts the href attribute from an element.
+ *
+ * Self-contained implementation: extracts the href attribute.
  */
-registerHandler('getElementLink', async (args) => {
-  args.extra = { ...(args.extra || {}), action: 'getAttr', attribute: 'href' };
-  return doExtract(args);
+registerHandler('getElementLink', async function getElementLink({ locator, selectorFamily }) {
+  const el = findTarget(locator, selectorFamily);
+  const value = (el && el.getAttribute) ? (el.getAttribute('href') || '') : '';
+  return { value, text: value, extracted: value };
 });
 
 
   // ── getText ──
-
-
-registerHandler('getText', async (args) => {
-      args.extra = { ...(args.extra || {}), action: 'getText' };
-      return doExtract(args);
-  });
+/**
+ * getText — DOM handler.
+ *
+ * Self-contained text extraction. Future extraction commands (getValue /
+ * getAttribute / ...) will each own their own handler.
+ */
+registerHandler('getText', async function getText({ locator, selectorFamily }) {
+  const el = findTarget(locator, selectorFamily);
+  const value = (el.textContent || el.innerText || '').trim();
+  return { value, text: value, extracted: value };
+});
 
 
   // ── hover ──
 /**
  * hover — DOM handler.
  *
- * Hovers the mouse over the target element.
- * Delegates to doHover in content_base.js.
+ * Self-contained hover implementation. Moves the real OS cursor to the element
+ * (runner) via returned coords; no click is performed.
  */
-registerHandler('hover', async function(step) {
-  const { locator, selectorFamily, extra } = step;
-  return await doHover({ locator, selectorFamily, extra });
+registerHandler('hover', async function hover({ locator, selectorFamily }) {
+  const el = findTarget(locator, selectorFamily);
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  await sleep(400);
+  const rect = el.getBoundingClientRect();
+  const viewX = Math.round(rect.left + rect.width / 2);
+  const viewY = Math.round(rect.top + rect.height / 2);
+  _ensureCalibrationCapture();
+  return { hovered: true, ...coordsResult(viewX, viewY) };
 });
 
 
   // ── inputElement ──
+/**
+ * inputElement — DOM handler.
+ *
+ * 模拟键盘输入（simulateKeyboard=true）: 使用操作系统真实键盘逐字输入
+ * （runner 用 SendInput）。不移动鼠标/不点击 —— 获取焦点需在前面添加
+ * 「点击元素」指令（见参数提示）。
+ *
+ * 模拟键盘输入=false: DOM 合成输入（el.value + input 事件，快速）。
+ */
+registerHandler('inputElement', async function inputElement({ locator, selectorFamily, extra }) {
+  const el = findTarget(locator, selectorFamily);
+  const text = extra?.text ?? '';
+  const keyboard = extra?.simulateKeyboard ?? true;
 
-registerHandler('inputElement', async (args) => doInput(args));
+  if (!keyboard) {
+    // DOM 合成输入
+    el.focus();
+    if (extra?.clearFirst !== false) el.value = '';
+    el.value = text;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    if (extra?.pressEnter === true) {
+      const keyInit = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+      const notCancelled = el.dispatchEvent(new KeyboardEvent('keydown', keyInit));
+      el.dispatchEvent(new KeyboardEvent('keypress', keyInit));
+      el.dispatchEvent(new KeyboardEvent('keyup', keyInit));
+      const form = el.form;
+      if (notCancelled && form && typeof form.requestSubmit === 'function') {
+        try { form.requestSubmit(); } catch (_) {}
+      }
+    }
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return { input: text, length: text.length };
+  }
+
+  // 模拟键盘输入 → OS 级真实键入（SendInput）。先把目标浏览器窗口/标签页置前台，
+  // 确保真实按键送达；焦点由前面的「点击元素」指令提供。
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  await sleep(randNormal(300, 100));
+  el.focus();
+  try {
+    await chrome.runtime.sendMessage({ action: 'activateWindow' });
+    await sleep(200);
+  } catch (_) {}
+  return {
+    input: text,
+    length: text.length,
+    osType: text,
+    osClear: extra?.clearFirst !== false,
+    osEnter: extra?.pressEnter === true,
+  };
+});
+
+
+  // ── navigate ──
+/**
+ * navigate — DOM handler. Navigates the current tab.
+ */
+registerHandler('navigate', function navigate({ extra }) {
+  const url = extra?.url;
+  if (!url) throw new Error('navigate: url required');
+  window.location.href = url;
+  return { navigatedTo: url };
+});
+
+
+  // ── newTab ──
+/**
+ * newTab — DOM handler. Opens a URL in a new tab.
+ */
+registerHandler('newTab', function newTab({ extra }) {
+  const url = extra?.url;
+  if (!url) throw new Error('newTab: url required');
+  window.open(url, '_blank');
+  return { opened: url };
+});
 
 
   // ── pressKey ──
@@ -1771,9 +1451,11 @@ registerHandler('pressKey', async function({ extra }) {
   const humanLike = extra?.humanLike ?? true;
   const modifiers = extra?.modifiers || '';
 
-  // When humanLike=true, runner sends OS key directly
+  // When humanLike=true, runner sends OS key directly (trusted keybd_event)
   if (humanLike) {
-    return { pressed: key };
+    const modList = Array.isArray(modifiers) ? modifiers
+      : modifiers.split(',').map(s => s.trim()).filter(Boolean);
+    return { pressed: key, osKey: key, osModifiers: modList.join(',') };
   }
 
   // humanLike=false: synthetic event dispatch
@@ -1802,12 +1484,13 @@ registerHandler('pressKey', async function({ extra }) {
 /**
  * scrollIntoView — DOM handler.
  *
- * Scrolls the page so the target element is visible.
- * Delegates to doScroll in content_base.js.
+ * Self-contained scroll implementation. Future scroll commands
+ * (scrollToBottom / scrollBy / ...) will each own their own handler.
  */
-registerHandler('scrollIntoView', async function(step) {
-  const { locator, selectorFamily, extra } = step;
-  return await doScroll({ locator, selectorFamily, extra: { ...extra, action: 'scrollIntoView' } });
+registerHandler('scrollIntoView', async function scrollIntoView({ locator, selectorFamily }) {
+  const el = findTarget(locator, selectorFamily);
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return { scrolled: true };
 });
 
 

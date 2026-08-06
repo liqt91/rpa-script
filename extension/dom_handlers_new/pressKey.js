@@ -9,9 +9,11 @@ registerHandler('pressKey', async function({ extra }) {
   const humanLike = extra?.humanLike ?? true;
   const modifiers = extra?.modifiers || '';
 
-  // When humanLike=true, runner sends OS key directly
+  // When humanLike=true, runner sends OS key directly (trusted keybd_event)
   if (humanLike) {
-    return { pressed: key };
+    const modList = Array.isArray(modifiers) ? modifiers
+      : modifiers.split(',').map(s => s.trim()).filter(Boolean);
+    return { pressed: key, osKey: key, osModifiers: modList.join(',') };
   }
 
   // humanLike=false: synthetic event dispatch

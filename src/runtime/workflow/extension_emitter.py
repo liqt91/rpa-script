@@ -13,19 +13,9 @@ from src.repo import runtime_models as models
 from src.runtime.workflow.handlers.registry import build_command_registry
 
 
-# Extra transforms applied per command type for extension compatibility.
-_EXTRA_TRANSFORMS = {
-    "sleep": lambda e: {**e, "seconds": e.get("seconds", 1)},
-    "scrollToBottom": lambda e: {**e, "scrollType": "toBottom"},
-    "scrollToTop": lambda e: {**e, "scrollType": "toTop"},
-    "scrollOneScreen": lambda e: {**e, "scrollType": "oneScreen"},
-    "scrollBy": lambda e: {**e, "scrollType": "by"},
-    "getText": lambda e: {**e, "attribute": None},
-    "getAttr": lambda e: {**e, "attribute": e.get("attrName")},
-    "getHtml": lambda e: {**e, "attribute": "innerHTML"},
-    "getValue": lambda e: {**e, "attribute": "value"},
-    "inputAndPressEnter": lambda e: {**e, "pressEnter": True},
-}
+# NOTE: no per-command extra transforms here. Command behavior is data-driven
+# from the command definitions (params/defaults via _apply_defaults) and the
+# JS handlers; legacy per-command-name extra injection was removed.
 
 
 # ─── Loop-context stack for relative element resolution ─────────────
@@ -349,9 +339,6 @@ def _emit_instruction(
 ) -> dict:
     """Convert a single node to an instruction dict."""
     extra = _parse_extra(node)
-    transform = _EXTRA_TRANSFORMS.get(node.cmd)
-    if transform:
-        extra = transform(extra)
 
     # Resolve element_name -> selector from element_map
     el = element_map.get(node.element_name) if element_map and node.element_name else None
@@ -376,31 +363,14 @@ def _emit_instruction(
 
 
 def _get_extension_runtime(cmd_type: str) -> dict | None:
-    """Return the extension runtime declaration for a command, or None."""
-    # Old type name → handler mapping for backward compatibility
-    LEGACY_MAP = {
-        "click": "elementAction", "input": "elementAction",
-        "clearInput": "elementAction", "doubleClick": "elementAction",
-        "rightClick": "elementAction", "hover": "elementAction",
-        "unhover": "elementAction", "selectOption": "elementAction",
-        "getAttr": "elementAction", "getHtml": "elementAction",
-        "scrollToBottom": "elementAction", "scrollToTop": "elementAction",
-        "scrollBy": "elementAction", "scrollOneScreen": "elementAction",
-        "inputAndPressEnter": "elementAction", "clickCurrentLoopItem": "elementAction",
-        "pressKey": "pressKey", "keyCombo": "keyCombo",
-        "getPageTitle": "getPageTitle", "getElementCount": "getElementCount",
-        "takeScreenshot": "takeScreenshot", "executeJs": "executeJs",
-        "waitForElement": "wait", "waitForText": "wait",
-        "waitForUrl": "wait", "waitForLoad": "wait",
-        "waitForElementHide": "wait",
-    }
+    """Return the extension runtime declaration for a command, or None.
+
+    Legacy command-name routing was removed; only commands registered in the
+    command registry (commands/extension_commands/) resolve to a runtime.
+    """
     cmd = build_command_registry().get(cmd_type)
     if cmd:
         return cmd.get("runtimes", {}).get("extension")
-    # Fallback: old type name
-    handler = LEGACY_MAP.get(cmd_type)
-    if handler:
-        return {"handler": handler, "local": False}
     return None
 
 

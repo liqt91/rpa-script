@@ -29,10 +29,11 @@ from dataclasses import asdict
 from scripts.capture_gui.overlay import ElementInfo
 
 
-def _info_to_dict(info: ElementInfo) -> dict:
+def _info_to_dict(info: ElementInfo, keep_screenshot: bool = False) -> dict:
     d = asdict(info)
     d.pop("hwnd", None)
-    d.pop("screenshot", None)  # 不存到文件，太大
+    if not keep_screenshot:
+        d.pop("screenshot", None)  # 不存到文件，太大
     return d
 
 
@@ -56,6 +57,11 @@ def _dict_to_info(d: dict) -> ElementInfo:
         dom_path=d.get("dom_path", []),
         elem_attrs=d.get("elem_attrs", {}),
         list_info=d.get("list_info", {}),
+        page_url=d.get("page_url", ""),
+        region=d.get("region", {}),
+        threshold=d.get("threshold", 0.8),
+        match_method=d.get("match_method", "template"),
+        screen_size=d.get("screen_size", {}),
     )
 
 

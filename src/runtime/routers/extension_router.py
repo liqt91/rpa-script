@@ -73,27 +73,61 @@ async def gui_browser_capture(request: dict = None):
 
 @router.post("/verify-selector")
 async def verify_selector(request: dict = None):
-    """GUI 调用：验证 CSS/XPath 选择器是否匹配页面元素。"""
+    """GUI 调用：验证 CSS/XPath 选择器是否匹配页面元素。
+
+    跨所有已连接的浏览器扩展 fan-out；任一浏览器在可见页面命中即成功。
+    """
     import uuid
     selector = (request or {}).get("selector", "")
     if not selector:
         return {"error": "选择器为空"}
     request_id = (request or {}).get("requestId", str(uuid.uuid4())[:8])
     async with ext_manager._lock:
-        if not ext_manager._connections:
-            return {"error": "没有浏览器扩展连接", "requestId": request_id}
-        conn = next(iter(ext_manager._connections.values()))
-    fut = asyncio.get_event_loop().create_future()
+        conns = list(ext_manager._connections.values())
+    if not conns:
+        return {"error": "没有浏览器扩展连接", "requestId": request_id}
+
+    futures: dict = {}
+
     async def _on_result(payload, cid):
-        if payload.get("requestId") == request_id and not fut.done():
+        if payload.get("requestId") != request_id:
+            return
+        fut = futures.get(cid)
+        if fut and not fut.done():
             fut.set_result(payload.get("result", {}))
+
+    def _conn_browser(cid):
+        return next((c.browser for c in conns if c.client_id == cid), "")
+
     ext_manager.on("verifySelectorResult", _on_result)
     try:
-        await conn.send({"action": "verifySelector", "payload": {"requestId": request_id, "selector": selector}})
-        result = await asyncio.wait_for(fut, timeout=15.0)
-        return result
-    except asyncio.TimeoutError:
-        return {"error": "验证超时", "requestId": request_id}
+        loop = asyncio.get_event_loop()
+        for conn in conns:
+            fut = loop.create_future()
+            futures[conn.client_id] = fut
+            await conn.send({
+                "action": "verifySelector",
+                "payload": {"requestId": request_id, "selector": selector},
+            })
+        pending = list(futures.values())
+        deadline = loop.time() + 15.0
+        scanned = []
+        while pending:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            done, pending = await asyncio.wait(pending, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
+            for fut in done:
+                cid = next((cid for cid, f in futures.items() if f is fut), None)
+                result = fut.result() or {}
+                if result.get("found"):
+                    return {**result, "browser": _conn_browser(cid)}
+                for item in result.get("scanned") or []:
+                    item.setdefault("browser", _conn_browser(cid))
+                    scanned.append(item)
+        if scanned:
+            return {"found": False, "count": 0, "visible": 0, "invisible": 0, "scanned": scanned}
+        return {"found": False, "count": 0, "visible": 0, "invisible": 0, "error": "验证超时"}
     finally:
         ext_manager.off("verifySelectorResult", _on_result)
 
@@ -216,6 +250,7 @@ def list_extension_elements(workflow_id: int):
             result.append({
                 "id": item.id,
                 "name": item.name,
+                "elementType": item.element_type,
                 "elementKind": item.element_kind,
                 "webSelector": item.web_selector,
                 "drissionSelector": item.drission_selector,
