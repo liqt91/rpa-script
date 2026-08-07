@@ -76,7 +76,7 @@ async def _run():
         try:
             async for raw in ws:
                 try:
-                    msg = json.loads(raw)
+                    json.loads(raw)
                 except json.JSONDecodeError:
                     continue
                 _write_message(raw)

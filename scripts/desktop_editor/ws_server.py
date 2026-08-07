@@ -153,7 +153,6 @@ async def _launch_browser_capture(ext_manager, payload: dict, timeout: float = 2
 
 async def run_ws_server(host: str = "127.0.0.1", port: int = 8000):
     """启动纯 WebSocket 服务（阻塞，在 daemon 线程中运行）。"""
-    import websockets
     from websockets.asyncio.server import serve
 
     async with serve(_handle_connection, host, port, origins=None):

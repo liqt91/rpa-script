@@ -188,7 +188,8 @@ def build_system_prompt(commands: list, elements: list) -> str:
 6. **列表变量设置**：setVar 的 valueType 用 `list-input`，value 写 JSON 数组如 `["a","b"]`
 7. **写入表格行**：rowData 填 `["${{var1}}", "${{var2}}"]`
 8. **stringConcat 的 parts 参数**：填拼接表达式如 `"url前缀" + ${{变量}}`，绝对不能填 JSON 数组。
-9. **whileCondition 建议用 forRange 替代**：如果循环固定页数用 forRange(start=0, end=999)，更简单可靠。whileCondition 需设置 conditionType="expression" 且 condition 填 Python 表达式。
+9. **whileCondition 建议用 forRange 替代**：如果循环固定页数用 forRange(start=0, end=999)，更简单可靠。
+   whileCondition 需设置 conditionType="expression" 且 condition 填 Python 表达式。
 
 ## 可用指令清单
 
@@ -270,7 +271,8 @@ def call_ai(system: str, user: str) -> dict:
 
     print(f"   provider={provider_name} model={model}", file=sys.stderr)
 
-    import urllib.request, urllib.error
+    import urllib.error
+    import urllib.request
 
     body = json.dumps({
         "model": model,

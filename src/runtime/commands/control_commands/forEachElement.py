@@ -68,5 +68,7 @@ class ForEachElementHandler:
             if not runner.vars["__loop_ctx"]:
                 runner.vars.pop("__loop_ctx", None)
         runner.completed += 1
-        await runner._emit({"type":"stepComplete","stepId":instr.get("stepId"),"nodeId":instr.get("nodeId"),"result":{"forEachElement":len(elements)}})
+        await runner._emit({"type": "stepComplete", "stepId": instr.get("stepId"),
+                            "nodeId": instr.get("nodeId"),
+                            "result": {"forEachElement": len(elements)}})
         return True

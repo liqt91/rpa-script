@@ -68,7 +68,9 @@ def _load_generic_params() -> dict:
     return {
         "common": [
             {"name": "onError", "label": "执行失败时", "type": "select",
-             "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
+             "options": [{"label": "停止", "value": "stop"},
+                         {"label": "继续", "value": "continue"},
+                         {"label": "重试", "value": "retry"}],
              "default": "stop", "group": "advanced"},
             {"name": "retryCount", "label": "重试次数", "type": "number", "default": 3, "group": "advanced"},
             {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 10, "group": "advanced"},

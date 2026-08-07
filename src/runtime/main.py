@@ -128,6 +128,7 @@ def _seed_commands_to_db(db):
             continue
 
         ext = cmd.get("runtimes", {}).get("extension")
+        handler_json = _read_handler_from_json(type_name)
         fields = {
             "label": cmd.get("label", type_name),
             "category": cmd.get("category", "其他"),
@@ -142,7 +143,7 @@ def _seed_commands_to_db(db):
             "description": cmd.get("description", ""),
             "is_builtin": 1,
             "enabled": 1 if cmd.get("enabled", True) else 0,
-            "handler": json.dumps(_read_handler_from_json(type_name)) if _read_handler_from_json(type_name) else ext.get("handler") if ext else None,
+            "handler": json.dumps(handler_json) if handler_json else (ext.get("handler") if ext else None),
             "local": 1 if ext and ext.get("local") else 0,
             "category_order": cmd.get("categoryOrder", 0),
             "command_order": cmd.get("commandOrder", 0),

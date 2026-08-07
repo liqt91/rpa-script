@@ -50,5 +50,7 @@ class WhileConditionHandler:
             except LoopContinue:
                 continue
         runner.completed += 1
-        await runner._emit({"type":"stepComplete","stepId":instr.get("stepId"),"nodeId":instr.get("nodeId"),"result":{"whileCondition":"done"}})
+        await runner._emit({"type": "stepComplete", "stepId": instr.get("stepId"),
+                            "nodeId": instr.get("nodeId"),
+                            "result": {"whileCondition": "done"}})
         return True

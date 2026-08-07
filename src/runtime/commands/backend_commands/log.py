@@ -12,7 +12,9 @@ class LogHandler:
     params = [
         Param("message", "日志内容", "text", placeholder="支持 {{变量}} 引用"),
         Param("level", "日志级别", "select", default="info",
-              options=[{"label": "信息", "value": "info"}, {"label": "警告", "value": "warning"}, {"label": "错误", "value": "error"}],
+              options=[{"label": "信息", "value": "info"},
+                       {"label": "警告", "value": "warning"},
+                       {"label": "错误", "value": "error"}],
               group="advanced"),
     ]
 

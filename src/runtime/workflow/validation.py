@@ -72,6 +72,14 @@ def _extract_content_handlers() -> set[str]:
     return names
 
 
+def _extract_background_handlers() -> set[str]:
+    """Parse background.js for registerBackgroundHandler patterns."""
+    if not BACKGROUND_JS.exists():
+        return set()
+    text = BACKGROUND_JS.read_text(encoding="utf-8")
+    return set(re.findall(r"registerBackgroundHandler\s*\(\s*['\"]([^'\"]+)['\"]\s*,", text))
+
+
 def validate_schema(registry: dict) -> list[str]:
     errors = []
     for cmd_type, meta in registry.items():

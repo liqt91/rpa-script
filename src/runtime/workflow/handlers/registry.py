@@ -44,7 +44,8 @@ def _load_generic_params_from_json() -> dict:
     """Load generic params from JSON, with hardcoded fallback."""
     import json
     from pathlib import Path
-    json_path = Path(__file__).resolve().parent.parent.parent.parent / "src" / "runtime" / "commands" / "types" / "generic_params.json"
+    json_path = (Path(__file__).resolve().parent.parent.parent.parent
+                 / "src" / "runtime" / "commands" / "types" / "generic_params.json")
     try:
         if json_path.exists():
             with open(json_path, encoding="utf-8") as f:
@@ -55,7 +56,9 @@ def _load_generic_params_from_json() -> dict:
     return {
         "common": [
             {"name": "onError", "label": "执行失败时", "type": "select",
-             "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
+             "options": [{"label": "停止", "value": "stop"},
+                         {"label": "继续", "value": "continue"},
+                         {"label": "重试", "value": "retry"}],
              "default": "stop", "group": "advanced"},
             {"name": "retryCount", "label": "重试次数", "type": "number", "default": 3, "group": "advanced"},
             {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 10, "group": "advanced"},
@@ -93,9 +96,9 @@ def _generic_params_for(runtime: str) -> list:
 @dataclass
 class Param:
     """Handler 参数声明。handler 内部通过 `params["name"]` 读取。"""
-    name: str                                    # 参数名，handler 代码中读取的 key
+    name: str                                    # 参数名（handler 读取的 key）
     label: str = ""                              # 编辑器显示标签
-    type: str = "str-input"                         # str-input | str-textarea | str-var | str-dropdown | str-element | int-number | bool-check | list-input | dict-input | any-expr | any-input
+    type: str = "str-input"                         # str-input|textarea|var|dropdown|element|int|bool|list
     required: bool = False
     default: Any = None
     group: str = "主属性"                         # 主属性 | advanced | output | input | anchor

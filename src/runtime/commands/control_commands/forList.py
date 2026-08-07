@@ -42,5 +42,7 @@ class ForListHandler:
                 logger.info("forList continue")
                 continue
         runner.completed += 1
-        await runner._emit({"type":"stepComplete","stepId":instr.get("stepId"),"nodeId":instr.get("nodeId"),"result":{"forList":len(items)}})
+        await runner._emit({"type": "stepComplete", "stepId": instr.get("stepId"),
+                            "nodeId": instr.get("nodeId"),
+                            "result": {"forList": len(items)}})
         return True

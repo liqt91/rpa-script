@@ -45,5 +45,7 @@ class ForRangeHandler:
             except LoopContinue:
                 continue
         runner.completed += 1
-        await runner._emit({"type":"stepComplete","stepId":instr.get("stepId"),"nodeId":instr.get("nodeId"),"result":{"forRange":count}})
+        await runner._emit({"type": "stepComplete", "stepId": instr.get("stepId"),
+                            "nodeId": instr.get("nodeId"),
+                            "result": {"forRange": count}})
         return True

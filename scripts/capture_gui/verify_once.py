@@ -15,7 +15,7 @@ import contextlib
 import io as _io
 
 with contextlib.redirect_stderr(_io.StringIO()):
-    from scripts.capture_gui.overlay import ElementInfo, flash_element
+    from scripts.capture_gui.overlay import flash_element
     from scripts.capture_gui.store import _dict_to_info
 
 

@@ -12,7 +12,9 @@ def _var_field(name: str = "varName", label: str = "保存到变量") -> dict:
     return {"name": name, "label": label, "type": "string", "required": False, "group": "output"}
 
 def _window_var_field() -> dict:
-    return {"name": "windowVar", "label": "窗口变量", "type": "string", "required": False, "default": "browser1", "placeholder": "如 browser1", "group": "input"}
+    return {"name": "windowVar", "label": "窗口变量", "type": "string",
+            "required": False, "default": "browser1",
+            "placeholder": "如 browser1", "group": "input"}
 
 def _scope_field() -> dict:
     return {
@@ -27,7 +29,9 @@ def _scope_field() -> dict:
 def _on_error_field(default: str = "stop") -> dict:
     return {
         "name": "onError", "label": "执行失败时", "type": "select",
-        "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}],
+        "options": [{"label": "停止", "value": "stop"},
+                    {"label": "继续", "value": "continue"},
+                    {"label": "重试", "value": "retry"}],
         "default": default, "group": "advanced",
     }
 
@@ -45,7 +49,9 @@ def _use_relative_field() -> dict:
     return {"name": "useRelative", "label": "使用相对解析", "type": "boolean", "default": True, "group": "anchor"}
 
 def _loop_anchor_field() -> dict:
-    return {"name": "loopAnchor", "label": "锚点元素", "type": "select", "options": [{"label": "最近外层循环", "value": ""}], "default": "", "group": "anchor"}
+    return {"name": "loopAnchor", "label": "锚点元素", "type": "select",
+            "options": [{"label": "最近外层循环", "value": ""}],
+            "default": "", "group": "anchor"}
 
 def _reference_item_field() -> dict:
     return {"name": "referenceItemItself", "label": "引用循环项本身", "type": "boolean", "default": False, "group": "anchor"}

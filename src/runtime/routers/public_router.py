@@ -149,7 +149,9 @@ async def stream_run_progress(
     async def event_stream():
         queue = await run_progress.get(run_id)
         if queue is None:
-            yield f"data: {json.dumps({'type': 'done', 'success': False, 'error': 'Run not active or already completed'})}\n\n"
+            payload = json.dumps({'type': 'done', 'success': False,
+                                  'error': 'Run not active or already completed'})
+            yield f"data: {payload}\n\n"
             return
         try:
             while True:

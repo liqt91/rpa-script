@@ -540,6 +540,20 @@ async def list_active_runners() -> list[tuple[str, "ExtensionRunner"]]:
         return list(_active_runners.items())
 
 
+def _eval_expression(condition: str, vars_dict: dict) -> bool:
+    """求值条件表达式（如 "${a} > 10"）：先做 ${var} 插值，再作为布尔表达式求值。
+
+    受限全局（禁用 builtins），求值失败按 False 处理。
+    """
+    if not isinstance(condition, str) or not condition.strip():
+        return False
+    try:
+        resolved = ExtensionRunner._resolve_vars(condition, vars_dict)
+        return bool(eval(resolved, {"__builtins__": {}}, {}))
+    except Exception:
+        return False
+
+
 class ExtensionRunner:
     def __init__(
         self,
@@ -1495,7 +1509,10 @@ class ExtensionRunner:
                                         "windowId": window_id,
                                         "tabId": tab_id,
                                     }
-                                    logger.info(f"[ExtensionRunner] created {_wname} windowId={window_id} tabId={tab_id}")
+                                    logger.info(
+                                        f"[ExtensionRunner] created {_wname} "
+                                        f"windowId={window_id} tabId={tab_id}"
+                                    )
 
                 return True
             except Exception as e:

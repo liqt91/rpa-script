@@ -108,7 +108,9 @@ class SendKeyHandler:
             "pressed": key,
             "modifiers": modifiers,
             "count": press_count,
-            "log": f"按键: {key}" + (f"+{modifiers}" if modifiers else "") + (f" x{press_count}" if press_count > 1 else ""),
+            "log": (f"按键: {key}"
+                    + (f"+{modifiers}" if modifiers else "")
+                    + (f" x{press_count}" if press_count > 1 else "")),
         }
         runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),

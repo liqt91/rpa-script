@@ -469,7 +469,8 @@ def _migrate_013():
             ]
             for slug, name, icon, order in defaults:
                 conn.execute(
-                    text("INSERT INTO command_categories (slug, name, icon, sort_order) VALUES (:slug, :name, :icon, :order)"),
+                    text("INSERT INTO command_categories (slug, name, icon, sort_order) "
+                         "VALUES (:slug, :name, :icon, :order)"),
                     {"slug": slug, "name": name, "icon": icon, "order": order},
                 )
             conn.commit()

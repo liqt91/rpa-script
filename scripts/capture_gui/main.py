@@ -1,5 +1,8 @@
 """元素捕获 GUI — 独立桌面工具。"""
-import os, sys, json, base64, io
+import base64
+import io
+import os
+import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -51,7 +54,9 @@ class CaptureGUI:
         cols = ("name", "type", "sel")
         self.tree = ttk.Treeview(left, columns=cols, show="headings", selectmode="browse")
         self.tree.heading("name", text="名称"); self.tree.heading("type", text="类型"); self.tree.heading("sel", text="选择器")
-        self.tree.column("name", width=140); self.tree.column("type", width=50, anchor=tk.CENTER); self.tree.column("sel", width=100)
+        self.tree.column("name", width=140)
+        self.tree.column("type", width=50, anchor=tk.CENTER)
+        self.tree.column("sel", width=100)
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
         sb = ttk.Scrollbar(left, orient=tk.VERTICAL, command=self.tree.yview)
@@ -104,7 +109,10 @@ class CaptureGUI:
         self.dom_canvas.configure(yscrollcommand=dom_sb.set)
         dom_sb.pack(side=tk.RIGHT, fill=tk.Y); self.dom_canvas.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
         self.dom_win = self.dom_canvas.create_window((0, 0), window=self.dom_inner, anchor="nw")
-        self.dom_inner.bind("<Configure>", lambda e: self.dom_canvas.configure(scrollregion=self.dom_canvas.bbox("all")))
+        self.dom_inner.bind(
+            "<Configure>",
+            lambda e: self.dom_canvas.configure(scrollregion=self.dom_canvas.bbox("all")),
+        )
         pass  # tab1_forget
 
         # 选择器预览 (公用)
@@ -157,7 +165,9 @@ class CaptureGUI:
         if not t: self.set_status("选择器为空"); return
         self.set_status(f"验证: {t[:50]}...")
         try:
-            import urllib.request, json, uuid
+            import json
+            import urllib.request
+            import uuid
             data = json.dumps({"selector": t, "requestId": str(uuid.uuid4())[:8]}).encode()
             req = urllib.request.Request("http://127.0.0.1:8000/api/extension/verify-selector",
                                           data=data, headers={"Content-Type": "application/json"}, method="POST")
@@ -273,7 +283,8 @@ class CaptureGUI:
                 img.thumbnail((40, 30))
                 self._thumb_img = ImageTk.PhotoImage(img)
                 self.thumb_btn.configure(image=self._thumb_img, text="")
-            except: self.thumb_btn.configure(image="", text="📷")
+            except Exception:
+                self.thumb_btn.configure(image="", text="📷")
         else:
             self.thumb_btn.configure(image="", text="📷")
 
@@ -438,7 +449,7 @@ class CaptureGUI:
                     node_attrs = node.get("attrs", {})
                     for an in self._dom_attr_vars[i]:
                         if self._dom_attr_vars[i][an].get():
-                            part += f"[{an}=\"{node_attrs.get(an,"")}\"]"
+                            part += f'[{an}="{node_attrs.get(an, "")}"]'
                 parts.append(part)
             else:
                 parts.append(str(node))

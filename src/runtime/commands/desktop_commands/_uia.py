@@ -81,7 +81,10 @@ def find_child_by_name(parent_uia, name: str, control_type: str = None, depth: i
     if not parent:
         return None
     kwargs = {"Name": name, "Depth": depth}
-    ctrl = parent.Control(**kwargs) if not control_type else parent.__getattribute__(control_type)(Name=name, Depth=depth)
+    if control_type:
+        ctrl = parent.__getattribute__(control_type)(Name=name, Depth=depth)
+    else:
+        ctrl = parent.Control(**kwargs)
     if ctrl and ctrl.Exists(0, 0):
         return _ctrl_to_dict(ctrl)
     return None

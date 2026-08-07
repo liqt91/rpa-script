@@ -9,7 +9,6 @@
 import sys
 import os
 import json
-import subprocess
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -27,7 +26,8 @@ def _derive_ext_id():
     """从 extension/manifest.json 的 key 推导固定的 Chrome 扩展 ID。"""
     manifest_path = os.path.join(_PROJECT_ROOT, "extension", "manifest.json")
     if os.path.exists(manifest_path):
-        import hashlib, base64
+        import base64
+        import hashlib
         with open(manifest_path, encoding="utf-8") as f:
             key_b64 = json.load(f).get("key", "")
         if key_b64:

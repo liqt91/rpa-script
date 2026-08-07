@@ -4,7 +4,8 @@ Also generates the base file (utilities + message listener) without handlers.
 
 Usage: python scripts/split_handlers.py
 """
-import re, os
+import os
+import re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(ROOT, "extension", "content.js")

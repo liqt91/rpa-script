@@ -116,7 +116,10 @@ _OpenProcess = _kernel32.OpenProcess
 _OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
 _OpenProcess.restype = wintypes.HANDLE
 _QueryFullProcessImageNameW = _kernel32.QueryFullProcessImageNameW
-_QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+_QueryFullProcessImageNameW.argtypes = [
+    wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+    ctypes.POINTER(wintypes.DWORD),
+]
 _QueryFullProcessImageNameW.restype = wintypes.BOOL
 
 # 悬浮框：灰色背景 + 白色边框
@@ -526,7 +529,8 @@ def _get_uia_rect(x, y):
             _com_init()
             import uiautomation as uia
             _uia_module = uia
-        except: return None
+        except Exception:
+            return None
     # 1) 轻量 hit-test（正常应用，O(1)）
     try:
         ctrl = uia.ControlFromPoint(x, y)
@@ -573,13 +577,15 @@ def _uia_init():
         _com_init()
         import uiautomation as uia
         _uia_module = uia
-    except: pass
+    except Exception:
+        pass
 
 def _uia_done():
     global _uia_module
     if _uia_module is not None:
         try: _com_uninit()
-        except: pass
+        except Exception:
+            pass
         _uia_module = None
 
 
@@ -654,7 +660,10 @@ def show_info(text: str):
             is_current = (i == len(lines[:7]) - 2)  # 倒数第二行是当前选中
             _SetTextColor(hdc, 0x0090CAF9 if is_current else 0x00A0A0B0)
             buf = ctypes.create_unicode_buffer(line)
-            _DrawTextW(hdc, buf, -1, ctypes.byref(wintypes.RECT(INFO_PAD, 3 + i * 20, INFO_W - INFO_PAD, 23 + i * 20)), 0x0000 | 0x0010)
+            _DrawTextW(hdc, buf, -1,
+                       ctypes.byref(wintypes.RECT(INFO_PAD, 3 + i * 20,
+                                                  INFO_W - INFO_PAD, 23 + i * 20)),
+                       0x0000 | 0x0010)
         _SelectObject(hdc, old)
         _DeleteObject(font)
         # 分隔线 + 操作提示

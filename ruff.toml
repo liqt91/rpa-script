@@ -11,3 +11,5 @@ ignore = ["F403", "E402"]
 [per-file-ignores]
 "src/runtime/workflow/commands.py" = ["E501"]
 "src/shared/extraction_engine.py" = ["E501"]
+# 生成产物：build_extension.py(generate_commands) 生成，行长由模板决定
+"src/runtime/commands/extension_commands/*.py" = ["E501"]

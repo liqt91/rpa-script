@@ -2,7 +2,8 @@
 Build background.js by concatenating base infrastructure + background handler files.
 Output to dist/desktop/extension/ only. Chrome loads extension from this directory.
 """
-import os, glob
+import glob
+import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE_FILE = os.path.join(ROOT, "extension", "background_base.js")

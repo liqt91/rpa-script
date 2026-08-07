@@ -274,7 +274,7 @@ class DesktopEditor:
         if not cmd_type:
             return
 
-        node = db.add_node(self._current_wf_id, cmd_type)
+        db.add_node(self._current_wf_id, cmd_type)
         self._refresh_node_list()
         # 刷新工作流列表的步数
         self._refresh_workflow_list()
@@ -557,17 +557,17 @@ class DesktopEditor:
                     label = event.get("cmdLabel", event.get("cmdType", ""))
                     self._log_append(f"  ▶ {label}")
                 elif etype == "stepComplete":
-                    summary = event.get("result", "")
-                    self._log_append(f"  ✓ 完成")
+                    event.get("result", "")
+                    self._log_append("  ✓ 完成")
                 elif etype == "stepError":
                     err = event.get("error", "未知错误")
                     self._log_append(f"  ✗ {err}")
                 elif etype == "done":
-                    self._log_append(f"── 运行结束 ──")
+                    self._log_append("── 运行结束 ──")
                     self._run_queue = None
                     return
                 elif etype == "paused":
-                    self._log_append(f"  ⏸ 已暂停")
+                    self._log_append("  ⏸ 已暂停")
         except Exception:
             pass
 
