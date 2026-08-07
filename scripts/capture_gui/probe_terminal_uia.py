@@ -97,8 +97,9 @@ def main():
         import uiautomation as uia
     except ImportError as e:
         log(f"缺少 uiautomation 依赖：{e}")
-        log("请用系统 Python 运行（捕获用的那个）：")
-        log('  & "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\python.exe" scripts/capture_gui/probe_terminal_uia.py')
+        log('请用系统 Python 运行（捕获用的那个）：')
+        log('  & "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\'
+            'Python312\\python.exe" scripts/capture_gui/probe_terminal_uia.py')
         return
 
     def probe_hit(out):

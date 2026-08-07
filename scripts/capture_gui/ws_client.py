@@ -4,7 +4,9 @@
     from scripts.capture_gui.ws_client import launch_browser_capture
     result = launch_browser_capture(x=100, y=200)
 """
-import json, uuid, urllib.request
+import json
+import urllib.request
+import uuid
 
 API_URL = "http://127.0.0.1:8000/api/extension/gui-browser-capture"
 HOVER_URL = "http://127.0.0.1:8000/api/extension/gui-browser-hover"
