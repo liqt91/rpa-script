@@ -6,33 +6,34 @@
 
 ```
 rpa-script/
-├── extension/           Chrome 扩展（content.js + background.js）
-│   └── handlers/        浏览器端指令实现（一个 handler 一个文件）
+├── extension/           Chrome/Edge 扩展（content_capture.js + background.js）
+│   ├── dom_handlers_new/     页面内指令实现（一个指令一个 JS）
+│   ├── background_handlers/  后台指令实现（launchBrowser/navigate/switchTab 等）
+│   └── dom_shared/           共享基建（content_base.js 等）
 ├── src/
 │   ├── runtime/          FastAPI 后端
-│   │   ├── workflow/
-│   │   │   ├── handlers/  指令系统（extension 35 / backend 18 / flow 20）
-│   │   │   └── extension_emitter.py  节点树 → 指令序列编译器
-│   │   ├── routers/      API 路由
-│   │   └── tests/        测试（88/89 通过）
-│   └── ui/workflow-editor/  React 前端（Vite 构建）
-├── commands/             指令 JSON 定义（唯一定义源）
+│   │   ├── workflow/        指令序列编译器 + 运行器（extension_runner.py）
+│   │   ├── commands/        生成后的指令 handler（extension/backend/control/desktop 四类）
+│   │   ├── routers/         API 路由
+│   │   └── tests/           测试（117 通过）
+│   └── ui/workflow-editor/  React 前端（Vite 构建 + Electron 桌面壳）
+├── commands/             指令 JSON 定义（唯一定义源，53 个）
 ├── scripts/              工具脚本
-│   ├── generate_commands.py  JSON → .py/.js 生成器
-│   └── build_content_js.py   拼接 content.js
+│   ├── build_extension.py  一键构建扩展（generate_commands → background → content）
+│   └── capture_gui/         元素捕获覆盖层（overlay.py）
 ├── data/                 运行时数据（data.db）
-└── dist/desktop/          桌面应用打包输出
+└── dist/desktop/          扩展构建输出（Edge/Chrome 加载）
 ```
 
 ## 技术栈
 
 | 层 | 技术 |
 |------|------|
-| 后端 | Python 3.14 + FastAPI + SQLAlchemy + SQLite |
-| 前端 | React (Vite) + Tailwind CSS |
-| 浏览器 | Chrome Extension (Manifest V3) |
-| 桌面 | pywebview |
-| 测试 | pytest (88/89 通过) |
+| 后端 | Python 3.12 + FastAPI + SQLAlchemy + SQLite |
+| 前端 | React (Vite) + Tailwind CSS（Electron 桌面壳） |
+| 浏览器 | Chrome/Edge Extension (Manifest V3) |
+| 桌面 | Electron |
+| 测试 | pytest (117 通过) |
 
 ## 快速开始
 
@@ -42,15 +43,15 @@ npm install
 pip install -r requirements.txt
 
 # 开发模式
-npm run dev          # 前端开发服务器
-python src/desktop.py --debug  # 桌面应用（后端 + 窗口）
+npm run dev               # 前端开发服务器
+python -m src.runtime.main  # 后端（端口 8000）
 
 # 运行测试
-pytest src/runtime/tests/
+pytest -q
 
 # 构建
 cd src/ui/workflow-editor && npm run build
-python scripts/build_content_js.py
+python scripts/build_extension.py   # 构建扩展（含指令生成）
 ```
 
 ## 指令系统
@@ -58,25 +59,29 @@ python scripts/build_content_js.py
 指令从 JSON 定义文件生成，一套定义同时产出 Python handler 和 JS handler。
 
 ```
-commands/clickElement.json    ← 唯一定义
-        ↓ generate_commands.py
-handlers/extension/clickElement.py   ← Python 注册（自动生成）
-extension/handlers/clickElement.js   ← JS 实现（自动生成）
+commands/clickElement.json        ← 唯一定义
+        ↓ python scripts/build_extension.py
+src/runtime/commands/extension_commands/clickElement.py  ← Python 注册（自动生成）
+extension/dom_handlers_new/clickElement.js               ← 页面内 JS 实现
+extension/background_handlers/clickElement.js            ← 后台 JS 实现（如需要）
 ```
 
-### Handler 三种类型
+### 指令分类
 
-| 类型 | 说明 | 示例 |
-|------|------|------|
-| `delegate` | 委托现有 JS 函数，无需手写代码 | `clickElement → doClick` |
-| `custom` | 手写 JS 实现复杂浏览器逻辑 | `waitForElement` |
-| `backend` | Python 后端执行（变量/网络/文件） | `setVar` |
+| 目录 | 运行时 | 说明 |
+|------|--------|------|
+| `extension_commands` | extension | 页面指令（Python 注册，动作在 JS 实现） |
+| `dom_handlers_new` | extension | 页面内动作 JS handler（一个指令一个文件） |
+| `background_handlers` | extension | 后台动作 JS handler（launchBrowser/navigate 等） |
+| `backend_commands` | backend | Python 后端执行（日志等） |
+| `control_commands` | control | 流程控制（if/for/while/try 等） |
+| `desktop_commands` | backend | 桌面控件操作（Win32/UIA） |
 
 详细说明见：`commands/` 下各 JSON 文件的 `description` 字段，或前端"指令定义"页面。
 
-### 精选指令集（47/73）
+### 指令集（53 个）
 
-为提高 AI 匹配精度和编辑器可用性，当前精选 47 个指令。被裁剪的 26 个指令文件后缀为 `.curated_removed`，后续按需恢复。
+当前 `commands/*.json` 共 53 个指令定义。
 
 ## 待办清单
 
@@ -104,13 +109,12 @@ extension/handlers/clickElement.js   ← JS 实现（自动生成）
 ```bash
 # 新增指令
 1. 在 commands/ 创建 xxx.json
-2. python scripts/generate_commands.py   # 生成 .py + .js
-3. python scripts/build_content_js.py    # 拼接 content.js
-4. 前端"指令定义"页面可见
+2. python scripts/build_extension.py   # 生成 .py + 拼接 background/content.js
+3. 前端"指令定义"页面可见
 
 # DB 迁移
 python scripts/migrate_workflow_types.py
 
 # 指令校验
-python -c "from src.runtime.workflow.handler_validator import validate_handler_sync; print(validate_handler_sync())"
+python -c "from src.runtime.workflow.handler_validator import validate_handler_sync; print(validate_handler_sync(r'dist/desktop/extension/content.js'))"
 ```
