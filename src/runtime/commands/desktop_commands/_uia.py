@@ -59,6 +59,21 @@ def find_window_by_title_fuzzy(title: str, depth: int = 3) -> list[dict]:
     return results
 
 
+def find_window_by_class(class_name: str) -> dict | None:
+    """按类名查找顶层窗口（混合架构应用如 Windows Terminal：标题随激活标签变化，类名稳定）。"""
+    if not class_name:
+        return None
+    uia = _get_uia()
+    desktop = uia.GetRootControl()
+    try:
+        ctrl = desktop.WindowControl(ClassName=class_name, Depth=1)
+        if ctrl and ctrl.Exists(0, 0):
+            return _ctrl_to_dict(ctrl)
+    except Exception:
+        pass
+    return None
+
+
 def find_child_by_name(parent_uia, name: str, control_type: str = None, depth: int = 5) -> dict | None:
     """在 UIA 父控件下按名称查找子控件。"""
     _get_uia()
@@ -174,17 +189,26 @@ def pick_from_path(path_json: list, level_index: int = -1) -> dict | None:
     _get_uia()
     target = None
 
+    def _resolve_top(info):
+        """顶层窗口定位：标题精确 → 模糊 → 类名（混合应用标题会变，类名兜底）。"""
+        name = (info.get("name") or "").strip()
+        if name:
+            t = find_window_by_title(name)
+            if not t:
+                fuzzy = find_window_by_title_fuzzy(name)
+                if fuzzy:
+                    t = fuzzy[0]
+            if t:
+                return t
+        return find_window_by_class(info.get("class_name", ""))
+
     if level_index == 0:
         info = path_json[0]
-        target = find_window_by_title(info.get("name", ""))
+        target = _resolve_top(info)
     else:
         # 先找顶层
         top = path_json[0]
-        parent = find_window_by_title(top.get("name", ""))
-        if not parent:
-            parent = find_window_by_title_fuzzy(top.get("name", ""))
-            if parent:
-                parent = parent[0]
+        parent = _resolve_top(top)
 
         if not parent:
             return None

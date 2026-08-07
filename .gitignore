@@ -56,3 +56,7 @@ WebRPA/
 webrpa/
 WebRPA-main.zip
 data/com.rpa.host.json
+
+# 运行时/日志产物
+@AutomationLog.txt
+rpa_uia_debug.log

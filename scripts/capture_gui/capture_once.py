@@ -26,9 +26,10 @@ with contextlib.redirect_stderr(_sink):
 
 
 def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "desktop"  # desktop | web
     try:
         with contextlib.redirect_stderr(_io.StringIO()):  # 压制 libpng 警告
-            info = run_capture()
+            info = run_capture(mode)
         if not info:
             print(json.dumps({"cancelled": True}))
             return

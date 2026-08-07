@@ -34,6 +34,13 @@
       "default": "about:blank"
     },
     {
+      "name": "bringToFront",
+      "label": "窗口前置",
+      "type": "boolean",
+      "default": true,
+      "description": "启动后把浏览器窗口置为前台。取消勾选则以后台方式打开。"
+    },
+    {
       "name": "windowState",
       "label": "窗口状态",
       "type": "select",

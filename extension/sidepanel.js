@@ -702,7 +702,7 @@
 
       updateRecaptureUI();
       updateSaveButtonForRecapture();
-      verifyResult.textContent = '请 Alt+点击页面元素完成重新捕获，或点击取消放弃';
+      verifyResult.textContent = '请将鼠标移到目标元素上，点击「捕获」完成重新捕获，或点击取消放弃';
       verifyResult.className = 'verify-meta err';
     } catch (err) {
       console.warn('[SidePanel] loadElementForEdit error:', err);
@@ -2237,7 +2237,7 @@
       return;
     }
     if (pendingRecapture && !recaptureCompleted) {
-      verifyResult.textContent = '请先 Alt+点击页面元素完成重新捕获，或点击取消放弃';
+      verifyResult.textContent = '请先完成重新捕获，或点击取消放弃';
       verifyResult.className = 'verify-meta err';
       return;
     }

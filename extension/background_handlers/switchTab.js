@@ -17,9 +17,9 @@ registerBackgroundHandler('switchTab', async function(step, agent) {
   let tab;
 
   if (urlPattern) {
-    // Find tab by URL match (case-insensitive)
-    const tabs = await chrome.tabs.query({ windowId });
-    tab = tabs.find(t => t.url && t.url.toLowerCase().includes(urlPattern.toLowerCase()));
+    // Find tab by URL match (case-insensitive), with retry for the
+    // navigate-URL-commit timing window (see findTabByUrlPattern).
+    tab = await findTabByUrlPattern(windowId, urlPattern);
     if (!tab) {
       throw new Error('未找到匹配 URL 的标签页: ' + urlPattern);
     }

@@ -11,6 +11,10 @@
   // ─── State ───────────────────────────────────────────────────────
   let captureMode = false;
   let guiCaptureRequestId = null;  // GUI 原生捕获模式
+  let webOnlyCapture = false;  // 网页专用模式：禁用 Tab/移出页面切回桌面
+  let leaveExitTimer = null;  // 无感退出（鼠标移出页面）防抖定时器
+  let lastHoverSentAt = 0;  // 悬停信息上报节流
+  let lastHoverSentKey = '';
   let lastHoveredEl = null;
   let lockedElement = null;
   let lockedCandidates = [];
@@ -20,8 +24,6 @@
   let highlightCanvas = null;
   let highlightCtx = null;
   let capturedScreenshot = null;
-  let altPressed = false;
-  let altComboUsed = false;
   let captureEnabled = false;
   let lastCapturePayload = null;
   let activeCandidate = null;
@@ -2275,8 +2277,65 @@
     initHighlightCanvas();
     document.addEventListener('mousemove', onCaptureMouseMove);
     document.addEventListener('click', onCaptureClick, true);
+    document.addEventListener('keydown', onCaptureKeyDown, true);
+    document.addEventListener('mouseleave', onCaptureMouseLeave);
+    document.documentElement.addEventListener('mouseleave', onCaptureMouseLeave);
     console.log('[RPA Capture] 进入捕获模式');
-    showToast('捕获模式：Alt+Click 捕获元素，Esc 退出');
+    showToast(webOnlyCapture
+      ? '网页捕获：Alt+点击 捕获 · Alt+1/Alt+2 父/子级 · Esc 结束'
+      : '捕获模式：点击页面元素捕获 · Esc 退出');
+  }
+
+  function finishGuiCapture(backToDesktop) {
+    // 结束 GUI 原生捕获并通知后端：backToDesktop=true → overlay 回到桌面拾取；否则结束整场捕获
+    if (!guiCaptureRequestId) return;
+    const rid = guiCaptureRequestId;
+    guiCaptureRequestId = null;
+    exitCaptureMode();
+    chrome.runtime.sendMessage({
+      action: 'browserCaptureCancelled',
+      payload: { requestId: rid, backToDesktop: !!backToDesktop },
+    }).catch(() => {});
+  }
+
+  function onCaptureKeyDown(e) {
+    if (!captureMode) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      finishGuiCapture(false);
+      return;
+    }
+    // Tab → 手动切回桌面拾取（兜底；无感方式 = 鼠标移出页面）；网页专用模式禁用
+    if (e.key === 'Tab') {
+      if (webOnlyCapture) return;
+      e.preventDefault();
+      e.stopPropagation();
+      finishGuiCapture(true);
+      return;
+    }
+    // Alt+1 → 上移父级；Alt+2 → 下移子级（DOM 拾取中的父子级切换）
+    if (e.altKey && (e.key === '1' || e.key === '2') && lockedElement) {
+      e.preventDefault();
+      e.stopPropagation();
+      const el = e.key === '1'
+        ? (lockedElement.parentElement && lockedElement.parentElement !== lockedElement ? lockedElement.parentElement : null)
+        : lockedElement.firstElementChild;
+      if (!el) {
+        showToast(e.key === '1' ? '已是顶层元素' : '没有子元素', 'info');
+        return;
+      }
+      lockedElement = el;
+      lastHoveredEl = el;
+      lockedCandidates = [];
+      redrawHighlight();
+      sendGuiHover();
+      const tag = el.tagName.toLowerCase();
+      const cls = el.className && typeof el.className === 'string'
+        ? el.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).join('.')
+        : '';
+      showToast((e.key === '1' ? '父级 ' : '子级 ') + tag + (el.id ? '#' + el.id : '') + (cls ? '.' + cls : ''), 'info');
+    }
   }
 
   function exitCaptureMode() {
@@ -2284,9 +2343,17 @@
     captureMode = false;
     document.removeEventListener('mousemove', onCaptureMouseMove);
     document.removeEventListener('click', onCaptureClick, true);
+    document.removeEventListener('keydown', onCaptureKeyDown, true);
+    document.removeEventListener('mouseleave', onCaptureMouseLeave);
+    document.documentElement.removeEventListener('mouseleave', onCaptureMouseLeave);
+    if (leaveExitTimer != null) {
+      clearTimeout(leaveExitTimer);
+      leaveExitTimer = null;
+    }
     lockedElement = null;
     lastHoveredEl = null;
     capturedScreenshot = null;
+    webOnlyCapture = false;
     if (highlightHost) {
       highlightHost.remove();
       highlightHost = null;
@@ -2320,6 +2387,20 @@
 
   function onCaptureMouseMove(e) {
     if (!captureMode) return;
+    // 鼠标移出视口 → 无感切回桌面拾取（防抖 250ms；按住按键拖滚动条不切；回到视口内即取消）
+    if (e.clientX < 0 || e.clientY < 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+      if (!webOnlyCapture && !e.buttons && leaveExitTimer == null) {
+        leaveExitTimer = setTimeout(() => {
+          leaveExitTimer = null;
+          finishGuiCapture(true);
+        }, 250);
+      }
+      return;
+    }
+    if (leaveExitTimer != null) {
+      clearTimeout(leaveExitTimer);
+      leaveExitTimer = null;
+    }
     const stack = document.elementsFromPoint(e.clientX, e.clientY);
     let target = stack.find(el => el !== document.body && el !== document.documentElement && !el.closest('#rpa-capture-highlight-host'));
     if (!target) return;
@@ -2332,6 +2413,41 @@
     lockedElement = target;
     lockedCandidates = [];
     redrawHighlight();
+    sendGuiHover();
+  }
+
+  function onCaptureMouseLeave(e) {
+    // 鼠标离开页面（移入浏览器标签栏/地址栏/桌面）→ 无感切回桌面拾取；网页专用模式禁用
+    if (!captureMode) return;
+    if (webOnlyCapture || e.buttons) return;
+    if (leaveExitTimer == null) {
+      leaveExitTimer = setTimeout(() => {
+        leaveExitTimer = null;
+        finishGuiCapture(true);
+      }, 250);
+    }
+  }
+
+  function sendGuiHover() {
+    // GUI 原生捕获模式下：悬停元素信息上报（节流 150ms，元素变化才发）→ 悬浮窗实时显示
+    if (!guiCaptureRequestId || !lockedElement) return;
+    const now = Date.now();
+    if (now - lastHoverSentAt < 150) return;
+    const el = lockedElement;
+    const tag = el.tagName.toLowerCase();
+    const id = el.id || '';
+    const cls = el.className && typeof el.className === 'string'
+      ? el.className.trim().split(/\s+/).filter(Boolean).slice(0, 5).join('.')
+      : '';
+    const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+    const key = tag + '#' + id + '.' + cls + '|' + text;
+    if (key === lastHoverSentKey) return;
+    lastHoverSentKey = key;
+    lastHoverSentAt = now;
+    chrome.runtime.sendMessage({
+      action: 'guiHoverInfo',
+      payload: { requestId: guiCaptureRequestId, info: { tag, id, classes: cls, text } },
+    }).catch(() => {});
   }
 
   function isExtensionContextInvalidated(err) {
@@ -2497,7 +2613,6 @@
           payload: { requestId: guiCaptureRequestId, result: payload },
         }).catch(() => {});
         guiCaptureRequestId = null;
-        captureEnabled = false;
         if (captureMode) exitCaptureMode();
       } else {
         chrome.runtime.sendMessage({ action: 'captureElement', payload })
@@ -2519,8 +2634,8 @@
 
   async function onCaptureClick(e) {
     if (!captureMode) return;
-    // GUI 模式不需要 Alt；Side panel 需要 Alt
-    if (!guiCaptureRequestId && !e.altKey) return;
+    // RPA 窗口（GUI 捕获）用 Alt+点击 确认；侧栏模式普通点击即可（Alt 为 RPA 专用）
+    if (guiCaptureRequestId && !e.altKey) return;
     e.preventDefault();
     e.stopPropagation();
     const el = lockedElement;
@@ -2954,7 +3069,7 @@
   });
 
   async function triggerQuickCapture() {
-    if (!captureEnabled) return;
+    if (!captureEnabled || guiCaptureRequestId) return;  // GUI 捕获激活时侧栏快速捕获让路
     let el = lockedElement;
     if (!el && lastMouseX >= 0 && lastMouseY >= 0) {
       const stack = document.elementsFromPoint(lastMouseX, lastMouseY);
@@ -2970,7 +3085,7 @@
   }
 
   async function triggerQuickVerify() {
-    if (!captureEnabled) return;
+    if (!captureEnabled || guiCaptureRequestId) return;  // GUI 捕获激活时侧栏快速校验让路
     const target = activeCandidate || lastCapturePayload?.candidates?.[0];
     if (!target) {
       showToast('没有可校验的选择器，请先捕获元素');
@@ -2991,37 +3106,16 @@
   }
 
   document.addEventListener('keydown', (e) => {
-    if (e.altKey && (e.key === '1')) {
+    // GUI 捕获激活期间，侧栏热键全部让路（Alt 为 RPA 窗口专用）
+    if (guiCaptureRequestId) return;
+    // 按键触发捕获（原「按住 Alt 进出捕获」手势取消）：F9 捕获当前悬停元素
+    if (e.key === 'F9') {
       e.preventDefault();
       triggerQuickCapture();
       return;
     }
-    if (e.altKey && (e.key === '2')) {
-      e.preventDefault();
-      triggerQuickVerify();
-      return;
-    }
-    if (e.key === 'Alt') {
-      if (!captureEnabled) return;
-      altPressed = true;
-      altComboUsed = false;
-      e.preventDefault();
-      enterCaptureMode();
-    } else if (altPressed && e.key !== 'Alt') {
-      altComboUsed = true;
-    } else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       exitCaptureMode();
-    }
-  });
-
-  document.addEventListener('keyup', (e) => {
-    if (e.key === 'Alt') {
-      altPressed = false;
-      if (altComboUsed && captureMode) {
-        exitCaptureMode();
-      } else if (captureMode) {
-        exitCaptureMode();
-      }
     }
   });
 
@@ -3034,7 +3128,8 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'setCaptureEnabled') {
       captureEnabled = message.enabled;
-      if (!captureEnabled && captureMode) exitCaptureMode();
+      // 关闭侧栏不清 GUI 捕获模式（GUI 由自身流程收尾）
+      if (!captureEnabled && captureMode && !guiCaptureRequestId) exitCaptureMode();
       if (!captureEnabled) { activeAnchor = null; clearActiveAnchorHighlights(); }
       sendResponse({ ok: true });
       return false;
@@ -3257,16 +3352,24 @@
       return false;
     }
 
+    // ── exitCaptureMode: 后端/后台要求退出捕获模式（超时/失败/取消） ──
+    if (message.action === 'exitCaptureMode') {
+      exitCaptureMode();
+      guiCaptureRequestId = null;
+      sendResponse({ ok: true });
+      return false;
+    }
+
     // ── launchBrowserCapture: GUI 激活原生捕获模式 ──
     if (message.action === 'launchBrowserCapture') {
       console.log('[RPA Capture] launchBrowserCapture received, requestId=', (message.payload || {}).requestId);
       guiCaptureRequestId = (message.payload || {}).requestId || null;
-      captureEnabled = true;
+      webOnlyCapture = (message.payload || {}).webOnly === true;
       if (!captureMode) {
         console.log('[RPA Capture] entering capture mode...');
         enterCaptureMode();
       }
-      console.log('[RPA Capture] capture mode active, guiRequestId=', guiCaptureRequestId);
+      console.log('[RPA Capture] capture mode active, guiRequestId=', guiCaptureRequestId, 'webOnly=', webOnlyCapture);
       // 视觉确认 — 蓝色半透明闪烁
       if (document.body) {
         const overlay = document.createElement('div');
@@ -3274,7 +3377,6 @@
         document.body.appendChild(overlay);
         setTimeout(() => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 500); }, 300);
       }
-      showToast('✅ GUI捕获模式已激活 | 直接点击页面元素', 'success');
       sendResponse({ ok: true });
       return false;
     }
@@ -3361,5 +3463,5 @@
       .catch(() => {});
   } catch (_e) {}
 
-  console.log('[RPA Capture] 捕获模块已加载，按 Alt 进入捕获模式');
+  console.log('[RPA Capture] 捕获模块已加载，按 F9 捕获当前悬停元素');
 })();

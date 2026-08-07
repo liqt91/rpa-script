@@ -148,8 +148,8 @@ export const api = {
     method: 'DELETE',
   }),
 
-  // Desktop picker
-  runGuiPicker: () => request('/api/commands/gui-picker', { method: 'POST' }),
+  // Desktop / web picker
+  runGuiPicker: (mode = 'desktop') => request('/api/commands/gui-picker', { method: 'POST', body: JSON.stringify({ mode }) }),
   runGuiVerify: (payload) => request('/api/commands/gui-verify', { method: 'POST', body: JSON.stringify(payload) }),
   verifyWebSelector: (selector) => request('/api/extension/verify-selector', { method: 'POST', body: JSON.stringify({ selector, requestId: Math.random().toString(36).slice(2,10) }) }),
 

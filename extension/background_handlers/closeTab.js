@@ -17,9 +17,9 @@ registerBackgroundHandler('closeTab', async function(step, agent) {
   let tabId;
 
   if (urlPattern) {
-    // Close by URL match (case-insensitive), gets the FIRST match
-    const tabs = await chrome.tabs.query({ windowId });
-    const tab = tabs.find(t => t.url && t.url.toLowerCase().includes(urlPattern.toLowerCase()));
+    // Close by URL match (case-insensitive), gets the FIRST match, with retry
+    // for the navigate-URL-commit timing window (see findTabByUrlPattern).
+    const tab = await findTabByUrlPattern(windowId, urlPattern);
     if (!tab) {
       throw new Error('未找到匹配 URL 的标签页: ' + urlPattern);
     }

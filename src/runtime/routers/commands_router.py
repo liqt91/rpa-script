@@ -750,10 +750,11 @@ async def save_generic_params(request: Request, user=Depends(auth.get_current_us
 # ── 控件拾取器 ────────────────────────────────────────────────────
 
 @router.post("/gui-picker")
-def run_gui_picker(user=Depends(auth.get_current_user)):
+def run_gui_picker(payload: dict = None, user=Depends(auth.get_current_user)):
     """启动 GUI 捕获浮窗（overlay.py），返回捕获元素。
 
     支持桌面(Win32+UIA) + 浏览器(代理到扩展)统一捕获。
+    body: {"mode": "desktop" | "web"}
     """
     import subprocess
     import sys
@@ -761,9 +762,10 @@ def run_gui_picker(user=Depends(auth.get_current_user)):
     picker_path = _ROOT / "scripts" / "capture_gui" / "capture_once.py"
     if not picker_path.exists():
         raise HTTPException(status_code=500, detail="capture_once.py not found")
+    mode = (payload or {}).get("mode") or "desktop"
     try:
         proc = subprocess.run(
-            [sys.executable, str(picker_path)],
+            [sys.executable, str(picker_path), mode],
             capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60,
             cwd=str(_ROOT),
         )

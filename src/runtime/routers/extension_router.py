@@ -33,6 +33,13 @@ def _safe_json_loads(value, default=None):
 
 router = APIRouter(prefix="/api/extension", tags=["extension"])
 
+# GUI 浏览器捕获期间的悬停元素信息（requestId -> info），供悬浮窗轮询
+_gui_hover_store: dict = {}
+# GUI 浏览器捕获的挂起 future（requestId -> (fut, conn)），供 overlay Esc 兜底取消
+_gui_capture_futs: dict = {}
+# GUI 浏览器捕获的提示文案（受限页/载入中等），供悬浮窗显示
+_gui_capture_notes: dict = {}
+
 
 # ── GUI 浏览器捕获（阻塞等待 Alt+Click） ──
 
@@ -42,6 +49,7 @@ async def gui_browser_capture(request: dict = None):
     import uuid
     request_id = (request or {}).get("requestId", str(uuid.uuid4())[:8])
     timeout = (request or {}).get("timeout", 20)
+    web_only = bool((request or {}).get("webOnly"))
 
     # 找活跃扩展连接
     async with ext_manager._lock:
@@ -55,18 +63,80 @@ async def gui_browser_capture(request: dict = None):
         if payload.get("requestId") == request_id and not fut.done():
             fut.set_result(payload.get("result", {}))
 
+    def _on_hover(payload, cid):
+        # 悬停元素信息 → 供 GUI 轮询显示到悬浮窗；收到悬停说明已进入可捕获页面，清提示
+        if payload.get("requestId") == request_id:
+            _gui_capture_notes.pop(request_id, None)
+            _gui_hover_store[request_id] = payload.get("info", {})
+
+    def _on_note(payload, cid):
+        # 受限页/载入中等启动提示 → 供悬浮窗显示
+        if payload.get("requestId") == request_id:
+            _gui_capture_notes[request_id] = payload.get("note", "")
+
     ext_manager.on("browserCaptureComplete", _on_result)
+    ext_manager.on("guiHoverInfo", _on_hover)
+    ext_manager.on("browserCaptureNote", _on_note)
+    _gui_capture_futs[request_id] = (fut, conn)
     try:
         await conn.send({
             "action": "launchBrowserCapture",
-            "payload": {"requestId": request_id},
+            "payload": {"requestId": request_id, "webOnly": web_only},
         })
         result = await asyncio.wait_for(fut, timeout=timeout)
         return result
     except asyncio.TimeoutError:
+        # 通知扩展退出浏览器捕获模式，避免页面高亮残留
+        try:
+            await conn.send({
+                "action": "exitBrowserCapture",
+                "payload": {"requestId": request_id},
+            })
+        except Exception:
+            pass
         return {"error": "捕获超时", "requestId": request_id}
     finally:
         ext_manager.off("browserCaptureComplete", _on_result)
+        ext_manager.off("guiHoverInfo", _on_hover)
+        ext_manager.off("browserCaptureNote", _on_note)
+        _gui_hover_store.pop(request_id, None)
+        _gui_capture_futs.pop(request_id, None)
+        _gui_capture_notes.pop(request_id, None)
+
+
+@router.post("/gui-browser-cancel")
+async def gui_browser_cancel(request: dict = None):
+    """GUI 调用：立即取消当前捕获（overlay Esc 兜底，不依赖 content 脚本）。
+
+    即使当前标签页是受限页/载入中（content 脚本不可用），也能立刻解除 overlay 阻塞，
+    并通过 exitBrowserCapture 通知扩展清理捕获模式，避免框选残留。
+    """
+    request_id = (request or {}).get("requestId", "")
+    entry = _gui_capture_futs.get(request_id)
+    if not entry:
+        return {"ok": False, "error": "未找到捕获会话", "requestId": request_id}
+    fut, conn = entry
+    if not fut.done():
+        fut.set_result({"error": "已取消", "requestId": request_id})
+    # 通知扩展退出浏览器捕获模式（清理 content 捕获模式/高亮）
+    try:
+        await conn.send({
+            "action": "exitBrowserCapture",
+            "payload": {"requestId": request_id},
+        })
+    except Exception:
+        pass
+    return {"ok": True, "requestId": request_id}
+
+
+@router.post("/gui-browser-hover")
+async def gui_browser_hover(request: dict = None):
+    """GUI 轮询：获取当前捕获会话的悬停元素信息与提示文案（悬浮窗实时显示）。"""
+    request_id = (request or {}).get("requestId", "")
+    return {
+        "hover": _gui_hover_store.get(request_id) or {},
+        "note": _gui_capture_notes.get(request_id) or "",
+    }
 
 
 # ── 验证选择器 ──

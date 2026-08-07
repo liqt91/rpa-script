@@ -24,11 +24,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const strip = (s) => (s || '').replace(/^(css:|xpath:|drission:)/i, '');
 
   // 捕获元素 → 直接填入编辑器
-  const startDesktopCapture = async () => {
+  const startCapture = async (mode) => {
     setCapturing(true);
     setCaptureError('');
     try {
-      const data = await api.runGuiPicker();
+      const data = await api.runGuiPicker(mode);
       if (data.cancelled) return;
       setSavedId(null);
       setCur(data);
@@ -177,11 +177,20 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
             <div className="flex items-center gap-3">
               <h2 className="text-sm font-semibold text-gray-800">元素捕获工具</h2>
               <button
-                onClick={startDesktopCapture}
+                onClick={() => startCapture('desktop')}
                 disabled={capturing}
                 className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-xs rounded transition-colors"
+                title="捕获桌面窗口/控件（Win32+UIA）"
               >
-                {capturing ? '捕获中... 左键选取目标' : '🔍 捕获元素'}
+                {capturing ? '捕获中... Alt+点击 选取目标' : '🔍 捕获桌面元素'}
+              </button>
+              <button
+                onClick={() => startCapture('web')}
+                disabled={capturing}
+                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded transition-colors"
+                title="对最前面的浏览器页面进入 DOM 拾取"
+              >
+                {capturing ? '捕获中... Alt+点击 选取目标' : '🌐 捕获网页元素'}
               </button>
               {captureError && <span className="text-xs text-red-500">{captureError}</span>}
             </div>
@@ -201,12 +210,12 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
           {showHelp && (
             <div className="px-4 py-3 bg-blue-50 border-b text-xs text-gray-600 space-y-2">
               <p className="text-blue-600 font-medium">
-                请在已安装插件的浏览器中完成网页元素捕获；桌面控件直接在当前屏幕上框选。
+                网页元素：先打开 Chrome/Edge 并把目标页面放在最前面；桌面控件直接在当前屏幕上框选。
               </p>
               <ol className="list-decimal pl-4 space-y-1">
-                <li>点击「🔍 捕获元素」，鼠标移动到目标上（蓝色边框高亮），左键确认</li>
-                <li>桌面控件捕获区域高亮；网页元素需鼠标落在浏览器页面内（自动转插件捕获）</li>
-                <li>网页捕获：打开 Chrome/Edge → chrome://extensions（edge://extensions）→ 开发者模式 → 加载已解压的扩展 → 选择项目目录下 <code className="bg-gray-100 px-1 rounded">extension/</code> 文件夹</li>
+                <li>点「🔍 捕获桌面元素」→ 鼠标移到目标上（蓝色边框高亮）→ Alt+点击 确认</li>
+                <li>点「🌐 捕获网页元素」→ 自动进入最前面浏览器的 DOM 拾取 → 鼠标悬停查看元素 → Alt+点击 确认；Alt+1/2 切父子级</li>
+                <li>网页捕获前提：打开 Chrome/Edge → chrome://extensions（edge://extensions）→ 开发者模式 → 加载已解压的扩展 → 选择项目目录下 <code className="bg-gray-100 px-1 rounded">extension/</code> 文件夹</li>
                 <li>捕获后编辑名称/选择器，验证通过后保存，元素自动同步到元素库</li>
               </ol>
             </div>
