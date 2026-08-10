@@ -97,7 +97,7 @@ cat TODO.md | grep '\[ \]' | head -3   # 看前三个待办
 - 单任务超 30 分钟仍未完成的，跳过并标记 `(TIMEOUT)`，继续下一个
 
 ### 注意事项
-- 不要改 CLAUDE.md、AGENTS.md、.harness/ 下非 PROGRESS.md 的文件
+- 不要改 AGENTS.md、.harness/ 下非 PROGRESS.md 的文件
 - 不要改 TODO.md 中非夜间任务区段的内容
 - 遇到需要用户确认的决策（如选择方案 A/B），选择最保守/最简单的方案，在 commit message 中注明
 ```

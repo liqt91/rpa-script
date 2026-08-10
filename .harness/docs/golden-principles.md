@@ -65,31 +65,29 @@ Enforced by: file format choice.
 ## 7. Every agent failure becomes a permanent prevention
 
 When the agent does something wrong, the response is **not** to add a "be
-careful about X" line to CLAUDE.md. It is to:
+careful about X" line to AGENTS.md. It is to:
 
 - add context to `.harness/docs/`, OR
 - add a structural test rule, OR
 - add a hook, OR
 - add a skill.
 
-Why: Mitchell Hashimoto's discipline. CLAUDE.md is a table of contents — it
+Why: Mitchell Hashimoto's discipline. AGENTS.md is a table of contents — it
 won't be re-read on every action.
 Enforced by: `/propose-harness-improvement` skill.
 
-## 8. CLAUDE.md is bounded — at most 200 instructions
+## 8. AGENTS.md is bounded — at most 200 instructions
 
-CLAUDE.md is loaded into context every session. Beyond ~150-200 instructions
+AGENTS.md is loaded into context every session. Beyond ~150-200 instructions
 (HumanLayer measurement) agents stop following it reliably; verbose
-CLAUDE.md silently degrades behavior. Promote details to `.harness/docs/` or use
+AGENTS.md silently degrades behavior. Promote details to `.harness/docs/` or use
 `@-imports` to load context on demand.
 
 Why: closes principle 7's loop — without a hard cap, "every failure becomes
-a CLAUDE.md line" is the path of least resistance and CLAUDE.md grows
+an AGENTS.md line" is the path of least resistance and AGENTS.md grows
 unbounded until the agent ignores it.
-Enforced by: Stop hook (`.harness/scripts/precompletion-checklist.sh`) counts
-bullets and numbered items in `CLAUDE.md` against
-`.harness/config.json` `claudeMd.maxInstructions` (default 200) and blocks
-the stop on overflow.
+Enforced by: soft limit — keep the file under 200 bullets/items. (The former
+Stop-hook counter was removed with the Claude Code adapter.)
 
 ## 9. Baselines are decreasing-only
 
@@ -105,26 +103,25 @@ Enforced by: pre-push hook (`.harness/scripts/pre-push.sh`) compares
 `.harness/structural-baseline.json` length to its HEAD version and blocks
 the push when the count grew.
 
-## 10. Reviewer subagent triggers are mechanical, not self-judged
+## 10. Layer-spanning changes are mechanically flagged, not self-judged
 
-`architecture-reviewer` runs when changes span ≥2 layers in a single
-domain. The decision is made by counting layers off
-`.harness/config.json` `domains[].layers` against the changed-file set —
-not by the agent guessing whether its diff "touches multiple layers".
+A change that spans ≥2 layers in a single domain is flagged by counting
+layers off `.harness/config.json` `domains[].layers` against the
+changed-file set — not by the agent guessing whether its diff "touches
+multiple layers".
 
 Why: self-judged triggers fail open on borderline cases. The agent that
 just shipped a layer-spanning change is the one least equipped to notice
 it. Mechanical counting closes that gap.
-Enforced by: Stop hook (`.harness/scripts/precompletion-checklist.sh`) emits a
-`multi-layer-review` failure when `git` reveals ≥2 touched layers in any
-domain. The agent reads the recommendation, invokes
-`architecture-reviewer` (or documents why review is unnecessary), and the
-loop guard (`stop_hook_active`) lets the next stop succeed.
+Enforced by: `npm run harness:check` reports layer-spanning diffs. The agent
+reads the report, self-reviews against the layer order in
+`.harness/docs/architecture.md` (or documents why review is unnecessary),
+and states the outcome in the commit message.
 
 ## 11. HTML for human deliverables, Markdown for agent files
 
-Files an agent reads-and-edits (`CLAUDE.md`, `.claude/skills/*/SKILL.md`,
-`.claude/agents/*.md`, `.harness/docs/architecture.md`, `.harness/docs/adr/*.md`, ADR notes,
+Files an agent reads-and-edits (`AGENTS.md`, `.claude/skills/*/SKILL.md`,
+`.harness/docs/architecture.md`, `.harness/docs/adr/*.md`, ADR notes,
 inline review output) stay as Markdown. Files a HUMAN reads-and-decides
 (audit reports, analyses, plans, decision docs, next-actions reviews,
 status snapshots) ship as self-contained HTML, written by the

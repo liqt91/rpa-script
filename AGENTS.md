@@ -31,9 +31,8 @@ Full list: `.harness/docs/golden-principles.md`.
 
 ## Where to look (read on demand)
 
-The lines below use Claude Code 2.1+ `@`-imports — Claude loads the file
-into context only when this section is referenced, keeping the working
-CLAUDE.md tiny.
+The lines below use `@`-imports — the agent loads the referenced file
+into context only when this section is referenced, keeping AGENTS.md tiny.
 
 - @.harness/docs/architecture.md      — when adding a new module or moving code.
 - @.harness/docs/adr/                 — when changing public APIs.
@@ -54,18 +53,22 @@ CLAUDE.md tiny.
 - `/remember-project`                 when a decision, risk, scope change, or handoff note must survive future sessions.
 - `/project-status`                   when the user needs a phase/MVP/checklist/risk/status dashboard.
 
-## Subagents you should delegate to (do NOT inline these reviews)
+## Self-review (no reviewer subagents in this environment)
 
-- `architecture-reviewer` — for any cross-layer change.
-- `security-reviewer`     — for any auth, input handling, or secret-touching change.
-- `reliability-reviewer`  — for any new error path, retry loop, or async boundary.
+The former `architecture-reviewer` / `security-reviewer` / `reliability-reviewer`
+subagents are gone. For the following classes of change, do an explicit
+self-review pass and state it in the commit message or result:
+
+- cross-layer change → check the layer order in `.harness/docs/architecture.md`.
+- auth / input handling / secret-touching change → validate at boundaries.
+- new error path / retry loop / async boundary → trace the failure + cancellation path.
 
 ## Workflow contract
 
 1. Start session: run `/inspect-module .`, read `.harness/PROGRESS.md`, and keep `.harness/project/state.json` aligned with the active work.
 2. Pick ONE feature from `.harness/feature_list.json` whose `passes: false`.
 3. Implement. Run the structural test. If it fails, FIX before continuing.
-4. Self-verify with the matching reviewer subagent(s).
+4. Self-verify (see self-review section above).
 5. Commit with descriptive message. Append a line to `.harness/PROGRESS.md`.
 6. Update `.harness/feature_list.json` (`passes: true`) **only after** end-to-end test passes.
 
@@ -76,7 +79,7 @@ CLAUDE.md tiny.
 - Don't disable the structural test to make a PR pass.
 - Don't write code that the structural test cannot reason about (no dynamic
   imports across layers).
-- Don't update CLAUDE.md without proposing a harness improvement
+- Don't update AGENTS.md without proposing a harness improvement
   (`/propose-harness-improvement`).
-- Don't grow CLAUDE.md past 200 instructions — Stop hook blocks the stop on
-  overflow (HumanLayer measurement). Excess belongs in `.harness/docs/` or @-imports.
+- Don't grow AGENTS.md past 200 instructions (soft limit). Excess belongs in
+  `.harness/docs/` or @-imports.

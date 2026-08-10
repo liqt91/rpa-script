@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scan-paths.mjs — deterministic step for /doc-drift-scan.
-// Walks .harness/docs/ + CLAUDE.md, extracts backtick paths, checks existsSync.
+// Walks .harness/docs/ + AGENTS.md, extracts backtick paths, checks existsSync.
 // Output JSON: { stats, drift }.
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -12,7 +12,7 @@ const PATH_LIKE = /^[^|&;$][\w./@-]+\/[\w./@-]+/;
 
 function walkText() {
   const out = [];
-  if (existsSync(join(ROOT, "CLAUDE.md"))) out.push(join(ROOT, "CLAUDE.md"));
+  if (existsSync(join(ROOT, "AGENTS.md"))) out.push(join(ROOT, "AGENTS.md"));
   if (existsSync(join(ROOT, ".harness/docs"))) {
     for (const f of walkRecursive(join(ROOT, ".harness/docs"))) {
       if (/\.(md|markdown|mdx)$/i.test(f)) out.push(f);

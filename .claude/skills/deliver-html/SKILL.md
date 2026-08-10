@@ -1,6 +1,6 @@
 ---
 name: deliver-html
-description: Use this skill whenever the user asks to analyze, audit, review, summarize, produce a report, write a plan, make a proposal, draft a decision doc, list "next actions", or any other task that produces a DOCUMENT a HUMAN reads-and-acts-on. Outputs a self-contained <slug>.html at repo root using the shared dark-theme CSS. Why HTML and not Markdown: golden principle #9 — Markdown is great for files an agent reads-and-edits (CLAUDE.md, SKILL.md, ADRs), but a HUMAN reading a 700-line MD deliverable will scroll, miss the conclusion, and ask the agent to clarify — burning turns and tokens. HTML deliverable is read once, decided once. Do NOT use this skill for files the agent itself reads (those stay MD), for stdout output from /review-this-pr or /garbage-collection (pass-through MD), or for short summaries under ~30 lines (overhead not worth it).
+description: Use this skill whenever the user asks to analyze, audit, review, summarize, produce a report, write a plan, make a proposal, draft a decision doc, list "next actions", or any other task that produces a DOCUMENT a HUMAN reads-and-acts-on. Outputs a self-contained <slug>.html at repo root using the shared dark-theme CSS. Why HTML and not Markdown: golden principle #9 — Markdown is great for files an agent reads-and-edits (AGENTS.md, SKILL.md, ADRs), but a HUMAN reading a 700-line MD deliverable will scroll, miss the conclusion, and ask the agent to clarify — burning turns and tokens. HTML deliverable is read once, decided once. Do NOT use this skill for files the agent itself reads (those stay MD), for stdout output from /review-this-pr or /garbage-collection (pass-through MD), or for short summaries under ~30 lines (overhead not worth it).
 allowed-tools: Read, Write, Bash(node .claude/skills/deliver-html/scripts/wrap-html.mjs:*), Bash(cat:*), Bash(ls:*)
 suggested-turns: 6
 ---
@@ -16,7 +16,7 @@ Trigger words from the user (English / Vietnamese):
 
 Do **NOT** use for:
 
-- Editing `CLAUDE.md`, `SKILL.md`, `.harness/docs/*.md`, or any agent-read file (those stay MD).
+- Editing `AGENTS.md`, `SKILL.md`, `.harness/docs/*.md`, or any agent-read file (those stay MD).
 - Pass-through stdout from `/review-this-pr`, `/garbage-collection`, `/inspect-module` (the agent itself consumes that — keep it MD).
 - Short summaries (< 30 lines of body). Just answer inline.
 - Files that will be diffed in a PR. Source-of-truth stays MD.

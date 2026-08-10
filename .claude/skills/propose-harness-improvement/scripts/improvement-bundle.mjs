@@ -132,7 +132,7 @@ function fixTargets(buckets) {
   }
   if (buckets.context > 0) {
     out.push({ file: ".harness/docs/golden-principles.md", why: "context gap surfaced via permission denials" });
-    out.push({ file: "CLAUDE.md", why: "consider a pointer (not a paste) to relevant doc" });
+    out.push({ file: "AGENTS.md", why: "consider a pointer (not a paste) to relevant doc" });
   }
   if (buckets.tool_skill > 0) {
     out.push({ file: ".claude/skills/", why: "missing skill or wrong skill chosen — write or edit one" });

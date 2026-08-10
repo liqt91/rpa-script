@@ -1,6 +1,6 @@
 ---
 name: i18n-add-locale
-description: Use this skill to scaffold a new human-language locale for the kit's skills/agents/CLAUDE.md. Mirrors every existing SKILL.md.hbs into a SKILL.md.<locale>.hbs stub so a translator (or LLM) can edit copy without touching machine-readable frontmatter. Default locale codes — vi, ja, fr, es, de — but accepts any 2-5 char code.
+description: Use this skill to scaffold a new human-language locale for the kit's skills/agents/AGENTS.md. Mirrors every existing SKILL.md.hbs into a SKILL.md.<locale>.hbs stub so a translator (or LLM) can edit copy without touching machine-readable frontmatter. Default locale codes — vi, ja, fr, es, de — but accepts any 2-5 char code.
 allowed-tools: Read, Write, Bash(node .harness/scripts/locale-scaffold.mjs:*)
 suggested-turns: 4
 ---

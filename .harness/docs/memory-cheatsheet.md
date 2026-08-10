@@ -8,8 +8,9 @@ The kit ships a repo-local Project Operating Memory:
 - `.harness/project/state.json` — phases, MVP scope, checklists, risks,
   decisions, and feature rollups.
 
-Claude Code may also maintain tool-local memory under
-`~/.claude/projects/<repo-slug>/memory/`. Treat that as personal/tool context.
+The agent tool may also maintain tool-local memory under
+`~/.claude/projects/<repo-slug>/memory/` (or the equivalent tool location).
+Treat that as personal/tool context.
 The `.harness/` memory is the project/team source of truth because it lives in
 the repo, can be reviewed, and can be handed off.
 
@@ -59,7 +60,7 @@ node .harness/scripts/project-memory.mjs remember \
 - Today's debug recipe — the fix lives in the commit; the commit message
   has the context.
 - A list of files you just edited — the diff has it.
-- Anything documented in `CLAUDE.md` — it's already loaded.
+- Anything documented in `AGENTS.md` — it's already loaded.
 - Credentials, API keys, customer data, or pasted secrets.
 
 Reject the request even if the user explicitly asks. Bigger memory is

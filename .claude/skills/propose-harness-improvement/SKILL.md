@@ -26,7 +26,7 @@ suggested-turns: 8
      the regression is closed.
 3. **Append entry** to `.harness/docs/agent-failures.md` with: date, symptom, fix,
    fix-type, file modified.
-4. **Apply the fix in the right place.** NEVER paper over with a CLAUDE.md
+4. **Apply the fix in the right place.** NEVER paper over with an AGENTS.md
    "be careful" sentence unless rule (a) applies — and even then, only as a
    pointer to a longer doc.
 5. **Update PROGRESS.** Append `harness-improvement: <slug>` to
@@ -43,7 +43,7 @@ suggested-turns: 8
 
 ## Anti-patterns (block on these)
 
-- Don't add a vague "be careful with X" sentence to CLAUDE.md.
+- Don't add a vague "be careful with X" sentence to AGENTS.md.
 - Don't add a rule whose enforcement is also LLM-based.
 - Don't use this skill to log unrelated cleanup ideas — those go in
   `.harness/docs/tech-debt-tracker.md`.

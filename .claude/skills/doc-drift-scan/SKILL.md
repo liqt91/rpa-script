@@ -1,6 +1,6 @@
 ---
 name: doc-drift-scan
-description: Use this skill weekly, before releases, or when the user mentions "stale docs", "doc drift", "docs are wrong", or "the README is out of date". Cross-checks every code path, file path, and command referenced in `.harness/docs/` and `CLAUDE.md` against the current repo state and produces a list of stale references — the doc-gardening agent pattern.
+description: Use this skill weekly, before releases, or when the user mentions "stale docs", "doc drift", "docs are wrong", or "the README is out of date". Cross-checks every code path, file path, and command referenced in `.harness/docs/` and `AGENTS.md` against the current repo state and produces a list of stale references — the doc-gardening agent pattern.
 allowed-tools: Read, Glob, Grep, Bash(test -e:*), Bash(command -v:*), Bash(node .claude/skills/doc-drift-scan/scripts/scan-paths.mjs:*)
 suggested-turns: 8
 ---
@@ -8,7 +8,7 @@ suggested-turns: 8
 ## Steps
 
 1. **Extract references + validate (deterministic).** Run the side-car
-   script — walks `.harness/docs/**/*.md` + `CLAUDE.md`, extracts every backtick-path
+   script — walks `.harness/docs/**/*.md` + `AGENTS.md`, extracts every backtick-path
    containing a slash, checks `existsSync` per ref:
 
    ```bash
