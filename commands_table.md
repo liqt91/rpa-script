@@ -1,7 +1,7 @@
 # 扩展模式指令清单
 | 命令类型 | Handler | 本地执行 | 说明 | 参数 |
 |---|---|---|---|---|
-| openBrowser | openBrowser | 否 | 页面导航 - 打开浏览器 | browserType, url, windowState, saveToVar |
+| launchBrowser | launchBrowser | 否 | 页面导航 - 打开浏览器 | browserType, url, windowState, windowVar |
 | closeBrowser | closeBrowser | 否 | 页面导航 - 关闭浏览器窗口 | windowVar |
 | newTab | newTab | 否 | 页面导航 - 新建标签页 | windowVar, url |
 | navigate | navigate | 否 | 页面导航 - 打开网页 | url, windowVar, waitLoad, timeout, saveToVar |

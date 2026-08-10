@@ -4,8 +4,8 @@
  * Self-contained hover implementation. Moves the real OS cursor to the element
  * (runner) via returned coords; no click is performed.
  */
-registerHandler('hover', async function hover({ locator, selectorFamily }) {
-  const el = findTarget(locator, selectorFamily);
+registerHandler('hover', async function hover({ locator, selectorFamily, extra }) {
+  const el = findTarget(locator, selectorFamily, extra);
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   await sleep(400);
   const rect = el.getBoundingClientRect();

@@ -17,7 +17,8 @@ class IfListContainsHandler:
         logger = logging.getLogger(__name__)
         from src.runtime.workflow.extension_runner import _clean_var_ref
         extra = runner._resolve_vars(instr.get("extra") or {}, runner.vars)
-        list_name = _clean_var_ref(extra.get("listName", ""))
+        # 目录参数名为 listVar；兼容历史工作流里存的 listName。
+        list_name = _clean_var_ref(extra.get("listVar") or extra.get("listName", ""))
         expected = runner._resolve_vars(str(extra.get("value", "")), runner.vars)
         actual = runner.vars.get(list_name)
         if isinstance(actual, list):

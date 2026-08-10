@@ -53,9 +53,9 @@
 
 - [ ] **C2: 自然语言 → 指令匹配**
   - 用户输入"打开百度，搜索RPA，等待3秒"，分词后匹配 handler
-  - "打开" → openBrowser，"百度" → navigate url=baidu.com，"搜索" → clickElement + inputText
+  - "打开" → launchBrowser，"百度" → navigate url=baidu.com，"搜索" → clickElement + inputText
   - 返回匹配的指令列表及置信度
-  - 验收：`test_nl_match.py` 测试 "打开百度搜索RPA" → [openBrowser, navigate, clickElement, inputText]
+  - 验收：`test_nl_match.py` 测试 "打开百度搜索RPA" → [launchBrowser, navigate, clickElement, inputText]
 
 - [ ] **C3: 指令序列 → 工作流节点生成**
   - 根据匹配的指令列表，生成节点树（含 parent_id、order、extra 默认值）
@@ -65,7 +65,7 @@
 - [ ] **C4: AI 生成前端入口**
   - 在 WorkflowList 添加"AI 生成"按钮
   - 弹出一个对话框：输入自然语言描述 → 显示匹配的指令序列预览 → 确认后创建工作流
-  - 验收：输入"采集知乎热搜前10条"，生成含 openBrowser+navigate+forEachElement+getText+writeTableRow 的工作流
+  - 验收：输入"采集知乎热搜前10条"，生成含 launchBrowser+navigate+forEachElement+getText+writeTableRow 的工作流
 
 ### D. 定时调度器
 

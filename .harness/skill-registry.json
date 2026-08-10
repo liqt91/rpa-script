@@ -502,6 +502,21 @@
         "allow": [],
         "deny": []
       }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "command-test",
+      "name": "command-test",
+      "version": "1.0.0",
+      "description": "Use this skill whenever the user asks to 测试指令/测试命令/\"把 X 指令也测试下\"/run an end-to-end test of workflow commands (e.g. \"变量及日志的指令也测试下\", \"浏览器操作指令测试\"). Runs the full E2E command-test loop — test-plan doc → build a dedicated test workflow via build_workflow.py → trigger POST /api/workflows/{id}/run/extension with a locally minted JWT via run_workflow.py → verify per-step results from run.log → write 结果 doc + work-log entry — without re-deriving DB storage shape, auth, or endpoints. Enforces 只记录问题不改代码.",
+      "capabilities": [
+        "evaluation",
+        "workflow"
+      ],
+      "permissions": {
+        "allow": [],
+        "deny": []
+      }
     }
   ]
 }

@@ -7,7 +7,7 @@
  * humanLike=false: dispatch synthetic click (left/right/double via clickType).
  */
 registerHandler('clickElement', async function clickElement({ locator, selectorFamily, extra }) {
-  const el = findTarget(locator, selectorFamily);
+  const el = findTarget(locator, selectorFamily, extra);
   const humanLike = extra?.humanLike ?? true;
   if (humanLike) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });

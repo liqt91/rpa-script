@@ -2,7 +2,7 @@ import { useEffect, useState, Fragment } from 'react';
 import { api } from '../api';
 
 const HANDLER_DESC = {
-  openBrowser:'启动浏览器并加载扩展',wait:'等待指定秒数',randomWait:'随机等待',setVar:'设置变量值',
+  launchBrowser:'启动浏览器并加载扩展',wait:'等待指定秒数',randomWait:'随机等待',setVar:'设置变量值',
   appendToList:'追加到列表',stringConcat:'字符串拼接',increment:'数值递增/递减',
   setDictValue:'设置字典键值',getDictValue:'读取字典键值',removeDictKey:'删除字典键',
   log:'打印日志',custom:'执行自定义Python代码',httpRequest:'发送HTTP请求',executeJs:'执行JavaScript',

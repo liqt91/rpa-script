@@ -16,7 +16,10 @@ class IfVarEqualsHandler:
         from src.runtime.workflow.extension_runner import _clean_var_ref
         extra = runner._resolve_vars(instr.get("extra") or {}, runner.vars)
         var_name = _clean_var_ref(extra.get("varName", ""))
-        expected = extra.get("value", "")
+        # 目录参数名为 compareTo（B2）；兼容历史工作流里存的 value。
+        expected = extra.get("compareTo")
+        if expected is None:
+            expected = extra.get("value", "")
         vtype = extra.get("valueType", "string")
         op = extra.get("operator", "equals")
         actual = runner.vars.get(var_name)

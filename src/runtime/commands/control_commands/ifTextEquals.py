@@ -20,7 +20,10 @@ class IfTextEqualsHandler:
         selector_family = instr.get("selectorFamily") or extra.get("selector_family", "css")
         timeout = extra.get("timeout", 3)
         text = await runner._get_element_text(locator, selector_family, timeout=timeout, extra=extra)
-        expected = extra.get("text", "")
+        # 目录参数 compareTo = 文本B（期望值）；兼容历史工作流里存的 text。
+        expected = extra.get("compareTo")
+        if expected is None:
+            expected = extra.get("text", "")
         met = text == expected
         logger.info(f"ifTextEquals text={text!r} expected={expected!r} met={met}")
         return met

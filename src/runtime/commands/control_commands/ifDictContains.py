@@ -20,7 +20,8 @@ class IfDictContainsHandler:
         logger = logging.getLogger(__name__)
         from src.runtime.workflow.extension_runner import _clean_var_ref
         extra = runner._resolve_vars(instr.get("extra") or {}, runner.vars)
-        dict_name = _clean_var_ref(extra.get("dictName", ""))
+        # 目录参数名为 dictVar；兼容历史工作流里存的 dictName。
+        dict_name = _clean_var_ref(extra.get("dictVar") or extra.get("dictName", ""))
         key = runner._resolve_vars(str(extra.get("key", "")), runner.vars)
         actual = runner.vars.get(dict_name)
         if isinstance(actual, dict):

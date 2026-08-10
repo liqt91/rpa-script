@@ -78,6 +78,14 @@
       "default": "False",
       "group": "condition",
       "placeholder": "如: ${a} > 10"
+    },
+    {
+      "name": "maxIterations",
+      "label": "最大迭代次数",
+      "type": "number",
+      "default": 100,
+      "group": "advanced",
+      "description": "防止死循环的熔断上限，达到后自动停止循环"
     }
   ],
   "category": "循环",

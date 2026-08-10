@@ -127,7 +127,7 @@ _CORE_COMMANDS = {
     "stringConcat", "increment", "appendToList",
     "custom",
     # 浏览器
-    "openBrowser", "closeBrowser", "navigate", "newTab",
+    "launchBrowser", "closeBrowser", "navigate", "newTab",
     # 页面操作
     "getText", "clickElement", "inputText",
     "scrollToBottom", "scrollOneScreen",
@@ -224,7 +224,7 @@ def build_system_prompt(commands: list, elements: list) -> str:
 2. 每个节点必须有 order（从 1 开始递增）
 3. 容器节点（循环、条件）的子节点 parent_id 指向容器
 4. 引用元素用元素名，引用变量用 ${{变量名}}
-5. 打开浏览器 (openBrowser) 应在最前面，windowVar 默认 browser1
+5. 打开浏览器 (launchBrowser) 应在最前面，windowVar 默认 browser1
 6. 获取文本 (getText) 的 varName 参数指定保存到的变量名
 7. 写入数据行 (writeTableRow) 的 rowData 格式：["${{var1}}", "${{var2}}"]
 8. 列表输入 (list-input) 类型参数同样用 JSON 数组格式

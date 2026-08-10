@@ -8,7 +8,7 @@
  * 模拟键盘输入=false: DOM 合成输入（el.value + input 事件，快速）。
  */
 registerHandler('inputElement', async function inputElement({ locator, selectorFamily, extra }) {
-  const el = findTarget(locator, selectorFamily);
+  const el = findTarget(locator, selectorFamily, extra);
   const text = extra?.text ?? '';
   const keyboard = extra?.simulateKeyboard ?? true;
 

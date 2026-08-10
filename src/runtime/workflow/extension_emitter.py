@@ -509,8 +509,10 @@ def build_instructions(nodes: list[models.WorkflowNode], element_map: dict | Non
                     "compound": True,
                     "extra": extra,
                 }
-            # Skip commands without extension runtime declaration
-            return None
+            # 未注册/已废弃的指令（如 openBrowser）不再静默跳过：
+            # 照常下发，由 runner 在调度时显式报错（用户可见的 stepError）。
+            step_counter[0] += 1
+            return _emit_instruction(node, step_counter[0], node.cmd, element_map)
 
         step_counter[0] += 1
         return _emit_instruction(node, step_counter[0], runtime["handler"], element_map)

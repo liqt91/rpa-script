@@ -16,7 +16,10 @@ class IfVarContainsHandler:
         from src.runtime.workflow.extension_runner import _clean_var_ref
         extra = runner._resolve_vars(instr.get("extra") or {}, runner.vars)
         var_name = _clean_var_ref(extra.get("varName", ""))
-        expected = extra.get("value", "")
+        # 目录参数名为 substring；兼容历史工作流里存的 value。
+        expected = extra.get("substring")
+        if expected is None:
+            expected = extra.get("value", "")
         op = extra.get("operator", "contains")
         actual = runner.vars.get(var_name)
         if isinstance(actual, list):

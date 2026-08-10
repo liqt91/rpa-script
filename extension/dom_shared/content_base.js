@@ -710,6 +710,16 @@
       }
     }
     if (!el) {
+      // 循环上下文存在但解析失败 → 明确的 contextNotFound（scope=local 不允许
+      // 逃逸到全局；全局查找只在无循环上下文时进行）。
+      if (parent || ctxLocator) {
+        const target = locator || extra?.relativeLocator || '';
+        const err = parent
+          ? new Error(`元素在当前循环项中未找到: ${target}`)
+          : new Error(`循环项未找到 (第 ${ctxIndex + 1} 个): ${ctxLocator}`);
+        err.contextNotFound = true;
+        throw err;
+      }
       el = resolveLocator(locator, selectorFamily, mode);
     }
     if (el && extra?.contextLocator) {
@@ -1229,9 +1239,15 @@ console.log({
   // Action implementations live in each command's own handler file under
   // dom_handlers_new/; content_base only provides shared infrastructure.
 
-  function findTarget(locator, selectorFamily) {
-    const el = resolveLocator(locator, selectorFamily, 'visible');
-    if (!el) throw new Error(`未找到元素 (${selectorFamily}:${locator})`);
+  function findTarget(locator, selectorFamily, extra) {
+    // 循环体内：按上下文（当前循环项）解析；子元素走 capture-time 相对选择器。
+    let el = null;
+    if (extra && (extra.contextLocator || extra.sourceLocator)) {
+      el = reResolveWithContext(locator, selectorFamily, extra, 'visible');
+    } else {
+      el = resolveLocator(locator, selectorFamily, 'visible');
+    }
+    if (!el || el === document) throw new Error(`未找到元素 (${selectorFamily}:${locator || extra?.relativeLocator || ''})`);
     return el;
   }
 
@@ -1372,7 +1388,13 @@ console.log({
         console.error(`[RPA Agent] step ${type} failed:`, e);
         clearTimeout(timeoutId);
         addRunLog(`${type} 失败: ${e?.message || String(e)}`);
-        safeRespond({ status: 'error', error: e?.message || String(e) });
+        // 循环项内未找到子元素是"软失败"：以成功结果 + contextNotFound 标记返回，
+        // 由后端按 onError 策略决定继续（空值+警告）还是终止。
+        if (e && e.contextNotFound) {
+          safeRespond({ status: 'success', result: { contextNotFound: true, warning: e?.message || String(e) } });
+        } else {
+          safeRespond({ status: 'error', error: e?.message || String(e) });
+        }
       }
     })();
 

@@ -24,6 +24,8 @@ class WhileConditionHandler:
         Param("varValue", "预期值", "string", default="", group="condition"),
         Param("condition", "表达式", "string", default="False", group="condition",
               placeholder="如: ${a} > 10"),
+        Param("maxIterations", "最大迭代次数", "int-number", default=100, group="advanced",
+              description="防止死循环的熔断上限，达到后自动停止循环"),
     ]
 
     @staticmethod

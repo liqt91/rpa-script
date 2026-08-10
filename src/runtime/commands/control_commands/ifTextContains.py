@@ -20,7 +20,10 @@ class IfTextContainsHandler:
         selector_family = instr.get("selectorFamily") or extra.get("selector_family", "css")
         timeout = extra.get("timeout", 3)
         text = await runner._get_element_text(locator, selector_family, timeout=timeout, extra=extra)
-        expected = extra.get("text", "")
+        # 目录参数 substring = 包含文本；兼容历史工作流里存的 text。
+        expected = extra.get("substring")
+        if expected is None:
+            expected = extra.get("text", "")
         op = extra.get("operator", "contains")
         if op == "notContains": met = expected not in text
         elif op == "startsWith": met = text.startswith(expected)

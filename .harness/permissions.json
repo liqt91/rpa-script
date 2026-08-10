@@ -48,6 +48,18 @@
         "Bash(node .harness/scripts/regression-compare.mjs*)",
         "Bash(node .harness/scripts/regression-report.mjs*)"
       ]
+    },
+    "command-test": {
+      "allow": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "LS",
+        "TodoWrite",
+        "Bash(python .claude/skills/command-test/scripts/*.py:*)"
+      ]
     }
   }
 }

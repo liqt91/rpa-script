@@ -12,7 +12,7 @@
   "description": "遍历一个列表变量，对每个值执行循环体",
   "params": [
     {
-      "name": "listName",
+      "name": "listVar",
       "label": "列表变量",
       "type": "string",
       "required": true,

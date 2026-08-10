@@ -710,6 +710,16 @@
       }
     }
     if (!el) {
+      // 循环上下文存在但解析失败 → 明确的 contextNotFound（scope=local 不允许
+      // 逃逸到全局；全局查找只在无循环上下文时进行）。
+      if (parent || ctxLocator) {
+        const target = locator || extra?.relativeLocator || '';
+        const err = parent
+          ? new Error(`元素在当前循环项中未找到: ${target}`)
+          : new Error(`循环项未找到 (第 ${ctxIndex + 1} 个): ${ctxLocator}`);
+        err.contextNotFound = true;
+        throw err;
+      }
       el = resolveLocator(locator, selectorFamily, mode);
     }
     if (el && extra?.contextLocator) {
@@ -1229,9 +1239,15 @@ console.log({
   // Action implementations live in each command's own handler file under
   // dom_handlers_new/; content_base only provides shared infrastructure.
 
-  function findTarget(locator, selectorFamily) {
-    const el = resolveLocator(locator, selectorFamily, 'visible');
-    if (!el) throw new Error(`未找到元素 (${selectorFamily}:${locator})`);
+  function findTarget(locator, selectorFamily, extra) {
+    // 循环体内：按上下文（当前循环项）解析；子元素走 capture-time 相对选择器。
+    let el = null;
+    if (extra && (extra.contextLocator || extra.sourceLocator)) {
+      el = reResolveWithContext(locator, selectorFamily, extra, 'visible');
+    } else {
+      el = resolveLocator(locator, selectorFamily, 'visible');
+    }
+    if (!el || el === document) throw new Error(`未找到元素 (${selectorFamily}:${locator || extra?.relativeLocator || ''})`);
     return el;
   }
 
@@ -1271,6 +1287,54 @@ console.log({
   });
 
 
+  // ── checkElementExists ──
+// ─── checkElementExists ─────────────────────────────────────────
+// 后端 ifElementExists / whileCondition(elementExists) 的查询入口。
+// 返回 {exists}；元素不存在是正常结果（不抛错），连接/解析失败才抛错。
+
+registerHandler('checkElementExists', async function checkElementExistsHandler({ locator, selectorFamily, extra }) {
+    if (!locator) return { exists: false };
+    const mode = getVisibilityMode(extra);
+    let el = null;
+    try {
+        if (extra?.contextLocator || extra?.sourceLocator) {
+            el = reResolveWithContext(locator, selectorFamily, extra, mode);
+        } else {
+            el = resolveLocator(locator, selectorFamily, mode);
+        }
+    } catch (e) {
+        // 循环项内未找到 = 不存在，不是错误
+        if (e && e.contextNotFound) return { exists: false };
+        throw e;
+    }
+    const exists = !!el && el !== document && checkVisibility(el, mode);
+    return { exists };
+});
+
+
+  // ── checkElementVisible ──
+// ─── checkElementVisible ────────────────────────────────────────
+// 后端 ifElementVisible 的查询入口。返回 {visible}。
+
+registerHandler('checkElementVisible', async function checkElementVisibleHandler({ locator, selectorFamily, extra }) {
+    if (!locator) return { visible: false };
+    const mode = getVisibilityMode(extra);
+    let el = null;
+    try {
+        if (extra?.contextLocator || extra?.sourceLocator) {
+            el = reResolveWithContext(locator, selectorFamily, extra, mode);
+        } else {
+            el = resolveLocator(locator, selectorFamily, mode);
+        }
+    } catch (e) {
+        if (e && e.contextNotFound) return { visible: false };
+        throw e;
+    }
+    const visible = !!el && el !== document && checkVisibility(el, mode);
+    return { visible };
+});
+
+
   // ── clickElement ──
 /**
  * clickElement — DOM handler.
@@ -1281,7 +1345,7 @@ console.log({
  * humanLike=false: dispatch synthetic click (left/right/double via clickType).
  */
 registerHandler('clickElement', async function clickElement({ locator, selectorFamily, extra }) {
-  const el = findTarget(locator, selectorFamily);
+  const el = findTarget(locator, selectorFamily, extra);
   const humanLike = extra?.humanLike ?? true;
   if (humanLike) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1315,16 +1379,91 @@ registerHandler('closeBrowser', function closeBrowser() {
 });
 
 
+  // ── findElements ──
+// ─── findElements ───────────────────────────────────────────────
+// 后端 forEachElement 的查询入口。返回 {items, matchedCount}。
+// item 只携带 text——循环项锚定由后端按「循环选择器 + 序号对齐」注入
+// （每步实时重解析，对动态页面的 DOM 重渲染更稳健；冻结 xpath 会迅速过期）。
+
+registerHandler('findElements', async function findElementsHandler({ locator, selectorFamily, extra }) {
+    if (!locator) return { items: [], matchedCount: 0 };
+    const mode = getVisibilityMode(extra);
+
+    let matches = [];
+    const ctxLocator = extra?.contextLocator;
+    const ctxLocatorType = extra?.contextLocatorType;
+    const ctxIndex = extra?.contextIndex ?? 0;
+
+    if (ctxLocator) {
+        // 嵌套循环：先解析外层循环项，再在其内部查找本轮元素。
+        const parents = resolveAllLocators(ctxLocator, ctxLocatorType);
+        const parent = parents[ctxIndex];
+        if (!parent) return { items: [], matchedCount: 0 };
+        if (extra?.useRelative && extra?.relativeLocator) {
+            matches = resolveAllRelativeInContext(
+                extra.relativeLocator, extra.relativeSelectorFamily, parent);
+        } else {
+            matches = resolveAllLocatorsInContext(locator, selectorFamily, parent);
+        }
+    } else {
+        matches = resolveAllLocators(locator, selectorFamily);
+    }
+
+    if (mode !== 'any') {
+        matches = matches.filter(e => checkVisibility(e, mode));
+    }
+
+    const items = matches.map(el => ({
+        text: (el.innerText || el.textContent || '').trim().slice(0, 500),
+    }));
+    return { items, matchedCount: items.length };
+});
+
+
+  // ── getCurrentUrl ──
+// ─── getCurrentUrl ──────────────────────────────────────────────
+// 后端 ifUrlContains / whileCondition(urlContains) 的查询入口。
+
+registerHandler('getCurrentUrl', async function getCurrentUrlHandler() {
+    return { url: location.href, title: document.title };
+});
+
+
   // ── getElementLink ──
 /**
  * getElementLink — DOM handler.
  *
  * Self-contained implementation: extracts the href attribute.
  */
-registerHandler('getElementLink', async function getElementLink({ locator, selectorFamily }) {
-  const el = findTarget(locator, selectorFamily);
+registerHandler('getElementLink', async function getElementLink({ locator, selectorFamily, extra }) {
+  const el = findTarget(locator, selectorFamily, extra);
   const value = (el && el.getAttribute) ? (el.getAttribute('href') || '') : '';
   return { value, text: value, extracted: value };
+});
+
+
+  // ── getElementText ──
+// ─── getElementText ─────────────────────────────────────────────
+// 后端 ifTextEquals / ifTextContains 的查询入口。返回 {text}；
+// 元素未命中时返回空串（不抛错）。
+
+registerHandler('getElementText', async function getElementTextHandler({ locator, selectorFamily, extra }) {
+    if (!locator) return { text: '' };
+    const mode = getVisibilityMode(extra);
+    let el = null;
+    try {
+        if (extra?.contextLocator || extra?.sourceLocator) {
+            el = reResolveWithContext(locator, selectorFamily, extra, mode);
+        } else {
+            el = resolveLocator(locator, selectorFamily, mode);
+        }
+    } catch (e) {
+        if (e && e.contextNotFound) return { text: '' };
+        throw e;
+    }
+    if (!el || el === document) return { text: '' };
+    const text = (el.innerText || el.textContent || '').trim();
+    return { text };
 });
 
 
@@ -1335,8 +1474,8 @@ registerHandler('getElementLink', async function getElementLink({ locator, selec
  * Self-contained text extraction. Future extraction commands (getValue /
  * getAttribute / ...) will each own their own handler.
  */
-registerHandler('getText', async function getText({ locator, selectorFamily }) {
-  const el = findTarget(locator, selectorFamily);
+registerHandler('getText', async function getText({ locator, selectorFamily, extra }) {
+  const el = findTarget(locator, selectorFamily, extra);
   const value = (el.textContent || el.innerText || '').trim();
   return { value, text: value, extracted: value };
 });
@@ -1349,8 +1488,8 @@ registerHandler('getText', async function getText({ locator, selectorFamily }) {
  * Self-contained hover implementation. Moves the real OS cursor to the element
  * (runner) via returned coords; no click is performed.
  */
-registerHandler('hover', async function hover({ locator, selectorFamily }) {
-  const el = findTarget(locator, selectorFamily);
+registerHandler('hover', async function hover({ locator, selectorFamily, extra }) {
+  const el = findTarget(locator, selectorFamily, extra);
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   await sleep(400);
   const rect = el.getBoundingClientRect();
@@ -1372,7 +1511,7 @@ registerHandler('hover', async function hover({ locator, selectorFamily }) {
  * 模拟键盘输入=false: DOM 合成输入（el.value + input 事件，快速）。
  */
 registerHandler('inputElement', async function inputElement({ locator, selectorFamily, extra }) {
-  const el = findTarget(locator, selectorFamily);
+  const el = findTarget(locator, selectorFamily, extra);
   const text = extra?.text ?? '';
   const keyboard = extra?.simulateKeyboard ?? true;
 
@@ -1487,8 +1626,8 @@ registerHandler('pressKey', async function({ extra }) {
  * Self-contained scroll implementation. Future scroll commands
  * (scrollToBottom / scrollBy / ...) will each own their own handler.
  */
-registerHandler('scrollIntoView', async function scrollIntoView({ locator, selectorFamily }) {
-  const el = findTarget(locator, selectorFamily);
+registerHandler('scrollIntoView', async function scrollIntoView({ locator, selectorFamily, extra }) {
+  const el = findTarget(locator, selectorFamily, extra);
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   return { scrolled: true };
 });
@@ -1639,7 +1778,13 @@ registerHandler('waitForElement', async function waitForElementHandler({ locator
         console.error(`[RPA Agent] step ${type} failed:`, e);
         clearTimeout(timeoutId);
         addRunLog(`${type} 失败: ${e?.message || String(e)}`);
-        safeRespond({ status: 'error', error: e?.message || String(e) });
+        // 循环项内未找到子元素是"软失败"：以成功结果 + contextNotFound 标记返回，
+        // 由后端按 onError 策略决定继续（空值+警告）还是终止。
+        if (e && e.contextNotFound) {
+          safeRespond({ status: 'success', result: { contextNotFound: true, warning: e?.message || String(e) } });
+        } else {
+          safeRespond({ status: 'error', error: e?.message || String(e) });
+        }
       }
     })();
 

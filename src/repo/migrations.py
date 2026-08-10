@@ -13,7 +13,7 @@ add AUTOINCREMENT, add FK to existing table), use _rebuild_table().
 from sqlalchemy import inspect, text
 from .models import engine
 
-_SCHEMA_VERSION = 14  # Bump this when you add a new _migrate_N()
+_SCHEMA_VERSION = 15  # Bump this when you add a new _migrate_N()
 
 
 def _ensure_schema_version_table():
@@ -506,6 +506,29 @@ def _migrate_014():
         conn.commit()
 
 
+# ── Migration 015: retire legacy openBrowser → launchBrowser ─────────────────
+
+def _migrate_015():
+    """openBrowser 指令已废弃，统一替换为 launchBrowser（打开浏览器）。
+
+    - workflow_nodes 中的 openBrowser 步骤 → launchBrowser（extra 参数兼容：
+      browserType/windowState/windowVar 两边同名）。
+    - workflow_commands 注册表中遗留的 openBrowser 定义行直接删除
+      （launchBrowser 由 handler 注册表播种，无需 DB 行）。
+    """
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    with engine.connect() as conn:
+        if "workflow_nodes" in tables:
+            conn.execute(text(
+                "UPDATE workflow_nodes SET type = 'launchBrowser', action = 'launchBrowser' "
+                "WHERE type = 'openBrowser'"
+            ))
+        if "workflow_commands" in tables:
+            conn.execute(text("DELETE FROM workflow_commands WHERE type = 'openBrowser'"))
+        conn.commit()
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 _MIGRATIONS = {
@@ -523,6 +546,7 @@ _MIGRATIONS = {
     12: _migrate_012,
     13: _migrate_013,
     14: _migrate_014,
+    15: _migrate_015,
 }
 
 

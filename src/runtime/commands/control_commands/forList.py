@@ -18,7 +18,8 @@ class ForListHandler:
     @staticmethod
     async def execute(runner, cmd_type, instr, extra):
         raw_extra = instr.get("extra") or {}
-        list_var = _clean_var_ref(raw_extra.get("listVar", "items"))
+        # 目录参数名为 listVar（B1）；兼容历史工作流里存的 listName。
+        list_var = _clean_var_ref(raw_extra.get("listVar") or raw_extra.get("listName") or "items")
         items = runner.vars.get(list_var, [])
         if not isinstance(items, list):
             items = []

@@ -378,8 +378,8 @@ async def wait_for_extension_connection(
         delay = min(delay * 1.5, 5.0)
 
     raise TimeoutError(
-        f"{browser_type} 扩展未在 {timeout}s 内连接，"
-        "请关闭该浏览器所有窗口后重试，或在扩展管理页面手动加载 extension/ 目录"
+        f"浏览器扩展未在 {timeout}s 内连接（目标浏览器: {browser_type}），"
+        "请先打开对应浏览器并加载扩展，或在流程开头使用「打开浏览器」指令指定 browserType"
     )
 
 
@@ -569,6 +569,10 @@ class ExtensionRunner:
         self.vars: dict[str, Any] = {}
         self.results: list[dict] = []
         self.completed = 0
+        # 事件计数器：用于 UI 展示的 totalSteps/completedSteps，保证 completed ≤ total
+        # （self.completed 只统计顶层步，循环体子步会导致 completed 超过 total）。
+        self._steps_started = 0
+        self._steps_finished = 0
         self.failed_steps: list[dict] = []
         self._last_error: str | None = None
         self._try_depth: int = 0
@@ -643,17 +647,33 @@ class ExtensionRunner:
         if self.client_id:
             return
         browser_type = "chrome"
+        explicit = False
         if self._current_step:
             extra = self._current_step.get("extra") or {}
             bt = extra.get("browserType")
             if bt:
                 browser_type = bt
+                explicit = True
+        # 未显式指定浏览器时，优先回退到当前已在线的扩展浏览器类型，
+        # 避免 Edge 用户在无 launchBrowser 步骤时被错误地按 chrome 等待。
+        if not explicit and ext_manager.is_any_online:
+            summary = ext_manager.browser_summary
+            if summary:
+                online = summary[0].get("browser")
+                if online and online != "unknown":
+                    browser_type = online
         self.client_id = await wait_for_extension_connection(browser_type, ext_manager, timeout=10.0)
         if not self._run_started_sent:
             self._run_started_sent = True
             await ext_manager.send_to(self.client_id, "runStarted", {"runId": self.run_id})
 
     async def _emit(self, event: dict) -> None:
+        # 事件计数（M4）：stepStart 计 total，stepComplete/stepError 计 completed
+        etype = event.get("type")
+        if etype == "stepStart":
+            self._steps_started += 1
+        elif etype in ("stepComplete", "stepError"):
+            self._steps_finished += 1
         # Enrich stepComplete events with cmdLabel from instruction
         if event.get("type") == "stepComplete":
             event.setdefault("cmdLabel", self._current_step.get("cmdLabel", ""))
@@ -760,8 +780,8 @@ class ExtensionRunner:
 
             return {
                 "success": not self._stopped,
-                "completedSteps": self.completed,
-                "totalSteps": len(instructions),
+                "completedSteps": self._steps_finished,
+                "totalSteps": max(self._steps_started, self._steps_finished),
                 "failedSteps": self.failed_steps,
                 "results": self.results,
                 "stopped": self._stopped,
@@ -778,8 +798,8 @@ class ExtensionRunner:
             await self._emit({
                 "type": "done",
                 "success": not self._stopped,
-                "completedSteps": self.completed,
-                "totalSteps": len(instructions),
+                "completedSteps": self._steps_finished,
+                "totalSteps": max(self._steps_started, self._steps_finished),
                 "failedSteps": self.failed_steps,
                 "stopped": self._stopped,
                 "outputs": _emit_outputs,
@@ -919,29 +939,25 @@ class ExtensionRunner:
         extra: dict = None,
     ) -> bool:
         """Ask extension whether an element exists."""
-        try:
-            payload_extra = {"timeout": timeout}
-            if extra:
-                payload_extra["scope"] = extra.get("scope", "local")
-                if "visibilityMode" in extra:
-                    payload_extra["visibilityMode"] = extra["visibilityMode"]
-                else:
-                    payload_extra["visibleOnly"] = visible_only
+        payload_extra = {"timeout": timeout}
+        if extra:
+            payload_extra["scope"] = extra.get("scope", "local")
+            if "visibilityMode" in extra:
+                payload_extra["visibilityMode"] = extra["visibilityMode"]
             else:
                 payload_extra["visibleOnly"] = visible_only
-            result = await self._call_extension_handler(
-                "checkElementExists",
-                {
-                    "locator": locator,
-                    "selectorFamily": selector_family,
-                    "extra": payload_extra,
-                },
-                timeout=timeout + 2,
-            )
-            return result.get("exists", False)
-        except Exception as e:
-            logger.warning(f"[ExtensionRunner] checkElementExists failed: {e}")
-            return False
+        else:
+            payload_extra["visibleOnly"] = visible_only
+        result = await self._call_extension_handler(
+            "checkElementExists",
+            {
+                "locator": locator,
+                "selectorFamily": selector_family,
+                "extra": payload_extra,
+            },
+            timeout=timeout + 2,
+        )
+        return result.get("exists", False)
 
     async def _check_element_visible(
         self,
@@ -950,67 +966,55 @@ class ExtensionRunner:
         timeout: float = 3.0,
         extra: dict = None,
     ) -> bool:
-        try:
-            payload_extra = {"timeout": timeout}
-            if extra:
-                payload_extra["scope"] = extra.get("scope", "local")
-                if "visibilityMode" in extra:
-                    payload_extra["visibilityMode"] = extra["visibilityMode"]
-                else:
-                    payload_extra["visibleOnly"] = True
+        payload_extra = {"timeout": timeout}
+        if extra:
+            payload_extra["scope"] = extra.get("scope", "local")
+            if "visibilityMode" in extra:
+                payload_extra["visibilityMode"] = extra["visibilityMode"]
             else:
                 payload_extra["visibleOnly"] = True
-            result = await self._call_extension_handler(
-                "checkElementVisible",
-                {
-                    "locator": locator,
-                    "selectorFamily": selector_family,
-                    "extra": payload_extra,
-                },
-                timeout=timeout + 2,
-            )
-            visible = result.get("visible", False)
-            logger.info(
-                f"[ExtensionRunner] checkElementVisible locator={locator} "
-                f"type={selector_family} -> visible={visible}"
-            )
-            return visible
-        except Exception as e:
-            logger.warning(f"[ExtensionRunner] checkElementVisible failed: {e}")
-            return False
+        else:
+            payload_extra["visibleOnly"] = True
+        result = await self._call_extension_handler(
+            "checkElementVisible",
+            {
+                "locator": locator,
+                "selectorFamily": selector_family,
+                "extra": payload_extra,
+            },
+            timeout=timeout + 2,
+        )
+        visible = result.get("visible", False)
+        logger.info(
+            f"[ExtensionRunner] checkElementVisible locator={locator} "
+            f"type={selector_family} -> visible={visible}"
+        )
+        return visible
 
     async def _get_element_text(
         self, locator: str, selector_family: str, timeout: float = 3.0, extra: dict = None
     ) -> str:
-        try:
-            payload_extra = {"timeout": timeout}
-            if extra:
-                payload_extra["scope"] = extra.get("scope", "local")
-                if "visibilityMode" in extra:
-                    payload_extra["visibilityMode"] = extra["visibilityMode"]
-                elif "visibleOnly" in extra:
-                    payload_extra["visibleOnly"] = extra["visibleOnly"]
-            result = await self._call_extension_handler(
-                "getElementText",
-                {
-                    "locator": locator,
-                    "selectorFamily": selector_family,
-                    "extra": payload_extra,
-                },
-                timeout=timeout + 2,
-            )
-            return result.get("text", "")
-        except Exception as e:
-            logger.warning(f"[ExtensionRunner] getElementText failed: {e}")
-            return ""
+        payload_extra = {"timeout": timeout}
+        if extra:
+            payload_extra["scope"] = extra.get("scope", "local")
+            if "visibilityMode" in extra:
+                payload_extra["visibilityMode"] = extra["visibilityMode"]
+            elif "visibleOnly" in extra:
+                payload_extra["visibleOnly"] = extra["visibleOnly"]
+        result = await self._call_extension_handler(
+            "getElementText",
+            {
+                "locator": locator,
+                "selectorFamily": selector_family,
+                "extra": payload_extra,
+            },
+            timeout=timeout + 2,
+        )
+        return result.get("text", "")
 
     async def _get_current_url(self) -> str:
-        try:
-            result = await self._call_extension_handler("getCurrentUrl", {}, timeout=5.0)
-            return result.get("url", "")
-        except Exception as e:
-            logger.warning(f"[ExtensionRunner] getCurrentUrl failed: {e}")
-            return ""
+        result = await self._call_extension_handler("getCurrentUrl", {}, timeout=5.0)
+        return result.get("url", "")
 
     async def _find_elements(
         self,
@@ -1019,32 +1023,28 @@ class ExtensionRunner:
         timeout: float = 10.0,
         extra: dict = None,
     ) -> list[dict]:
-        try:
-            payload_extra = {"timeout": timeout}
-            if extra:
-                payload_extra["scope"] = extra.get("scope", "local")
-                if "visibilityMode" in extra:
-                    payload_extra["visibilityMode"] = extra["visibilityMode"]
-                else:
-                    payload_extra["visibleOnly"] = extra.get("visibleOnly", True)
-                # Pass capture-time relative fields so child elements can serve as
-                # forEachElement loop anchors inside their parent loops.
-                for key in ("useRelative", "relativeLocator", "relativeSelectorFamily", "anchorChain", "loopAnchor"):
-                    if key in extra:
-                        payload_extra[key] = extra[key]
-            result = await self._call_extension_handler(
-                "findElements",
-                {
-                    "locator": locator,
-                    "selectorFamily": selector_family,
-                    "extra": payload_extra,
-                },
-                timeout=timeout + 2,
-            )
-            return result.get("items", [])
-        except Exception as e:
-            logger.warning(f"[ExtensionRunner] findElements failed: {e}")
-            return []
+        payload_extra = {"timeout": timeout}
+        if extra:
+            payload_extra["scope"] = extra.get("scope", "local")
+            if "visibilityMode" in extra:
+                payload_extra["visibilityMode"] = extra["visibilityMode"]
+            else:
+                payload_extra["visibleOnly"] = extra.get("visibleOnly", True)
+            # Pass capture-time relative fields so child elements can serve as
+            # forEachElement loop anchors inside their parent loops.
+            for key in ("useRelative", "relativeLocator", "relativeSelectorFamily", "anchorChain", "loopAnchor"):
+                if key in extra:
+                    payload_extra[key] = extra[key]
+        result = await self._call_extension_handler(
+            "findElements",
+            {
+                "locator": locator,
+                "selectorFamily": selector_family,
+                "extra": payload_extra,
+            },
+            timeout=timeout + 2,
+        )
+        return result.get("items", [])
 
     async def _evaluate_condition(self, instr: dict) -> dict:
         """Evaluate a condition for if/while compound instructions."""
@@ -1136,6 +1136,10 @@ class ExtensionRunner:
                 val = extra.get(name)
                 if val is None or val == "":
                     continue
+                # 跳过等于参数声明默认值的项（如 whileCondition 的 condition 默认 "False"），
+                # 避免摘要里出现 "表达式: False" 之类的噪音。
+                if "default" in p and str(val) == str(p["default"]):
+                    continue
                 label = p.get("label", name)
                 parts.append(f"{label}: {str(val)[:40]}")
             if parts:
@@ -1154,6 +1158,9 @@ class ExtensionRunner:
                     "type": "stepStart",
                     "stepId": sub.get("stepId"),
                     "nodeId": sub.get("nodeId"),
+                    "compound": sub.get("compound", False),
+                    "cmdType": sub.get("cmdType", ""),
+                    "cmdLabel": sub.get("cmdLabel", sub.get("cmdType", "")),
                     "_summary": self._summarize(sub),
                 })
             success = await self._execute_instruction(sub)
@@ -1183,6 +1190,10 @@ class ExtensionRunner:
         # ── if* conditions ──
         if cmd_type.startswith("if"):
             eval_result = await self._evaluate_condition(instr)
+            # 部分 if* handler 的 evaluate() 返回裸 bool（而非 {"met": ...} 字典），
+            # 在边界处统一归一化，避免 TypeError: 'bool' object is not subscriptable。
+            if not isinstance(eval_result, dict):
+                eval_result = {"met": bool(eval_result)}
             condition_met = eval_result["met"]
             logger.info(f"[ExtensionRunner] {cmd_type} condition={condition_met}")
             body = instr.get("body", []) if condition_met else instr.get("elseBody", [])
@@ -1328,6 +1339,30 @@ class ExtensionRunner:
         _has_local = _hdef and hasattr(_hdef.get("handler_class", object), "execute") if _hdef else False
         _is_extension = _hdef and _hdef.get("runtime") == "extension" if _hdef else False
 
+        # 未注册/已废弃指令（emitter 照常下发）：显式报错，替代此前的静默跳过。
+        if _hdef is None:
+            msg = f"指令「{cmd_type}」无执行处理器（该指令未注册或已废弃）"
+            if cmd_type == "openBrowser":
+                msg += "：openBrowser 已删除，请改用 launchBrowser（打开浏览器）指令"
+            logger.error(f"[ExtensionRunner] {step_id} {msg}")
+            self.failed_steps.append({
+                "stepId": step_id, "nodeId": instr.get("nodeId"),
+                "instruction": instr, "error": msg,
+            })
+            self.results.append({
+                "stepId": step_id, "nodeId": instr.get("nodeId"),
+                "status": "error", "error": msg,
+            })
+            self._last_error = msg
+            await self._emit({
+                "type": "stepError", "stepId": step_id,
+                "nodeId": instr.get("nodeId"), "error": msg,
+            })
+            if on_error == "continue":
+                self.completed += 1
+                return True
+            return False
+
         if _has_local:
             try:
                 local_ok = await self._handle_local(cmd_type, step_id, instr)
@@ -1459,7 +1494,10 @@ class ExtensionRunner:
                 )
                 if save_to_var and result:
                     if isinstance(result, dict):
-                        if "extracted" in result:
+                        if result.get("contextNotFound"):
+                            # 循环项内未找到子元素：存空串而非标记 dict
+                            value = ""
+                        elif "extracted" in result:
                             value = result["extracted"]
                         elif "navigatedTo" in result:
                             value = result["navigatedTo"]

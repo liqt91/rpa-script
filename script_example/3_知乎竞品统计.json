@@ -78,8 +78,8 @@
       "id": 230,
       "parentId": null,
       "order": 5,
-      "type": "openBrowser",
-      "action": "openBrowser",
+      "type": "launchBrowser",
+      "action": "launchBrowser",
       "element_name": null,
       "extra": {
         "browserType": "chrome",

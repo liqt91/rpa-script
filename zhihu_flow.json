@@ -4,7 +4,7 @@
     {
       "id": 1,
       "order": 1,
-      "type": "openBrowser",
+      "type": "launchBrowser",
       "parent_id": null,
       "extra": {
         "browserType": "edge",
@@ -16,7 +16,7 @@
         "humanLike": true
       },
       "element_name": null,
-      "action": "openBrowser"
+      "action": "launchBrowser"
     },
     {
       "id": 2,
