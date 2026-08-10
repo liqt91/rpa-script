@@ -12,3 +12,4 @@ markdownify
 pywebview
 python-multipart
 Pillow
+fastmcp

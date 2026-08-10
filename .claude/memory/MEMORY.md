@@ -1,1 +1,0 @@
-- [Migration preference](feedback_migration.md) — keep schema migrations in models.py init_db(), no standalone files

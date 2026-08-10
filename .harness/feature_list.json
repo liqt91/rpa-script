@@ -121,6 +121,23 @@
         { "id": "test", "title": "重写指令集测试 + 全量 pytest(117) + 结构测试通过", "done": true }
       ],
       "domain": "workflows"
+    },
+    {
+      "id": "mcp-server",
+      "title": "MCP 服务器：src/mcp_server 顶层适配器（ADR-0011，stdio+HTTP，P1-P3+P5）",
+      "passes": true,
+      "steps": [
+        { "id": "adr", "title": "ADR-0011 + 层登记（config.json/结构测试/architecture.md）", "done": true },
+        { "id": "backend", "title": "POST /api/extension/exec + GET /api/extension/commands（test_extension_exec.py 6 例 + 活后端验证）", "done": true },
+        { "id": "skeleton", "title": "src/mcp_server 骨架：config/client/server + health 工具，stdio 跑通", "done": true },
+        { "id": "p1-read", "title": "P1 工作流只读工具 + resources（冒烟：list_workflows=11）", "done": true },
+        { "id": "p2-write", "title": "P2 流程创作工具（冒烟：create/add/batch/update/delete 闭环）", "done": true },
+        { "id": "p3-run", "title": "P3 运行控制工具（冒烟：run wf=23 真实执行 3/3 成功）", "done": true },
+        { "id": "p5-browser", "title": "P5 浏览器实时代理工具（冒烟：catalog 15 条 + exec 链路错误透传正确）", "done": true },
+        { "id": "http", "title": "streamable HTTP 传输入口（python -m src.mcp_server.http）", "done": true },
+        { "id": "test", "title": "15 新测全过 + ruff 0 + 结构测试 + 全量 pytest（119 passed，13 失败为 HEAD 存量）", "done": true }
+      ],
+      "domain": "workflows"
     }
   ]
 }

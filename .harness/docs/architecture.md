@@ -6,7 +6,7 @@ must be justified in an ADR under `.harness/docs/adr/`.
 ## Layer order (forward-only)
 
 ```
-types → config → repo → service → runtime → ui
+types → config → repo → service → runtime → mcp_server → ui
 ```
 
 Code in a higher layer may import from any lower layer. Code in a lower layer
@@ -23,6 +23,7 @@ mechanically — see `.harness/config.json` and the
 | `repo`      | Persistence and external-system gateways. Returns plain values.             |
 | `service`   | Business logic. Orchestrates `repo` calls. Pure where possible.             |
 | `runtime`   | Framework adapters: HTTP routes, CLI commands, queue handlers.              |
+| `mcp_server` | MCP server: thin httpx adapter over the REST API (ADR-0011). 命名避开官方 `mcp` SDK 包名冲突。 |
 | `ui`        | Rendering, components, presentation logic.                                  |
 
 ## Cross-cutting concerns: `providers/`
@@ -44,6 +45,7 @@ implementation.
 
 (Most recent first. Created automatically by `/add-adr`.)
 
+- `0011-mcp-server-adapter-layer.md` — MCP 服务器：新增顶层 mcp 层，REST 薄适配器（stdio+HTTP），新增 fastmcp 依赖。
 - `0006-capture-element-kind-redesign.md` — 捕获模块重构：显式 element_kind 区分 plain/anchor/child，子元素捕获必须基于 activeAnchor。
 - `0005-gitea-update-check.md` — Gitea releases 作为桌面端 Plan A 更新源，仅检查/提示，不自动下载安装。
 - `0004-css-xpath-selector-strategy.md` — CSS/XPath 选择器生成、校验、双向一致性与优先级策略。

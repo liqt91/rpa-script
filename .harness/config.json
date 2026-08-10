@@ -15,7 +15,7 @@
     {
       "name": "backend",
       "root": "src",
-      "layers": ["dtypes", "config", "repo", "service", "runtime"]
+      "layers": ["dtypes", "config", "repo", "service", "runtime", "mcp_server"]
     },
     {
       "name": "frontend",

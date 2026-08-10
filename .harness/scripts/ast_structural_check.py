@@ -3,7 +3,7 @@ import os
 import sys
 
 # Layer order: lower index = lower layer (can be imported by higher layers)
-LAYER_ORDER = ["dtypes", "config", "repo", "service", "runtime"]
+LAYER_ORDER = ["dtypes", "config", "repo", "service", "runtime", "mcp_server"]
 
 
 def get_file_layer(path: str) -> str | None:

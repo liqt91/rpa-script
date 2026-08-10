@@ -19,8 +19,6 @@ from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
 from src.dtypes.schemas import ExtensionWorkflowElementOut
 import json
-
-
 def _safe_json_loads(value, default=None):
     """Safely parse a JSON column string; return default on any failure."""
     if not value:
@@ -39,6 +37,10 @@ _gui_hover_store: dict = {}
 _gui_capture_futs: dict = {}
 # GUI 浏览器捕获的提示文案（受限页/载入中等），供悬浮窗显示
 _gui_capture_notes: dict = {}
+
+# /exec 单指令执行的互斥锁与超时上限：浏览器是单实例资源，串行化防止并发争用
+_exec_lock = asyncio.Lock()
+MAX_EXEC_TIMEOUT = 120.0
 
 
 # ── GUI 浏览器捕获（阻塞等待 Alt+Click） ──
@@ -399,3 +401,104 @@ def get_extension_element_chain(name: str, workflow_id: int):
         return result
     finally:
         db.close()
+
+
+# ── 单指令执行（MCP / 外部调用，ADR-0011） ──
+
+@router.get("/commands")
+def list_extension_commands():
+    """透出可在扩展侧执行的指令目录（供 MCP 自动生成工具 schema）。
+
+    仅含 runtime=extension 的指令（local=True 的后端本地指令与 control 流程
+    控制指令无法通过 executeStep 在浏览器内单步执行）。
+    """
+    from src.runtime.commands import auto_register
+    from ..workflow.handlers.registry import build_command_registry
+
+    auto_register()  # 幂等；裸进程/测试环境下注册表可能尚未填充
+
+    out = []
+    for cmd_type, cmd in build_command_registry().items():
+        rt = cmd.get("runtimes", {}).get("extension", {})
+        if not rt.get("handler") or rt.get("local"):
+            continue
+        out.append({
+            "type": rt["handler"],
+            "cmd": cmd_type,
+            "label": cmd.get("label", cmd_type),
+            "category": cmd.get("category", ""),
+            "description": cmd.get("description", ""),
+            "fields": cmd.get("fields", []),
+        })
+    return {"commands": out}
+
+
+@router.post("/exec")
+async def exec_extension_command(request: dict = None):
+    """单指令执行：透传一个扩展指令并同步等待结果。
+
+    与运行中的工作流互斥（浏览器是单实例资源）；allowDuringRun=true 可强制。
+    Body: {"type": "getText", "locator": "...", "selectorFamily": "css",
+           "action": null, "extra": {...}, "timeout": 30, "clientId": null}
+    """
+    import uuid
+
+    req = request or {}
+    handler = req.get("type")
+    if not handler:
+        raise HTTPException(status_code=400, detail="缺少指令类型 type")
+    timeout = float(req.get("timeout", 30) or 30)
+    timeout = max(1.0, min(timeout, MAX_EXEC_TIMEOUT))
+    client_id = req.get("clientId")
+
+    async with _exec_lock:
+        async with ext_manager._lock:
+            if not ext_manager._connections:
+                raise HTTPException(status_code=409, detail="没有浏览器扩展连接")
+            if client_id:
+                conn = ext_manager._connections.get(client_id)
+                if not conn:
+                    raise HTTPException(status_code=409, detail=f"扩展连接不存在: {client_id}")
+            else:
+                conn = next(iter(ext_manager._connections.values()))
+            target_client_id = conn.client_id
+
+        from ..workflow.extension_runner import list_active_runners
+        runners = await list_active_runners()
+        if runners and not req.get("allowDuringRun"):
+            raise HTTPException(
+                status_code=409,
+                detail="有工作流正在运行，为避免争用浏览器已拒绝单指令执行（allowDuringRun=true 可强制）",
+            )
+
+        step_id = f"exec_{uuid.uuid4().hex[:12]}"
+        instr = {
+            "stepId": step_id,
+            "nodeId": None,
+            "type": handler,
+            "cmdType": req.get("cmdType") or handler,
+            "cmdLabel": req.get("cmdLabel") or handler,
+            "locator": req.get("locator") or "",
+            "selectorFamily": req.get("selectorFamily") or "css",
+            "action": req.get("action"),
+            "extra": req.get("extra") or {},
+        }
+        fut = await ext_manager.register_step_future(step_id)
+        try:
+            ok = await ext_manager.send_to(target_client_id, "executeStep", instr)
+            if not ok:
+                raise HTTPException(status_code=409, detail=f"发送到扩展失败: {target_client_id}")
+            resp = await asyncio.wait_for(fut, timeout=timeout)
+        except asyncio.CancelledError:
+            await ext_manager.cancel_step_future(step_id)
+            raise
+        except asyncio.TimeoutError:
+            await ext_manager.cancel_step_future(step_id)
+            raise HTTPException(status_code=504, detail=f"指令 {handler} 超时（{timeout}s）")
+        except BaseException:
+            await ext_manager.cancel_step_future(step_id)
+            raise
+
+    if resp.get("status") == "error":
+        return {"success": False, "error": resp.get("error"), "clientId": resp.get("client_id")}
+    return {"success": True, "result": resp.get("result"), "clientId": resp.get("client_id")}
