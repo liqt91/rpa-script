@@ -2588,6 +2588,9 @@
         classes: features.classes,
         attrs: features.attrs,
         path,
+        // GUI 捕获链路（overlay.py）读取的字段名与 sidepanel 不同，补别名
+        domPath: path,
+        features,
         screenshot,
         selectorFamily: best.family || 'css',
         targetMode: best.isList ? 'list' : 'single',
