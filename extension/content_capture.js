@@ -211,15 +211,18 @@
       const tag = cur.tagName.toLowerCase();
       const attrs = {};
       const classes = [];
+      const fragile = [];
       for (const attr of cur.attributes || []) {
         try {
           if (attr.name === 'id') continue;
           if (attr.name === 'class') {
             classes.push(...(attr.value || '').split(/\s+/).filter(Boolean));
-          } else if (!isFragileAttr(attr.name)) {
+          } else {
             let v = attr.value || '';
             if (v.length > 100) v = v.slice(0, 100) + '…';
             attrs[attr.name] = v;
+            // 易变属性照常收集但打标，UI 置灰展示、默认不参与选择器
+            if (isFragileAttr(attr.name)) fragile.push(attr.name);
           }
         } catch (e) {}
       }
@@ -247,7 +250,7 @@
           }));
         }
       }
-      path.unshift({ tag, id: cur.id || '', classes, attrs, index, realIndex, childrenTags, siblings: siblingInfo });
+      path.unshift({ tag, id: cur.id || '', classes, attrs, fragile, index, realIndex, childrenTags, siblings: siblingInfo });
       cur = parent;
       if (path.length > 15) break;
     }

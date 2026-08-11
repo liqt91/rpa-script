@@ -19,6 +19,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const [attrVars, setAttrVars] = useState({});
   const [selLevel, setSelLevel] = useState(-1);
   const [domAttrs, setDomAttrs] = useState({});
+  const [domFragile, setDomFragile] = useState([]);
   const [sortDir, setSortDir] = useState({ syntax: false, family: false, match: false });
 
   const strip = (s) => (s || '').replace(/^(css:|xpath:|drission:)/i, '');
@@ -77,6 +78,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
     const node = domPath[i];
     const nodeAttrs = (node && typeof node === 'object' && node.attrs) || {};
     setDomAttrs(nodeAttrs);
+    setDomFragile((node && typeof node === 'object' && node.fragile) || []);
   };
 
   const toggleAttr = (i, key) => {
@@ -300,12 +302,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                       <div
                         key={i}
                         className={`flex items-center gap-1.5 py-1 cursor-pointer rounded ${isSel ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-gray-50'}`}
-                        style={{ paddingLeft: i * 14 }}
                         onClick={() => selectDomLevel(i)}
                       >
                         <input type="checkbox" checked={domChecked[i]} onChange={(e) => { e.stopPropagation(); toggleDomCheck(i); }} />
                         <span className={`font-mono text-xs ${isLeaf ? 'text-red-500 font-semibold' : 'text-gray-600'}`}>
-                          {'│  '.repeat(i)}&lt;{n.tag || 'div'}&gt;
+                          &lt;{n.tag || 'div'}&gt;
                         </span>
                         {n.id && <span className="text-green-600 text-xs">#{n.id}</span>}
                         {n.classes?.length > 0 && <span className="text-purple-600 text-xs">.{n.classes.slice(0, 3).join('.')}</span>}
@@ -315,17 +316,23 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                 </div>
 
                 {/* 元素属性 */}
-                <div className="w-52 bg-white rounded border p-3 overflow-y-auto shrink-0">
+                <div className="w-96 bg-white rounded border p-3 overflow-y-auto shrink-0">
                   <div className="text-[10px] font-semibold text-gray-400 mb-2">元素属性</div>
                   {selLevel >= 0 && Object.keys(domAttrs || {}).length > 0 ? (
-                    Object.entries(domAttrs || {}).filter(([k]) => !['id','class','style'].includes(k)).map(([k, v]) => (
-                      <div key={k} className="flex items-center gap-1.5 py-1">
-                        <input type="checkbox"
-                          checked={(attrVars[selLevel] || {})[k] || false}
-                          onChange={() => toggleAttr(selLevel, k)} />
-                        <span className="font-mono text-[11px] text-purple-700">{k}="{v}"</span>
-                      </div>
-                    ))
+                    Object.entries(domAttrs || {}).filter(([k]) => !['id','class'].includes(k)).map(([k, v]) => {
+                      const fragile = domFragile.includes(k);
+                      return (
+                        <div key={k} className="flex items-center gap-1.5 py-1"
+                          title={fragile ? '易变属性：每次渲染可能变化，勾选后选择器可能不稳定' : ''}>
+                          <input type="checkbox"
+                            checked={(attrVars[selLevel] || {})[k] || false}
+                            onChange={() => toggleAttr(selLevel, k)} />
+                          <span className={`font-mono text-[11px] break-all ${fragile ? 'text-gray-400' : 'text-purple-700'}`}>
+                            {fragile ? '⚠️ ' : ''}{k}="{v}"
+                          </span>
+                        </div>
+                      );
+                    })
                   ) : (
                     <div className="text-[11px] text-gray-400">点击左侧层级查看属性</div>
                   )}

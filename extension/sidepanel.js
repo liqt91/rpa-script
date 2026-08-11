@@ -1638,9 +1638,16 @@
     (node.classes || []).forEach((cls) => addPropRow(section, 'class:' + cls, cls, enabledMap, state, false, 'class'));
 
     const attrs = node.attrs || {};
+    const fragileSet = new Set(node.fragile || []);
     Object.entries(attrs).forEach(([k, v]) => {
       if (k === 'id' || k === 'class') return;
-      addPropRow(section, k, v, enabledMap, state);
+      const row = addPropRow(section, k, v, enabledMap, state);
+      if (fragileSet.has(k)) {
+        row.style.opacity = '0.55';
+        row.title = '易变属性：每次渲染可能变化，勾选后选择器可能不稳定';
+        const nameEl = row.querySelector('.prop-name');
+        if (nameEl) nameEl.textContent = '⚠️ ' + nameEl.textContent;
+      }
     });
 
     const parent = state.selectedPathIndex > 0 ? path[state.selectedPathIndex - 1] : null;
