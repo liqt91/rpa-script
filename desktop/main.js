@@ -54,6 +54,7 @@ async function startBackend() {
     cwd: PROJECT_ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
   });
   backendProc.stdout.on('data', (d) => process.stdout.write(`[backend] ${d}`));
   backendProc.stderr.on('data', (d) => process.stderr.write(`[backend-err] ${d}`));
