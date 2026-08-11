@@ -12,7 +12,7 @@ export default function WorkflowList() {
   const [error, setError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', url: '' });
+  const [form, setForm] = useState({ name: '', description: '' });
   const [deleteId, setDeleteId] = useState(null);
   const [browserPaths, setBrowserPaths] = useState({ chrome: null, edge: null });
   const [extStatus, setExtStatus] = useState(null);
@@ -233,10 +233,9 @@ export default function WorkflowList() {
       const wf = await api.createWorkflow({
         name: form.name.trim(),
         description: form.description.trim(),
-        url: form.url.trim(),
       });
       setShowCreate(false);
-      setForm({ name: '', description: '', url: '' });
+      setForm({ name: '', description: '' });
       loadWorkflows();
       navigate(`/editor/${wf.id}`);
     } catch (e) {
@@ -442,10 +441,8 @@ export default function WorkflowList() {
               <thead>
                 <tr className="border-b border-gray-700 bg-[#252f47]">
                   <th className="text-left px-4 py-3 font-medium text-gray-400">名称</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-400">目标页面</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-400">创建时间</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-400">更新时间</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-400">操作</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-400 w-40 whitespace-nowrap">更新时间</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-400 w-60 whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -460,13 +457,9 @@ export default function WorkflowList() {
                         <div className="text-gray-500 text-xs mt-0.5">{wf.description}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-400 max-w-xs truncate">
-                      {wf.url || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-400">{formatDate(wf.created_at)}</td>
-                    <td className="px-4 py-3 text-gray-400">{formatDate(wf.updated_at)}</td>
+                    <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{formatDate(wf.updated_at)}</td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                         {runningId === wf.id ? (
                           <button
                             onClick={() => handleStop(wf)}
@@ -524,7 +517,7 @@ export default function WorkflowList() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
               <h2 className="text-lg font-semibold text-white">新建工作流</h2>
               <button
-                onClick={() => { setShowCreate(false); setForm({ name: '', description: '', url: '' }); }}
+                onClick={() => { setShowCreate(false); setForm({ name: '', description: '' }); }}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <i className="fas fa-times"></i>
@@ -549,16 +542,6 @@ export default function WorkflowList() {
                   value={form.description}
                   onChange={e => setForm({ ...form, description: e.target.value })}
                   placeholder="简短描述这个工作流的用途"
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1.5">目标页面 URL</label>
-                <input
-                  type="text"
-                  value={form.url}
-                  onChange={e => setForm({ ...form, url: e.target.value })}
-                  placeholder="https://..."
                   className="w-full px-3 py-2 bg-[#0f172a] border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
