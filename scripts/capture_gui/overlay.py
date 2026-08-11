@@ -127,6 +127,22 @@ _FrameRect = _user32.FrameRect
 _FrameRect.argtypes = [wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.HBRUSH]
 _FrameRect.restype = ctypes.c_int
 
+# 消息泵（悬浮框窗口保持响应，避免被 Windows 标记未响应/假死）
+_PeekMessageW = _user32.PeekMessageW
+_PeekMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND,
+                          ctypes.c_uint, ctypes.c_uint, ctypes.c_uint]
+_PeekMessageW.restype = wintypes.BOOL
+_TranslateMessage = _user32.TranslateMessage
+_TranslateMessage.argtypes = [ctypes.POINTER(wintypes.MSG)]
+_TranslateMessage.restype = wintypes.BOOL
+_DispatchMessageW = _user32.DispatchMessageW
+_DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
+_DispatchMessageW.restype = ctypes.c_long
+_ValidateRect = _user32.ValidateRect
+_ValidateRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+_ValidateRect.restype = wintypes.BOOL
+WM_PAINT = 0x000F
+
 
 def _bgr(rgb: int) -> int:
     return ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF)
@@ -871,6 +887,8 @@ def _format_web_hover(hover: dict) -> str:
     tag = hover.get("tag") or ""
     id_ = hover.get("id") or ""
     cls = hover.get("classes") or ""
+    if isinstance(cls, list):
+        cls = ".".join(str(c) for c in cls)
     text = (hover.get("text") or "").strip()
     lines = []
     if tag:
@@ -887,59 +905,79 @@ def _format_web_hover(hover: dict) -> str:
     return "\n".join(lines)
 
 
-def _poll_hover_thread(request_id: str, stop: threading.Event):
-    """网页拾取期间轮询悬停元素信息/提示 → 悬浮窗实时显示。
+def _pump_messages():
+    """泵取并派发本线程的挂起消息，保持悬浮框窗口响应（避免被标记未响应/假死）。
 
-    每轮都调用 _move_info_window() 重新躲避鼠标（不依赖文本变化）。
+    悬浮框内容由 GetDC 直接绘制（不走 WM_PAINT），因此 WM_PAINT 只做 ValidateRect，
+    避免 DefWindowProc 用背景刷把已绘制内容擦掉。
     """
-    try:
-        from scripts.capture_gui.ws_client import poll_capture_hover
-    except Exception:
-        return
-    last_text = ""
-    while not stop.is_set():
-        data = poll_capture_hover(request_id)
-        note = (data.get("note") or "").strip()
-        hover = data.get("hover") or {}
-        text = None
-        if hover:
-            text = _format_web_hover(hover)
-        elif note:
-            text = note  # 受限页/载入中等提示
-        if text:
-            _move_info_window()  # 每轮都重新躲避鼠标
-            if text != last_text:
-                last_text = text
-                if not stop.is_set():
-                    show_info(text)
-        time.sleep(0.25)
-
-
-def _poll_esc_cancel(request_id: str, stop: threading.Event):
-    """网页拾取期间 Esc 兜底取消：不依赖 content 脚本（受限页/载入中也能立即取消）。"""
-    try:
-        from scripts.capture_gui.ws_client import cancel_browser_capture
-    except Exception:
-        return
-    while not stop.is_set():
-        if _GetAsyncKeyState(VK_ESCAPE) & 0x8000:
-            cancel_browser_capture(request_id)
-            return
-        time.sleep(0.05)
+    msg = wintypes.MSG()
+    while _PeekMessageW(ctypes.byref(msg), None, 0, 0, 0x0001):  # PM_REMOVE
+        if msg.message == WM_PAINT:
+            _ValidateRect(msg.hWnd, None)
+            continue
+        _TranslateMessage(ctypes.byref(msg))
+        _DispatchMessageW(ctypes.byref(msg))
 
 
 def _capture_via_extension(browser_hwnd, sx, sy, web_only: bool = False) -> ElementInfo | None:
-    """委托浏览器插件原生捕获。阻塞等待用户 Alt+Click。"""
+    """委托浏览器插件原生捕获。阻塞等待用户 Alt+Click。
+
+    阻塞的 HTTP 调用放后台线程执行；主线程泵消息 + 轮询悬停信息并更新悬浮窗，
+    保证悬浮框窗口（属于主线程）保持响应，不假死。
+    """
     win_rect = _get_window_rect(browser_hwnd)
     vx, vy = _screen_to_viewport(sx, sy, win_rect)
     show_info("网页拾取中... 悬停查看元素 · Alt+点击确认")
     request_id = str(uuid.uuid4())[:8]
-    stop = threading.Event()
-    threading.Thread(target=_poll_hover_thread, args=(request_id, stop), daemon=True).start()
-    threading.Thread(target=_poll_esc_cancel, args=(request_id, stop), daemon=True).start()
+    result_box = {"done": False, "result": None}
+
+    def _run_capture():
+        try:
+            from scripts.capture_gui.ws_client import launch_browser_capture
+            result_box["result"] = launch_browser_capture(
+                vx, vy, timeout=300.0, request_id=request_id, web_only=web_only)
+        except Exception as e:
+            result_box["result"] = {"error": str(e)}
+        finally:
+            result_box["done"] = True
+
+    threading.Thread(target=_run_capture, daemon=True).start()
     try:
-        from scripts.capture_gui.ws_client import launch_browser_capture
-        result = launch_browser_capture(vx, vy, timeout=300.0, request_id=request_id, web_only=web_only)
+        from scripts.capture_gui.ws_client import poll_capture_hover, cancel_browser_capture
+    except Exception:
+        result_box["result"] = {"error": "ws_client unavailable"}
+        result_box["done"] = True
+
+    last_text = ""
+    cancelled = False
+    try:
+        while not result_box["done"]:
+            _pump_messages()
+            try:
+                data = poll_capture_hover(request_id)
+                note = (data.get("note") or "").strip()
+                hover = data.get("hover") or {}
+                text = None
+                if hover:
+                    text = _format_web_hover(hover)
+                elif note:
+                    text = note  # 受限页/载入中等提示
+                if text:
+                    _move_info_window()  # 每轮都重新躲避鼠标
+                    if text != last_text:
+                        last_text = text
+                        show_info(text)
+            except Exception:
+                pass  # 悬浮窗更新失败不杀死捕获
+            if _GetAsyncKeyState(VK_ESCAPE) & 0x8000:
+                cancelled = True
+                cancel_browser_capture(request_id)
+                break
+            time.sleep(0.05)
+        result = result_box["result"] or {}
+        if cancelled:
+            return None
         if result.get("backToDesktop"):
             raise BackToDesktop()
         if result.get("error"):
@@ -995,7 +1033,12 @@ def _capture_via_extension(browser_hwnd, sx, sy, web_only: bool = False) -> Elem
     except Exception:
         return None
     finally:
-        stop.set()  # 停止悬停信息轮询线程
+        # 异常/提前退出且捕获仍挂起 → 兜底取消，避免扩展残留框选模式
+        if not cancelled and not result_box["done"]:
+            try:
+                cancel_browser_capture(request_id)
+            except Exception:
+                pass
 
 
 def run_capture(mode: str = "desktop") -> ElementInfo | None:
