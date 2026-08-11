@@ -6,7 +6,7 @@ import RunParametersDialog from './RunParametersDialog';
 
 export default function WorkflowList() {
   const navigate = useNavigate();
-  const { activeRun, isBusy, loading: activeRunLoading, notifyRunStarted } = useActiveRun();
+  const { activeRun, isBusy, loading: activeRunLoading, notifyRunStarted, notifyRunFinished } = useActiveRun();
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,7 +18,10 @@ export default function WorkflowList() {
   const [extStatus, setExtStatus] = useState(null);
   const [runningId, setRunningId] = useState(null);
   const runningRef = useRef(false); // 同步锁，防止 React state 异步更新导致双击穿透
-  const [runResult, setRunResult] = useState(null);
+  const recordedRef = useRef(new Set()); // 已记录结果的 wfId:runId，防止 SSE done + onerror 兜底双触发
+  const [lastResults, setLastResults] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('wf_last_results') || '{}'); } catch { return {}; }
+  });
   const [runParamsWorkflow, setRunParamsWorkflow] = useState(null);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const sseRef = useRef(null);
@@ -31,12 +34,8 @@ export default function WorkflowList() {
     // 同步恢复运行状态（避免切换页面后闪烁）
     const savedId = sessionStorage.getItem('wf_running_id');
     const savedRunId = sessionStorage.getItem('wf_run_id');
-    const savedResult = sessionStorage.getItem('wf_run_result');
     if (savedId) {
       setRunningId(Number(savedId));
-    }
-    if (savedResult) {
-      try { setRunResult(JSON.parse(savedResult)); } catch {}
     }
     if (savedId && savedRunId) {
       connectRunSSE(Number(savedId), savedRunId);
@@ -93,6 +92,34 @@ export default function WorkflowList() {
     }
   }
 
+  // 记录一次运行结果：行内徽章常驻 + 侧边栏结果卡（全局，由 ActiveRunContext 展示）
+  function recordResult(wfId, result) { // {success, stopped, error, runId}
+    const dedupeKey = `${wfId}:${result.runId || ''}`;
+    if (result.runId && recordedRef.current.has(dedupeKey)) return;
+    if (result.runId) recordedRef.current.add(dedupeKey);
+    const entry = { ...result, time: Date.now() };
+    setLastResults(prev => {
+      const next = { ...prev, [wfId]: entry };
+      try { sessionStorage.setItem('wf_last_results', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    const kind = result.success ? 'success' : result.stopped ? 'stopped' : 'error';
+    notifyRunFinished({ workflow_id: wfId, run_id: result.runId || null, kind, error: result.error || '' });
+  }
+
+  function goRunLogs(wfId, runId) {
+    navigate(runId ? `/logs?wf=${wfId}&run=${encodeURIComponent(runId)}` : '/logs');
+  }
+
+  function relTime(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return '刚刚';
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}分钟前`;
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
   function connectRunSSE(wfId, runId) {
     if (sseRef.current) { sseRef.current.close(); }
     const source = new EventSource(`/api/workflows/${wfId}/run/stream?run_id=${encodeURIComponent(runId)}`);
@@ -103,17 +130,7 @@ export default function WorkflowList() {
         const data = JSON.parse(e.data);
         if (data.type === 'done' || data.type === 'stepError') {
           const success = data.type === 'done' && data.success !== false && !data.stopped;
-          const result = {
-            wfId,
-            success,
-            completedSteps: data.completedSteps,
-            totalSteps: data.totalSteps,
-            error: data.error,
-            stopped: data.stopped,
-            outputs: data.outputs || {},
-          };
-          setRunResult(result);
-          sessionStorage.setItem('wf_run_result', JSON.stringify(result));
+          recordResult(wfId, { success, stopped: data.stopped, error: data.error, runId });
           setRunningId(null);
           runningRef.current = false;
           sessionStorage.removeItem('wf_running_id');
@@ -135,9 +152,7 @@ export default function WorkflowList() {
           .then(runs => {
             const run = runs.find(r => r.runId === runId);
             if (run) {
-              const result = { wfId, success: run.success, error: run.error };
-              setRunResult(result);
-              sessionStorage.setItem('wf_run_result', JSON.stringify(result));
+              recordResult(wfId, { success: run.success, error: run.error, runId });
             }
             setRunningId(null);
             runningRef.current = false;
@@ -170,8 +185,6 @@ export default function WorkflowList() {
     notifyRunStarted(wf.id, runId);
     sessionStorage.setItem('wf_running_id', String(wf.id));
     sessionStorage.setItem('wf_run_id', runId);
-    setRunResult(null);
-    sessionStorage.removeItem('wf_run_result');
 
     // 流程列表执行：清空数据表格，每次执行都是独立任务
     localStorage.removeItem(`workflow_table_${wf.id}`);
@@ -186,8 +199,7 @@ export default function WorkflowList() {
         return;
       }
       console.error('[WorkflowList] run request failed:', e);
-      setRunResult({ wfId: wf.id, success: false, error: e.message });
-      sessionStorage.setItem('wf_run_result', JSON.stringify({ wfId: wf.id, success: false, error: e.message }));
+      recordResult(wf.id, { success: false, error: e.message, runId });
       setRunningId(null);
       runningRef.current = false;
       sessionStorage.removeItem('wf_running_id');
@@ -393,37 +405,6 @@ export default function WorkflowList() {
           )}
         </div>
 
-        {/* 执行结果 Toast */}
-        {runResult && (
-          <div className={`mb-4 p-3 rounded-lg text-sm ${
-            runResult.success
-              ? 'bg-green-900/30 border border-green-700 text-green-300'
-              : runResult.stopped
-                ? 'bg-yellow-900/30 border border-yellow-700 text-yellow-300'
-                : 'bg-red-900/30 border border-red-700 text-red-300'
-          }`}>
-            <div className="flex items-center justify-between">
-              <span>
-                <i className={`fas ${runResult.success ? 'fa-check-circle' : runResult.stopped ? 'fa-pause-circle' : 'fa-times-circle'} mr-2`}></i>
-                {runResult.success ? '执行成功' : runResult.stopped ? '已停止' : `执行失败: ${runResult.error || '未知错误'}`}
-              </span>
-              <button onClick={() => setRunResult(null)} className="text-gray-400 hover:text-white">×</button>
-            </div>
-            {runResult.outputs && Object.keys(runResult.outputs).length > 0 && (
-              <div className="mt-2 pt-2 border-t border-current/20 grid grid-cols-2 gap-x-4 gap-y-1">
-                {Object.entries(runResult.outputs).map(([key, value]) => (
-                  <div key={key} className="flex items-center gap-1.5">
-                    <span className="opacity-70">{key}:</span>
-                    <span className="font-mono text-white">
-                      {typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <i className="fas fa-circle-notch fa-spin text-blue-400 text-2xl"></i>
@@ -456,6 +437,21 @@ export default function WorkflowList() {
                       {wf.description && (
                         <div className="text-gray-500 text-xs mt-0.5">{wf.description}</div>
                       )}
+                      {lastResults[wf.id] && (() => {
+                        const r = lastResults[wf.id];
+                        const cls = r.success ? 'text-green-400' : r.stopped ? 'text-yellow-400' : 'text-red-400';
+                        const icon = r.success ? 'fa-check-circle' : r.stopped ? 'fa-pause-circle' : 'fa-times-circle';
+                        const label = r.success ? '执行成功' : r.stopped ? '已停止' : '执行失败';
+                        return (
+                          <button
+                            onClick={() => goRunLogs(wf.id, r.runId)}
+                            title="查看运行日志"
+                            className={`text-[11px] mt-0.5 inline-flex items-center gap-1 hover:underline ${cls}`}
+                          >
+                            <i className={`fas ${icon}`}></i>{label} · {relTime(r.time)}
+                          </button>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{formatDate(wf.updated_at)}</td>
                     <td className="px-4 py-3 text-right">

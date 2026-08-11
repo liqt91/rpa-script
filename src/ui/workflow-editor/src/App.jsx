@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, useParams, NavLink, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, useParams, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { WorkflowProvider } from './store/WorkflowContext';
 import { ActiveRunProvider, useActiveRun } from './context/ActiveRunContext';
 import Layout from './components/Layout';
@@ -30,7 +30,8 @@ function EditorPage() {
 
 function SidebarLayout({ children }) {
   const location = useLocation();
-  const { activeRun, stopActiveRun } = useActiveRun();
+  const navigate = useNavigate();
+  const { activeRun, stopActiveRun, runResult, clearRunResult } = useActiveRun();
   const hideSidebar = location.pathname.startsWith('/editor/');
 
   if (hideSidebar) {
@@ -131,6 +132,39 @@ function SidebarLayout({ children }) {
                 <i className="fas fa-stop"></i>
                 停止运行
               </button>
+            </div>
+          </div>
+        )}
+        {!activeRun && runResult && (
+          <div className="px-3 py-3 border-t border-gray-700">
+            <div className={`rounded-lg p-2.5 border ${
+              runResult.kind === 'success'
+                ? 'bg-green-600/10 border-green-600/30'
+                : runResult.kind === 'stopped'
+                  ? 'bg-yellow-600/10 border-yellow-600/30'
+                  : 'bg-red-600/10 border-red-600/30'
+            }`}>
+              <div className={`flex items-center gap-2 text-xs ${
+                runResult.kind === 'success' ? 'text-green-300' : runResult.kind === 'stopped' ? 'text-yellow-300' : 'text-red-300'
+              }`}>
+                <i className={`fas ${runResult.kind === 'success' ? 'fa-check-circle' : runResult.kind === 'stopped' ? 'fa-pause-circle' : 'fa-times-circle'}`}></i>
+                <span className="truncate" title={runResult.error || ''}>
+                  {runResult.kind === 'success' ? '执行成功' : runResult.kind === 'stopped' ? '已停止' : `失败: ${runResult.error || '未知错误'}`}
+                </span>
+                <button onClick={clearRunResult} className="ml-auto opacity-60 hover:opacity-100 shrink-0">×</button>
+              </div>
+              {runResult.run_id && (
+                <button
+                  onClick={() => {
+                    navigate(`/logs?wf=${runResult.workflow_id}&run=${encodeURIComponent(runResult.run_id)}`);
+                    clearRunResult();
+                  }}
+                  className="mt-1.5 w-full px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs flex items-center justify-center gap-1 transition-colors"
+                >
+                  <i className="fas fa-file-alt"></i>
+                  查看日志
+                </button>
+              )}
             </div>
           </div>
         )}

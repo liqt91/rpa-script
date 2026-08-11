@@ -6,11 +6,25 @@ const ActiveRunContext = createContext(null);
 export function ActiveRunProvider({ children }) {
   const [activeRun, setActiveRun] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [runResult, setRunResult] = useState(null); // {workflow_id, run_id, kind, error} 侧边栏结果卡
   const mountedRef = useRef(true);
 
   const notifyRunStarted = useCallback((workflow_id, run_id) => {
+    setRunResult(null);
     setActiveRun((prev) => prev ?? { workflow_id, run_id });
   }, []);
+
+  // 运行结束结果（侧边栏卡片展示）；success/stopped 4s 自动清除，error 停留
+  const notifyRunFinished = useCallback((result) => {
+    setRunResult(result);
+    if (result.kind !== 'error') {
+      setTimeout(() => {
+        setRunResult((cur) => (cur && cur.run_id === result.run_id ? null : cur));
+      }, 4000);
+    }
+  }, []);
+
+  const clearRunResult = useCallback(() => setRunResult(null), []);
 
   const refresh = useCallback(async () => {
     try {
@@ -52,7 +66,7 @@ export function ActiveRunProvider({ children }) {
   }, [refresh]);
 
   return (
-    <ActiveRunContext.Provider value={{ activeRun, isBusy: !!activeRun, loading, refresh, notifyRunStarted, stopActiveRun }}>
+    <ActiveRunContext.Provider value={{ activeRun, isBusy: !!activeRun, loading, refresh, notifyRunStarted, notifyRunFinished, runResult, clearRunResult, stopActiveRun }}>
       {children}
     </ActiveRunContext.Provider>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 
 export default function RunLogs() {
@@ -8,6 +9,7 @@ export default function RunLogs() {
   const [detailRun, setDetailRun] = useState(null);  // { runId, workflowId, type: 'log'|'table' }
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     loadRuns();
@@ -18,8 +20,16 @@ export default function RunLogs() {
     try {
       const data = await api.listAllRuns();
       console.log('[RunLogs] API response:', data);
-      setRuns(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setRuns(list);
       setError(null);
+      // 从流程列表的运行结果跳入：?wf=..&run=.. 自动打开该次运行日志
+      const qRun = searchParams.get('run');
+      const qWf = Number(searchParams.get('wf'));
+      if (qRun && qWf) {
+        const hit = list.find(r => r.runId === qRun && r.workflowId === qWf);
+        if (hit) viewLog(hit);
+      }
     } catch (e) {
       console.error('[RunLogs] API error:', e.message);
       setError(e.message);
