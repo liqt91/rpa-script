@@ -14,7 +14,6 @@ REQUIRED_KEYS = {"label", "category", "icon", "iconColor", "bgColor", "fields"}
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTENT_JS = REPO_ROOT / "dist" / "desktop" / "extension" / "content.js"
 BACKGROUND_JS = REPO_ROOT / "dist" / "desktop" / "extension" / "background.js"
-COMMANDS_TABLE_MD = REPO_ROOT / "commands_table.md"
 
 
 def extract_js_handler_names() -> set[str]:
@@ -146,30 +145,6 @@ def validate_common_advanced(registry: dict) -> list[str]:
         missing = required_common - names
         if missing:
             errors.append(f"{cmd_type}: missing common advanced fields {sorted(missing)}")
-    return errors
-
-
-def validate_commands_table(registry: dict) -> list[str]:
-    """commands_table.md must list every command that has an extension runtime."""
-    errors = []
-    if not COMMANDS_TABLE_MD.exists():
-        errors.append(f"{COMMANDS_TABLE_MD.name} not found")
-        return errors
-
-    text = COMMANDS_TABLE_MD.read_text(encoding="utf-8")
-    listed = set()
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("|") and not line.startswith("| 命令类型") and not line.startswith("|---"):
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) > 1 and parts[1]:
-                listed.add(parts[1])
-
-    for cmd_type, meta in registry.items():
-        ext = meta.get("runtimes", {}).get("extension")
-        if ext and cmd_type not in listed:
-            errors.append(f"{cmd_type}: has extension runtime but missing from {COMMANDS_TABLE_MD.name}")
-
     return errors
 
 

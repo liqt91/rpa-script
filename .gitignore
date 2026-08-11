@@ -5,6 +5,9 @@ src/service/local_jobs/_generated/
 src/runtime/static/workflow-editor/assets/
 src/runtime/static/workflow-editor/*.js
 src/runtime/static/workflow-editor/*.map
+# Stray build-output copies (real served dir is src/runtime/static/)
+src/ui/runtime/static/workflow-editor/
+src/ui/server/static/workflow-editor/
 
 # Python cache
 __pycache__/
@@ -12,6 +15,7 @@ __pycache__/
 
 # Runtime data & telemetry
 data/data.db
+data/rpa.db
 .harness/telemetry.jsonl
 
 # Private jobs / internal examples not shipped in the open-source repo
@@ -41,13 +45,7 @@ open-source-readiness.html
 # Temporary directories
 temp/
 
-# Ad-hoc proposal / planning HTML and Markdown files at repo root
-zhi-ling-pei-zhi-jie-mian-zhong-gou.html
-element-capture-refactor-proposal.html
-css-xpath-selector-strategy.html
-command-consistency-proposal.html
-capture-module-redesign.html
-anchor-first-capture-plan.md
+# Ad-hoc / local-only files not shipped in the repo
 闈㈣瘯鍑嗗-鍏夊ぇ璇佸埜RPA.md
 闈㈣瘯鍑嗗-鍏夊ぇ璇佸埜RPA.html
 extension/content.js
@@ -55,8 +53,7 @@ extension/background.js
 WebRPA/
 webrpa/
 WebRPA-main.zip
-data/com.rpa.host.json
 
-# 运行时/日志产物
+# 锟斤拷锟斤拷时/锟斤拷志锟斤拷锟斤拷
 @AutomationLog.txt
 rpa_uia_debug.log
