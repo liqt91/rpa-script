@@ -1,15 +1,18 @@
-line-length = 120
+[tool.pytest.ini_options]
+pythonpath = "."
+testpaths = ["src/runtime/tests", "src/mcp_server/tests"]
+addopts = "--ignore=src/runtime/tests/test_client.py"
 
+[tool.ruff]
+line-length = 120
 exclude = [
     "src/service/local_jobs/_generated",
     "src/service/local_jobs/test",
     "src/service/jobs",
 ]
-
 ignore = ["F403", "E402"]
 
-[per-file-ignores]
+[tool.ruff.per-file-ignores]
 "src/runtime/workflow/commands.py" = ["E501"]
 "src/shared/extraction_engine.py" = ["E501"]
-# 生成产物：build_extension.py(generate_commands) 生成，行长由模板决定
 "src/runtime/commands/extension_commands/*.py" = ["E501"]
