@@ -134,6 +134,10 @@ curl -X POST http://localhost:xxxx/api/workflows \
 
 遍历 `commands/` 目录下所有 JSON，了解当前可用的指令集合。确认用户的每一步有对应指令可执行。
 
+> **注意**：`commands/*.json` 声明的参数名可能与 handler 实际读取名不一致
+> （如 forList 声明 `listName` 但 handler 读 `listVar`）。已验证真值见
+> `generate-workflow` skill 的「已验证真值」一节，生成阶段以该节为准。
+
 ```bash
 # 快速列出所有可用指令
 python -c "
@@ -171,7 +175,10 @@ curl http://localhost:xxxx/api/workflows/{wf_id}/elements
 □ 每个需要交互的页面元素是否已捕获？
   → 缺少的元素需要用户先去捕获（扩展面板 → 元素选取）
 □ child 类元素是否有 anchor_element_name？
+□ child 元素是否只出现在 forEachElement 循环内？
 □ forEachElement 的循环元素是否为 anchor 或 plain？
+□ 涉及 setVar 的步骤是否已想好 valueType（str-input/any-expr 等）？
+□ whileCondition 循环是否已想好 maxIterations（防挂）？
 ```
 
 **元素不够 → 按"交互 2"模式硬中断：**

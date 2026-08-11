@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "check-command",
+  "name": "check-command",
+  "version": "1.0.0",
+  "description": "检查指令（command）的定义一致性和完整性。用于新增指令后、修改 JSON 后、或怀疑配置不一致时排查问题。",
+  "capabilities": [
+    "analysis"
+  ],
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}

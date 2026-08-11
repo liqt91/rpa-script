@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "generate-workflow",
+  "name": "generate-workflow",
+  "version": "1.0.0",
+  "description": "根据预生成流程的产出，将自然语言步骤序列转换为 WorkflowNode[] 并通过 API 写入数据库。依赖 pre-generate-workflow 的产出作为输入。生成后必须真实运行验证。",
+  "capabilities": [
+    "generation",
+    "workflow"
+  ],
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}

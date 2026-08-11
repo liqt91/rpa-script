@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "pre-generate-workflow",
+  "name": "pre-generate-workflow",
+  "version": "1.0.0",
+  "description": "预生成流程。分析用户的自动化需求，用自然语言拆解为分步骤的流程描述，检查元素库是否就绪，与用户对齐后再交给 generate-workflow 执行。",
+  "capabilities": [
+    "analysis",
+    "workflow"
+  ],
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}
