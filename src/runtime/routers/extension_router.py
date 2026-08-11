@@ -335,7 +335,8 @@ def list_extension_elements(workflow_id: int):
                 "drissionCandidates": _safe_json_loads(item.drission_candidates),
                 "domPath": _safe_json_loads(item.dom_path),
                 "attributes": _safe_json_loads(item.attributes, {}),
-                "screenshot": item.screenshot,
+                # 列表不带 base64 截图；编辑时由 /elements/{name} 详情接口返回
+                "screenshot": "",
                 "pageUrl": item.page_url,
             })
         return result

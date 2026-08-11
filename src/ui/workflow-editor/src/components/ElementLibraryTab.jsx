@@ -82,6 +82,24 @@ export default function ElementLibraryTab() {
 
   const selectedElement = elements.find(e => e.id === selectedElementId) || null;
 
+  // 列表接口不返回 base64 截图：选中元素时按需拉详情取 screenshot（带缓存）
+  const [shotCache, setShotCache] = useState({});
+  useEffect(() => {
+    if (!selectedElement || selectedElement.screenshot || shotCache[selectedElement.id]) return;
+    let cancelled = false;
+    api.getWorkflowElementByName(wfId, selectedElement.name)
+      .then((d) => {
+        if (!cancelled && d && d.screenshot) {
+          setShotCache((m) => ({ ...m, [selectedElement.id]: d.screenshot }));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedElement && selectedElement.id]);
+  const selectedScreenshot = selectedElement
+    ? (selectedElement.screenshot || shotCache[selectedElement.id] || '')
+    : '';
+
   const elementTree = useMemo(() => buildElementTree(elements), [elements, buildElementTree]);
   const selectedChain = useMemo(() =>
     selectedElement ? getElementChain(elements, selectedElement.name) : [],
@@ -498,14 +516,14 @@ export default function ElementLibraryTab() {
                     return (
                       <div className="space-y-2 mb-4">
                         {/* 截图（图像兜底参考） */}
-                        {selectedElement.screenshot && (
+                        {selectedScreenshot && (
                           <div className="mb-2">
                             <div className="text-xs text-gray-500 mb-1">截图</div>
                             <img
-                              src={selectedElement.screenshot}
+                              src={selectedScreenshot}
                               alt={selectedElement.name}
                               className="max-h-40 border border-gray-200 rounded cursor-zoom-in hover:border-blue-300"
-                              onClick={() => window.open(selectedElement.screenshot, '_blank')}
+                              onClick={() => window.open(selectedScreenshot, '_blank')}
                             />
                           </div>
                         )}
@@ -571,14 +589,14 @@ export default function ElementLibraryTab() {
                   {selectedElement.element_type !== 'win32' && selectedElement.element_type !== 'uia' && (<>
 
                   {/* 截图 */}
-                  {selectedElement.screenshot && (
+                  {selectedScreenshot && (
                     <div className="mb-4">
                       <div className="text-xs text-gray-500 mb-1">截图</div>
                       <img
-                        src={selectedElement.screenshot}
+                        src={selectedScreenshot}
                         alt={selectedElement.name}
                         className="max-h-48 border border-gray-200 rounded cursor-zoom-in hover:border-blue-300"
-                        onClick={() => window.open(selectedElement.screenshot, '_blank')}
+                        onClick={() => window.open(selectedScreenshot, '_blank')}
                       />
                     </div>
                   )}

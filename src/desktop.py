@@ -41,10 +41,9 @@ else:
 USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "RPA Script")
 os.makedirs(USER_DATA_DIR, exist_ok=True)
 
-# 通过环境变量覆盖配置
+# 通过环境变量覆盖配置（RPA_DATA_DIR 统一推导 DB 与日志落盘位置）
 os.environ.setdefault("RPA_REPO_ROOT", BUNDLE_DIR)
-os.environ.setdefault("RPA_LOG_DIR", USER_DATA_DIR)
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{os.path.join(USER_DATA_DIR, 'data.db')}")
+os.environ.setdefault("RPA_DATA_DIR", USER_DATA_DIR)
 
 # 桌面端自动生成/复用 JWT 密钥，避免用户手动配置环境变量
 _SECRET_KEY_PATH = os.path.join(USER_DATA_DIR, ".secret_key")

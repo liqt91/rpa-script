@@ -12,12 +12,18 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# 统一数据根：DB、运行日志、元素资源都落在这里
+# 打包态由启动脚本设 RPA_DATA_DIR 指向用户数据目录（安装目录可能只读）
+DATA_DIR = os.environ.get(
+    "RPA_DATA_DIR",
+    os.path.join(os.path.dirname(os.path.dirname(BASE_DIR)), "data"),
+)
+os.makedirs(DATA_DIR, exist_ok=True)
+
 # 数据库
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 if not DATABASE_URL:
-    _data_dir = os.path.join(os.path.dirname(os.path.dirname(BASE_DIR)), "data")
-    os.makedirs(_data_dir, exist_ok=True)
-    DATABASE_URL = f"sqlite:///{os.path.join(_data_dir, 'data.db')}"
+    DATABASE_URL = f"sqlite:///{os.path.join(DATA_DIR, 'data.db')}"
 
 # JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "")

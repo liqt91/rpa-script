@@ -79,6 +79,7 @@ export const api = {
 
   // Workflow Elements (per-workflow element library)
   getWorkflowElements: (wfId) => request(`/api/workflows/${wfId}/elements`),
+  getWorkflowElementByName: (wfId, name) => request(`/api/workflows/${wfId}/elements/by-name/${encodeURIComponent(name)}`),
   createWorkflowElement: (wfId, payload) => request(`/api/workflows/${wfId}/elements`, {
     method: 'POST',
     body: JSON.stringify(payload),

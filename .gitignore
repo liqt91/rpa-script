@@ -30,7 +30,8 @@ build/
 server.log
 
 # Runtime logs, temp deliverables and generated data
-src/data/run_logs/
+data/run_logs/
+data/workflows/
 tmp/
 open-source-readiness.html
 

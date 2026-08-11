@@ -1726,9 +1726,9 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
 
     _run_id = run_id or f"run_{int(time.time() * 1000)}"
 
-    # 创建日志目录（打包后通过 RPA_LOG_DIR 指向持久化用户目录）
-    log_root = os.environ.get("RPA_LOG_DIR", config.REPO_DIR)
-    log_dir = os.path.join(log_root, "data", "run_logs", str(wf.id), _run_id)
+    # 创建日志目录（RPA_LOG_DIR 可覆盖；默认落统一数据根 DATA_DIR）
+    log_root = os.environ.get("RPA_LOG_DIR") or config.DATA_DIR
+    log_dir = os.path.join(log_root, "run_logs", str(wf.id), _run_id)
     os.makedirs(log_dir, exist_ok=True)
 
     # 提前注册进度队列，让 SSE 在 runner 启动前就能连上（wait_for_extension 可能耗时数秒）

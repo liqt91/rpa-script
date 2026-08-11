@@ -594,6 +594,8 @@ def list_workflow_elements(wf_id: int, db: Session = Depends(get_db), user=Depen
     for item in items:
         item.parent_name = item.anchor_element_name or None
         item.children = children_map.get(item.name, [])
+        # 列表接口剥离 base64 截图（单元素详情接口 by-name 仍返回），避免列表随元素数膨胀
+        item.screenshot = None
     return items
 
 
