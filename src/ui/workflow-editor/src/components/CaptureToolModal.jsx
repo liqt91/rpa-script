@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
+import ImageLightbox from './ImageLightbox';
 
 /**
  * 元素捕获工具 — 原生模态框
@@ -30,6 +31,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const [extBrowsers, setExtBrowsers] = useState(null); // {chrome: n, edge: n} | null=未检测
   const [verifyResult, setVerifyResult] = useState(null); // {ok, msg} 常驻结果条
   const [toast, setToast] = useState(null); // {msg, type}
+  const [lightbox, setLightbox] = useState(null); // {src, alt} 截图灯箱
   const toastTimer = useRef(null);
 
   const strip = (s) => (s || '').replace(/^(css:|xpath:|drission:)/i, '');
@@ -309,9 +311,17 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                     className="flex-1 px-2 py-1.5 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 focus:outline-none focus:border-[#1677ff]"
                   />
                   {cur && cur.screenshot && (
-                    <img src={cur.screenshot} alt="截图" title="点击查看大图"
-                         className="w-10 h-8 rounded object-contain border border-[#d9d9d9] cursor-pointer hover:ring-2 hover:ring-[#1677ff] transition"
-                         onClick={() => window.open(cur.screenshot, '_blank')} />
+                    <div
+                      className="relative group shrink-0 cursor-zoom-in"
+                      title="点击预览大图"
+                      onClick={() => setLightbox({ src: cur.screenshot, alt: cur.name || '捕获截图' })}
+                    >
+                      <img src={cur.screenshot} alt="截图"
+                           className="h-14 w-auto rounded object-contain border border-[#d9d9d9] bg-white" />
+                      <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                        <i className="fas fa-expand text-white text-xs"></i>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -494,6 +504,9 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 text-white px-5 py-2.5 rounded-lg text-sm z-[9999] transition-opacity duration-200 ${toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-[#1677ff]'}`}>
           {toast.msg}
         </div>
+      )}
+      {lightbox && (
+        <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
       )}
     </>
   );

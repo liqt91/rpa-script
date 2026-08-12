@@ -3,6 +3,7 @@ import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 import DataTableTab from './DataTableTab';
 import CaptureToolModal from './CaptureToolModal';
+import ImageLightbox from './ImageLightbox';
 import WorkflowParametersPanel from './WorkflowParametersPanel';
 import ApiSettingsPanel from './ApiSettingsPanel';
 
@@ -31,6 +32,7 @@ export default function ElementLibraryTab() {
   const renameRef = useRef(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [captureModal, setCaptureModal] = useState(false);
+  const [lightbox, setLightbox] = useState(null); // {src, alt} 截图灯箱
   const logsRef = useRef(null);
   const panelRef = useRef(null);
 
@@ -519,12 +521,20 @@ export default function ElementLibraryTab() {
                         {selectedScreenshot && (
                           <div className="mb-2">
                             <div className="text-xs text-gray-500 mb-1">截图</div>
-                            <img
-                              src={selectedScreenshot}
-                              alt={selectedElement.name}
-                              className="max-h-40 border border-gray-200 rounded cursor-zoom-in hover:border-blue-300"
-                              onClick={() => window.open(selectedScreenshot, '_blank')}
-                            />
+                            <div
+                              className="relative inline-block group cursor-zoom-in"
+                              title="点击预览大图"
+                              onClick={() => setLightbox({ src: selectedScreenshot, alt: selectedElement.name })}
+                            >
+                              <img
+                                src={selectedScreenshot}
+                                alt={selectedElement.name}
+                                className="max-h-40 border border-gray-200 rounded bg-white"
+                              />
+                              <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                <i className="fas fa-expand text-white text-xs"></i>
+                              </div>
+                            </div>
                           </div>
                         )}
                         <div className="grid grid-cols-2 gap-2">
@@ -592,12 +602,20 @@ export default function ElementLibraryTab() {
                   {selectedScreenshot && (
                     <div className="mb-4">
                       <div className="text-xs text-gray-500 mb-1">截图</div>
-                      <img
-                        src={selectedScreenshot}
-                        alt={selectedElement.name}
-                        className="max-h-48 border border-gray-200 rounded cursor-zoom-in hover:border-blue-300"
-                        onClick={() => window.open(selectedScreenshot, '_blank')}
-                      />
+                      <div
+                        className="relative inline-block group cursor-zoom-in"
+                        title="点击预览大图"
+                        onClick={() => setLightbox({ src: selectedScreenshot, alt: selectedElement.name })}
+                      >
+                        <img
+                          src={selectedScreenshot}
+                          alt={selectedElement.name}
+                          className="max-h-48 border border-gray-200 rounded bg-white"
+                        />
+                        <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                          <i className="fas fa-expand text-white text-xs"></i>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -814,6 +832,11 @@ export default function ElementLibraryTab() {
         onClose={() => setCaptureModal(false)}
         onSaved={loadElements}
       />
+    )}
+
+    {/* 截图灯箱 */}
+    {lightbox && (
+      <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
     )}
     </div>
   );
