@@ -1,20 +1,20 @@
 /**
  * RPA 桌面版 - Electron 主进程
- * 1. 启动 Python 后端 (uvicorn, 端口 8000)
- * 2. 等待端口就绪
- * 3. 打开主窗口加载 workflow-editor
+ * 1. 等待 Python 后端 (uvicorn, 端口 8000) 就绪
+ * 2. 打开主窗口加载 workflow-editor
+ *
+ * 后端由开发者手动启动, Electron 不再 spawn:
+ *   .venv 终端里: python -m src.runtime.main
  */
 const { app, BrowserWindow, dialog } = require('electron');
-const { spawn } = require('child_process');
+const { execSync } = require('child_process');
 const http = require('http');
 const path = require('path');
-const fs = require('fs');
 
 const PORT = 8000;
 const APP_URL = `http://127.0.0.1:${PORT}/workflow-editor/`;
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
-let backendProc = null;
 let mainWindow = null;
 
 function isPortOpen(port, timeout = 500) {
@@ -28,50 +28,54 @@ function isPortOpen(port, timeout = 500) {
   });
 }
 
-function findPython() {
-  // 优先 venv, 其次系统 Python
-  const candidates = [
-    path.join(PROJECT_ROOT, '.venv', 'Scripts', 'python.exe'),
-    path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe'),
-    'python',
-    'py',
-  ];
-  for (const c of candidates) {
-    if (c !== 'python' && c !== 'py' && !fs.existsSync(c)) continue;
-    return c;
-  }
-  return 'python';
+function findPortOwner(port) {
+  // 返回占用端口的进程 {pid, exe, cmdline}, 查不到返回 null
+  try {
+    const netstat = execSync('netstat -ano', { encoding: 'utf8', windowsHide: true });
+    for (const line of netstat.split('\n')) {
+      const m = line.match(new RegExp(`:${port}\\s+\\S+\\s+LISTENING\\s+(\\d+)`, 'i'));
+      if (!m) continue;
+      const pid = m[1];
+      let exe = '';
+      let cmdline = '';
+      try {
+        const wmic = execSync(`wmic process where ProcessId=${pid} get ExecutablePath,CommandLine /format:list`, {
+          encoding: 'utf8', windowsHide: true,
+        });
+        const lines = wmic.split('\n').map((l) => l.trim());
+        const exeHit = lines.find((l) => l.startsWith('ExecutablePath='));
+        const cmdHit = lines.find((l) => l.startsWith('CommandLine='));
+        exe = exeHit ? exeHit.slice('ExecutablePath='.length) : '';
+        cmdline = cmdHit ? cmdHit.slice('CommandLine='.length) : '';
+      } catch (e) { exe = '(无法读取)'; }
+      return { pid, exe, cmdline };
+    }
+  } catch (e) { /* 忽略 */ }
+  return null;
 }
 
-async function startBackend() {
-  if (await isPortOpen(PORT)) {
-    console.log('[desktop] 后端已在运行, 直接打开');
-    return;
-  }
-  const python = findPython();
-  console.log('[desktop] 启动后端:', python, 'python -m src.runtime.main');
-  backendProc = spawn(python, ['-m', 'src.runtime.main'], {
-    cwd: PROJECT_ROOT,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
-  });
-  backendProc.stdout.on('data', (d) => process.stdout.write(`[backend] ${d}`));
-  backendProc.stderr.on('data', (d) => process.stderr.write(`[backend-err] ${d}`));
-  backendProc.on('exit', (code) => {
-    console.log('[desktop] 后端退出:', code);
-    backendProc = null;
-  });
-
-  // 等待端口就绪 (最长 30s)
-  for (let i = 0; i < 60; i++) {
+async function waitForBackend() {
+  const PORT = 8000;
+  for (let i = 0; i < 40; i++) {
     if (await isPortOpen(PORT)) {
-      console.log('[desktop] 后端就绪');
+      const owner = findPortOwner(PORT);
+      // venv 重定向后监听进程的 exe 是基解释器(uv), 所以用命令行判断是否本项目后端
+      const isOwnBackend = owner && owner.cmdline.includes('src.runtime.main');
+      if (owner && !isOwnBackend) {
+        console.log(`[desktop] 警告: ${PORT} 被非本项目后端占用 (PID ${owner.pid}): ${owner.exe || owner.cmdline}`);
+        console.log(`[desktop] 若非你手动起的后端, 清理后重启: taskkill /F /PID ${owner.pid}`);
+      } else {
+        console.log('[desktop] 后端已在运行');
+      }
       return;
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  dialog.showErrorBox('启动失败', 'Python 后端 30 秒内未就绪, 请确认依赖已安装:\n  pip install -r requirements.txt');
+  const owner = findPortOwner(PORT);
+  const msg = owner
+    ? `Python 后端 20 秒内未就绪。\n\n当前占用 ${PORT} 的进程:\n  PID: ${owner.pid}\n  ${owner.exe || '(路径未知)'}\n\n请在 .venv 终端里手动启动:\n  python -m src.runtime.main`
+    : `Python 后端 20 秒内未就绪。\n\n请先在 .venv 终端里手动启动:\n  python -m src.runtime.main`;
+  dialog.showErrorBox('后端未就绪', msg);
   app.quit();
 }
 
@@ -91,7 +95,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  await startBackend();
+  await waitForBackend();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -99,14 +103,5 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  // 不退出后端, 保持扩展连接; 完全退出用 app.quit
   if (process.platform !== 'darwin') app.quit();
-});
-
-app.on('quit', () => {
-  if (backendProc) {
-    console.log('[desktop] 关闭后端');
-    backendProc.kill();
-    backendProc = null;
-  }
 });

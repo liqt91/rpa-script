@@ -4,16 +4,64 @@
 基于 uiautomation 库（需 pip install uiautomation）。
 """
 
+import os
+import sys
+from pathlib import Path
+
 
 # ── 懒加载，不需要 UIA 的环境不会报错 ──
 _uia_module = None
 
 
+def _venv_site_packages() -> str | None:
+    """定位项目 venv 的 site-packages 目录。
+
+    后端可能被任意解释器拉起（uv 基解释器、裸 python 等），其环境里可能没有
+    uiautomation。运行时 UIA 命令需要在此类解释器上也能工作 —— 退而加载项目
+    venv（.venv/venv）里安装好的 uiautomation。仅当 venv 的 Python 主次版本与
+    当前解释器一致时才使用（ABI 兼容），否则保持不可用并交给 is_uia_available
+    报错。
+    """
+    try:
+        root = Path(__file__).resolve().parents[4]  # src/runtime/commands/desktop_commands/_uia.py -> 项目根
+    except IndexError:
+        return None
+    for env in (".venv", "venv"):
+        sp = root / env / "Lib" / "site-packages"
+        if not sp.is_dir():
+            continue
+        # 校验 venv 的 Python 版本与当前解释器一致
+        cfg = root / env / "pyvenv.cfg"
+        if cfg.exists():
+            try:
+                ver = next(
+                    line.split("=", 1)[1].strip()
+                    for line in cfg.read_text(encoding="utf-8").splitlines()
+                    if line.strip().lower().startswith("version")
+                )
+                vparts = ver.split(".")
+                if len(vparts) >= 2 and (int(vparts[0]), int(vparts[1])) != sys.version_info[:2]:
+                    continue
+            except (ValueError, OSError):
+                continue
+        return str(sp)
+    return None
+
+
 def _get_uia():
-    """懒加载 uiautomation 模块。"""
+    """懒加载 uiautomation 模块（当前解释器缺依赖时回退到项目 venv）。"""
     global _uia_module
     if _uia_module is None:
-        import uiautomation as uia
+        try:
+            import uiautomation as uia
+        except ImportError:
+            sp = _venv_site_packages()
+            if sp and os.name == "nt":
+                # 追加到末尾，避免遮蔽当前解释器已有的同名包
+                sys.path.append(sp)
+                import uiautomation as uia
+            else:
+                raise
         _uia_module = uia
     return _uia_module
 
@@ -171,21 +219,51 @@ def get_control_type(uia_ctrl: dict) -> str:
         return ""
 
 
+def find_child_by_index(parent_uia, index: int, control_type: str = None,
+                        class_name: str = "") -> dict | None:
+    """按兄弟序号精确定位直接子控件（index = 父级 GetChildren 列表中的第几个，0 起）。
+    control_type/class_name 仅作校验（类型漂移时回退 None，由调用方走模糊策略）。"""
+    _get_uia()
+    parent = _to_uia_control(parent_uia)
+    if not parent or index is None or index < 0:
+        return None
+    try:
+        children = parent.GetChildren()
+    except Exception:
+        return None
+    if index >= len(children):
+        return None
+    child = children[index]
+    try:
+        if control_type and child.ControlTypeName != control_type:
+            return None
+        if class_name and (child.ClassName or "") != class_name:
+            return None
+    except Exception:
+        return None
+    return _ctrl_to_dict(child)
+
+
 # ── 元素库路径导航 ──
 
-def pick_from_path(path_json: list, level_index: int = -1) -> dict | None:
+def pick_from_path(path_json: list, level_index: int = -1,
+                   target_index: int = None) -> dict | None:
     """从控件层级路径中按序号定位 UIA 控件。
-    
-    path_json: 元素库中存的全路径 [{name, class_name, control_type, automation_id, ...}, ...]
-    level_index: 0=顶层, -1=最后一层
-    
+
+    path_json: 元素库中存的全路径 [{name, class_name, control_type, automation_id, index, ...}, ...]
+    level_index: 0=顶层, -1=目标层级（target_index 有效时优先，否则最后一层）
+    target_index: 捕获时目标元素在 path 中的层级序号（完整链 root→leaf 时定位目标用）
+
     返回 {name, class_name, control_type, automation_id, rect, uia_element}
     """
     if not path_json:
         return None
 
     if level_index < 0:
-        level_index = max(0, len(path_json) + level_index)
+        if target_index is not None and 0 <= target_index < len(path_json):
+            level_index = target_index
+        else:
+            level_index = max(0, len(path_json) + level_index)
     if level_index >= len(path_json):
         level_index = len(path_json) - 1
 
@@ -219,7 +297,15 @@ def pick_from_path(path_json: list, level_index: int = -1) -> dict | None:
         # 逐层下钻
         for i in range(1, level_index + 1):
             info = path_json[i]
-            child = find_child_by_auto_id(parent, info.get("automation_id", ""))
+            child = None
+            # 1) 兄弟序号精确定位（新格式捕获，含 index）
+            if info.get("index") is not None:
+                child = find_child_by_index(parent, info.get("index"),
+                                            control_type=info.get("control_type") or None,
+                                            class_name=info.get("class_name", ""))
+            # 2) 回退：automation_id → name → class
+            if not child:
+                child = find_child_by_auto_id(parent, info.get("automation_id", ""))
             if not child:
                 child = find_child_by_name(parent, info.get("name", ""))
             if not child:

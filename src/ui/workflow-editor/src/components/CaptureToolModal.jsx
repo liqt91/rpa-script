@@ -32,6 +32,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const [verifyResult, setVerifyResult] = useState(null); // {ok, msg} 常驻结果条
   const [toast, setToast] = useState(null); // {msg, type}
   const [lightbox, setLightbox] = useState(null); // {src, alt} 截图灯箱
+  const [chainKind, setChainKind] = useState('uia'); // 桌面元素层级视图: 'uia' | 'win32'
   const toastTimer = useRef(null);
 
   const strip = (s) => (s || '').replace(/^(css:|xpath:|drission:)/i, '');
@@ -80,6 +81,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
       setDomAttrs(data.attrs || {});
       setSelector(strip(data.css_selector || (cs[0] && cs[0].syntax) || ''));
       setMode(0);
+      setChainKind('uia'); // 捕获后默认展示 UIA 层级（有则用）
       showToast('捕获成功', 'success');
     } catch (e) {
       if (e.message !== 'cancelled') setCaptureError(String(e));
@@ -199,15 +201,29 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const bothOffline = extBrowsers && !extBrowsers.chrome && !extBrowsers.edge;
 
   // ── 桌面元素（win32/uia）派生数据 ──
-  // 原始 ElementInfo 携带 win32_path/uia_path 祖先链；UIA 判定对齐后端 _uia_path_meaningful
-  const isDesktop = !!cur && cur.element_type !== 'web';
+  // 按数据形态判定：有 candidates/dom_path/css_selector 才是网页捕获；
+  // 桌面捕获只有 win32_path/uia_path 祖先链 —— 包括桌面模式捕获浏览器窗口
+  // （element_type 会被标成 web，但没有任何网页选择器数据，仍应走桌面视图）
+  const hasWebData = !!cur && !!(
+    (cur.candidates || []).length
+    || (cur.dom_path || cur.path || []).length
+    || cur.css_selector
+  );
+  const isDesktop = !!cur && !hasWebData;
   const uiaPath = (cur && cur.uia_path) || [];
-  const uiaLeaf = uiaPath.length ? uiaPath[uiaPath.length - 1] : null;
-  const isUia = isDesktop && !!uiaLeaf
-    && !!(uiaLeaf.control_type || uiaLeaf.automation_id || uiaLeaf.name)
-    && (uiaLeaf.rect?.width > 0) && (uiaLeaf.rect?.height > 0);
-  const desktopPath = isUia ? uiaPath : ((cur && cur.win32_path) || []);
-  const desktopLeaf = desktopPath.length ? desktopPath[desktopPath.length - 1] : {};
+  const win32Path = (cur && cur.win32_path) || [];
+  // 双链都存在时按 chainKind 切换；只有一条时用有的那条
+  const hasBothChains = isDesktop && uiaPath.length > 0 && win32Path.length > 0;
+  const useUiaChain = hasBothChains ? chainKind === 'uia' : uiaPath.length > 0;
+  const desktopPath = useUiaChain ? uiaPath : win32Path;
+  // 目标层级：UIA 链用捕获时的 target_index；win32 链目标即叶子（最后层）
+  const rawTarget = useUiaChain
+    ? ((cur && cur.uia_target_index) ?? -1)
+    : -1;
+  const targetIdx = (rawTarget >= 0 && rawTarget < desktopPath.length)
+    ? rawTarget
+    : desktopPath.length - 1;
+  const desktopLeaf = desktopPath.length ? desktopPath[targetIdx] : {};
 
   return (
     <>
@@ -339,16 +355,30 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                 {/* ── 桌面元素视图（win32/uia）：身份卡片 + 控件层级路径 ── */}
                 {isDesktop && (
                   <>
-                    {/* 身份卡片 */}
+                    {/* UIA 依赖缺失警告（静默降级防护） */}
+                    {cur.uia_available === false && (
+                      <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 shrink-0">
+                        <i className="fas fa-exclamation-triangle mt-0.5"></i>
+                        <span>UIA 依赖不可用（缺少 uiautomation），本次仅捕获 Win32 窗口层级。单窗口应用（浏览器/终端等）将无法获取内部控件，请在运行环境中安装 uiautomation。</span>
+                      </div>
+                    )}
+                    {/* 目标提权 + 自身未提权 → UIPI 拦截警告 */}
+                    {cur.elevation_blocked && (
+                      <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 shrink-0">
+                        <i className="fas fa-shield-alt mt-0.5"></i>
+                        <span>目标应用以管理员身份运行，而本工具未提权，系统（UIPI）拦截了对其内部控件的读取，本次仅捕获到窗口层级。请退出后以管理员身份运行本工具再捕获。</span>
+                      </div>
+                    )}
+                    {/* 身份卡片（目标层级） */}
                     <div className="bg-white rounded border border-[#d9d9d9] p-3 shrink-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[11px] ${isUia ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'}`}>
-                          {isUia ? 'UIA 桌面控件' : 'Win32 桌面控件'}
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] ${useUiaChain ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'}`}>
+                          {useUiaChain ? 'UIA 桌面控件' : 'Win32 桌面控件'}
                         </span>
-                        <span className="text-[11px] text-gray-400">定位方式：顶层窗口按标题模糊匹配 → 逐层下钻</span>
+                        <span className="text-[11px] text-gray-400">定位方式：顶层窗口按标题模糊匹配 → 逐层下钻（按兄弟序号精确匹配）</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        {isUia ? (
+                        {useUiaChain ? (
                           <>
                             <div>
                               <div className="text-[11px] text-gray-400">名称</div>
@@ -363,8 +393,10 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                               <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.automation_id || '(空)'}</div>
                             </div>
                             <div>
-                              <div className="text-[11px] text-gray-400">类名</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.class_name || '-'}</div>
+                              <div className="text-[11px] text-gray-400">类名 · 兄弟序号</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">
+                                {desktopLeaf.class_name || '-'}{desktopLeaf.index != null ? ` · #${desktopLeaf.index}` : ''}
+                              </div>
                             </div>
                           </>
                         ) : (
@@ -378,31 +410,66 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                               <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded break-all">{desktopLeaf.title || '(空)'}</div>
                             </div>
                             <div>
-                              <div className="text-[11px] text-gray-400">尺寸</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded">{desktopLeaf.rect?.width || '?'} × {desktopLeaf.rect?.height || '?'}</div>
+                              <div className="text-[11px] text-gray-400">兄弟序号 · 尺寸</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded">
+                                {desktopLeaf.index != null ? `#${desktopLeaf.index} · ` : ''}{desktopLeaf.rect?.width || '?'} × {desktopLeaf.rect?.height || '?'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400">状态</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded">
+                                {desktopLeaf.enabled === false ? '禁用' : '启用'}{desktopLeaf.visible === false ? ' · 不可见' : ''}
+                              </div>
                             </div>
                           </>
                         )}
                       </div>
                     </div>
 
-                    {/* 控件层级路径（只读） */}
+                    {/* 控件层级路径 */}
                     <div className="flex-1 bg-white rounded border border-[#d9d9d9] p-3 overflow-y-auto min-h-0">
-                      <div className={`${SECTION_LABEL} mb-2`}>控件层级路径（{desktopPath.length} 层）</div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={SECTION_LABEL}>控件层级路径（{desktopPath.length} 层）</span>
+                        {hasBothChains && (
+                          <div className="flex gap-0.5 ml-auto bg-gray-100 rounded p-0.5">
+                            {[['uia', 'UIA'], ['win32', 'Win32']].map(([k, label]) => (
+                              <button key={k} onClick={() => setChainKind(k)}
+                                className={`px-2 py-0.5 text-[11px] rounded ${chainKind === k ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {useUiaChain && (
+                        <div className="text-[11px] text-gray-400 mb-1.5">点击某层设为目标层级（运行时定位到该层）</div>
+                      )}
                       <div className="space-y-0.5">
                         {desktopPath.map((node, idx) => {
-                          const isLeafNode = idx === desktopPath.length - 1;
+                          const isTarget = idx === targetIdx;
+                          const selectable = useUiaChain;
                           return (
                             <div key={idx}
-                              className={`text-xs px-2 py-1 rounded flex items-center gap-2 ${isLeafNode ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-[#fafafa]'}`}>
+                              onClick={selectable ? () => setCur({ ...cur, uia_target_index: idx }) : undefined}
+                              title={selectable ? '设为目标层级' : undefined}
+                              className={`text-xs px-2 py-1 rounded flex items-center gap-2 ${isTarget ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-[#fafafa]'} ${selectable ? 'cursor-pointer hover:bg-blue-50/60' : ''}`}>
                               <span className="text-gray-300 w-4 text-right shrink-0">{idx === 0 ? '⊞' : '└'}</span>
-                              <span className={`font-mono text-[11px] ${isUia ? 'text-green-600' : 'text-purple-600'}`}>
-                                {isUia ? (node.control_type || node.class_name) : node.class_name}
+                              <span className={`font-mono text-[11px] ${useUiaChain ? 'text-green-600' : 'text-purple-600'}`}>
+                                {useUiaChain ? (node.control_type || node.class_name) : node.class_name}
                               </span>
-                              {(isUia ? node.name : node.title) ? (
-                                <span className="text-gray-500 truncate">"{isUia ? node.name : node.title}"</span>
+                              {node.index != null && (
+                                <span className="text-gray-400 text-[10px] font-mono shrink-0">#{node.index}</span>
+                              )}
+                              {(useUiaChain ? node.name : node.title) ? (
+                                <span className="text-gray-500 truncate">"{useUiaChain ? node.name : node.title}"</span>
                               ) : null}
-                              {isLeafNode && <span className="text-[#1677ff] text-[11px] font-medium shrink-0">目标</span>}
+                              {useUiaChain && node.automation_id && (
+                                <span className="text-gray-400 text-[10px] font-mono truncate shrink" title={node.automation_id}>{node.automation_id}</span>
+                              )}
+                              {node.enabled === false && (
+                                <span className="text-amber-500 text-[10px] shrink-0">禁用</span>
+                              )}
+                              {isTarget && <span className="text-[#1677ff] text-[11px] font-medium shrink-0">目标</span>}
                               <span className="text-gray-300 text-[11px] ml-auto shrink-0">{node.rect?.width}×{node.rect?.height}</span>
                             </div>
                           );

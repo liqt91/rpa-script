@@ -59,6 +59,11 @@ _GetWindowRect = _user32.GetWindowRect
 _GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]; _GetWindowRect.restype = wintypes.BOOL
 _GetParent = _user32.GetParent
 _GetParent.argtypes = [wintypes.HWND]; _GetParent.restype = wintypes.HWND
+_GetWindow = _user32.GetWindow
+_GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]; _GetWindow.restype = wintypes.HWND
+_IsWindowEnabled = _user32.IsWindowEnabled
+_IsWindowEnabled.argtypes = [wintypes.HWND]; _IsWindowEnabled.restype = wintypes.BOOL
+GW_CHILD = 5; GW_HWNDNEXT = 2
 _GetSystemMetrics = _user32.GetSystemMetrics
 _GetSystemMetrics.argtypes = [ctypes.c_int]; _GetSystemMetrics.restype = ctypes.c_int
 
@@ -146,6 +151,17 @@ _QueryFullProcessImageNameW.argtypes = [
 ]
 _QueryFullProcessImageNameW.restype = wintypes.BOOL
 
+_advapi32 = ctypes.windll.advapi32
+_OpenProcessToken = _advapi32.OpenProcessToken
+_OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+_OpenProcessToken.restype = wintypes.BOOL
+_GetTokenInformation = _advapi32.GetTokenInformation
+_GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                 wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+_GetTokenInformation.restype = wintypes.BOOL
+_TokenElevation = 20  # TOKEN_INFORMATION_CLASS.TokenElevation
+_shell32 = ctypes.windll.shell32
+
 # 悬浮框：灰色背景 + 白色边框
 _FrameRect = _user32.FrameRect
 _FrameRect.argtypes = [wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.HBRUSH]
@@ -183,6 +199,9 @@ class ElementInfo:
     control_type: str = ""
     automation_id: str = ""
     uia_path: list = field(default_factory=list)
+    uia_target_index: int = -1  # uia_path 中目标元素的层级序号（-1=最后一层）
+    uia_available: bool = True  # uiautomation 依赖是否可用（False=静默降级为仅 Win32，需提示用户）
+    elevation_blocked: bool = False  # 目标进程提权而自身未提权（UIPI 拦截，只能拿到窗口壳）
     win32_path: list = field(default_factory=list)
     css_selector: str = ""
     xpath: str = ""
@@ -260,6 +279,52 @@ def _is_rpa_editor(hwnd) -> bool:
     return False                          # chrome/msedge 浏览器等 → 不隐藏
 
 
+def _hwnd_pid(hwnd) -> int:
+    pid = wintypes.DWORD()
+    _GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
+def _is_process_elevated(pid) -> bool:
+    """进程是否以管理员（提升令牌）运行。查询失败按 False 处理（低权限打开高权限进程会失败，
+    那恰恰说明目标权限更高）。"""
+    if not pid:
+        return False
+    handle = _OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return True  # 打不开的进程多半权限更高
+    try:
+        token = wintypes.HANDLE()
+        if not _OpenProcessToken(handle, 0x0008, ctypes.byref(token)):  # TOKEN_QUERY
+            return False
+        try:
+            elev = wintypes.DWORD(0)
+            size = wintypes.DWORD(0)
+            if _GetTokenInformation(token, _TokenElevation,
+                                    ctypes.byref(elev), ctypes.sizeof(elev), ctypes.byref(size)):
+                return bool(elev.value)
+            return False
+        finally:
+            _kernel32.CloseHandle(token)
+    finally:
+        _kernel32.CloseHandle(handle)
+
+
+def _self_elevated() -> bool:
+    try:
+        return bool(_shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def _elevation_blocked(hwnd) -> bool:
+    """目标窗口进程提权运行而自身未提权 → UIPI 拦截跨权限 UIA/消息读取，
+    捕获只能拿到窗口壳。检测此状态以便前端提示用户用管理员身份运行本工具。"""
+    if not hwnd:
+        return False
+    return _is_process_elevated(_hwnd_pid(hwnd)) and not _self_elevated()
+
+
 def _hide_editor_window():
     """隐藏当前前台窗口若其为 RPA 编辑器（Electron）。返回被隐藏的 HWND，否则 None。"""
     if os.name != "nt":
@@ -301,13 +366,32 @@ def _get_window_rect(hwnd) -> dict:
             "width": r.right - r.left, "height": r.bottom - r.top}
 
 
+def _child_class_index(parent, hwnd) -> int:
+    """hwnd 在其父窗口下同“类名”子窗口中的 Z 序序号（0 起）。与运行时
+    find_child_window(parent, class_name=..., index=idx) 的语义对齐（FindWindowExW 同类名枚举）。"""
+    if not parent: return 0
+    cls = _get_class_name(hwnd)
+    idx = 0; sib = _GetWindow(parent, GW_CHILD)
+    guard = 0
+    while sib and guard < 2000:
+        if _get_class_name(sib) == cls:
+            if sib == hwnd: return idx
+            idx += 1
+        sib = _GetWindow(sib, GW_HWNDNEXT)
+        guard += 1
+    return idx
+
+
 def _get_ancestor_path(hwnd) -> list:
     path = []; cur = hwnd; visited = set()
     while cur and cur not in visited:
         visited.add(cur)
-        path.insert(0, {"hwnd": cur, "class_name": _get_class_name(cur),
-                         "title": _get_window_text(cur), "rect": _get_window_rect(cur)})
         parent = _GetParent(cur)
+        node = {"hwnd": cur, "class_name": _get_class_name(cur),
+                "title": _get_window_text(cur), "rect": _get_window_rect(cur),
+                "enabled": bool(_IsWindowEnabled(cur)), "visible": bool(_IsWindowVisible(cur))}
+        node["index"] = _child_class_index(parent, cur) if parent else 0
+        path.insert(0, node)
         if not parent: break
         cur = parent
     return path
@@ -317,6 +401,22 @@ def _is_browser_window(cls: str) -> bool:
     return any(c in cls for c in (
         "Chrome_WidgetWin_1", "MozillaWindowClass", "ApplicationFrameWindow",
     ))
+
+
+_uia_import_ok = None  # 缓存 uiautomation 依赖探测结果
+
+
+def _uia_dependency_ok() -> bool:
+    """uiautomation 依赖是否可用（首次调用缓存结果）。缺失时 UIA 通道静默失效，
+    通过 ElementInfo.uia_available=False 暴露给前端提示，不再无声降级。"""
+    global _uia_import_ok
+    if _uia_import_ok is None:
+        try:
+            import uiautomation  # noqa: F401
+            _uia_import_ok = True
+        except Exception:
+            _uia_import_ok = False
+    return _uia_import_ok
 
 
 def _is_browser_in_chain(path: list) -> bool:
@@ -378,10 +478,12 @@ def _uia_chain_at(x, y, uia):
     chain = []
     cur = ctrl
     seen = set()
-    for _ in range(10):
+    keep_alive = [ctrl]  # 持有访问过的 Control 强引用，防 GC 后 id() 复用导致 seen 误判
+    for _ in range(20):
         if not cur or id(cur) in seen:
             break
         seen.add(id(cur))
+        keep_alive.append(cur)
         try:
             br = cur.BoundingRectangle
         except Exception:
@@ -390,15 +492,34 @@ def _uia_chain_at(x, y, uia):
         if br:
             rect = {"left": br.left, "top": br.top, "right": br.right, "bottom": br.bottom,
                     "width": br.width(), "height": br.height()}
-        chain.append({
+        node = {
             "name": cur.Name or "", "class_name": cur.ClassName or "",
             "control_type": cur.ControlTypeName or "", "automation_id": cur.AutomationId or "",
             "rect": rect,
-        })
+        }
+        try:
+            node["enabled"] = bool(cur.IsEnabled)
+        except Exception:
+            pass
+        try:
+            node["is_off_screen"] = bool(cur.IsOffscreen)
+        except Exception:
+            pass
+        chain.append(node)
         try:
             p = cur.GetParentControl()
             if not p or p.ControlTypeName == "DesktopControl":
                 break
+            # 兄弟序号：cur 在 p 的直接子级中第几个（0 起），用 RuntimeId 定位
+            try:
+                rid = cur.GetRuntimeId()
+                sibs = p.GetChildren()
+                for i, s in enumerate(sibs):
+                    if s.GetRuntimeId() == rid:
+                        node["index"] = i
+                        break
+            except Exception:
+                pass
             cur = p
         except Exception:
             break
@@ -439,7 +560,7 @@ def _best_uia_item(chain):
 
 
 def _uia_node_dict(node) -> dict:
-    """把 UIA 控件转为可序列化字典（name/class/type/automation_id/rect）。"""
+    """把 UIA 控件转为可序列化字典（name/class/type/automation_id/rect/enabled/offscreen）。"""
     try:
         br = node.BoundingRectangle
     except Exception:
@@ -448,11 +569,20 @@ def _uia_node_dict(node) -> dict:
     if br:
         rect = {"left": br.left, "top": br.top, "right": br.right, "bottom": br.bottom,
                 "width": br.width(), "height": br.height()}
-    return {
+    d = {
         "name": node.Name or "", "class_name": node.ClassName or "",
         "control_type": node.ControlTypeName or "", "automation_id": node.AutomationId or "",
         "rect": rect,
     }
+    try:
+        d["enabled"] = bool(node.IsEnabled)
+    except Exception:
+        pass
+    try:
+        d["is_off_screen"] = bool(node.IsOffscreen)
+    except Exception:
+        pass
+    return d
 
 
 def _deepest_uia_element(x, y, uia, max_depth=8, max_nodes=400):
@@ -474,12 +604,15 @@ def _deepest_uia_element(x, y, uia, max_depth=8, max_nodes=400):
     parents = {}
     stack = [root]
     seen = set()
+    keep_alive = [root]  # 持有所有访问过的 Control 强引用：uiautomation 节点是临时
+    # wrapper，GC 后 id() 会被新对象复用 → seen/parents 误判导致整棵子树被剪掉
     nodes = 0
     while stack and nodes < max_nodes:
         node = stack.pop()
         if id(node) in seen:
             continue
         seen.add(id(node))
+        keep_alive.append(node)
         nodes += 1
         try:
             br = node.BoundingRectangle
@@ -493,6 +626,7 @@ def _deepest_uia_element(x, y, uia, max_depth=8, max_nodes=400):
         except Exception:
             kids = []
         for k in kids:
+            keep_alive.append(k)  # 子节点入栈前同样持引用，防 id 复用
             if id(k) not in seen:
                 parents[id(k)] = node
             stack.append(k)
@@ -507,23 +641,34 @@ def _deepest_uia_element(x, y, uia, max_depth=8, max_nodes=400):
         cur = parents.get(id(cur))
         guard += 1
     rev.reverse()
-    path = [_uia_node_dict(c) for c in rev]
+    path = []
+    for pos, c in enumerate(rev):
+        d = _uia_node_dict(c)
+        if pos > 0:
+            # 兄弟序号：c 在其父级直接子级中第几个（0 起）
+            parent = rev[pos - 1]
+            try:
+                rid = c.GetRuntimeId()
+                for i, s in enumerate(parent.GetChildren()):
+                    if s.GetRuntimeId() == rid:
+                        d["index"] = i
+                        break
+            except Exception:
+                pass
+        path.append(d)
     return best_dict, path
 
 
 _UIA_QUERY_TIMEOUT = 3.0  # 秒
 
 
-def _blacklist_process(hwnd):
-    """把指定窗口所属进程加入 UIA 运行时黑名单（通用兜底，不硬编码应用名）。"""
-    exe = _get_process_exe(hwnd).lower()
-    if exe:
-        _uia_skip_exes.add(os.path.basename(exe).lower())
-
-
 def _try_uia_capture(x, y) -> dict | None:
     """UIA 捕获（祖先链 + 打分选优；hit-test 失效时深搜兜底）。
-    在工作线程执行并限时，超时 → 返回 None 并把该进程记入运行时黑名单（防卡死）。"""
+    在工作线程执行并限时，超时 → 返回 None（本次降级，不永久拉黑进程）。
+    注意：不要在超时时把进程加入 _uia_skip_exes —— Windows Terminal 等正常应用
+    的 UIA provider 偶发查询慢（>3s），若因此永久跳过 UIA，整个会话的 hover 高亮
+    会全部退化为整窗（tab/内部元素全是纯 UIA，无独立 HWND）。微信族的防卡死由
+    _is_skip_uia 里的硬编码 wechat/weixin/wework 检测负责，不需要这里兜底。"""
     result = {"done": False, "value": None}
 
     def _run():
@@ -533,10 +678,12 @@ def _try_uia_capture(x, y) -> dict | None:
                 chain = _uia_chain_at(x, y, uia)
                 item, idx = _best_uia_item(chain)
                 path = None
+                target_index = -1
                 if item:
                     r = item.get("rect") or {}
                     if r.get("width", 0) > 0 and r.get("height", 0) > 0:
-                        path = list(reversed(chain))[: len(chain) - idx]  # 根 → 最优
+                        path = list(reversed(chain))  # 完整 根 → 叶（不再截断到最优，便于前端选层级）
+                        target_index = len(chain) - 1 - idx  # 最优元素在 path 中的位置
                         # 最优元素 ≈ 整窗 → 深搜找细粒度
                         hwnd = _WindowFromPoint(wintypes.POINT(x, y))
                         if hwnd:
@@ -547,12 +694,13 @@ def _try_uia_capture(x, y) -> dict | None:
                 if not path:
                     # hit-test 不可用（0x0/None）或整窗 → 深搜兜底（混合架构应用）
                     item, path = _deepest_uia_element(x, y, uia)
+                    target_index = len(path) - 1 if path else -1  # 深搜路径终点即目标
                 if item and path:
                     result["value"] = {
                         "found": True,
                         "name": item.get("name", ""), "class_name": item.get("class_name", ""),
                         "control_type": item.get("control_type", ""), "automation_id": item.get("automation_id", ""),
-                        "rect": item.get("rect", {}), "path": path,
+                        "rect": item.get("rect", {}), "path": path, "target_index": target_index,
                     }
                     _uia_debug_log(item, chain or list(reversed(path)))
         except Exception:
@@ -565,14 +713,13 @@ def _try_uia_capture(x, y) -> dict | None:
     t.join(_UIA_QUERY_TIMEOUT)
     if result["done"]:
         return result["value"]
-    # 超时：UIA provider 卡死 → 运行时黑名单，本次会话内跳过
-    hwnd = _WindowFromPoint(wintypes.POINT(x, y))
-    if hwnd:
-        _blacklist_process(hwnd)
+    # 超时：UIA provider 偶发卡住 → 本次返回 None（降级为仅 Win32），不永久拉黑进程
     return None
 
 
-_UIA_HOVER_TIMEOUT = 0.3  # 悬停 UIA 查询超时（秒）；超时放弃，防主循环卡死
+_UIA_HOVER_TIMEOUT = 1.5  # 悬停 UIA 查询超时（秒）。0.3s 太短：Windows Terminal 等
+# XAML island 应用的深搜兜底偶发 >0.3s，此时返回 None 会让 _get_best_rect 回退整窗，
+# hover 高亮就闪成整窗。1.5s 覆盖 provider 抖动，且深搜有 0.4s 节流缓存，不会每帧阻塞。
 
 
 def _uia_hit_rect(x, y, uia):
@@ -821,10 +968,13 @@ def _flash_once(hwnd, rect, color):
 
 
 def flash_element(element: ElementInfo, times=3):
-    # 优先用 UIA 细粒度 rect（图标/菜单项等），其次 HWND rect
+    # 优先用 UIA 目标层级的细粒度 rect（图标/菜单项等），其次 HWND rect
     rect = None
     if element.uia_path:
-        leaf = element.uia_path[-1]
+        tidx = element.uia_target_index
+        if not isinstance(tidx, int) or not (0 <= tidx < len(element.uia_path)):
+            tidx = len(element.uia_path) - 1
+        leaf = element.uia_path[tidx]
         if leaf.get("rect", {}).get("width", 0) > 0:
             rect = leaf["rect"]
     if not rect:
@@ -848,7 +998,13 @@ def _find_element_hwnd(element: ElementInfo) -> int | None:
     if not hwnd or len(path) == 1: return hwnd
     from scripts.capture_gui.win32_utils import find_child_window
     for lvl in path[1:]:
-        hwnd = find_child_window(hwnd, class_name=lvl.get("class_name", ""), title=lvl.get("title", ""))
+        idx = lvl.get("index")
+        cls = lvl.get("class_name", "")
+        if isinstance(idx, int) and idx >= 0:
+            # 与 _child_class_index 语义对齐：同类名兄弟中的第 idx 个（仅按类名枚举）
+            hwnd = find_child_window(hwnd, class_name=cls, index=idx)
+        else:
+            hwnd = find_child_window(hwnd, class_name=cls, title=lvl.get("title", ""))
         if not hwnd: return None
     return hwnd
 
@@ -1204,12 +1360,15 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
             if not mouse_down and target != last_hwnd and not parent_stack:
                 last_pt = (pt.x, pt.y)
                 if target:
-                    rect = _get_window_rect(target)
-                    if rect["width"] > 0 and rect["height"] > 0:
-                        show_border(rect)
-                        show_info(_build_info_text(target))
+                    # 刚进入窗口也立即做 UIA 细粒度命中：Windows Terminal 等单 HWND
+                    # 应用里 tab/按钮等纯 UIA 元素没有独立 HWND，若这里先显示整窗，
+                    # 鼠标停下不移动（≤6px）时就一直停留在整窗高亮，无法框出单个 tab。
+                    uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
+                    if uia_rect["width"] > 0:
+                        show_border(uia_rect)
                     else:
-                        show_border(None); show_info("")
+                        show_border(None)
+                    show_info(_build_info_text(target))
                 else:
                     show_border(None); show_info("")
                 last_hwnd = target
@@ -1246,7 +1405,11 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
     cls = _get_class_name(hwnd); title = _get_window_text(hwnd); rect = _get_window_rect(hwnd)
     path = _get_ancestor_path(hwnd)
     info = ElementInfo(name=title or cls, class_name=cls, title=title, rect=rect, hwnd=hwnd, win32_path=path)
-    if _is_browser_window(cls): info.element_type = "web"
+    # 桌面捕获始终产出 win32/uia 元素（含浏览器窗口）——web 类型仅由扩展捕获产生
+    # （带 candidates/css_selector）。浏览器窗口只影响 UIA 命名，不改元素类型。
+    in_browser = _is_browser_window(cls) or _is_browser_in_chain(path)
+    info.uia_available = _uia_dependency_ok()  # 依赖缺失时前端提示"仅 Win32 层级"
+    info.elevation_blocked = _elevation_blocked(hwnd)  # 目标提权+自身未提权 → UIPI 拦截
     uia = None
     if not _is_skip_uia(hwnd):
         uia = _try_uia_capture(x, y)
@@ -1254,8 +1417,9 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
     if uia:
         info.control_type = uia.get("control_type", ""); info.automation_id = uia.get("automation_id", "")
         info.uia_path = uia.get("path", [])
+        info.uia_target_index = uia.get("target_index", len(info.uia_path) - 1)
         if not info.name: info.name = uia.get("name", "")
-        if info.element_type == "web" and info.control_type in (
+        if in_browser and info.control_type in (
             "EditControl", "ButtonControl", "HyperlinkControl", "TextControl",
             "ComboBoxControl", "CheckBoxControl", "ListItemControl", "TreeItemControl"):
             info.name = uia.get("name") or title
@@ -1264,8 +1428,6 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
                 and 0 < uia_rect.get("width", 0) <= 500
                 and 0 < uia_rect.get("height", 0) <= 500):
             best_rect = uia_rect
-    if _is_browser_in_chain(path) and info.element_type != "web":
-        info.element_type = "web"
     # 所有元素统一捕获区域快照（图像兜底数据）
     info.region = best_rect
     info.screen_size = _screen_size()

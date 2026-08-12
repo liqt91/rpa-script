@@ -18,6 +18,23 @@ from ..workflow.validation import validate, extract_js_handler_names
 router = APIRouter(prefix="/api/commands", tags=["commands"])
 
 
+def _capture_python() -> str:
+    """确定的后端解释器路径。
+
+    捕获/验证子进程必须跑在装了 uiautomation 的 venv 上。后端可能被任意解释器
+    拉起（Electron stdout、uv 基解释器、裸 python），其 sys.executable 不一定带
+    venv 依赖 —— 这里统一解析到项目 .venv（或 venv），缺失时才退回 sys.executable。
+    """
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent.parent.parent
+    for env in (".venv", "venv"):
+        p = root / env / "Scripts" / "python.exe"
+        if p.exists():
+            return str(p)
+    return sys.executable
+
+
 def get_db():
     db = models.SessionLocal()
     try:
@@ -757,15 +774,17 @@ def run_gui_picker(payload: dict = None, user=Depends(auth.get_current_user)):
     body: {"mode": "desktop" | "web"}
     """
     import subprocess
-    import sys
     _ROOT = _Path(__file__).resolve().parent.parent.parent.parent
     picker_path = _ROOT / "scripts" / "capture_gui" / "capture_once.py"
     if not picker_path.exists():
         raise HTTPException(status_code=500, detail="capture_once.py not found")
     mode = (payload or {}).get("mode") or "desktop"
     try:
+        # 必须用装了 uiautomation 的 venv 解释器（_capture_python 解析到 .venv），
+        # 不能直接用 sys.executable：后端可能被 uv/裸 python 拉起，其环境缺 uiautomation，
+        # 导致 UIA 通道静默失效、只能捕获到 Win32 窗口壳（终端 tab 等纯 UIA 元素拿不到）。
         proc = subprocess.run(
-            [sys.executable, str(picker_path), mode],
+            [_capture_python(), str(picker_path), mode],
             capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=320,
             cwd=str(_ROOT),
         )
@@ -787,14 +806,14 @@ def run_gui_picker(payload: dict = None, user=Depends(auth.get_current_user)):
 def run_gui_verify(payload: dict = None, user=Depends(auth.get_current_user)):
     """启动 GUI 浮窗验证（flash_element），验证捕获的元素是否仍存在。"""
     import subprocess
-    import sys
     _ROOT = _Path(__file__).resolve().parent.parent.parent.parent
     verify_path = _ROOT / "scripts" / "capture_gui" / "verify_once.py"
     if not verify_path.exists():
         raise HTTPException(status_code=500, detail="verify_once.py not found")
     try:
+        # 同 gui-picker：验证也要在带 uiautomation 的 venv 解释器上跑
         proc = subprocess.run(
-            [sys.executable, str(verify_path)],
+            [_capture_python(), str(verify_path)],
             input=json.dumps(payload or {}), capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=30,
             cwd=str(_ROOT),

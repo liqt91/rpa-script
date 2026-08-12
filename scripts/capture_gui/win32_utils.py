@@ -37,10 +37,14 @@ def find_window(title: str = "", class_name: str = "") -> int | None:
     return hwnd if hwnd else None
 
 
-def find_child_window(parent: int, class_name: str = "", title: str = "") -> int | None:
-    """在父窗口中查找子控件。"""
-    hwnd = _FindWindowExW(parent, None, class_name or None, title or None)
-    return hwnd if hwnd else None
+def find_child_window(parent: int, class_name: str = "", title: str = "", index: int = 0) -> int | None:
+    """在父窗口中查找第 index 个匹配类名/标题的子控件（0 起，Z 序）。"""
+    hwnd = None
+    for _ in range(index + 1):
+        hwnd = _FindWindowExW(parent, hwnd, class_name or None, title or None)
+        if not hwnd:
+            return None
+    return hwnd
 
 
 def find_window_by_title_fuzzy(title: str) -> list[dict]:

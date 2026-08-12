@@ -75,6 +75,9 @@ class PickElementUiaHandler:
             if isinstance(attrs, str):
                 attrs = json.loads(attrs)
             path = attrs.get("path", []) if isinstance(attrs, dict) else []
+            target_index = attrs.get("uia_target_index") if isinstance(attrs, dict) else None
+            if not isinstance(target_index, int):
+                target_index = None
         finally:
             db.close()
 
@@ -86,7 +89,7 @@ class PickElementUiaHandler:
                                 "nodeId": instr.get("nodeId"), "error": result["error"]})
             return False
 
-        target = pick_from_path(path, level_index)
+        target = pick_from_path(path, level_index, target_index=target_index)
         if not target:
             result = {"error": f"层级 {level_index} 未找到", "level": level_index}
             runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),

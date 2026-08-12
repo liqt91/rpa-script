@@ -152,7 +152,11 @@ def normalize_element_capture(attributes: dict) -> dict:
     if _uia_path_meaningful(uia_path):
         element_type = "uia"
         path = uia_path
-        leaf = uia_path[-1] if isinstance(uia_path[-1], dict) else {}
+        # 完整链（root→leaf）中，目标元素 = uia_target_index（默认最深叶）。
+        tidx = attributes.get("uia_target_index", -1)
+        if not isinstance(tidx, int) or not (0 <= tidx < len(uia_path)):
+            tidx = len(uia_path) - 1
+        leaf = uia_path[tidx] if isinstance(uia_path[tidx], dict) else {}
         desktop_attrs = {
             "element_type": "uia",
             "name": leaf.get("name", "") or name,
@@ -160,6 +164,7 @@ def normalize_element_capture(attributes: dict) -> dict:
             "control_type": leaf.get("control_type", ""),
             "automation_id": leaf.get("automation_id", ""),
             "rect": leaf.get("rect") or attributes.get("rect") or {},
+            "uia_target_index": tidx,
         }
     elif attributes.get("element_type") in ("win32", "uia") and not win32_path:
         # Already-canonical desktop attributes (no raw chains): keep as-is.

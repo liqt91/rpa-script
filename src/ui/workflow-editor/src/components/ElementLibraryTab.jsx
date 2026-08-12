@@ -513,8 +513,11 @@ export default function ElementLibraryTab() {
                   {/* ─── Win32 / UIA 桌面元素 ─── */}
                   {(selectedElement.element_type === 'win32' || selectedElement.element_type === 'uia') && (() => {
                     const attr = selectedElement.attributes || {};
-                    const target = attr.path?.[attr.path.length - 1];
                     const isUia = selectedElement.element_type === 'uia';
+                    const _tidx = (isUia && typeof attr.uia_target_index === 'number'
+                      && attr.uia_target_index >= 0 && attr.uia_target_index < (attr.path?.length || 0))
+                      ? attr.uia_target_index : (attr.path?.length || 1) - 1;
+                    const target = attr.path?.[_tidx];
                     return (
                       <div className="space-y-2 mb-4">
                         {/* 截图（图像兜底参考） */}
@@ -576,21 +579,30 @@ export default function ElementLibraryTab() {
                         </div>
 
                         {/* 控件层级路径 */}
-                        {attr.path && attr.path.length > 0 && (
+                        {attr.path && attr.path.length > 0 && (() => {
+                          const tidx = (isUia && typeof attr.uia_target_index === 'number'
+                            && attr.uia_target_index >= 0 && attr.uia_target_index < attr.path.length)
+                            ? attr.uia_target_index : attr.path.length - 1;
+                          return (
                           <div>
                             <div className="text-[10px] text-gray-400 mb-1">控件层级 ({attr.path.length})</div>
                             <div className="space-y-0.5 max-h-48 overflow-y-auto">
                               {attr.path.map((node, idx) => (
-                                <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded flex items-center gap-2">
+                                <div key={idx} className={`text-xs px-2 py-1 rounded flex items-center gap-2 ${idx === tidx ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-gray-50'}`}>
                                   <span className="text-gray-300 w-4 text-right shrink-0">{idx === 0 ? '⊞' : '└'}</span>
                                   <span className={isUia ? 'text-green-600 font-mono text-[10px]' : 'text-purple-600 font-mono text-[10px]'}>{isUia ? (node.control_type || node.class_name) : node.class_name}</span>
+                                  {node.index != null && <span className="text-gray-400 text-[10px] font-mono shrink-0">#{node.index}</span>}
                                   {isUia ? (node.name && <span className="text-gray-500 truncate">"{node.name}"</span>) : (node.title && <span className="text-gray-500 truncate">"{node.title}"</span>)}
+                                  {isUia && node.automation_id && <span className="text-gray-400 text-[10px] font-mono truncate" title={node.automation_id}>{node.automation_id}</span>}
+                                  {node.enabled === false && <span className="text-amber-500 text-[10px] shrink-0">禁用</span>}
+                                  {idx === tidx && <span className="text-[#1677ff] text-[10px] font-medium shrink-0">目标</span>}
                                   <span className="text-gray-300 text-[10px] ml-auto">{node.rect?.width}x{node.rect?.height}</span>
                                 </div>
                               ))}
                             </div>
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     );
                   })()}

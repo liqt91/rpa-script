@@ -141,8 +141,13 @@ class PickFromPathHandler:
                 level = path[i]
                 cls = level.get("class_name", "")
                 title = level.get("title", "")
-                # 子控件：类名优先，找不到则尝试弹出窗口（如对话框 #32770）
-                child = find_child_window(parent_hwnd, class_name=cls)
+                idx = level.get("index")
+                if not isinstance(idx, int) or idx < 0:
+                    idx = 0
+                # 子控件：类名+兄弟序号优先（同类多控件时精确定位第 idx 个）
+                child = find_child_window(parent_hwnd, class_name=cls, index=idx)
+                if not child:
+                    child = find_child_window(parent_hwnd, class_name=cls)
                 if not child and title:
                     # 可能是弹出对话框，用独立窗口查找
                     child = find_window(title=title)
