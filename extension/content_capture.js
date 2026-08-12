@@ -2462,6 +2462,14 @@
     const rect = el.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     let screenshot = null;
+    // 截图前隐藏 RPA 自绘覆盖物（toast/验证高亮/锚点高亮），避免截进元素图像影响后续识别
+    const hiddenOverlays = [];
+    for (const sel of ['#rpa-capture-toast', '.rpa-editor-highlight', '.rpa-anchor-highlight']) {
+      document.querySelectorAll(sel).forEach((n) => {
+        if (n.style.display !== 'none') { hiddenOverlays.push(n); n.style.display = 'none'; }
+      });
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       const resp = await chrome.runtime.sendMessage({
         action: 'captureElementScreenshot',
@@ -2475,6 +2483,8 @@
         throw e;
       }
       console.warn('[RPA Capture] screenshot failed:', e);
+    } finally {
+      hiddenOverlays.forEach((n) => { n.style.display = ''; });
     }
 
     // 异步计算候选方案并通过 Side Panel 展示
@@ -2649,10 +2659,10 @@
       showToast('没有可捕获的元素', 'error');
       return;
     }
-    flashCaptureSuccess(el);
     exitCaptureMode();
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     await performCapture(el);
+    flashCaptureSuccess(el);  // 绿闪放在截图后，避免被截进元素图像
   }
 
   // ─── Element highlighting (used by Side Panel verify) ────────────

@@ -58,6 +58,9 @@ _dwmapi = ctypes.windll.dwmapi
 _DwmGetWindowAttribute = _dwmapi.DwmGetWindowAttribute
 _DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
 _DwmGetWindowAttribute.restype = ctypes.c_long
+_DwmFlush = _dwmapi.DwmFlush  # 阻塞到 DWM 完成一次合成（截图前确保边框/悬浮框已从屏幕移除）
+_DwmFlush.argtypes = []
+_DwmFlush.restype = ctypes.c_long
 _FillRect = _user32.FillRect
 _FillRect.argtypes = [wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.HBRUSH]
 _ReleaseDC  = _user32.ReleaseDC
@@ -1153,6 +1156,7 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
             # Alt+点击 → 捕获桌面元素（Win32+UIA）
             if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000) and last_hwnd:
                 show_border(None); show_info("")
+                _DwmFlush()      # 等 DWM 合成完成，确保蓝边已从屏幕移除
                 time.sleep(0.1)
                 captured = _build_element_info(last_hwnd, pt.x, pt.y)
                 break
