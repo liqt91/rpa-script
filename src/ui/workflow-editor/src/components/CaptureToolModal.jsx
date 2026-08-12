@@ -198,6 +198,17 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
 
   const bothOffline = extBrowsers && !extBrowsers.chrome && !extBrowsers.edge;
 
+  // ── 桌面元素（win32/uia）派生数据 ──
+  // 原始 ElementInfo 携带 win32_path/uia_path 祖先链；UIA 判定对齐后端 _uia_path_meaningful
+  const isDesktop = !!cur && cur.element_type !== 'web';
+  const uiaPath = (cur && cur.uia_path) || [];
+  const uiaLeaf = uiaPath.length ? uiaPath[uiaPath.length - 1] : null;
+  const isUia = isDesktop && !!uiaLeaf
+    && !!(uiaLeaf.control_type || uiaLeaf.automation_id || uiaLeaf.name)
+    && (uiaLeaf.rect?.width > 0) && (uiaLeaf.rect?.height > 0);
+  const desktopPath = isUia ? uiaPath : ((cur && cur.win32_path) || []);
+  const desktopLeaf = desktopPath.length ? desktopPath[desktopPath.length - 1] : {};
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -325,7 +336,87 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                   )}
                 </div>
 
-                {/* Tab */}
+                {/* ── 桌面元素视图（win32/uia）：身份卡片 + 控件层级路径 ── */}
+                {isDesktop && (
+                  <>
+                    {/* 身份卡片 */}
+                    <div className="bg-white rounded border border-[#d9d9d9] p-3 shrink-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] ${isUia ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'}`}>
+                          {isUia ? 'UIA 桌面控件' : 'Win32 桌面控件'}
+                        </span>
+                        <span className="text-[11px] text-gray-400">定位方式：顶层窗口按标题模糊匹配 → 逐层下钻</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {isUia ? (
+                          <>
+                            <div>
+                              <div className="text-[11px] text-gray-400">名称</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.name || '-'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400">控件类型</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono">{desktopLeaf.control_type || '-'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400">AutomationId</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.automation_id || '(空)'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400">类名</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.class_name || '-'}</div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div>
+                              <div className="text-[11px] text-gray-400">类名</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.class_name || '-'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400">标题</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded break-all">{desktopLeaf.title || '(空)'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400">尺寸</div>
+                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded">{desktopLeaf.rect?.width || '?'} × {desktopLeaf.rect?.height || '?'}</div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 控件层级路径（只读） */}
+                    <div className="flex-1 bg-white rounded border border-[#d9d9d9] p-3 overflow-y-auto min-h-0">
+                      <div className={`${SECTION_LABEL} mb-2`}>控件层级路径（{desktopPath.length} 层）</div>
+                      <div className="space-y-0.5">
+                        {desktopPath.map((node, idx) => {
+                          const isLeafNode = idx === desktopPath.length - 1;
+                          return (
+                            <div key={idx}
+                              className={`text-xs px-2 py-1 rounded flex items-center gap-2 ${isLeafNode ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-[#fafafa]'}`}>
+                              <span className="text-gray-300 w-4 text-right shrink-0">{idx === 0 ? '⊞' : '└'}</span>
+                              <span className={`font-mono text-[11px] ${isUia ? 'text-green-600' : 'text-purple-600'}`}>
+                                {isUia ? (node.control_type || node.class_name) : node.class_name}
+                              </span>
+                              {(isUia ? node.name : node.title) ? (
+                                <span className="text-gray-500 truncate">"{isUia ? node.name : node.title}"</span>
+                              ) : null}
+                              {isLeafNode && <span className="text-[#1677ff] text-[11px] font-medium shrink-0">目标</span>}
+                              <span className="text-gray-300 text-[11px] ml-auto shrink-0">{node.rect?.width}×{node.rect?.height}</span>
+                            </div>
+                          );
+                        })}
+                        {!desktopPath.length && (
+                          <div className="text-[11px] text-gray-400 py-4 text-center">无层级路径数据</div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Tab（仅网页元素） */}
+                {!isDesktop && (
                 <div className="flex gap-1 shrink-0 border-b border-gray-200">
                   <button onClick={() => setMode(0)}
                     className={`px-4 py-1.5 text-xs border-b-2 -mb-px ${mode === 0 ? 'text-[#1677ff] border-[#1677ff] font-medium' : 'text-gray-500 border-transparent hover:text-gray-700'}`}>
@@ -336,9 +427,10 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                     手动编辑
                   </button>
                 </div>
+                )}
 
-                {/* 推荐方案 */}
-                {mode === 0 && (
+                {/* 推荐方案（仅网页元素） */}
+                {!isDesktop && mode === 0 && (
                   <div className="flex-1 bg-white rounded border border-[#d9d9d9] overflow-hidden flex flex-col min-h-0">
                     <div className="flex-1 overflow-y-auto min-h-0">
                       <table className="w-full text-xs">
@@ -373,8 +465,8 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                   </div>
                 )}
 
-                {/* 手动编辑 */}
-                {mode === 1 && (
+                {/* 手动编辑（仅网页元素） */}
+                {!isDesktop && mode === 1 && (
                   <div className="flex-1 flex gap-3 min-h-0 overflow-hidden">
                     {/* DOM 层级 */}
                     <div className="flex-1 bg-white rounded border border-[#d9d9d9] p-3 overflow-y-auto">
@@ -434,7 +526,8 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                   </div>
                 )}
 
-                {/* 选择器 */}
+                {/* 选择器（仅网页元素；桌面元素的"选择器"即上方层级路径） */}
+                {!isDesktop && (
                 <div className="shrink-0">
                   <label className={`${SECTION_LABEL} block mb-1`}>选择器</label>
                   <div className="flex gap-2 items-start">
@@ -449,19 +542,6 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                       <i className="fas fa-copy"></i>
                     </button>
                   </div>
-
-                  {/* 验证结果（常驻，可关闭） */}
-                  {verifyResult && (
-                    <div className={`mt-2 flex items-center justify-between px-3 py-2 rounded border text-xs ${verifyResult.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
-                      <span>
-                        <i className={`fas ${verifyResult.ok ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-1.5`}></i>
-                        {verifyResult.msg}
-                      </span>
-                      <button onClick={() => setVerifyResult(null)} className="ml-3 opacity-60 hover:opacity-100 shrink-0">
-                        <i className="fas fa-times"></i>
-                      </button>
-                    </div>
-                  )}
 
                   {/* JS 验证代码（默认折叠） */}
                   {selector && (
@@ -483,6 +563,20 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                     </div>
                   )}
                 </div>
+                )}
+
+                {/* 验证结果（常驻，可关闭；网页/桌面共用） */}
+                {verifyResult && (
+                  <div className={`flex items-center justify-between px-3 py-2 rounded border text-xs shrink-0 ${verifyResult.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
+                    <span>
+                      <i className={`fas ${verifyResult.ok ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-1.5`}></i>
+                      {verifyResult.msg}
+                    </span>
+                    <button onClick={() => setVerifyResult(null)} className="ml-3 opacity-60 hover:opacity-100 shrink-0">
+                      <i className="fas fa-times"></i>
+                    </button>
+                  </div>
+                )}
 
                 {/* 操作按钮（右对齐，保存为主操作） */}
                 <div className="flex justify-end gap-2 shrink-0">
