@@ -28,6 +28,7 @@ def _com_uninit():
 
 # ── Constants ──
 VK_ESCAPE = 0x1B; VK_RBUTTON = 0x02; VK_LBUTTON = 0x01; VK_MENU = 0x12
+VK_MBUTTON = 0x04
 VK_1 = 0x31; VK_2 = 0x32
 SM_CXSCREEN = 0; SM_CYSCREEN = 1
 BORDER_COLOR = 0x3b82f6  # blue
@@ -44,6 +45,14 @@ _GetWindowTextW = _user32.GetWindowTextW
 _GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
 _GetWindowTextLengthW = _user32.GetWindowTextLengthW
 _GetWindowTextLengthW.argtypes = [wintypes.HWND]; _GetWindowTextLengthW.restype = ctypes.c_int
+# SendMessageTimeout：读目标窗口文本用，目标 UI 线程卡死/鼠标模态态时不再永久阻塞
+_SendMessageTimeoutW = _user32.SendMessageTimeoutW
+_SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, ctypes.c_size_t, wintypes.LPWSTR,
+                                 wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+_SendMessageTimeoutW.restype = wintypes.LPARAM
+WM_GETTEXT = 0x000D; WM_GETTEXTLENGTH = 0x000E
+SMTO_ABORTIFHUNG = 0x0002
+_WNDTEXT_TIMEOUT_MS = 150
 _GetClassNameW = _user32.GetClassNameW
 _GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
 _GetWindowRect = _user32.GetWindowRect
@@ -61,6 +70,18 @@ _DwmGetWindowAttribute.restype = ctypes.c_long
 _DwmFlush = _dwmapi.DwmFlush  # 阻塞到 DWM 完成一次合成（截图前确保边框/悬浮框已从屏幕移除）
 _DwmFlush.argtypes = []
 _DwmFlush.restype = ctypes.c_long
+
+
+def _dwm_flush(timeout: float = 0.5):
+    """DwmFlush 有界版：极端情况下组合器不应答时不永久阻塞。"""
+    def _run():
+        try:
+            _DwmFlush()
+        except Exception:
+            pass
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout)
 _FillRect = _user32.FillRect
 _FillRect.argtypes = [wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.HBRUSH]
 _ReleaseDC  = _user32.ReleaseDC
@@ -179,10 +200,23 @@ class ElementInfo:
 
 
 def _get_window_text(hwnd) -> str:
-    length = _GetWindowTextLengthW(hwnd)
-    if length == 0: return ""
+    """读窗口文本（有界）：SendMessageTimeout + ABORTIFHUNG，目标 UI 线程
+    卡死或处于鼠标模态态（按住按钮/拖动）时最多等 _WNDTEXT_TIMEOUT_MS 后放弃，
+    避免桌面捕获主循环被永久阻塞。"""
+    res = ctypes.c_size_t(0)
+    ok = _SendMessageTimeoutW(hwnd, WM_GETTEXTLENGTH, 0, None,
+                              SMTO_ABORTIFHUNG, _WNDTEXT_TIMEOUT_MS, ctypes.byref(res))
+    if not ok:
+        return ""
+    length = res.value
+    if length <= 0 or length > 4096:
+        return ""
     buf = ctypes.create_unicode_buffer(length + 1)
-    _GetWindowTextW(hwnd, buf, length + 1)
+    res2 = ctypes.c_size_t(0)
+    ok2 = _SendMessageTimeoutW(hwnd, WM_GETTEXT, length + 1, buf,
+                               SMTO_ABORTIFHUNG, _WNDTEXT_TIMEOUT_MS, ctypes.byref(res2))
+    if not ok2:
+        return ""
     return buf.value
 
 
@@ -538,18 +572,12 @@ def _try_uia_capture(x, y) -> dict | None:
     return None
 
 
-def _get_uia_rect(x, y):
+_UIA_HOVER_TIMEOUT = 0.3  # 悬停 UIA 查询超时（秒）；超时放弃，防主循环卡死
+
+
+def _uia_hit_rect(x, y, uia):
     """UIA 命中框：轻量 hit-test 优先；hit-test 失效（0x0/None，XAML island 等混合应用）时
-    深搜兜底（节流缓存，避免每帧全树遍历）。只读矩形，避免在 UIA provider 敏感应用上卡死。"""
-    global _uia_module
-    uia = _uia_module
-    if not uia:
-        try:
-            _com_init()
-            import uiautomation as uia
-            _uia_module = uia
-        except Exception:
-            return None
+    深搜兜底（节流缓存，避免每帧全树遍历）。只读矩形。须在工作线程调用（COM 已初始化）。"""
     # 1) 轻量 hit-test（正常应用，O(1)）
     try:
         ctrl = uia.ControlFromPoint(x, y)
@@ -574,6 +602,35 @@ def _get_uia_rect(x, y):
                 rect = r
         c.update(hwnd=hwnd, x=x, y=y, t=now, rect=rect)
     return c.get("rect")
+
+
+def _get_uia_rect(x, y):
+    """悬停 UIA 命中框（有界）：工作线程 + 超时。目标 UI 线程卡死或处于鼠标
+    模态态（按住按钮/拖动）时，跨进程 UIA 调用会无限等待 —— 限时放弃，主循环不阻塞。"""
+    global _uia_module
+    uia = _uia_module
+    if not uia:
+        try:
+            _com_init()
+            import uiautomation as uia
+            _uia_module = uia
+        except Exception:
+            return None
+    result = {"done": False, "value": None}
+
+    def _run():
+        try:
+            with uia.UIAutomationInitializerInThread():
+                result["value"] = _uia_hit_rect(x, y, uia)
+        except Exception:
+            pass
+        finally:
+            result["done"] = True
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(_UIA_HOVER_TIMEOUT)
+    return result["value"] if result["done"] else None
 
 
 def _get_best_rect(hwnd, x, y):
@@ -1119,6 +1176,11 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
             if not target and last_hwnd and _user32.IsWindow(last_hwnd):
                 target = last_hwnd
 
+            # 鼠标键按住期间：目标可能处于 SetCapture 模态态（UIA/SendMessage 查询会卡死），
+            # 跳过一切对目标的查询，保持上一次高亮，仅检测 Alt+点击 确认
+            mouse_down = bool((_GetAsyncKeyState(VK_LBUTTON) | _GetAsyncKeyState(VK_RBUTTON)
+                               | _GetAsyncKeyState(VK_MBUTTON)) & 0x8000)
+
             # Alt+1 → 选父级
             if (_GetAsyncKeyState(VK_1) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000):
                 if target:
@@ -1138,8 +1200,8 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
                 time.sleep(0.15)
                 continue
 
-            # 鼠标移动 → 自动选最细粒度
-            if target != last_hwnd and not parent_stack:
+            # 鼠标移动 → 自动选最细粒度（鼠标按住期间跳过，见上）
+            if not mouse_down and target != last_hwnd and not parent_stack:
                 last_pt = (pt.x, pt.y)
                 if target:
                     rect = _get_window_rect(target)
@@ -1152,22 +1214,23 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
                     show_border(None); show_info("")
                 last_hwnd = target
                 parent_stack.clear()
-            elif target == last_hwnd and target and abs(pt.x - last_pt[0]) + abs(pt.y - last_pt[1]) > 6:
+            elif (not mouse_down and target == last_hwnd and target
+                    and abs(pt.x - last_pt[0]) + abs(pt.y - last_pt[1]) > 6):
                 last_pt = (pt.x, pt.y)
                 uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
                 if uia_rect["width"] > 0:
                     show_border(uia_rect)
                     show_info(_build_info_text(target))
-                else:
-                    uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
-                    if uia_rect["width"] > 0:
-                        show_border(uia_rect)
-                        show_info(_build_info_text(target))
 
             # Alt+点击 → 捕获桌面元素（Win32+UIA）
             if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000) and last_hwnd:
                 show_border(None); show_info("")
-                _DwmFlush()      # 等 DWM 合成完成，确保蓝边已从屏幕移除
+                # 有界等待鼠标松开：目标先退出 SetCapture 模态态，再做 UIA/文本查询，
+                # 避免目标不应答导致捕获卡死（最多等 1.5s，超时仍继续）
+                wait_deadline = time.time() + 1.5
+                while (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and time.time() < wait_deadline:
+                    time.sleep(0.02)
+                _dwm_flush()       # 等 DWM 合成完成（有界），确保蓝边已从屏幕移除
                 time.sleep(0.1)
                 captured = _build_element_info(last_hwnd, pt.x, pt.y)
                 break
