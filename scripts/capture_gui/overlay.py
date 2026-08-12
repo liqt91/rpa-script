@@ -824,15 +824,26 @@ def _screen_size() -> dict:
 
 
 def _grab_region_screenshot(rect: dict | None) -> str:
-    """截取屏幕指定区域，返回 base64 dataURL。失败返回空串。"""
+    """截取屏幕指定区域，返回 base64 dataURL。失败返回空串。
+
+    多显示器：ImageGrab.grab(bbox) 只截主屏，目标在副屏（坐标可能为负或超出
+    主屏宽高）时会得到全黑图。此时改用 all_screens 全量截取再按虚拟屏原点裁剪。
+    """
     if not rect or not rect.get("width", 0) > 0 or not rect.get("height", 0) > 0:
         return ""
     try:
         from PIL import ImageGrab
         import io
-        bbox = (int(rect["left"]), int(rect["top"]),
-                int(rect["left"] + rect["width"]), int(rect["top"] + rect["height"]))
-        img = ImageGrab.grab(bbox=bbox)
+        left, top = int(rect["left"]), int(rect["top"])
+        right, bottom = left + int(rect["width"]), top + int(rect["height"])
+        cx, cy = _GetSystemMetrics(SM_CXSCREEN), _GetSystemMetrics(SM_CYSCREEN)
+        on_primary = 0 <= left and 0 <= top and right <= cx and bottom <= cy
+        if on_primary:
+            img = ImageGrab.grab(bbox=(left, top, right, bottom))
+        else:
+            vx, vy = _GetSystemMetrics(76), _GetSystemMetrics(77)  # SM_X/YVIRTUALSCREEN
+            img = ImageGrab.grab(all_screens=True)
+            img = img.crop((left - vx, top - vy, right - vx, bottom - vy))
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         import base64
