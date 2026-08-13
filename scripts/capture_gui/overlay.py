@@ -717,9 +717,6 @@ def _try_uia_capture(x, y) -> dict | None:
     return None
 
 
-_UIA_HOVER_TIMEOUT = 1.5  # 悬停 UIA 查询超时（秒）。0.3s 太短：Windows Terminal 等
-# XAML island 应用的深搜兜底偶发 >0.3s，此时返回 None 会让 _get_best_rect 回退整窗，
-# hover 高亮就闪成整窗。1.5s 覆盖 provider 抖动，且深搜有 0.4s 节流缓存，不会每帧阻塞。
 
 
 def _uia_hit_rect(x, y, uia):
@@ -751,33 +748,133 @@ def _uia_hit_rect(x, y, uia):
     return c.get("rect")
 
 
-def _get_uia_rect(x, y):
-    """悬停 UIA 命中框（有界）：工作线程 + 超时。目标 UI 线程卡死或处于鼠标
-    模态态（按住按钮/拖动）时，跨进程 UIA 调用会无限等待 —— 限时放弃，主循环不阻塞。"""
-    global _uia_module
-    uia = _uia_module
-    if not uia:
-        try:
-            _com_init()
-            import uiautomation as uia
-            _uia_module = uia
-        except Exception:
-            return None
-    result = {"done": False, "value": None}
+class _HoverWorker:
+    """后台 hover UIA 查询 worker —— 单线程持续查询，主循环零阻塞。
 
-    def _run():
+    根因：原 hover 用 `_get_uia_rect` 每帧开新线程 + `t.join(超时)` 阻塞主循环。
+    Windows Terminal 等 XAML island 应用深搜偶发 >1s，主循环（30ms 帧）被 join 阻塞
+    → 帧率骤降、明显卡顿。这里改为：主循环只把最新鼠标坐标写进共享状态，worker
+    线程里一次性初始化 COM 后持续读坐标 → 深搜 → 写回 rect；主循环只读最新结果，
+    绝不等待。hover 高亮最多滞后 worker 一次查询的耗时（通常 <150ms），但不卡。
+
+    mouse_down（SetCapture 模态态）期间暂停查询：此时跨进程 UIA 调用会无限等待，
+    先冻结当前结果，松开后再继续。
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._wake = threading.Event()
+        self._stop = False
+        self._paused = False
+        # 主循环写入：最新坐标 + 是否有效
+        self._req = {"x": 0, "y": 0, "valid": False, "seq": 0}
+        # worker 写出：最新结果
+        self._res = {"rect": None, "x": 0, "y": 0}
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+
+    def _loop(self):
         try:
-            with uia.UIAutomationInitializerInThread():
-                result["value"] = _uia_hit_rect(x, y, uia)
+            import uiautomation as uia
+            with uia.UIAutomationInitializerInThread():  # worker 线程一次性初始化 COM
+                while not self._stop:
+                    self._wake.wait(timeout=0.2)
+                    self._wake.clear()
+                    if self._stop:
+                        break
+                    if self._paused:
+                        continue
+                    with self._lock:
+                        req = dict(self._req)
+                    if not req["valid"]:
+                        continue
+                    # 直接在本线程查询（COM 已初始化）。即使某次查询慢/卡住，
+                    # 也只影响本 worker 的结果更新时机，主循环始终用最近一次结果 → 不卡。
+                    rect = self._query(req["x"], req["y"], uia)
+                    with self._lock:
+                        self._res = {"rect": rect, "x": req["x"], "y": req["y"]}
         except Exception:
             pass
-        finally:
-            result["done"] = True
 
-    t = threading.Thread(target=_run, daemon=True)
-    t.start()
-    t.join(_UIA_HOVER_TIMEOUT)
-    return result["value"] if result["done"] else None
+    def _query(self, x, y, uia):
+        """在 worker 线程内执行查询（COM 已初始化）。不加额外线程/超时——
+        即使偶发卡住也只影响结果更新时机，主循环不受影响。"""
+        try:
+            return _uia_hit_rect(x, y, uia)
+        except Exception:
+            return None
+
+    def submit(self, x, y):
+        """主循环每帧提交最新鼠标坐标（非阻塞）。"""
+        with self._lock:
+            self._req = {"x": x, "y": y, "valid": True, "seq": self._req["seq"] + 1}
+        self._wake.set()
+
+    def latest(self):
+        """主循环每帧读最新结果（非阻塞）。"""
+        with self._lock:
+            return dict(self._res)
+
+    def pause(self):
+        """鼠标按住（模态态）时暂停 UIA 查询，避免跨进程调用卡死。"""
+        self._paused = True
+
+    def resume(self):
+        self._paused = False
+        self._wake.set()
+
+    def stop(self):
+        self._stop = True
+        self._wake.set()
+
+
+_hover_worker_inst: _HoverWorker | None = None
+
+
+def _hover_worker() -> _HoverWorker | None:
+    """懒启动全局 hover worker。uiautomation 不可用时返回 None。"""
+    global _hover_worker_inst
+    if _hover_worker_inst is None:
+        if not _uia_dependency_ok():
+            return None
+        _hover_worker_inst = _HoverWorker()
+    return _hover_worker_inst
+
+
+def _stop_hover_worker():
+    global _hover_worker_inst
+    if _hover_worker_inst is not None:
+        try:
+            _hover_worker_inst.stop()
+        except Exception:
+            pass
+        _hover_worker_inst = None
+
+
+def _get_uia_rect(x, y):
+    """悬停 UIA 命中框（异步非阻塞）。返回后台 worker 的最新结果；还没出结果时返回 None。
+
+    主循环绝不阻塞等待 UIA 查询 —— 这是 hover 卡顿的关键：旧实现每帧开新线程 +
+    join(超时) 阻塞主循环，Windows Terminal 深搜偶发 >1s 时帧率骤降。改为：主循环
+    每帧只 submit 坐标、读最新结果；worker 线程独立做查询。"""
+    w = _hover_worker()
+    if w is None:
+        return None
+    w.submit(x, y)
+    res = w.latest()
+    return res.get("rect")
+
+
+def _pause_hover_uia():
+    w = _hover_worker_inst
+    if w is not None:
+        w.pause()
+
+
+def _resume_hover_uia():
+    w = _hover_worker_inst
+    if w is not None:
+        w.resume()
 
 
 def _get_best_rect(hwnd, x, y):
@@ -1273,6 +1370,7 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
     pt = wintypes.POINT()
     last_hwnd = None; captured = None
     last_pt = (0, 0)
+    _last_border_rect = None  # 上一次绘制的 hover 高亮 rect（避免每帧重复 show_border 闪烁）
     # 层级导航栈：记录用户按 Alt+1 上走过的路径，Alt+2 可退回
     parent_stack = []
 
@@ -1336,6 +1434,11 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
             # 跳过一切对目标的查询，保持上一次高亮，仅检测 Alt+点击 确认
             mouse_down = bool((_GetAsyncKeyState(VK_LBUTTON) | _GetAsyncKeyState(VK_RBUTTON)
                                | _GetAsyncKeyState(VK_MBUTTON)) & 0x8000)
+            # 模态态暂停后台 hover 查询，避免跨进程 UIA 调用无限等待拖慢主循环
+            if mouse_down:
+                _pause_hover_uia()
+            else:
+                _resume_hover_uia()
 
             # Alt+1 → 选父级
             if (_GetAsyncKeyState(VK_1) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000):
@@ -1356,30 +1459,28 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
                 time.sleep(0.15)
                 continue
 
-            # 鼠标移动 → 自动选最细粒度（鼠标按住期间跳过，见上）
-            if not mouse_down and target != last_hwnd and not parent_stack:
+            # 鼠标 hover → 用后台 worker 的最新 UIA 结果持续更新高亮（主循环零阻塞）。
+            # 进入窗口时 worker 结果可能尚未就绪 → 先显示整窗；worker 算出 tab rect 后
+            # 下一帧自动切换。停留时 worker 结果变化也会持续刷新。结果未变不重绘（防闪烁）。
+            # Alt+1/2 层级导航中（parent_stack 非空）保持手动选中，不自动 hover。
+            if not mouse_down and not parent_stack:
+                if target != last_hwnd:
+                    parent_stack.clear()
                 last_pt = (pt.x, pt.y)
                 if target:
-                    # 刚进入窗口也立即做 UIA 细粒度命中：Windows Terminal 等单 HWND
-                    # 应用里 tab/按钮等纯 UIA 元素没有独立 HWND，若这里先显示整窗，
-                    # 鼠标停下不移动（≤6px）时就一直停留在整窗高亮，无法框出单个 tab。
+                    # 非阻塞：提交坐标给 worker，读最新结果
                     uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
-                    if uia_rect["width"] > 0:
-                        show_border(uia_rect)
-                    else:
-                        show_border(None)
-                    show_info(_build_info_text(target))
+                    if uia_rect and uia_rect.get("width", 0) > 0:
+                        if uia_rect != _last_border_rect:
+                            show_border(uia_rect)
+                            _last_border_rect = uia_rect
+                        show_info(_build_info_text(target))
                 else:
-                    show_border(None); show_info("")
+                    if _last_border_rect is not None:
+                        show_border(None)
+                        _last_border_rect = None
+                    show_info("")
                 last_hwnd = target
-                parent_stack.clear()
-            elif (not mouse_down and target == last_hwnd and target
-                    and abs(pt.x - last_pt[0]) + abs(pt.y - last_pt[1]) > 6):
-                last_pt = (pt.x, pt.y)
-                uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
-                if uia_rect["width"] > 0:
-                    show_border(uia_rect)
-                    show_info(_build_info_text(target))
 
             # Alt+点击 → 捕获桌面元素（Win32+UIA）
             if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000) and last_hwnd:
@@ -1396,6 +1497,7 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
             time.sleep(0.03)
     finally:
         show_border(None); show_info("")
+        _stop_hover_worker()  # 捕获结束停止后台 hover 线程
         _uia_done()
         _restore_editor_window(editor_hwnd)  # 捕获结束恢复并前置 RPA 编辑器
     return captured
