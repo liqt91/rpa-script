@@ -244,6 +244,16 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                   : <><i className="fas fa-crosshairs"></i>捕获桌面元素</>}
               </button>
               <button
+                onClick={() => startCapture('desktop_mask')}
+                disabled={!!capturingMode}
+                className={PRIMARY_BTN}
+                title="捕获桌面窗口/控件（全屏遮罩式高亮，Win32+UIA）"
+              >
+                {capturingMode === 'desktop_mask'
+                  ? <><i className="fas fa-spinner fa-spin"></i>捕获中... Alt+点击 选取目标</>
+                  : <><i className="fas fa-vector-square"></i>捕获桌面元素新</>}
+              </button>
+              <button
                 onClick={() => startCapture('web')}
                 disabled={!!capturingMode}
                 className={PRIMARY_BTN}

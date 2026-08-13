@@ -22,14 +22,18 @@ _sink = _io.StringIO()
 # 压制 PIL/libpng 的 C 级警告到 stderr
 with contextlib.redirect_stderr(_sink):
     from scripts.capture_gui.overlay import run_capture
+    from scripts.capture_gui.overlay_mask import run_capture_mask
     from scripts.capture_gui.store import _info_to_dict
 
 
 def main():
-    mode = sys.argv[1] if len(sys.argv) > 1 else "desktop"  # desktop | web
+    mode = sys.argv[1] if len(sys.argv) > 1 else "desktop"  # desktop | web | desktop_mask
     try:
         with contextlib.redirect_stderr(_io.StringIO()):  # 压制 libpng 警告
-            info = run_capture(mode)
+            if mode == "desktop_mask":
+                info = run_capture_mask("desktop")  # 全屏遮罩式捕获（新实现）
+            else:
+                info = run_capture(mode)
         if not info:
             print(json.dumps({"cancelled": True}))
             return

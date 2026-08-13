@@ -31,6 +31,10 @@ VK_ESCAPE = 0x1B; VK_RBUTTON = 0x02; VK_LBUTTON = 0x01; VK_MENU = 0x12
 VK_MBUTTON = 0x04
 VK_1 = 0x31; VK_2 = 0x32
 SM_CXSCREEN = 0; SM_CYSCREEN = 1
+# 虚拟屏（跨多显示器的完整坐标系）：双屏笔记本副屏坐标可能为负或超出主屏宽高，
+# 屏幕边界判断必须用虚拟屏而非主屏（tdSelector 同样用 SM_X/Y/CX/CYVIRTUALSCREEN）
+SM_XVIRTUALSCREEN = 76; SM_YVIRTUALSCREEN = 77
+SM_CXVIRTUALSCREEN = 78; SM_CYVIRTUALSCREEN = 79
 BORDER_COLOR = 0x3b82f6  # blue
 BORDER_T = 3
 
@@ -66,6 +70,21 @@ _IsWindowEnabled.argtypes = [wintypes.HWND]; _IsWindowEnabled.restype = wintypes
 GW_CHILD = 5; GW_HWNDNEXT = 2
 _GetSystemMetrics = _user32.GetSystemMetrics
 _GetSystemMetrics.argtypes = [ctypes.c_int]; _GetSystemMetrics.restype = ctypes.c_int
+
+# DPI awareness：双屏笔记本内外屏缩放常不一致（外接 100% / 笔记本 150%），DPI unaware
+# 进程坐标会被系统虚拟化导致 hover 框/捕获坐标与真实物理像素错位。设为 Per-Monitor V2
+# 让 GetCursorPos/WindowFromPoint/ControlFromPoint/UIA 矩形/截图全链路用物理像素坐标
+# （tdSelector 同样 SetProcessDpiAwareness + GetPhysicalCursorPos）。必须最先设置（建窗口前）。
+try:
+    _user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))  # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+except Exception:
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except Exception:
+        try:
+            _user32.SetProcessDPIAware()
+        except Exception:
+            pass
 
 # DWM (for real visible rect, excluding shadows)
 _dwmapi = ctypes.windll.dwmapi
@@ -144,6 +163,34 @@ _IsIconic.argtypes = [wintypes.HWND]; _IsIconic.restype = wintypes.BOOL
 _OpenProcess = _kernel32.OpenProcess
 _OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
 _OpenProcess.restype = wintypes.HANDLE
+# 跨进程内存读写：桌面图标（SysListView32）单项捕获需要向 explorer 进程发
+# LVM_HITTEST/LVM_GETITEMRECT，结构体须分配在目标进程地址空间（tdSelector 同款做法）
+_VirtualAllocEx = _kernel32.VirtualAllocEx
+_VirtualAllocEx.argtypes = [wintypes.HANDLE, wintypes.LPVOID, ctypes.c_size_t,
+                            wintypes.DWORD, wintypes.DWORD]
+_VirtualAllocEx.restype = wintypes.LPVOID
+_VirtualFreeEx = _kernel32.VirtualFreeEx
+_VirtualFreeEx.argtypes = [wintypes.HANDLE, wintypes.LPVOID, ctypes.c_size_t, wintypes.DWORD]
+_VirtualFreeEx.restype = wintypes.BOOL
+_WriteProcessMemory = _kernel32.WriteProcessMemory
+_WriteProcessMemory.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.LPCVOID,
+                                ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
+_WriteProcessMemory.restype = wintypes.BOOL
+_ReadProcessMemory = _kernel32.ReadProcessMemory
+_ReadProcessMemory.argtypes = [wintypes.HANDLE, wintypes.LPCVOID, wintypes.LPVOID,
+                               ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
+_ReadProcessMemory.restype = wintypes.BOOL
+_CloseHandle = _kernel32.CloseHandle
+_CloseHandle.argtypes = [wintypes.HANDLE]; _CloseHandle.restype = wintypes.BOOL
+_SendMessageW = _user32.SendMessageW
+_SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+_SendMessageW.restype = wintypes.LPARAM
+_ScreenToClient = _user32.ScreenToClient
+_ScreenToClient.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+_ScreenToClient.restype = wintypes.BOOL
+_ClientToScreen = _user32.ClientToScreen
+_ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+_ClientToScreen.restype = wintypes.BOOL
 _QueryFullProcessImageNameW = _kernel32.QueryFullProcessImageNameW
 _QueryFullProcessImageNameW.argtypes = [
     wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
@@ -382,13 +429,16 @@ def _child_class_index(parent, hwnd) -> int:
     return idx
 
 
-def _get_ancestor_path(hwnd) -> list:
+def _get_ancestor_path(hwnd, with_title: bool = True) -> list:
+    # with_title=False（hover 显示路径用）：跳过每层的 SendMessageTimeout 跨进程文本读取，
+    # 全部本地调用（GetClassNameW/GetWindowRect/_child_class_index），hover 主循环零阻塞。
     path = []; cur = hwnd; visited = set()
     while cur and cur not in visited:
         visited.add(cur)
         parent = _GetParent(cur)
         node = {"hwnd": cur, "class_name": _get_class_name(cur),
-                "title": _get_window_text(cur), "rect": _get_window_rect(cur),
+                "title": _get_window_text(cur) if with_title else "",
+                "rect": _get_window_rect(cur),
                 "enabled": bool(_IsWindowEnabled(cur)), "visible": bool(_IsWindowVisible(cur))}
         node["index"] = _child_class_index(parent, cur) if parent else 0
         path.insert(0, node)
@@ -401,6 +451,20 @@ def _is_browser_window(cls: str) -> bool:
     return any(c in cls for c in (
         "Chrome_WidgetWin_1", "MozillaWindowClass", "ApplicationFrameWindow",
     ))
+
+
+def _is_browserish_hwnd(hwnd) -> bool:
+    """hwnd 或其祖先链是否浏览器窗口（含 Chrome_RenderWidgetHostHWND 渲染宿主）。
+    仅本地 GetClassName/GetParent，hover 热路径可用。"""
+    cur = hwnd
+    for _ in range(6):
+        if not cur:
+            break
+        cls = _get_class_name(cur)
+        if _is_browser_window(cls) or "Chrome_RenderWidgetHostHWND" in cls:
+            return True
+        cur = _GetParent(cur)
+    return False
 
 
 _uia_import_ok = None  # 缓存 uiautomation 依赖探测结果
@@ -586,11 +650,15 @@ def _uia_node_dict(node) -> dict:
 
 
 def _deepest_uia_element(x, y, uia, max_depth=8, max_nodes=400):
-    """从窗口根有界 BFS，找「rect 含光标 (x,y) 的最小/最有价值元素」。
+    """从窗口根有界遍历，找「rect 含光标 (x,y) 的最小/最有价值元素」。
 
     混合架构应用（XAML island：hit-test 返回 0x0 占位）的兜底方案：
       - 根 = ElementFromHandle(WindowFromPoint)，不 hit-test
       - 不按节点 rect 剪枝（父节点可能 0x0/无效，但子树里有有效元素）
+      - **含光标的子节点优先 DFS**：纯 BFS 在大树（Windows Terminal 等）上会在
+        max_nodes 预算内访问不到深层 tab/text 节点 → 概率性命中。把含点子节点排在
+        栈顶（先访问），沿含点链一路下钻，O(深度) 即可触达最深元素；不含点的兄弟
+        仍入栈兜底（预算内），不丢失"父 0x0 子有效"的分支。
       - 只在「含光标的候选」上读 Name/类型（控制成本）
     返回 (best_dict, 根→best 的路径 list)。
     """
@@ -618,18 +686,36 @@ def _deepest_uia_element(x, y, uia, max_depth=8, max_nodes=400):
             br = node.BoundingRectangle
         except Exception:
             br = None
-        if br and br.width() > 0 and br.height() > 0 \
-                and (br.left <= x <= br.right and br.top <= y <= br.bottom):
+        node_contains = bool(br) and br.width() > 0 and br.height() > 0 \
+            and (br.left <= x <= br.right and br.top <= y <= br.bottom)
+        if node_contains:
             candidates.append((node, _uia_node_dict(node)))
         try:
             kids = node.GetChildren()
         except Exception:
             kids = []
+        # 只有「含光标的节点」的子级才读 rect 做含点优先排序（沿含点链 DFS 下钻，
+        # O(深度×兄弟数) 触达最深元素）；不含点节点的子级直接入栈（不读 rect）——
+        # 否则浏览器等大树（DOM 数千节点）每个子节点一次跨进程 rect 读取会爆到 5s 级。
+        containing = []
+        others = []
         for k in kids:
             keep_alive.append(k)  # 子节点入栈前同样持引用，防 id 复用
             if id(k) not in seen:
                 parents[id(k)] = node
-            stack.append(k)
+            if node_contains:
+                try:
+                    kbr = k.BoundingRectangle
+                except Exception:
+                    kbr = None
+                if kbr and kbr.width() > 0 and kbr.height() > 0 \
+                        and (kbr.left <= x <= kbr.right and kbr.top <= y <= kbr.bottom):
+                    containing.append(k)
+                    continue
+            others.append(k)
+        # 栈是 LIFO：先压不含点的（后处理），再压含点的（先处理）→ 沿含点链 DFS 下钻
+        stack.extend(others)
+        stack.extend(reversed(containing))
     if not candidates:
         return None, None
     best_node, best_dict = max(candidates, key=lambda c: _uia_score(c[1]))
@@ -692,8 +778,15 @@ def _try_uia_capture(x, y) -> dict | None:
                                     and r.get("width", 0) * r.get("height", 0) > 0.6 * wr["width"] * wr["height"]:
                                 path = None
                 if not path:
-                    # hit-test 不可用（0x0/None）或整窗 → 深搜兜底（混合架构应用）
-                    item, path = _deepest_uia_element(x, y, uia)
+                    # hit-test 不可用（0x0/None）或整窗 → 深搜兜底（混合架构应用）。
+                    # 浏览器窗口例外：内容区是 DOM（不在 UIA 树），深搜只能遍历数千节点
+                    # （实测 4-6s 超时）且找不到更细的 → 放弃深搜回退整窗，网页细粒度
+                    # 走「捕获网页元素」通道。
+                    _hwnd = _WindowFromPoint(wintypes.POINT(x, y))
+                    if _hwnd and _is_browserish_hwnd(_hwnd):
+                        item, path = None, None
+                    else:
+                        item, path = _deepest_uia_element(x, y, uia)
                     target_index = len(path) - 1 if path else -1  # 深搜路径终点即目标
                 if item and path:
                     result["value"] = {
@@ -720,21 +813,43 @@ def _try_uia_capture(x, y) -> dict | None:
 
 
 def _uia_hit_rect(x, y, uia):
-    """UIA 命中框：轻量 hit-test 优先；hit-test 失效（0x0/None，XAML island 等混合应用）时
-    深搜兜底（节流缓存，避免每帧全树遍历）。只读矩形。须在工作线程调用（COM 已初始化）。"""
+    """UIA 命中框（纯同步查询，无内部线程/超时）：轻量 hit-test 优先；hit-test 失效
+    （0x0/None，XAML island 等混合应用）时深搜兜底（节流缓存，避免每帧全树遍历）。
+
+    只读矩形。本函数可能被单次卡死的 UIA 调用（ControlFromPoint/GetChildren）永久阻塞，
+    因此**绝不能直接在工作线程调用** —— 必须由 _HoverWorker 把它外包到有界线程执行。"""
     # 1) 轻量 hit-test（正常应用，O(1)）
     try:
         ctrl = uia.ControlFromPoint(x, y)
         if ctrl:
             br = ctrl.BoundingRectangle
             if br and br.width() > 0 and br.height() > 0:
-                _deep_cache["hwnd"] = 0  # 清深搜缓存
-                return {"left": br.left, "top": br.top, "right": br.right, "bottom": br.bottom,
-                        "width": br.width(), "height": br.height()}
+                hit = {"left": br.left, "top": br.top, "right": br.right, "bottom": br.bottom,
+                       "width": br.width(), "height": br.height()}
+                # 命中≈整窗（面积 >60% 窗口）视为粗命中，不直接返回 —— Windows Terminal 等
+                # XAML 应用的 ControlFromPoint 常返回整窗大的 pane（有效矩形），直接采纳
+                # 会让 hover 永远停在整窗（实测：大部分情况框整窗，仅偶尔 0x0 才走深搜
+                # 拿到 tab/文字 = "概率性细粒度"）。落入深搜兜底拿真实细粒度元素。
+                # 例外：浏览器窗口（Chrome_RenderWidgetHostHWND 等）内容区是 DOM 不在 UIA
+                # 树里，深搜只能遍历数千 DOM 节点（实测 5.9s）且找不到更细的 → 直接接受整窗。
+                hwnd0 = _WindowFromPoint(wintypes.POINT(x, y))
+                wr = _get_window_rect(hwnd0) if hwnd0 else None
+                is_window_sized = bool(wr) and wr["width"] > 0 and wr["height"] > 0 and \
+                    hit["width"] * hit["height"] > 0.6 * wr["width"] * wr["height"]
+                if is_window_sized and _is_browserish_hwnd(hwnd0):
+                    _deep_cache["hwnd"] = 0
+                    return hit
+                if not is_window_sized:
+                    _deep_cache["hwnd"] = 0  # 清深搜缓存
+                    return hit
     except Exception:
         pass
     # 2) 深搜兜底（节流：窗口/位移 >15px 或 >0.4s 才重算）
     hwnd = _WindowFromPoint(wintypes.POINT(x, y))
+    # 浏览器窗口不深搜：内容区是 DOM（不在 UIA 树），深搜只能遍历数千节点（实测 4-6s）
+    # 且找不到更细的 —— hover 用整窗兜底即可，细粒度网页元素走「捕获网页元素」通道。
+    if hwnd and _is_browserish_hwnd(hwnd):
+        return None
     now = time.time()
     c = _deep_cache
     if (hwnd != c["hwnd"] or abs(x - c["x"]) > 15 or abs(y - c["y"]) > 15 or now - c["t"] > 0.4):
@@ -748,14 +863,28 @@ def _uia_hit_rect(x, y, uia):
     return c.get("rect")
 
 
-class _HoverWorker:
-    """后台 hover UIA 查询 worker —— 单线程持续查询，主循环零阻塞。
+# worker 的 UIA hit-test 与主循环窗口绘制（show_border/show_info）的互斥锁：
+# 两者都需 DWM 配合，并发会互相饿死（实测 diag_interfere：主循环画 border 时 worker 的
+# ControlFromPoint 永久卡死）。严格串行后 worker 查询回到 <0.5s，主循环绘制几乎不被延迟。
+_uia_draw_lock = threading.Lock()
 
-    根因：原 hover 用 `_get_uia_rect` 每帧开新线程 + `t.join(超时)` 阻塞主循环。
-    Windows Terminal 等 XAML island 应用深搜偶发 >1s，主循环（30ms 帧）被 join 阻塞
-    → 帧率骤降、明显卡顿。这里改为：主循环只把最新鼠标坐标写进共享状态，worker
-    线程里一次性初始化 COM 后持续读坐标 → 深搜 → 写回 rect；主循环只读最新结果，
-    绝不等待。hover 高亮最多滞后 worker 一次查询的耗时（通常 <150ms），但不卡。
+
+class _HoverWorker:
+    """后台 hover UIA 查询 worker —— 常驻线程一次性 init COM 后直接查询，主循环零阻塞。
+
+    设计要点（经真机实测校准）：
+    - 主循环只把最新鼠标坐标写进共享状态 + 读 worker 最新结果，绝不等待 → hover 不卡。
+    - worker 常驻线程 init COM 一次后**直接同步调 `_uia_hit_rect`**。实测（diag_resident）：
+      常驻线程 hit-test 1~39ms；XAML island 应用（Windows Terminal）hit-test 失效走深搜，
+      深搜慢（1~5s，遍历整棵 XAML 树）但**会返回** —— 这是 UIA provider 的物理特性。
+    - **不要给单次查询加超时/外包线程**：实测（diag_comthread）每次新建线程 init COM 的
+      首次 UIA 调用反而更慢/易卡，且超时会杀掉正常慢深搜 → 永远框不出细粒度（tab）。
+      外包僵尸线程还会并发打爆 provider。慢就让 worker 后台慢慢算，算完写 `_res`，
+      主循环下一帧读到即切换细粒度；期间由 `_get_best_rect` 用 Win32 整窗兜底，
+      蓝框始终跟随鼠标（不会"卡住不动"）。
+    - 偶发"真·永久卡死"（UIA provider 挂死永不返回）会导致 latest 冻结：此时主循环仍
+      流畅（整窗兜底），用户 Esc 取消后 `run_capture` finally 会 `_stop_hover_worker()`，
+      下次捕获重建 worker 即恢复。
 
     mouse_down（SetCapture 模态态）期间暂停查询：此时跨进程 UIA 调用会无限等待，
     先冻结当前结果，松开后再继续。
@@ -776,7 +905,10 @@ class _HoverWorker:
     def _loop(self):
         try:
             import uiautomation as uia
-            with uia.UIAutomationInitializerInThread():  # worker 线程一次性初始化 COM
+            with uia.UIAutomationInitializerInThread():  # worker 常驻线程一次性 init COM
+                last_seq = 0  # 上次处理的 submit 序号：只在坐标更新（新 submit）时查询，
+                # wait 超时（无新坐标）不重复查 —— 否则每 0.2s 重复深搜同坐标，持续打满
+                # UIA provider，把单次深搜从 0.3s 拖到 8s+（实测独立深搜仅 0.3s）。
                 while not self._stop:
                     self._wake.wait(timeout=0.2)
                     self._wake.clear()
@@ -786,23 +918,57 @@ class _HoverWorker:
                         continue
                     with self._lock:
                         req = dict(self._req)
-                    if not req["valid"]:
+                    if not req["valid"] or req["seq"] == last_seq:
+                        continue  # 无新坐标，不重复查询
+                    # 防御：屏幕外坐标不查询（详见 _get_uia_rect 注释 —— ControlFromPoint 对
+                    # 屏幕外点永久卡死，会占死锁内 worker）。跳过并推进 last_seq 防重复判断。
+                    # 用虚拟屏边界（多显示器副屏坐标可能为负），否则会误拦双屏 hover。
+                    if not _in_virtual_screen(req["x"], req["y"]):
+                        last_seq = req["seq"]
                         continue
-                    # 直接在本线程查询（COM 已初始化）。即使某次查询慢/卡住，
-                    # 也只影响本 worker 的结果更新时机，主循环始终用最近一次结果 → 不卡。
-                    rect = self._query(req["x"], req["y"], uia)
+                    last_seq = req["seq"]
+                    # 直接在本线程查询（COM 已初始化）。深搜慢也只影响结果更新时机，
+                    # 主循环始终用最近一次结果 + 整窗兜底 → 不卡。
+                    # 互斥锁：worker 的 UIA hit-test 与主循环的窗口绘制严格串行（不同时），
+                    # 否则主循环窗口操作会饿死 worker 的 ControlFromPoint（实测 diag_interfere）。
+                    with _uia_draw_lock:
+                        rect = self._query(req["x"], req["y"], uia)
                     with self._lock:
+                        # 结果总是写回（即使查询期间鼠标已移动）：是否采纳由读取方
+                        # _get_uia_rect 按"当前光标是否仍在结果矩形内"判断。旧逻辑按坐标
+                        # 丢弃，深搜慢的应用（Windows Terminal 300ms+）期间鼠标微动就丢
+                        # 结果 → hover 概率性退化为整窗。
                         self._res = {"rect": rect, "x": req["x"], "y": req["y"]}
         except Exception:
             pass
 
     def _query(self, x, y, uia):
-        """在 worker 线程内执行查询（COM 已初始化）。不加额外线程/超时——
-        即使偶发卡住也只影响结果更新时机，主循环不受影响。"""
+        """在 worker 常驻线程内执行查询（COM 已初始化）。"""
         try:
-            return _uia_hit_rect(x, y, uia)
+            rect = _uia_hit_rect(x, y, uia)
         except Exception:
-            return None
+            rect = None
+        return self._hysteresis(x, y, rect)
+
+    def _hysteresis(self, x, y, new_rect):
+        """滞回：防止"细粒度 → 整窗"的跳变。
+
+        深搜兜底是概率性的（max_nodes 预算内访问不到深层 tab/text 节点就返回较粗的
+        元素）。当鼠标在 tab/文字内微动触发重查，若新结果是一块明显更粗（面积大很多）
+        的元素，但光标仍在旧细粒度结果矩形内，就**保留旧结果** —— 否则高亮会跳回整窗
+        （整窗矩形总包含光标，读取方的 containment 检查挡不住这种降级）。"""
+        old = self._res.get("rect")
+        if not new_rect or new_rect.get("width", 0) <= 0:
+            # 新查询无效：旧结果仍包含光标就继续沿用
+            if old and _rect_contains(old, x, y):
+                return old
+            return new_rect
+        if old and old.get("width", 0) > 0 and _rect_contains(old, x, y):
+            old_area = old["width"] * old["height"]
+            new_area = new_rect["width"] * new_rect["height"]
+            if new_area >= 4 * old_area:  # 明显变粗 → 不降级
+                return old
+        return new_rect
 
     def submit(self, x, y):
         """主循环每帧提交最新鼠标坐标（非阻塞）。"""
@@ -851,6 +1017,14 @@ def _stop_hover_worker():
         _hover_worker_inst = None
 
 
+def _rect_contains(r, x, y, tol=2):
+    """点 (x,y) 是否在矩形 r 内（±tol 容差）。r 为 None 或空矩形返回 False。"""
+    if not r or r.get("width", 0) <= 0 or r.get("height", 0) <= 0:
+        return False
+    return (r["left"] - tol <= x <= r["left"] + r["width"] + tol and
+            r["top"] - tol <= y <= r["top"] + r["height"] + tol)
+
+
 def _get_uia_rect(x, y):
     """悬停 UIA 命中框（异步非阻塞）。返回后台 worker 的最新结果；还没出结果时返回 None。
 
@@ -860,9 +1034,32 @@ def _get_uia_rect(x, y):
     w = _hover_worker()
     if w is None:
         return None
-    w.submit(x, y)
+    # 屏幕外坐标不投递给 worker：UIA ControlFromPoint 对屏幕外点会永久卡死（实测，
+    # worker 首查卡进锁内 → 后续坐标永不处理 → hover 永远框整窗）。屏幕外也没有
+    # 控件可 hover，直接返回 None 走整窗兜底。
+    # 注意必须用虚拟屏边界（多显示器副屏坐标可能为负或超出主屏宽高），否则双屏
+    # 笔记本 hover 副屏会被误判为"屏幕外"而永不查询（tdSelector 同样用虚拟屏）。
+    if not _in_virtual_screen(x, y):
+        return None
+    # 坐标没变就不重复 submit（鼠标不动时避免 worker 反复重查同坐标 + seq 膨胀）
+    if (x, y) != _last_submit_xy[0]:
+        _last_submit_xy[0] = (x, y)
+        w.submit(x, y)
     res = w.latest()
-    return res.get("rect")
+    r = res.get("rect")
+    if not r or r.get("width", 0) <= 0:
+        return None
+    # 光标已移出结果矩形 → 结果过期，不采纳（回退整窗，等 worker 新坐标的结果）。
+    # 配合 worker 的"总是写回"：深搜慢的应用（Windows Terminal）即使查询期间鼠标
+    # 微动，只要光标仍在该元素内就沿用细粒度结果，不再概率性掉回整窗。
+    tol = 2
+    if (r["left"] - tol <= x <= r["left"] + r["width"] + tol and
+            r["top"] - tol <= y <= r["top"] + r["height"] + tol):
+        return r
+    return None
+
+
+_last_submit_xy = [None]  # 上次 submit 给 worker 的坐标（用 list 包一层便于在函数内改）
 
 
 def _pause_hover_uia():
@@ -877,8 +1074,136 @@ def _resume_hover_uia():
         w.resume()
 
 
+# ─── 桌面图标（SysListView32）单项命中：Win32 ListView 消息 ───
+# 桌面图标的单个图标项在 UIA3 里暴露极差（ControlFromPoint 命中图标常返回整个
+# FolderView → 捕获整窗）。正确做法是直接发 ListView 控件消息：LVM_HITTEST 从鼠标点
+# 定位图标索引 + LVM_GETITEMRECT 拿该项矩形（tdSelector 同款做法）。需跨进程读写
+# explorer 地址空间传递 LVHITTESTINFO/RECT。
+_LVM_FIRST = 0x1000
+_LVM_GETITEMCOUNT = _LVM_FIRST + 4    # 0x1004
+_LVM_GETITEMRECT = _LVM_FIRST + 14    # 0x100E
+_LVM_HITTEST = _LVM_FIRST + 18        # 0x1012
+_LVM_GETITEMTEXTW = _LVM_FIRST + 115  # 0x1073
+_LVIR_BOUNDS = 0
+_PROCESS_VM_RW = 0x0008 | 0x0010 | 0x0020 | 0x0400  # OPERATION|READ|WRITE|QUERY_INFORMATION
+_MEM_COMMIT = 0x1000; _MEM_RESERVE = 0x2000; _MEM_RELEASE = 0x8000
+_PAGE_READWRITE = 0x04
+
+
+def _is_desktop_listview(hwnd) -> bool:
+    """是否桌面图标列表（SysListView32，父链经 SHELLDLL_DefView，属 Progman/WorkerW）。"""
+    if _get_class_name(hwnd) != "SysListView32":
+        return False
+    try:
+        path = _get_ancestor_path(hwnd)
+    except Exception:
+        return False
+    classes = {p.get("class_name") for p in path}
+    return "SHELLDLL_DefView" in classes and ("Progman" in classes or "WorkerW" in classes)
+
+
+def _desktop_icon_at(hwnd, x, y):
+    """返回鼠标 (x,y) 命中的桌面图标 {rect, name, index}；未命中图标返回 None。
+
+    跨进程：向 explorer 的 ListView 发 LVM_HITTEST/LVM_GETITEMRECT，结构体分配在目标
+    进程地址空间。任何一步失败（权限/提权/UIPI）返回 None → 调用方回退整窗。"""
+    pid = wintypes.DWORD()
+    _GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    if not pid.value:
+        return None
+    hproc = _OpenProcess(_PROCESS_VM_RW, False, pid.value)
+    if not hproc:
+        return None
+    # LVHITTESTINFO: POINT pt(8) + UINT flags(4) + int iItem(4) + int iSubItem(4) + int iGroup(4) = 24
+    buf_size = 1024
+    remote = _VirtualAllocEx(hproc, None, buf_size, _MEM_COMMIT | _MEM_RESERVE, _PAGE_READWRITE)
+    if not remote:
+        _CloseHandle(hproc)
+        return None
+    try:
+        pt = wintypes.POINT(x, y)
+        _ScreenToClient(hwnd, ctypes.byref(pt))
+        # 写 LVHITTESTINFO（只需 pt，其余置 0）
+        hittest = (ctypes.c_byte * buf_size)()
+        ctypes.memmove(hittest, ctypes.byref(pt), 8)
+        written = ctypes.c_size_t(0)
+        if not _WriteProcessMemory(hproc, remote, hittest, buf_size, ctypes.byref(written)):
+            return None
+        idx = _SendMessageW(hwnd, _LVM_HITTEST, 0, remote)
+        if idx < 0:
+            return None  # 点在图标间隙 → 不命中单项
+        # LVM_GETITEMRECT: wParam=index, lParam=RECT*（rc.left=LVIR_BOUNDS）
+        rectbuf = (ctypes.c_byte * buf_size)()
+        ctypes.memset(rectbuf, 0, buf_size)
+        if not _WriteProcessMemory(hproc, remote, rectbuf, buf_size, ctypes.byref(written)):
+            return None
+        if not _SendMessageW(hwnd, _LVM_GETITEMRECT, idx, remote):
+            return None
+        out = (ctypes.c_byte * buf_size)()
+        read = ctypes.c_size_t(0)
+        if not _ReadProcessMemory(hproc, remote, out, buf_size, ctypes.byref(read)):
+            return None
+        rc = wintypes.RECT()
+        ctypes.memmove(ctypes.byref(rc), out, 16)
+        tl = wintypes.POINT(rc.left, rc.top)
+        _ClientToScreen(hwnd, ctypes.byref(tl))
+        icon_rect = {"left": tl.x, "top": tl.y,
+                     "width": rc.right - rc.left, "height": rc.bottom - rc.top,
+                     "right": tl.x + (rc.right - rc.left),
+                     "bottom": tl.y + (rc.bottom - rc.top)}
+        # 图标名（可选，失败不阻塞）
+        name = ""
+        try:
+            name = _desktop_icon_text(hproc, remote, hwnd, idx)
+        except Exception:
+            pass
+        return {"rect": icon_rect, "name": name, "index": idx}
+    except Exception:
+        return None
+    finally:
+        _VirtualFreeEx(hproc, remote, 0, _MEM_RELEASE)
+        _CloseHandle(hproc)
+
+
+def _desktop_icon_text(hproc, remote, hwnd, idx):
+    """读桌面图标项文本（LVM_GETITEMTEXTW via LVITEMW）。失败返回空串。"""
+    # LVITEMW 布局(64位)：mask(4) iItem(4) iSubItem(4) state(4) stateMask(4) pszText(8)
+    #   cchTextMax(4) iImage(4) lParam(8) iIndent(4) iGroupId(4) cColumns(4) puColumns(8) ...
+    text_off = 64  # LVITEM 放 remote[0:80]，文本缓冲放 remote[text_off:]
+    lvitem = (ctypes.c_byte * text_off)()
+    ctypes.memset(lvitem, 0, text_off)
+    # mask at offset 0 → LVIF_TEXT（必须设置，否则不返回文本）
+    ctypes.memmove(ctypes.addressof(lvitem) + 0, ctypes.byref(ctypes.c_uint(1)), 4)
+    # iItem at offset 4
+    ctypes.memmove(ctypes.addressof(lvitem) + 4, ctypes.byref(ctypes.c_int(idx)), 4)
+    # pszText at offset 24 → remote + text_off
+    ctypes.memmove(ctypes.addressof(lvitem) + 24,
+                   ctypes.byref(ctypes.c_void_p(remote + text_off)), 8)
+    # cchTextMax at offset 32（文本区 = buf_size - text_off 字节，留足宽字符空间）
+    ctypes.memmove(ctypes.addressof(lvitem) + 32, ctypes.byref(ctypes.c_int(400)), 4)
+    written = ctypes.c_size_t(0)
+    if not _WriteProcessMemory(hproc, remote, lvitem, text_off, ctypes.byref(written)):
+        return ""
+    _SendMessageW(hwnd, _LVM_GETITEMTEXTW, idx, remote)
+    out = (ctypes.c_byte * 800)()
+    read = ctypes.c_size_t(0)
+    if not _ReadProcessMemory(hproc, remote + text_off, out, 800, ctypes.byref(read)):
+        return ""
+    try:
+        return out.value.decode("utf-16-le", errors="ignore")
+    except Exception:
+        return ""
+
+
 def _get_best_rect(hwnd, x, y):
     hwnd_rect = _get_window_rect(hwnd)
+    # 桌面图标：Win32 ListView 消息直接命中单个图标项（UIA 对 FolderView 单项暴露差，
+    # 会把整个桌面列表当整窗）。命中图标则框/捕获单项，间隙则回退整窗。
+    if _is_desktop_listview(hwnd):
+        icon = _desktop_icon_at(hwnd, x, y)
+        if icon:
+            return icon["rect"], icon["rect"]
+        return hwnd_rect, None
     if _is_skip_uia(hwnd):
         return hwnd_rect, None
     uia_rect = _get_uia_rect(x, y)
@@ -911,6 +1236,114 @@ def _uia_done():
 
 # ─── Info overlay (top-center floating tip) ───
 
+# ─── 悬浮窗（border/info）对 UIA 不可见的 WndProc ───
+# 根治 hover worker 卡死：实测（diag_interfere 对照）主循环 show_border 画出的悬浮窗
+# 会被 worker 线程的 ControlFromPoint 命中，而 ctypes 悬浮窗用 DefWindowProc 响应
+# WM_GETOBJECT 返回默认 UIA provider，UIA 枚举/命中它时卡死 → hover 高亮冻结。
+# 让悬浮窗对 WM_GETOBJECT 返回 0（无 UIA provider），UIA 直接跳过它们，worker 不再被卡。
+_WNDPROC = ctypes.WINFUNCTYPE(wintypes.LPARAM, wintypes.HWND, wintypes.UINT,
+                              wintypes.WPARAM, wintypes.LPARAM)
+_WM_GETOBJECT = 0x003D
+_WM_NCHITTEST = 0x0084
+_HTTRANSPARENT = -1
+# DefWindowProcW 需显式声明签名：64 位下 WPARAM/LPARAM 是指针宽度，不声明会被 ctypes
+# 按 c_int 截断/溢出（OverflowError: int too long to convert）。
+_DefWindowProcW = _user32.DefWindowProcW
+_DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+_DefWindowProcW.restype = wintypes.LPARAM
+
+# ─── 捕获期间吞噬鼠标点击（"只捕获，不操作"） ───
+# 遮罩/悬浮窗是鼠标穿透的（WM_NCHITTEST→HTTRANSPARENT，且区域在光标处抠洞），Alt+点击
+# 捕获、右键取消都会把真实点击落到下层应用，触发实际点击副作用。用 WH_MOUSE_LL 低级
+# 鼠标钩子在输入到达应用前拦截并吞掉按键消息（返回非零=已处理，消息不再派发）。
+# 注意：低级钩子回调运行在安装它的线程上，该线程必须有消息泵 —— 捕获主循环每帧
+# `_pump_messages()` 正好满足。钩子只在捕获期间安装，结束即卸载。
+_WH_MOUSE_LL = 14
+# WM_LBUTTONDOWN/UP 0x0201/0x0202, WM_RBUTTONDOWN/UP 0x0204/0x0205, WM_MBUTTONDOWN/UP 0x0207/0x0208
+_SWALLOW_MOUSE_MSGS = {0x0201, 0x0202, 0x0204, 0x0205, 0x0207, 0x0208}
+_HOOKPROC = ctypes.WINFUNCTYPE(wintypes.LPARAM, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+_SetWindowsHookExW = _user32.SetWindowsHookExW
+_SetWindowsHookExW.argtypes = [ctypes.c_int, _HOOKPROC, wintypes.HINSTANCE, wintypes.DWORD]
+_SetWindowsHookExW.restype = wintypes.HHOOK
+_UnhookWindowsHookEx = _user32.UnhookWindowsHookEx
+_UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
+_UnhookWindowsHookEx.restype = wintypes.BOOL
+_CallNextHookEx = _user32.CallNextHookEx
+_CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
+_CallNextHookEx.restype = wintypes.LPARAM
+_mouse_hook_handle = None  # 当前低级鼠标钩子句柄（None=未安装）
+_mouse_hook_proc = None    # 模块级持有回调引用，防 GC 后回调悬空
+_mouse_hook_lock = threading.Lock()
+_mouse_hook_click = None   # 钩子吞下的 Alt+左键点击：None/("capture",)/("cancel",)
+_mouse_hook_down = False   # 当前是否有鼠标键被按住（由钩子维护，替代不可靠的 GetAsyncKeyState）
+
+def _install_mouse_swallow_hook() -> bool:
+    """安装吞点击的低级鼠标钩子（WH_MOUSE_LL）。重复调用幂等。返回是否成功。
+
+    钩子同时把 Alt+左键捕获、右键取消等点击手势转发给捕获循环（通过模块级状态），
+    因为低级钩子拦下的点击**不会**反映到 GetAsyncKeyState —— 捕获循环读它必然错过
+    （实测：鼠标事件被钩子吞掉后 GetAsyncKeyState 恒 0）。"""
+    global _mouse_hook_handle, _mouse_hook_proc
+    if _mouse_hook_handle:
+        return True
+    def _cb(code, wparam, lparam):
+        global _mouse_hook_click, _mouse_hook_down
+        if code >= 0 and wparam in _SWALLOW_MOUSE_MSGS:
+            with _mouse_hook_lock:
+                if wparam in (0x0201, 0x0204, 0x0207):  # 按下
+                    _mouse_hook_down = True
+                    # Alt+左键 = 捕获；右键 = 取消（Esc 由键盘 GetAsyncKeyState 负责）
+                    if wparam == 0x0201 and (_GetAsyncKeyState(VK_MENU) & 0x8000):
+                        _mouse_hook_click = "capture"
+                    elif wparam == 0x0204:
+                        _mouse_hook_click = "cancel"
+                else:  # 抬起
+                    _mouse_hook_down = False
+            return 1  # 吞掉：鼠标键按下/抬起不再派发给任何窗口
+        return _CallNextHookEx(None, code, wparam, lparam)
+    _mouse_hook_proc = _HOOKPROC(_cb)
+    _mouse_hook_handle = _SetWindowsHookExW(_WH_MOUSE_LL, _mouse_hook_proc, None, 0)
+    if not _mouse_hook_handle:
+        _mouse_hook_proc = None
+        return False
+    return True
+
+
+def _uninstall_mouse_swallow_hook():
+    """卸载吞点击钩子（幂等）。"""
+    global _mouse_hook_handle, _mouse_hook_proc
+    if _mouse_hook_handle:
+        _UnhookWindowsHookEx(_mouse_hook_handle)
+        _mouse_hook_handle = None
+    _mouse_hook_proc = None
+
+
+def _consume_mouse_click() -> str | None:
+    """消费钩子记录的点击手势（"capture"/"cancel"/None）。"""
+    global _mouse_hook_click
+    with _mouse_hook_lock:
+        v = _mouse_hook_click
+        _mouse_hook_click = None
+        return v
+
+
+def _mouse_down() -> bool:
+    """钩子维护的鼠标键按住状态（替代 GetAsyncKeyState，钩子吞点击后它不可靠）。"""
+    with _mouse_hook_lock:
+        return _mouse_hook_down
+
+
+def _overlay_wndproc_cb(hwnd, msg, wparam, lparam):
+    if msg == _WM_GETOBJECT:
+        return 0  # 无 UIA provider：UIA hit-test/枚举跳过本悬浮窗
+    if msg == _WM_NCHITTEST:
+        return _HTTRANSPARENT  # 鼠标穿透：悬浮窗盖住目标区域时 hover 仍能命中下层元素
+    return _DefWindowProcW(hwnd, msg, wparam, lparam)
+
+
+_overlay_wndproc = _WNDPROC(_overlay_wndproc_cb)  # 模块级保持引用，防 GC 后回调悬空
+
+
 _info_hwnd = None
 
 def _ensure_info_window():
@@ -924,7 +1357,7 @@ def _ensure_info_window():
                     ("lpszMenuName", wintypes.LPCWSTR), ("lpszClassName", wintypes.LPCWSTR)]
     hInst = _kernel32.GetModuleHandleW(None)
     wc = WNDCLASSW()
-    wc.lpfnWndProc = ctypes.cast(_user32.DefWindowProcW, ctypes.c_void_p)
+    wc.lpfnWndProc = ctypes.cast(_overlay_wndproc, ctypes.c_void_p)
     wc.hInstance = hInst; wc.lpszClassName = "RpaInfo"
     wc.hbrBackground = _gdi32.CreateSolidBrush(_bgr(INFO_BG))
     _user32.RegisterClassW(ctypes.byref(wc))
@@ -1007,6 +1440,9 @@ def show_info(text: str):
 
 _border_hwnd = None
 _border_visible = False
+_border_region_size = (0, 0)  # 上次 SetWindowRgn 的 (w,h)：region 只依赖尺寸，尺寸没变就跳过
+                               # 重建 —— SetWindowRgn 会触发 DWM 重排，30ms 高频重建会阻塞
+                               # hover worker 的 UIA hit-test（实测 diag_nodraw 定位）
 
 
 def _ensure_border_window():
@@ -1020,7 +1456,7 @@ def _ensure_border_window():
                     ("lpszMenuName", wintypes.LPCWSTR), ("lpszClassName", wintypes.LPCWSTR)]
     hInst = _kernel32.GetModuleHandleW(None)
     wc = WNDCLASSW()
-    wc.lpfnWndProc = ctypes.cast(_user32.DefWindowProcW, ctypes.c_void_p)
+    wc.lpfnWndProc = ctypes.cast(_overlay_wndproc, ctypes.c_void_p)
     wc.hInstance = hInst; wc.lpszClassName = "RpaBorder"; wc.hbrBackground = _gdi32.CreateSolidBrush(_bgr(BORDER_COLOR))
     _user32.RegisterClassW(ctypes.byref(wc))
     _border_hwnd = _user32.CreateWindowExW(
@@ -1044,14 +1480,20 @@ def _set_window_color(hwnd, rgb):
 
 
 def show_border(rect: dict | None):
-    global _border_visible
+    global _border_visible, _border_region_size
     hwnd = _ensure_border_window()
     if rect and rect.get("width", 0) > 0 and rect.get("height", 0) > 0:
-        _set_border_region(hwnd, rect["width"], rect["height"])
-        _user32.MoveWindow(hwnd, rect["left"], rect["top"], rect["width"], rect["height"], True)
-        _user32.ShowWindow(hwnd, 1); _border_visible = True
-        _user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010)
-        _user32.BringWindowToTop(hwnd)
+        w, h = rect["width"], rect["height"]
+        if (w, h) != _border_region_size:  # region 只依赖尺寸，尺寸没变不重建（减少 DWM 重排）
+            _set_border_region(hwnd, w, h)
+            _border_region_size = (w, h)
+        # 用 SetWindowPos 代替 MoveWindow，带 SWP_NOZORDER|SWP_NOACTIVATE|SWP_SHOWWINDOW：
+        # 不动 Z 序、不激活，对 DWM 干扰比 MoveWindow 小。MoveWindow 每帧高频会阻塞 hover
+        # worker 的 UIA hit-test（实测 diag_nodraw 定位：窗口操作饿死 worker ControlFromPoint）。
+        # WS_EX_TOPMOST 创建时已置顶，故用 NOZORDER 保持 Z 序不动。
+        _user32.SetWindowPos(hwnd, 0, rect["left"], rect["top"], w, h,
+                             0x0004 | 0x0010 | 0x0040)  # NOZORDER|NOACTIVATE|SHOWWINDOW
+        _border_visible = True
     elif _border_visible:
         _user32.ShowWindow(hwnd, 0); _border_visible = False
 
@@ -1131,6 +1573,13 @@ def _is_shell(hwnd) -> bool:
 
 def _screen_size() -> dict:
     return {"w": _GetSystemMetrics(SM_CXSCREEN), "h": _GetSystemMetrics(SM_CYSCREEN)}
+
+
+def _in_virtual_screen(x, y) -> bool:
+    """点是否在虚拟屏内（跨所有显示器）。多显示器副屏坐标可能为负或超出主屏宽高。"""
+    vx = _GetSystemMetrics(SM_XVIRTUALSCREEN); vy = _GetSystemMetrics(SM_YVIRTUALSCREEN)
+    vw = _GetSystemMetrics(SM_CXVIRTUALSCREEN); vh = _GetSystemMetrics(SM_CYVIRTUALSCREEN)
+    return vx <= x < vx + vw and vy <= y < vy + vh
 
 
 def _grab_region_screenshot(rect: dict | None) -> str:
@@ -1372,10 +1821,11 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
     _last_border_rect = None  # 上一次绘制的 hover 高亮 rect（避免每帧重复 show_border 闪烁）
     # 层级导航栈：记录用户按 Alt+1 上走过的路径，Alt+2 可退回
     parent_stack = []
+    _last_info_hwnd = None  # hover 悬浮框当前显示的 hwnd（切换窗口才重建文本，防每帧跨进程查询）
 
     def _build_info_text(hwnd):
         rect = _get_window_rect(hwnd)
-        path = _get_ancestor_path(hwnd)
+        path = _get_ancestor_path(hwnd, with_title=False)  # hover 显示不读 title：零跨进程阻塞
         # 最近 6 层祖先，不足用空行补齐
         levels = path[-6:]
         lines = []
@@ -1393,17 +1843,22 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
 
     def _select_hwnd(hwnd):
         """选中并高亮指定 hwnd。"""
-        nonlocal last_hwnd
+        nonlocal last_hwnd, _last_info_hwnd
         if hwnd:
             rect = _get_window_rect(hwnd)
             if rect["width"] > 0 and rect["height"] > 0:
                 show_border(rect)
                 last_hwnd = hwnd
                 show_info(_build_info_text(hwnd))
+                _last_info_hwnd = hwnd
 
     editor_hwnd = _hide_editor_window()  # 捕获期间隐藏 RPA 编辑器（Electron）
     try:
         _uia_init()
+        # 吞点击钩子：Alt+点击捕获/右键取消不该把真实点击落到下层应用。
+        # 钩子拦下的点击不会反映到 GetAsyncKeyState（实测恒 0），因此捕获/取消手势
+        # 一律从钩子状态读（_consume_mouse_click / _mouse_down）。
+        hook_ok = _install_mouse_swallow_hook()
         if mode == "web":
             # 网页模式：直接对最前面的浏览器进入 DOM 拾取
             browser = _find_active_browser()
@@ -1419,20 +1874,32 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
             except BackToDesktop:
                 return None  # web 模式 content 已禁用切换，理论不触发，兜底
         while True:
+            # 泵消息：低级鼠标钩子回调在安装线程泵消息时派发，Alt+点击检测依赖它
+            # 及时触发（不泵则回调延迟到 Alt 松开后，GetAsyncKeyState 已为 0）。
+            _pump_messages()
             if _GetAsyncKeyState(VK_ESCAPE) & 0x8000: break
-            if _GetAsyncKeyState(VK_RBUTTON) & 0x8000: break
+            gesture = _consume_mouse_click() if hook_ok else None
+            if gesture == "cancel":
+                break
+            if not hook_ok and (_GetAsyncKeyState(VK_RBUTTON) & 0x8000):
+                break
+            if gesture == "capture":
+                gesture_capture = True  # 本帧末尾再兑现（需 last_hwnd 就绪）
+            else:
+                gesture_capture = False
 
             _GetCursorPos(ctypes.byref(pt))
             target = _WindowFromPoint(pt) if 0 <= pt.x < sw * 2 and -sh < pt.y < sh * 2 else None
-            if target and _get_class_name(target) == "RpaBorder":
+            if target and _get_class_name(target) in ("RpaBorder", "RpaInfo"):
                 target = None
             if not target and last_hwnd and _user32.IsWindow(last_hwnd):
                 target = last_hwnd
 
             # 鼠标键按住期间：目标可能处于 SetCapture 模态态（UIA/SendMessage 查询会卡死），
             # 跳过一切对目标的查询，保持上一次高亮，仅检测 Alt+点击 确认
-            mouse_down = bool((_GetAsyncKeyState(VK_LBUTTON) | _GetAsyncKeyState(VK_RBUTTON)
-                               | _GetAsyncKeyState(VK_MBUTTON)) & 0x8000)
+            mouse_down = _mouse_down() if hook_ok else bool(
+                (_GetAsyncKeyState(VK_LBUTTON) | _GetAsyncKeyState(VK_RBUTTON)
+                 | _GetAsyncKeyState(VK_MBUTTON)) & 0x8000)
             # 模态态暂停后台 hover 查询，避免跨进程 UIA 调用无限等待拖慢主循环
             if mouse_down:
                 _pause_hover_uia()
@@ -1468,25 +1935,38 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
                 if target:
                     # 非阻塞：提交坐标给 worker，读最新结果
                     uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
-                    if uia_rect and uia_rect.get("width", 0) > 0:
-                        if uia_rect != _last_border_rect:
-                            show_border(uia_rect)
-                            _last_border_rect = uia_rect
-                        show_info(_build_info_text(target))
+                    # 绘制与 worker 的 UIA 查询互斥（同一把锁）：worker 查询时本帧 acquire 超时
+                    # 跳过绘制，让出 DWM；worker 空闲时正常绘制。根治 hover 高亮冻结。
+                    if _uia_draw_lock.acquire(timeout=0.05):
+                        try:
+                            if uia_rect and uia_rect.get("width", 0) > 0:
+                                if uia_rect != _last_border_rect:
+                                    show_border(uia_rect)
+                                    _last_border_rect = uia_rect
+                                # 悬浮框文本只在切换窗口时重建（hover 同窗口内容不变，防每帧重建开销）
+                                if target != _last_info_hwnd:
+                                    show_info(_build_info_text(target))
+                                    _last_info_hwnd = target
+                        finally:
+                            _uia_draw_lock.release()
                 else:
                     if _last_border_rect is not None:
                         show_border(None)
                         _last_border_rect = None
-                    show_info("")
+                    if _last_info_hwnd is not None:
+                        show_info("")
+                        _last_info_hwnd = None
                 last_hwnd = target
 
             # Alt+点击 → 捕获桌面元素（Win32+UIA）
-            if (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000) and last_hwnd:
+            alt_click = gesture_capture if hook_ok else (
+                (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000))
+            if alt_click and last_hwnd:
                 show_border(None); show_info("")
                 # 有界等待鼠标松开：目标先退出 SetCapture 模态态，再做 UIA/文本查询，
                 # 避免目标不应答导致捕获卡死（最多等 1.5s，超时仍继续）
                 wait_deadline = time.time() + 1.5
-                while (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and time.time() < wait_deadline:
+                while _mouse_down() and time.time() < wait_deadline:
                     time.sleep(0.02)
                 _dwm_flush()       # 等 DWM 合成完成（有界），确保蓝边已从屏幕移除
                 time.sleep(0.1)
@@ -1495,6 +1975,7 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
             time.sleep(0.03)
     finally:
         show_border(None); show_info("")
+        _uninstall_mouse_swallow_hook()  # 恢复鼠标点击透传给应用
         _stop_hover_worker()  # 捕获结束停止后台 hover 线程
         _uia_done()
         _restore_editor_window(editor_hwnd)  # 捕获结束恢复并前置 RPA 编辑器
@@ -1510,6 +1991,20 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
     in_browser = _is_browser_window(cls) or _is_browser_in_chain(path)
     info.uia_available = _uia_dependency_ok()  # 依赖缺失时前端提示"仅 Win32 层级"
     info.elevation_blocked = _elevation_blocked(hwnd)  # 目标提权+自身未提权 → UIPI 拦截
+    # 桌面图标单项捕获：UIA 对 FolderView 单项暴露差会返回整窗，改用 Win32 ListView
+    # 消息命中单个图标（tdSelector 同款），框/截图/命名都对准该图标项。
+    if _is_desktop_listview(hwnd):
+        icon = _desktop_icon_at(hwnd, x, y)
+        if icon:
+            best_rect = icon["rect"]
+            info.region = best_rect
+            if icon.get("name"):
+                info.name = icon["name"]
+            info.control_type = "ListItem"
+            info.screen_size = _screen_size()
+            info.screenshot = _grab_region_screenshot(best_rect)
+            return info
+        # 点在图标间隙 → 回退整窗 FolderView
     uia = None
     if not _is_skip_uia(hwnd):
         uia = _try_uia_capture(x, y)
