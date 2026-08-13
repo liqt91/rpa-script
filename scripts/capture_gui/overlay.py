@@ -1369,7 +1369,6 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
     sw = _GetSystemMetrics(SM_CXSCREEN); sh = _GetSystemMetrics(SM_CYSCREEN)
     pt = wintypes.POINT()
     last_hwnd = None; captured = None
-    last_pt = (0, 0)
     _last_border_rect = None  # 上一次绘制的 hover 高亮 rect（避免每帧重复 show_border 闪烁）
     # 层级导航栈：记录用户按 Alt+1 上走过的路径，Alt+2 可退回
     parent_stack = []
@@ -1466,7 +1465,6 @@ def run_capture(mode: str = "desktop") -> ElementInfo | None:
             if not mouse_down and not parent_stack:
                 if target != last_hwnd:
                     parent_stack.clear()
-                last_pt = (pt.x, pt.y)
                 if target:
                     # 非阻塞：提交坐标给 worker，读最新结果
                     uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
