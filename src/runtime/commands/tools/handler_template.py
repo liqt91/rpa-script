@@ -62,7 +62,7 @@ def build_handler_code(definition: dict) -> str:
     for p in params:
         name = p.get("name", "")
         label_p = p.get("label", name)
-        ptype = p.get("type", "str-input")
+        ptype = p.get("type", "string")
         parts = [f'        Param("{name}", "{label_p}", "{ptype}"']
         if p.get("required"):
             parts.append(", required=True")

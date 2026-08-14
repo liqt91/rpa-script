@@ -128,6 +128,34 @@ def is_windows() -> bool:
     return os.name == "nt"
 
 
+def resolve_hwnd(value):
+    """从 统一控件引用 / UIA dict / int 解析出 HWND。
+
+    让纯 Win32 指令（findChild/clickControl/inputControl/closeWindow/screenshot 等）
+    直接消费「自动选择」指令（findWindowAuto/pickElementAuto）产出的统一引用，
+    以及旧 findWindowUia/pickElementUia 的 UIA dict（其 _uia_ctrl 带 Handle）。
+    无法解析返回 None（调用方按无效句柄报错）。
+    """
+    if isinstance(value, int):
+        return value
+    if isinstance(value, dict):
+        ref = value.get("desktop_ref")
+        if ref == "win32":
+            return value.get("hwnd")
+        # UIA 控件 dict（含统一引用 uia 通道或旧 findWindowUia 产物）→ 取原生句柄
+        if ref == "uia" or "_uia_ctrl" in value:
+            ctrl = value.get("_uia_ctrl")
+            try:
+                # uiautomation 控件句柄属性为 NativeWindowHandle（repr 里的 Handle 只是显示）
+                h = getattr(ctrl, "NativeWindowHandle", None) or getattr(ctrl, "Handle", None)
+                return int(h) if h else None
+            except Exception:
+                return None
+        if "hwnd" in value:
+            return value.get("hwnd")
+    return None
+
+
 def window_exists(hwnd: int) -> bool:
     """检查窗口句柄是否仍然有效。"""
     if not hwnd:
@@ -453,7 +481,9 @@ def set_control_text(hwnd: int, text: str) -> bool:
     if not is_windows() or not hwnd:
         return False
     try:
-        _SendMessageW(hwnd, WM_SETTEXT, 0, ctypes.c_wchar_p(text))
+        # LPARAM 是整型：取指针的整数值（直接传 c_wchar_p/c_void_p 对象会 TypeError）
+        lparam = ctypes.cast(ctypes.c_wchar_p(text), ctypes.c_void_p).value
+        _SendMessageW(hwnd, WM_SETTEXT, 0, lparam)
         return True
     except Exception as e:
         logger.warning(f"set_control_text failed: {e}")
@@ -469,7 +499,8 @@ def get_control_text(hwnd: int) -> str:
         if length <= 0:
             return ""
         buf = ctypes.create_unicode_buffer(length + 1)
-        _SendMessageW(hwnd, WM_GETTEXT, length + 1, ctypes.byref(buf))
+        lparam = ctypes.cast(ctypes.byref(buf), ctypes.c_void_p).value
+        _SendMessageW(hwnd, WM_GETTEXT, length + 1, lparam)
         return buf.value
     except Exception as e:
         logger.warning(f"get_control_text failed: {e}")

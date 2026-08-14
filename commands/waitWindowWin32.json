@@ -1,0 +1,50 @@
+{
+  "cmd": "waitWindowWin32",
+  "label": "等待窗口出现",
+  "runtime": "backend",
+  "icon": "fa-hourglass-half",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 50,
+  "commandOrder": 2,
+  "description": "轮询等待指定窗口出现（常用于启动软件后等待窗口就绪），找到返回窗口句柄",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "windowTitle",
+      "label": "窗口标题",
+      "type": "string",
+      "required": true,
+      "placeholder": "标题包含此内容的窗口，如：记事本"
+    },
+    {
+      "name": "classFilter",
+      "label": "窗口类名（可选）",
+      "type": "string",
+      "default": "",
+      "placeholder": "如 Notepad；留空则只按标题匹配"
+    },
+    {
+      "name": "timeout",
+      "label": "超时(秒)",
+      "type": "number",
+      "default": "10"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量(HWND)",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "窗口句柄存入此变量，供后续操作使用"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/waitWindowWin32.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

@@ -9,21 +9,22 @@ import urllib.request
 import uuid
 
 API_URL = "http://127.0.0.1:8000/api/extension/gui-browser-capture"
-HOVER_URL = "http://127.0.0.1:8000/api/extension/gui-browser-hover"
 CANCEL_URL = "http://127.0.0.1:8000/api/extension/gui-browser-cancel"
 
 
 def launch_browser_capture(x: int, y: int, timeout: float = 20.0, request_id: str | None = None,
-                           web_only: bool = False) -> dict:
+                           web_only: bool = False, browser: str | None = None) -> dict:
     """激活浏览器插件的原生捕获模式，阻塞等待用户点击选取。
 
     web_only=True → 网页专用模式：content 禁用 Tab/移出页面的切回桌面，仅 Alt+点击 与 Esc。
+    browser=chrome/edge/firefox → 后端按浏览器类型选扩展连接（多浏览器时避免错开窗口）。
     """
     data = json.dumps({
         "requestId": request_id or str(uuid.uuid4())[:8],
         "x": x, "y": y,
         "timeout": timeout,
         "webOnly": web_only,
+        "browser": browser or "",
     }).encode()
     try:
         req = urllib.request.Request(API_URL, data=data,
@@ -33,21 +34,6 @@ def launch_browser_capture(x: int, y: int, timeout: float = 20.0, request_id: st
             return json.loads(resp.read().decode())
     except Exception as e:
         return {"error": str(e)}
-
-
-def poll_capture_hover(request_id: str) -> dict:
-    """轮询当前捕获会话的悬停元素信息与提示（悬浮窗实时显示）。返回 {hover, note}。"""
-    if not request_id:
-        return {}
-    data = json.dumps({"requestId": request_id}).encode()
-    try:
-        req = urllib.request.Request(HOVER_URL, data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST")
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            return json.loads(resp.read().decode()) or {}
-    except Exception:
-        return {}
 
 
 def cancel_browser_capture(request_id: str):

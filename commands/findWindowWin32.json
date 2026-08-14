@@ -6,30 +6,13 @@
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 15,
-  "description": "按标题或类名查找 Windows 桌面窗口，可选自动激活前置 [Win32 API]",
+  "commandOrder": 4,
+  "description": "按标题或类名查找 Windows 桌面窗口，可选自动激活前置。需要更多控件信息（名称/类型/自动化ID）时请改用「查找窗口 (UIA)」",
   "enabled": true,
   "isNew": true,
   "params": [
     {
-      "name": "searchMode",
-      "label": "查找方式 (Win32)",
-      "type": "select",
-      "options": [
-        {
-          "label": "模糊匹配（标题包含） (Win32)",
-          "value": "fuzzy"
-        },
-        {
-          "label": "精确匹配（标题等于） (Win32)",
-          "value": "exact"
-        },
-        {
-          "label": "类名匹配 (Win32)",
-          "value": "classname"
-        }
-      ],
-      "default": "fuzzy"
+      "$ref": "searchMode"
     },
     {
       "name": "windowTitle",
@@ -57,7 +40,7 @@
     "source": "src/runtime/commands/desktop_commands/findWindowWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

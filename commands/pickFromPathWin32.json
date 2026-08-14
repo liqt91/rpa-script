@@ -1,13 +1,13 @@
 {
   "cmd": "pickFromPathWin32",
-  "label": "按层级取句柄 (Win32)",
+  "label": "从元素库取控件 (Win32)",
   "runtime": "backend",
   "icon": "fa-sitemap",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 115,
-  "description": "从元素库桌面元素中选取层级，返回该层级的 HWND [Win32 API]",
+  "commandOrder": 10,
+  "description": "按元素库中已捕获的桌面元素取指定层级的句柄（Win32 通道）。UIA 捕获的元素请用「从元素库取控件 (UIA)」",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -39,7 +39,7 @@
     "source": "src/runtime/commands/desktop_commands/pickFromPathWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

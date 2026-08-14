@@ -1,13 +1,13 @@
 {
   "cmd": "openAppWin32",
-  "label": "打开软件 (Win32)",
+  "label": "打开软件",
   "runtime": "backend",
   "icon": "fa-rocket",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 95,
-  "description": "启动 Windows 自带软件或常用程序（记事本、计算器、画图等） [Win32 API]",
+  "commandOrder": 1,
+  "description": "启动 Windows 自带软件或常用程序（启动后可配合「等待窗口出现」等待窗口就绪）",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -120,7 +120,7 @@
     "source": "src/runtime/commands/desktop_commands/openAppWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

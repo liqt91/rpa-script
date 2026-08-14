@@ -34,12 +34,12 @@ _APP_MAP = {
 
 
 @register_handler(
-    cmd="openAppWin32", label="打开软件 (Win32)",
+    cmd="openAppWin32", label="打开软件",
     category="桌面操作", runtime="backend",
     icon="fa-rocket", icon_color="text-purple-500",
     bg_color="bg-purple-50",
-    description="启动 Windows 自带软件或常用程序",
-    category_order=60, command_order=5,
+    description="启动 Windows 自带软件或常用程序（启动后可配合「等待窗口出现」等待窗口就绪）",
+    category_order=50, command_order=1,
     summary_tpl="{app}",
 )
 class OpenAppHandler:

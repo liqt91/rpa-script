@@ -1,7 +1,6 @@
 {
   "$schema": "value_types.schema.json",
-  "description": "项目级类型注册表——参数类型和值类型的唯一真相源。前端据此渲染控件，Runner 据此校验。",
-
+  "description": "项目级参数定义库——类型系统（paramTypes，含 str-var 变量引用 / any-input 自动推断）、参数模板（paramTemplates，type 引用 paramTypes）、值形状（valueTypes）的唯一真相源。前端据此渲染控件，Runner 据此校验。指令 JSON 的 params 可用 {\"$ref\": \"<模板名>\"} 引用 paramTemplates 中的模板（引用处其他字段覆盖合并）。",
   "paramTypes": {
     "string": {
       "label": "文本",
@@ -9,6 +8,20 @@
       "ui": "text-input",
       "allowVariable": true,
       "description": "单行文本，支持 {{var}} 变量引用"
+    },
+    "str-var": {
+      "label": "变量引用",
+      "pythonType": "str",
+      "ui": "text-input",
+      "allowVariable": true,
+      "description": "填写变量名（或 {{var}} 引用），运行时按变量名取值/注入（如窗口句柄、结果变量）"
+    },
+    "any-input": {
+      "label": "自动推断",
+      "pythonType": "any",
+      "ui": "text-input",
+      "allowVariable": true,
+      "description": "自动推断：{{var}} 替换 → JSON 解析（数字/列表/字典）→ 退回字符串"
     },
     "text": {
       "label": "多行文本",
@@ -62,7 +75,6 @@
       "description": "不展示给用户，运行时隐式注入"
     }
   },
-
   "valueTypes": {
     "window": {
       "label": "浏览器窗口句柄",
@@ -70,22 +82,72 @@
         "windowId": "int",
         "tabId": "int"
       },
-      "setBy": ["launchBrowser"],
+      "setBy": [
+        "launchBrowser"
+      ],
       "description": "浏览器窗口引用，含窗口 ID 和标签页 ID"
     }
   },
-
-  "legacyMap": {
-    "str-input": "string",
-    "str-textarea": "text",
-    "str-var": "string",
-    "str-dropdown": "select",
-    "str-element": "element",
-    "int-number": "number",
-    "bool-check": "boolean",
-    "any-expr": "code",
-    "any-input": "string",
-    "list-input": "code",
-    "dict-input": "code"
+  "paramTemplates": {
+    "searchMode": {
+      "name": "searchMode",
+      "label": "搜索模式",
+      "type": "select",
+      "options": [
+        {
+          "label": "模糊匹配 (子串)",
+          "value": "fuzzy"
+        },
+        {
+          "label": "精确匹配",
+          "value": "exact"
+        },
+        {
+          "label": "类名匹配",
+          "value": "classname"
+        }
+      ],
+      "default": "fuzzy"
+    },
+    "clickType": {
+      "name": "clickType",
+      "label": "点击类型",
+      "type": "select",
+      "options": [
+        {
+          "label": "单击左键",
+          "value": "single"
+        },
+        {
+          "label": "双击左键",
+          "value": "double"
+        },
+        {
+          "label": "右键单击",
+          "value": "right"
+        }
+      ],
+      "default": "single"
+    },
+    "method": {
+      "name": "method",
+      "label": "实现方式",
+      "type": "select",
+      "options": [
+        {
+          "label": "自动（UIA 优先）",
+          "value": "auto"
+        },
+        {
+          "label": "仅 UIA",
+          "value": "uia"
+        },
+        {
+          "label": "仅 Win32",
+          "value": "win32"
+        }
+      ],
+      "default": "auto"
+    }
   }
 }

@@ -7,12 +7,12 @@ from src.runtime.workflow.handlers.utils import clean_var_ref
 
 
 @register_handler(
-    cmd="findParentWin32", label="查找父控件 (Win32)",
+    cmd="findParentWin32", label="查找父控件",
     category="桌面操作", runtime="backend",
     icon="fa-arrow-up", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="获取指定控件的父窗口句柄",
-    category_order=60, command_order=12,
+    category_order=50, command_order=6,
     summary_tpl="{parentWindow} -> parent",
 )
 class FindParentHandler:
@@ -25,7 +25,7 @@ class FindParentHandler:
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
-        from ._win32 import get_parent_window, get_window_text, get_class_name, is_windows, window_exists
+        from ._win32 import resolve_hwnd, get_parent_window, get_window_text, get_class_name, is_windows, window_exists
 
         extra = instr.get("extra", {})
         child_var = clean_var_ref(extra.get("childWindow", ""))
@@ -40,7 +40,7 @@ class FindParentHandler:
                                 "nodeId": instr.get("nodeId"), "error": result["error"]})
             return False
 
-        child_hwnd = runner.vars.get(child_var)
+        child_hwnd = resolve_hwnd(runner.vars.get(child_var))
         if not child_hwnd or not window_exists(child_hwnd):
             result = {"error": f"子窗口句柄无效: {child_var} = {child_hwnd}"}
             runner.completed += 1

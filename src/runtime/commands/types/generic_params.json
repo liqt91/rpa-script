@@ -1,12 +1,9 @@
 {
-  "description": "通用参数配置 — 所有非结构指令自动注入。common 对所有执行指令生效，extensionOnly 仅对扩展端指令生效。",
+  "description": "通用参数配置 — 所有非结构指令自动注入。common 对所有执行指令生效。拟人化行为（humanLike）不在此列：不同指令的拟人语义各异（点击=真实鼠标、按键=OS 按键、输入=simulateKeyboard），由各指令自行声明，与错误处理类通用参数不同层。",
   "common": [
     {"name": "onError", "label": "执行失败时", "type": "select", "options": [{"label": "停止", "value": "stop"}, {"label": "继续", "value": "continue"}, {"label": "重试", "value": "retry"}], "default": "stop", "group": "advanced"},
     {"name": "retryCount", "label": "重试次数", "type": "number", "default": 3, "group": "advanced"},
     {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 10, "group": "advanced"},
     {"name": "description", "label": "步骤说明", "type": "text", "default": "", "group": "advanced"}
-  ],
-  "extensionOnly": [
-    {"name": "humanLike", "label": "模拟人工操作", "type": "boolean", "default": true, "group": "advanced"}
   ]
 }

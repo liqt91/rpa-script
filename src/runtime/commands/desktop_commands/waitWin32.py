@@ -8,12 +8,12 @@ import random
 
 
 @register_handler(
-    cmd="waitWin32", label="等待 (Win32)",
+    cmd="waitWin32", label="等待",
     category="桌面操作", runtime="backend",
     icon="fa-clock", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="等待固定时间或随机时间（秒）",
-    category_order=60, command_order=40,
+    category_order=50, command_order=21,
     summary_tpl="{seconds}s",
 )
 class WaitHandler:

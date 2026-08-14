@@ -11,16 +11,14 @@ const VAR_FIELD_NAMES = ['varName', 'itemVar', 'indexVar', 'listVar', 'dataVar',
 // ─── 参数类型提示 ────────────────────────────────────────────────
 const TYPE_INFO = {
   'string':     { type:'str', example:'hello ${name}' },
-  'text':  { type:'str', example:'多行文本' },
-  'string':       { type:'str', example:'myVar' },
-  'select':  { type:'str', example:'选一项' },
-  'element':   { type:'str', example:'从元素库选' },
-  'number':    { type:'int', example:'30' },
+  'text':       { type:'str', example:'多行文本' },
+  'str-var':    { type:'str', example:'myVar / {{var}}' },
+  'any-input':  { type:'any', example:'${v} / [1,2] / true' },
+  'select':     { type:'str', example:'选一项' },
+  'element':    { type:'str', example:'从元素库选' },
+  'number':     { type:'int', example:'30' },
   'boolean':    { type:'bool', example:'勾选' },
-  'list-input':    { type:'list', example:'["${a}","${b}"]' },
-  'dict-input':    { type:'dict', example:'{"k":"${v}"}' },
-  'code':      { type:'any', example:'keywords[0:3]' },
-  'any-input':     { type:'any', example:'${v} / [1,2] / true' },
+  'code':       { type:'any', example:'keywords[0:3] / ["a","b"] / =expr' },
 };
 
 function extractVarsFromNode(node) {

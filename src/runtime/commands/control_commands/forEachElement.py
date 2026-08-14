@@ -12,7 +12,7 @@ class ForEachElementHandler:
         Param("elementName", "目标元素列表", "element-list", required=True, group="主属性"),
         Param("itemVar", "当前项变量", "string", default="item"),
         Param("indexVar", "索引变量", "string", default="index"),
-        Param("scope", "匹配范围", "str-dropdown",
+        Param("scope", "匹配范围", "select",
               options=[{"label": "当前外层元素内", "value": "local"}, {"label": "全页面", "value": "global"}],
               default="local", group="advanced"),
     ]

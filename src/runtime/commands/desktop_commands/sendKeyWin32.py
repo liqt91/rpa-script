@@ -9,12 +9,12 @@ import asyncio
 
 
 @register_handler(
-    cmd="sendKeyWin32", label="模拟按键 (Win32)",
+    cmd="sendKeyWin32", label="发送按键",
     category="桌面操作", runtime="backend",
     icon="fa-keyboard", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="通过 OS 级键盘事件发送按键（不依赖浏览器，适用于桌面操作）",
-    category_order=60, command_order=45,
+    category_order=50, command_order=18,
     summary_tpl="{key}",
 )
 class SendKeyHandler:
@@ -54,7 +54,7 @@ class SendKeyHandler:
         Param("modifiers", "修饰键", "string", default="",
               placeholder="Ctrl, Alt, Shift, Win，可多个逗号分隔如 Ctrl,Shift",
               group="advanced"),
-        Param("pressCount", "重复次数", "int-number", default="1",
+        Param("pressCount", "重复次数", "number", default="1",
               placeholder="连续按几次，如需要多次 Tab 跳转",
               group="advanced"),
     ]

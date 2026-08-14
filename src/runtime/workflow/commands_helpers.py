@@ -76,6 +76,4 @@ def _attach_common_advanced(fields: list[dict]) -> list[dict]:
         result.append(_loop_anchor_field())
     if has_element and "referenceItemItself" not in names:
         result.append(_reference_item_field())
-    if "humanLike" not in names:
-        result.append({"name": "humanLike", "label": "拟人化操作", "type": "boolean", "default": True, "group": "advanced"})
     return result

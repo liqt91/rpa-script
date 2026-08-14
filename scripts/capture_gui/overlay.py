@@ -156,6 +156,9 @@ _SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_i
 _SetWindowPos.restype = wintypes.BOOL
 _EnumWindows = _user32.EnumWindows
 _EnumWindows.argtypes = [ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM), wintypes.LPARAM]
+_EnumChildWindows = _user32.EnumChildWindows
+_EnumChildWindows.argtypes = [wintypes.HWND, ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM),
+                              wintypes.LPARAM]
 _IsWindowVisible = _user32.IsWindowVisible
 _IsWindowVisible.argtypes = [wintypes.HWND]; _IsWindowVisible.restype = wintypes.BOOL
 _IsIconic = _user32.IsIconic
@@ -228,7 +231,18 @@ _DispatchMessageW.restype = ctypes.c_long
 _ValidateRect = _user32.ValidateRect
 _ValidateRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
 _ValidateRect.restype = wintypes.BOOL
+# 独立钩子泵线程：阻塞式 GetMessage（低级钩子消息投递到安装线程队列）
+_GetMessageW = _user32.GetMessageW
+_GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, ctypes.c_uint, ctypes.c_uint]
+_GetMessageW.restype = wintypes.BOOL
+_GetCurrentThreadId = _kernel32.GetCurrentThreadId
+_GetCurrentThreadId.argtypes = []
+_GetCurrentThreadId.restype = wintypes.DWORD
+_PostThreadMessageW = _user32.PostThreadMessageW
+_PostThreadMessageW.argtypes = [wintypes.DWORD, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM]
+_PostThreadMessageW.restype = wintypes.BOOL
 WM_PAINT = 0x000F
+WM_QUIT = 0x0012
 
 
 def _bgr(rgb: int) -> int:
@@ -745,7 +759,9 @@ def _deepest_uia_element(x, y, uia, max_depth=8, max_nodes=400):
     return best_dict, path
 
 
-_UIA_QUERY_TIMEOUT = 3.0  # 秒
+_UIA_QUERY_TIMEOUT = 8.0  # 秒；深搜兜底在 XAML 应用（Windows Terminal/PowerShell）上可达 1-5s，
+                          # 3s 会把正常深搜杀掉 → 捕获降级成整窗。正常捕获优先复用 hover worker
+                          # 结果，此超时只是 worker 结果缺失时的兜底。
 
 
 def _try_uia_capture(x, y) -> dict | None:
@@ -813,11 +829,19 @@ def _try_uia_capture(x, y) -> dict | None:
 
 
 def _uia_hit_rect(x, y, uia):
-    """UIA 命中框（纯同步查询，无内部线程/超时）：轻量 hit-test 优先；hit-test 失效
-    （0x0/None，XAML island 等混合应用）时深搜兜底（节流缓存，避免每帧全树遍历）。
+    """UIA 命中框 + 捕获信息（纯同步查询，无内部线程/超时）：轻量 hit-test 优先；
+    hit-test 失效（0x0/None，XAML island 等混合应用）时深搜兜底（节流缓存，避免每帧
+    全树遍历）。
 
-    只读矩形。本函数可能被单次卡死的 UIA 调用（ControlFromPoint/GetChildren）永久阻塞，
-    因此**绝不能直接在工作线程调用** —— 必须由 _HoverWorker 把它外包到有界线程执行。"""
+    返回 (rect, info)：
+      - rect：hover 高亮用（只读矩形）。
+      - info：深搜算出的**完整捕获信息**（name/control_type/automation_id/path/
+        target_index，与 _try_uia_capture 同构），供捕获直接复用 —— 深搜慢（XAML 应用
+        1-5s），捕获时若重新查会撞 3s 超时降级成整窗（"框到 tab、捕获整窗"），而 worker
+        在 hover 期间已经算好了。快速命中（非整窗）或浏览器整窗时不深搜 → info 为 None，
+        捕获走自身快速查询即可。
+    本函数可能被单次卡死的 UIA 调用（ControlFromPoint/GetChildren）永久阻塞，
+    因此**只能在 _HoverWorker 常驻线程调用**。"""
     # 1) 轻量 hit-test（正常应用，O(1)）
     try:
         ctrl = uia.ControlFromPoint(x, y)
@@ -838,10 +862,10 @@ def _uia_hit_rect(x, y, uia):
                     hit["width"] * hit["height"] > 0.6 * wr["width"] * wr["height"]
                 if is_window_sized and _is_browserish_hwnd(hwnd0):
                     _deep_cache["hwnd"] = 0
-                    return hit
+                    return hit, None
                 if not is_window_sized:
                     _deep_cache["hwnd"] = 0  # 清深搜缓存
-                    return hit
+                    return hit, None
     except Exception:
         pass
     # 2) 深搜兜底（节流：窗口/位移 >15px 或 >0.4s 才重算）
@@ -849,18 +873,35 @@ def _uia_hit_rect(x, y, uia):
     # 浏览器窗口不深搜：内容区是 DOM（不在 UIA 树），深搜只能遍历数千节点（实测 4-6s）
     # 且找不到更细的 —— hover 用整窗兜底即可，细粒度网页元素走「捕获网页元素」通道。
     if hwnd and _is_browserish_hwnd(hwnd):
-        return None
+        return None, None
     now = time.time()
     c = _deep_cache
     if (hwnd != c["hwnd"] or abs(x - c["x"]) > 15 or abs(y - c["y"]) > 15 or now - c["t"] > 0.4):
-        item, _ = _deepest_uia_element(x, y, uia, max_nodes=200)
+        item, path = _deepest_uia_element(x, y, uia, max_nodes=200)
         rect = None
+        info = None
         if item:
             r = item.get("rect") or {}
             if r.get("width", 0) > 0:
                 rect = r
-        c.update(hwnd=hwnd, x=x, y=y, t=now, rect=rect)
-    return c.get("rect")
+                info = _deep_info_to_capture(item, path)
+        c.update(hwnd=hwnd, x=x, y=y, t=now, rect=rect, info=info)
+    return c.get("rect"), c.get("info")
+
+
+def _deep_info_to_capture(item: dict, path: list) -> dict:
+    """深搜结果 (best_dict, path) → 捕获信息 dict（与 _try_uia_capture 返回同构）。
+
+    让捕获直接复用 hover worker 已算好的深搜结果 —— 显示什么就捕获什么，且不再
+    触发一次可能超时的重查。"""
+    return {
+        "found": True,
+        "name": item.get("name", ""), "class_name": item.get("class_name", ""),
+        "control_type": item.get("control_type", ""), "automation_id": item.get("automation_id", ""),
+        "rect": item.get("rect", {}),
+        "path": path or [],
+        "target_index": len(path) - 1 if path else -1,
+    }
 
 
 # worker 的 UIA hit-test 与主循环窗口绘制（show_border/show_info）的互斥锁：
@@ -897,8 +938,8 @@ class _HoverWorker:
         self._paused = False
         # 主循环写入：最新坐标 + 是否有效
         self._req = {"x": 0, "y": 0, "valid": False, "seq": 0}
-        # worker 写出：最新结果
-        self._res = {"rect": None, "x": 0, "y": 0}
+        # worker 写出：最新结果（rect 供高亮，info 供捕获复用 —— 显示什么捕获什么）
+        self._res = {"rect": None, "info": None, "x": 0, "y": 0}
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
@@ -932,23 +973,30 @@ class _HoverWorker:
                     # 互斥锁：worker 的 UIA hit-test 与主循环的窗口绘制严格串行（不同时），
                     # 否则主循环窗口操作会饿死 worker 的 ControlFromPoint（实测 diag_interfere）。
                     with _uia_draw_lock:
-                        rect = self._query(req["x"], req["y"], uia)
+                        rect, info = self._query(req["x"], req["y"], uia)
                     with self._lock:
                         # 结果总是写回（即使查询期间鼠标已移动）：是否采纳由读取方
                         # _get_uia_rect 按"当前光标是否仍在结果矩形内"判断。旧逻辑按坐标
                         # 丢弃，深搜慢的应用（Windows Terminal 300ms+）期间鼠标微动就丢
                         # 结果 → hover 概率性退化为整窗。
-                        self._res = {"rect": rect, "x": req["x"], "y": req["y"]}
+                        self._res = {"rect": rect, "info": info, "x": req["x"], "y": req["y"]}
         except Exception:
             pass
 
     def _query(self, x, y, uia):
-        """在 worker 常驻线程内执行查询（COM 已初始化）。"""
+        """在 worker 常驻线程内执行查询（COM 已初始化）。返回 (rect, info)。
+
+        info 与最终采纳的 rect 配对：滞回保留旧 rect 时，info 也用旧结果的 ——
+        否则会出现"高亮框着 tab、捕获信息却是整窗"的不一致。"""
         try:
-            rect = _uia_hit_rect(x, y, uia)
+            rect, info = _uia_hit_rect(x, y, uia)
         except Exception:
-            rect = None
-        return self._hysteresis(x, y, rect)
+            rect, info = None, None
+        final_rect = self._hysteresis(x, y, rect)
+        if final_rect is not rect:
+            # 滞回保留了旧 rect：info 必须跟显示的高亮一致
+            info = self._res.get("info")
+        return final_rect, info
 
     def _hysteresis(self, x, y, new_rect):
         """滞回：防止"细粒度 → 整窗"的跳变。
@@ -1213,7 +1261,7 @@ def _get_best_rect(hwnd, x, y):
 
 
 _uia_module = None
-_deep_cache = {"hwnd": 0, "x": 0, "y": 0, "t": 0, "rect": None}  # 深搜兜底节流缓存
+_deep_cache = {"hwnd": 0, "x": 0, "y": 0, "t": 0, "rect": None, "info": None}  # 深搜兜底节流缓存（rect + 捕获信息）
 
 def _uia_init():
     global _uia_module
@@ -1252,15 +1300,23 @@ _DefWindowProcW = _user32.DefWindowProcW
 _DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 _DefWindowProcW.restype = wintypes.LPARAM
 
-# ─── 捕获期间吞噬鼠标点击（"只捕获，不操作"） ───
+# ─── 捕获期间吞掉捕获手势的点击（"只捕获，不操作"） ───
 # 遮罩/悬浮窗是鼠标穿透的（WM_NCHITTEST→HTTRANSPARENT，且区域在光标处抠洞），Alt+点击
-# 捕获、右键取消都会把真实点击落到下层应用，触发实际点击副作用。用 WH_MOUSE_LL 低级
-# 鼠标钩子在输入到达应用前拦截并吞掉按键消息（返回非零=已处理，消息不再派发）。
-# 注意：低级钩子回调运行在安装它的线程上，该线程必须有消息泵 —— 捕获主循环每帧
-# `_pump_messages()` 正好满足。钩子只在捕获期间安装，结束即卸载。
+# 捕获会把真实点击落到下层应用，触发实际点击副作用。用 WH_MOUSE_LL 低级鼠标钩子在输入
+# 到达应用前拦截并吞掉按键消息（返回非零=已处理，消息不再派发）。
+# **只吞 Alt+左键（捕获手势）**；普通左键/右键/中键照常透传给应用 —— 捕获期间可正常
+# 操作目标应用（取消只用 Esc，右键不再承担取消手势）。
+# 注意：低级钩子回调运行在安装它的线程上，该线程必须有消息泵。钩子安装在**独立泵消息
+# 线程**上（_hook_pump），与捕获主循环解耦 —— 否则主循环一旦阻塞（遮罩全屏重绘/
+# SetWindowRgn/UIA 查询/锁等待），整机鼠标输入就被串行化冻结（实测"鼠标移动卡"）。
+# 主循环只读钩子维护的手势状态（_consume_mouse_click/_mouse_down），两者以
+# _mouse_hook_lock 保护。钩子只在捕获期间安装，结束即卸载。
 _WH_MOUSE_LL = 14
 # WM_LBUTTONDOWN/UP 0x0201/0x0202, WM_RBUTTONDOWN/UP 0x0204/0x0205, WM_MBUTTONDOWN/UP 0x0207/0x0208
 _SWALLOW_MOUSE_MSGS = {0x0201, 0x0202, 0x0204, 0x0205, 0x0207, 0x0208}
+# 需要吞掉的按键手势（down 码 → 配对 up 码）：Alt+左键=捕获。吞掉 down 后对应的 up
+# 也要吞，避免孤立 up 落到应用。
+_SWALLOW_GESTURE_DOWN_UP = {0x0201: 0x0202}
 _HOOKPROC = ctypes.WINFUNCTYPE(wintypes.LPARAM, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 _SetWindowsHookExW = _user32.SetWindowsHookExW
 _SetWindowsHookExW.argtypes = [ctypes.c_int, _HOOKPROC, wintypes.HINSTANCE, wintypes.DWORD]
@@ -1274,52 +1330,98 @@ _CallNextHookEx.restype = wintypes.LPARAM
 _mouse_hook_handle = None  # 当前低级鼠标钩子句柄（None=未安装）
 _mouse_hook_proc = None    # 模块级持有回调引用，防 GC 后回调悬空
 _mouse_hook_lock = threading.Lock()
-_mouse_hook_click = None   # 钩子吞下的 Alt+左键点击：None/("capture",)/("cancel",)
+_mouse_hook_click = None   # 钩子记录的手势：None/("capture",)
 _mouse_hook_down = False   # 当前是否有鼠标键被按住（由钩子维护，替代不可靠的 GetAsyncKeyState）
+_hook_thread = None        # 独立泵消息线程（安装/处理钩子回调，与主循环解耦）
+_hook_thread_tid = None    # 泵线程 OS 线程 id（用于 PostThreadMessageW 唤醒退出）
 
 def _install_mouse_swallow_hook() -> bool:
     """安装吞点击的低级鼠标钩子（WH_MOUSE_LL）。重复调用幂等。返回是否成功。
 
-    钩子同时把 Alt+左键捕获、右键取消等点击手势转发给捕获循环（通过模块级状态），
+    钩子安装在**独立泵消息线程**：低级钩子回调运行在安装线程上，若装在主循环线程，
+    主循环阻塞（遮罩重绘/SetWindowRgn/UIA 查询/锁等待）会把整机鼠标输入串行化冻结。
+    独立线程保证钩子回调始终即时执行，主循环怎么阻塞都不影响系统鼠标。
+
+    只吞 Alt+左键（捕获手势）的按下/抬起；普通左键/右键/中键透传给应用（仅记录按住
+    状态供 _mouse_down 判断模态态）。钩子把捕获手势转发给捕获循环（通过模块级状态），
     因为低级钩子拦下的点击**不会**反映到 GetAsyncKeyState —— 捕获循环读它必然错过
     （实测：鼠标事件被钩子吞掉后 GetAsyncKeyState 恒 0）。"""
-    global _mouse_hook_handle, _mouse_hook_proc
+    global _mouse_hook_handle, _mouse_hook_proc, _hook_thread
     if _mouse_hook_handle:
         return True
+    swallowed_ups = set()  # 已吞 down 对应的 up 消息码（吞 down 后 up 也吞，防孤立 up 落到应用）
+
     def _cb(code, wparam, lparam):
         global _mouse_hook_click, _mouse_hook_down
         if code >= 0 and wparam in _SWALLOW_MOUSE_MSGS:
             with _mouse_hook_lock:
                 if wparam in (0x0201, 0x0204, 0x0207):  # 按下
                     _mouse_hook_down = True
-                    # Alt+左键 = 捕获；右键 = 取消（Esc 由键盘 GetAsyncKeyState 负责）
+                    # Alt+左键 = 捕获（取消只用 Esc，右键不再承担取消手势）
                     if wparam == 0x0201 and (_GetAsyncKeyState(VK_MENU) & 0x8000):
                         _mouse_hook_click = "capture"
-                    elif wparam == 0x0204:
-                        _mouse_hook_click = "cancel"
+                        swallowed_ups.add(_SWALLOW_GESTURE_DOWN_UP[0x0201])
+                        return 1  # 吞掉 Alt+点击：不落到下层应用
+                    # 普通左键/右键/中键按下：仅记录按住状态，透传给应用
                 else:  # 抬起
                     _mouse_hook_down = False
-            return 1  # 吞掉：鼠标键按下/抬起不再派发给任何窗口
+                    if wparam in swallowed_ups:
+                        swallowed_ups.discard(wparam)
+                        return 1  # 吞掉与已吞 down 配对的 up
+            return _CallNextHookEx(None, code, wparam, lparam)
         return _CallNextHookEx(None, code, wparam, lparam)
-    _mouse_hook_proc = _HOOKPROC(_cb)
-    _mouse_hook_handle = _SetWindowsHookExW(_WH_MOUSE_LL, _mouse_hook_proc, None, 0)
+
+    installed = threading.Event()
+    result = {}
+
+    def _hook_pump():
+        """泵线程：本线程安装钩子（钩子与安装线程绑定），阻塞式 GetMessage 泵取，
+        保证钩子回调在本线程即时执行。收到 WM_QUIT 退出。"""
+        global _mouse_hook_proc, _hook_thread_tid
+        _hook_thread_tid = _GetCurrentThreadId()
+        proc = _HOOKPROC(_cb)
+        _mouse_hook_proc = proc  # 模块级持有引用，防回调悬空
+        h = _SetWindowsHookExW(_WH_MOUSE_LL, proc, None, 0)
+        result["handle"] = h
+        installed.set()
+        if not h:
+            return
+        msg = wintypes.MSG()
+        while _GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            _TranslateMessage(ctypes.byref(msg))
+            _DispatchMessageW(ctypes.byref(msg))
+        _UnhookWindowsHookEx(h)
+
+    _hook_thread = threading.Thread(target=_hook_pump, daemon=True)
+    _hook_thread.start()
+    installed.wait(timeout=2.0)
+    _mouse_hook_handle = result.get("handle")
     if not _mouse_hook_handle:
         _mouse_hook_proc = None
+        _hook_thread = None
         return False
     return True
 
 
 def _uninstall_mouse_swallow_hook():
-    """卸载吞点击钩子（幂等）。"""
-    global _mouse_hook_handle, _mouse_hook_proc
+    """卸载吞点击钩子（幂等），并唤醒泵线程退出。"""
+    global _mouse_hook_handle, _mouse_hook_proc, _hook_thread, _hook_thread_tid
     if _mouse_hook_handle:
         _UnhookWindowsHookEx(_mouse_hook_handle)
         _mouse_hook_handle = None
+    tid = _hook_thread_tid
+    _hook_thread_tid = None
+    if tid:
+        try:
+            _PostThreadMessageW(tid, WM_QUIT, 0, 0)  # 唤醒阻塞中的 GetMessage
+        except Exception:
+            pass
+    _hook_thread = None
     _mouse_hook_proc = None
 
 
 def _consume_mouse_click() -> str | None:
-    """消费钩子记录的点击手势（"capture"/"cancel"/None）。"""
+    """消费钩子记录的点击手势（"capture"/None；取消只用 Esc，无右键手势）。"""
     global _mouse_hook_click
     with _mouse_hook_lock:
         v = _mouse_hook_click
@@ -1652,30 +1754,128 @@ def _find_active_browser():
     return found[0] if found else None
 
 
+def _top_window_of(hwnd):
+    """沿父链上溯到顶层窗口（GetParent 到 0 为止）。"""
+    cur = hwnd
+    guard = 0
+    while cur and guard < 32:
+        p = _GetParent(cur)
+        if not p:
+            return cur
+        cur = p
+        guard += 1
+    return hwnd
+
+
+_ROUTE_LOG = os.path.join(os.environ.get("TEMP", "."), "rpa_capture_route.log")
+
+
+def _route_log(msg: str):
+    """浏览器路由调试日志（诊断用，追加写 %TEMP%\\rpa_capture_route.log）。"""
+    try:
+        with open(_ROUTE_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+    except Exception:
+        pass
+
+
+_ext_online = False
+_ext_browsers: set = set()
+_ext_online_ts = 0.0
+
+
+def _extension_online(browser: str | None = None) -> bool:
+    """指定浏览器（chrome/edge/firefox）的扩展是否在线（2s 缓存）。
+
+    未指定浏览器 → 任意扩展在线即 True。离线时不切网页会话，保持遮罩 UIA —— 避免
+    会话启动即失败（或错开在其它浏览器的窗口上：后端按连接分发，Chrome 的委托不能
+    用到 Edge 的连接上）。"""
+    global _ext_online, _ext_browsers, _ext_online_ts
+    now = time.time()
+    if now - _ext_online_ts > 2.0:
+        _ext_online_ts = now
+        try:
+            import json
+            import urllib.request
+            with urllib.request.urlopen("http://127.0.0.1:8000/api/extension/status", timeout=2) as r:
+                data = json.loads(r.read().decode())
+                _ext_online = bool(data.get("online"))
+                _ext_browsers = {b.get("browser") for b in (data.get("browsers") or [])}
+        except Exception:
+            _ext_online = False
+            _ext_browsers = set()
+    if not browser:
+        return _ext_online
+    return browser in _ext_browsers
+
+
+def _browser_of(hwnd) -> str:
+    """hwnd 所在进程的浏览器类型（chrome/edge/firefox），非浏览器返回 ''。"""
+    exe = os.path.basename(_get_process_exe(hwnd) or "").lower()
+    if exe.endswith("chrome.exe"):
+        return "chrome"
+    if exe.endswith("msedge.exe"):
+        return "edge"
+    if exe.endswith("firefox.exe"):
+        return "firefox"
+    return ""
+
+
+def _browser_viewport(hwnd):
+    """hwnd 所在浏览器窗口的**页面内容框** = 渲染宿主（Chrome_RenderWidgetHostHWND）窗口矩形。
+
+    含 Edge 垂直标签页：垂直标签面板占窗口左侧全高，渲染宿主在其右侧 → 内容框矩形
+    自动排除标签面板（这正是"以内容框为切换点"的精确边界）。返回 rect dict；
+    非浏览器/找不到渲染宿主返回 None。"""
+    top = _top_window_of(hwnd)
+    if not top or not _is_web_browser(top):
+        return None
+    if "Chrome_RenderWidgetHostHWND" in _get_class_name(hwnd):
+        return _get_window_rect(hwnd)
+    vp = [None]
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def _enum(child, _lp):
+        if "Chrome_RenderWidgetHostHWND" in _get_class_name(child):
+            vp[0] = _get_window_rect(child)
+            return False  # 找到即停
+        return True
+
+    _EnumChildWindows(top, _enum, 0)
+    return vp[0]
+
+
+def _web_capture_target(hwnd, x, y):
+    """光标是否在**真实浏览器**窗口的**页面内容框**（渲染宿主视口矩形）内。
+
+    是 → 返回顶层浏览器窗口（供委托扩展网页捕获）；否 → None。
+    切换点 = 内容框（渲染宿主矩形）：
+      - Chrome/Edge：内容框 = Chrome_RenderWidgetHostHWND 窗口矩形 —— 自动排除顶栏
+        与 Edge 垂直标签面板（内容在面板右侧）。
+      - Firefox 等无渲染宿主：退回顶栏启发式（BROWSER_CHROME_HEIGHT 以下视为内容）。
+    """
+    top = _top_window_of(hwnd)
+    if not top or not _is_web_browser(top):
+        return None
+    vp = _browser_viewport(hwnd)
+    if vp is not None:
+        if vp.get("width", 0) > 0 and vp.get("height", 0) > 0 and _rect_contains(vp, x, y):
+            return top
+        return None  # 光标在渲染宿主矩形外（顶栏/垂直标签面板）→ 桌面元素
+    # 无渲染宿主（Firefox 等）：退回顶栏启发式
+    wr = _get_window_rect(top)
+    if wr["width"] <= 0 or wr["height"] <= 0:
+        return None
+    if not (wr["left"] <= x <= wr["left"] + wr["width"]
+            and wr["top"] <= y <= wr["top"] + wr["height"]):
+        return None
+    if y < wr["top"] + BROWSER_CHROME_HEIGHT:
+        return None  # 顶栏（标签+地址栏）→ 桌面元素
+    return top
+
+
 class BackToDesktop(Exception):
     """网页拾取中用户切回桌面拾取 —— 结束当前拾取但不结束整场捕获。"""
-
-
-def _format_web_hover(hover: dict) -> str:
-    tag = hover.get("tag") or ""
-    id_ = hover.get("id") or ""
-    cls = hover.get("classes") or ""
-    if isinstance(cls, list):
-        cls = ".".join(str(c) for c in cls)
-    text = (hover.get("text") or "").strip()
-    lines = []
-    if tag:
-        name = tag
-        if id_: name += "#" + id_
-        if cls: name += "." + cls
-        lines.append(name)
-    if text:
-        lines.append(text[:50])
-    if lines:
-        lines.append("")
-        lines.append("Alt+点击 捕获 · Alt+1/Alt+2 父/子级")
-        lines.append("Esc 结束")
-    return "\n".join(lines)
 
 
 def _pump_messages():
@@ -1693,23 +1893,32 @@ def _pump_messages():
         _DispatchMessageW(ctypes.byref(msg))
 
 
-def _capture_via_extension(browser_hwnd, sx, sy, web_only: bool = False) -> ElementInfo | None:
+def _capture_via_extension(browser_hwnd, sx, sy, web_only: bool = False,
+                           viewport_watch=None) -> ElementInfo | None:
     """委托浏览器插件原生捕获。阻塞等待用户 Alt+Click。
 
-    阻塞的 HTTP 调用放后台线程执行；主线程泵消息 + 轮询悬停信息并更新悬浮窗，
-    保证悬浮框窗口（属于主线程）保持响应，不假死。
+    阻塞的 HTTP 调用放后台线程执行；主线程泵消息保持响应。**不显示桌面悬浮窗** ——
+    网页捕获由扩展在页面内自行高亮/提示（用户确认：桌面悬浮窗冗余，去掉）。
+    启动前把目标浏览器置前：扩展 launchBrowserCapture 取「当前活动窗口」的活动标签页，
+    否则会话会开在错误的窗口上（实测"需要移动到另一个浏览器窗口才能触发"）。
+
+    viewport_watch：可选回调，返回 True 表示光标仍在页面内容框内。每次循环调用，
+    返回 False 时取消会话并抛 BackToDesktop（复用"切回桌面拾取"语义）—— 遮罩模式用它
+    做"光标离开内容框自动切回"的可靠退出（不再依赖扩展的 mouse-leave 检测）。
     """
+    # 扩展 launchBrowserCapture 取 currentWindow 活动标签页 → 必须先置前目标浏览器
+    _user32.SetForegroundWindow(browser_hwnd)
     win_rect = _get_window_rect(browser_hwnd)
     vx, vy = _screen_to_viewport(sx, sy, win_rect)
-    show_info("网页拾取中... 悬停查看元素 · Alt+点击确认")
     request_id = str(uuid.uuid4())[:8]
     result_box = {"done": False, "result": None}
+    browser = _browser_of(browser_hwnd)  # chrome/edge/firefox，后端按连接分发
 
     def _run_capture():
         try:
             from scripts.capture_gui.ws_client import launch_browser_capture
             result_box["result"] = launch_browser_capture(
-                vx, vy, timeout=300.0, request_id=request_id, web_only=web_only)
+                vx, vy, timeout=300.0, request_id=request_id, web_only=web_only, browser=browser)
         except Exception as e:
             result_box["result"] = {"error": str(e)}
         finally:
@@ -1717,32 +1926,19 @@ def _capture_via_extension(browser_hwnd, sx, sy, web_only: bool = False) -> Elem
 
     threading.Thread(target=_run_capture, daemon=True).start()
     try:
-        from scripts.capture_gui.ws_client import poll_capture_hover, cancel_browser_capture
+        from scripts.capture_gui.ws_client import cancel_browser_capture
     except Exception:
         result_box["result"] = {"error": "ws_client unavailable"}
         result_box["done"] = True
 
-    last_text = ""
     cancelled = False
     try:
         while not result_box["done"]:
             _pump_messages()
-            try:
-                data = poll_capture_hover(request_id)
-                note = (data.get("note") or "").strip()
-                hover = data.get("hover") or {}
-                text = None
-                if hover:
-                    text = _format_web_hover(hover)
-                elif note:
-                    text = note  # 受限页/载入中等提示
-                if text:
-                    _move_info_window()  # 每轮都重新躲避鼠标
-                    if text != last_text:
-                        last_text = text
-                        show_info(text)
-            except Exception:
-                pass  # 悬浮窗更新失败不杀死捕获
+            # 光标离开页面内容框 → 自动切回桌面拾取
+            if viewport_watch is not None and not viewport_watch():
+                cancel_browser_capture(request_id)
+                raise BackToDesktop()
             if _GetAsyncKeyState(VK_ESCAPE) & 0x8000:
                 cancelled = True
                 cancel_browser_capture(request_id)
@@ -1815,171 +2011,59 @@ def _capture_via_extension(browser_hwnd, sx, sy, web_only: bool = False) -> Elem
 
 
 def run_capture(mode: str = "desktop") -> ElementInfo | None:
-    sw = _GetSystemMetrics(SM_CXSCREEN); sh = _GetSystemMetrics(SM_CYSCREEN)
-    pt = wintypes.POINT()
-    last_hwnd = None; captured = None
-    _last_border_rect = None  # 上一次绘制的 hover 高亮 rect（避免每帧重复 show_border 闪烁）
-    # 层级导航栈：记录用户按 Alt+1 上走过的路径，Alt+2 可退回
-    parent_stack = []
-    _last_info_hwnd = None  # hover 悬浮框当前显示的 hwnd（切换窗口才重建文本，防每帧跨进程查询）
+    """捕获入口。
 
-    def _build_info_text(hwnd):
-        rect = _get_window_rect(hwnd)
-        path = _get_ancestor_path(hwnd, with_title=False)  # hover 显示不读 title：零跨进程阻塞
-        # 最近 6 层祖先，不足用空行补齐
-        levels = path[-6:]
-        lines = []
-        n = len(levels)
-        for i in range(6):
-            if i < n:
-                cls = levels[i]["class_name"]
-                is_current = (i == n - 1)
-                prefix = "> " if is_current else "  "
-                lines.append(f"{prefix}{cls}")
-            else:
-                lines.append("")
-        lines.append(f"    {rect['width']}×{rect['height']}")
-        return "\n".join(lines)
+    - web：委托浏览器扩展 DOM 拾取（网页元素）。
+    - 其他模式（desktop / desktop_mask 等）：统一走全屏遮罩桌面捕获
+      `run_capture_mask` —— 旧浮窗式桌面捕获已移除（CaptureToolModal 同步清理），
+      遮罩模式更稳定，且支持浏览器内容区自动转网页捕获（见 overlay_mask）。
 
-    def _select_hwnd(hwnd):
-        """选中并高亮指定 hwnd。"""
-        nonlocal last_hwnd, _last_info_hwnd
-        if hwnd:
-            rect = _get_window_rect(hwnd)
-            if rect["width"] > 0 and rect["height"] > 0:
-                show_border(rect)
-                last_hwnd = hwnd
-                show_info(_build_info_text(hwnd))
-                _last_info_hwnd = hwnd
+    注意：web 分支**不能安装吞点击钩子** —— 扩展的网页捕获靠页面 DOM click 事件确认
+    （content_capture.js onCaptureClick + altKey），钩子会在系统层吞掉 Alt+点击，
+    DOM click 不触发 → 网页捕获确认失效（8/13 加钩子后遗留，一并修复）。
+    """
+    if mode != "web":
+        # 延迟导入：overlay_mask 模块级依赖 overlay（import overlay as ov），顶层导入会
+        # 循环；运行时两模块都已加载，函数内导入安全。
+        from scripts.capture_gui.overlay_mask import run_capture_mask
+        return run_capture_mask("desktop")
 
     editor_hwnd = _hide_editor_window()  # 捕获期间隐藏 RPA 编辑器（Electron）
     try:
-        _uia_init()
-        # 吞点击钩子：Alt+点击捕获/右键取消不该把真实点击落到下层应用。
-        # 钩子拦下的点击不会反映到 GetAsyncKeyState（实测恒 0），因此捕获/取消手势
-        # 一律从钩子状态读（_consume_mouse_click / _mouse_down）。
-        hook_ok = _install_mouse_swallow_hook()
-        if mode == "web":
-            # 网页模式：直接对最前面的浏览器进入 DOM 拾取
-            browser = _find_active_browser()
-            if not browser:
-                show_info("未找到浏览器窗口，请先打开 Chrome/Edge 并置于最前")
-                time.sleep(1.2)
-                return None
-            rect = _get_window_rect(browser)
-            cx, cy = rect["left"] + rect["width"] // 2, rect["top"] + rect["height"] // 2
-            _user32.SetForegroundWindow(browser)  # 浏览器置前，扩展 currentWindow 才正确
-            try:
-                return _capture_via_extension(browser, cx, cy, web_only=True)
-            except BackToDesktop:
-                return None  # web 模式 content 已禁用切换，理论不触发，兜底
-        while True:
-            # 泵消息：低级鼠标钩子回调在安装线程泵消息时派发，Alt+点击检测依赖它
-            # 及时触发（不泵则回调延迟到 Alt 松开后，GetAsyncKeyState 已为 0）。
-            _pump_messages()
-            if _GetAsyncKeyState(VK_ESCAPE) & 0x8000: break
-            gesture = _consume_mouse_click() if hook_ok else None
-            if gesture == "cancel":
-                break
-            if not hook_ok and (_GetAsyncKeyState(VK_RBUTTON) & 0x8000):
-                break
-            if gesture == "capture":
-                gesture_capture = True  # 本帧末尾再兑现（需 last_hwnd 就绪）
-            else:
-                gesture_capture = False
-
-            _GetCursorPos(ctypes.byref(pt))
-            target = _WindowFromPoint(pt) if 0 <= pt.x < sw * 2 and -sh < pt.y < sh * 2 else None
-            if target and _get_class_name(target) in ("RpaBorder", "RpaInfo"):
-                target = None
-            if not target and last_hwnd and _user32.IsWindow(last_hwnd):
-                target = last_hwnd
-
-            # 鼠标键按住期间：目标可能处于 SetCapture 模态态（UIA/SendMessage 查询会卡死），
-            # 跳过一切对目标的查询，保持上一次高亮，仅检测 Alt+点击 确认
-            mouse_down = _mouse_down() if hook_ok else bool(
-                (_GetAsyncKeyState(VK_LBUTTON) | _GetAsyncKeyState(VK_RBUTTON)
-                 | _GetAsyncKeyState(VK_MBUTTON)) & 0x8000)
-            # 模态态暂停后台 hover 查询，避免跨进程 UIA 调用无限等待拖慢主循环
-            if mouse_down:
-                _pause_hover_uia()
-            else:
-                _resume_hover_uia()
-
-            # Alt+1 → 选父级
-            if (_GetAsyncKeyState(VK_1) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000):
-                if target:
-                    parent = _GetParent(target)
-                    if parent:
-                        parent_stack.append(target)
-                        target = parent
-                        _select_hwnd(target)
-                time.sleep(0.15)
-                continue
-
-            # Alt+2 → 退回子级
-            if (_GetAsyncKeyState(VK_2) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000):
-                if parent_stack:
-                    target = parent_stack.pop()
-                    _select_hwnd(target)
-                time.sleep(0.15)
-                continue
-
-            # 鼠标 hover → 用后台 worker 的最新 UIA 结果持续更新高亮（主循环零阻塞）。
-            # 进入窗口时 worker 结果可能尚未就绪 → 先显示整窗；worker 算出 tab rect 后
-            # 下一帧自动切换。停留时 worker 结果变化也会持续刷新。结果未变不重绘（防闪烁）。
-            # Alt+1/2 层级导航中（parent_stack 非空）保持手动选中，不自动 hover。
-            if not mouse_down and not parent_stack:
-                if target != last_hwnd:
-                    parent_stack.clear()
-                if target:
-                    # 非阻塞：提交坐标给 worker，读最新结果
-                    uia_rect, _ = _get_best_rect(target, pt.x, pt.y)
-                    # 绘制与 worker 的 UIA 查询互斥（同一把锁）：worker 查询时本帧 acquire 超时
-                    # 跳过绘制，让出 DWM；worker 空闲时正常绘制。根治 hover 高亮冻结。
-                    if _uia_draw_lock.acquire(timeout=0.05):
-                        try:
-                            if uia_rect and uia_rect.get("width", 0) > 0:
-                                if uia_rect != _last_border_rect:
-                                    show_border(uia_rect)
-                                    _last_border_rect = uia_rect
-                                # 悬浮框文本只在切换窗口时重建（hover 同窗口内容不变，防每帧重建开销）
-                                if target != _last_info_hwnd:
-                                    show_info(_build_info_text(target))
-                                    _last_info_hwnd = target
-                        finally:
-                            _uia_draw_lock.release()
-                else:
-                    if _last_border_rect is not None:
-                        show_border(None)
-                        _last_border_rect = None
-                    if _last_info_hwnd is not None:
-                        show_info("")
-                        _last_info_hwnd = None
-                last_hwnd = target
-
-            # Alt+点击 → 捕获桌面元素（Win32+UIA）
-            alt_click = gesture_capture if hook_ok else (
-                (_GetAsyncKeyState(VK_LBUTTON) & 0x8000) and (_GetAsyncKeyState(VK_MENU) & 0x8000))
-            if alt_click and last_hwnd:
-                show_border(None); show_info("")
-                # 有界等待鼠标松开：目标先退出 SetCapture 模态态，再做 UIA/文本查询，
-                # 避免目标不应答导致捕获卡死（最多等 1.5s，超时仍继续）
-                wait_deadline = time.time() + 1.5
-                while _mouse_down() and time.time() < wait_deadline:
-                    time.sleep(0.02)
-                _dwm_flush()       # 等 DWM 合成完成（有界），确保蓝边已从屏幕移除
-                time.sleep(0.1)
-                captured = _build_element_info(last_hwnd, pt.x, pt.y)
-                break
-            time.sleep(0.03)
+        browser = _find_active_browser()
+        if not browser:
+            show_info("未找到浏览器窗口，请先打开 Chrome/Edge 并置于最前")
+            time.sleep(1.2)
+            return None
+        rect = _get_window_rect(browser)
+        cx, cy = rect["left"] + rect["width"] // 2, rect["top"] + rect["height"] // 2
+        _user32.SetForegroundWindow(browser)  # 浏览器置前，扩展 currentWindow 才正确
+        try:
+            return _capture_via_extension(browser, cx, cy, web_only=True)
+        except BackToDesktop:
+            return None  # web 模式 content 已禁用切换，理论不触发，兜底
     finally:
-        show_border(None); show_info("")
-        _uninstall_mouse_swallow_hook()  # 恢复鼠标点击透传给应用
-        _stop_hover_worker()  # 捕获结束停止后台 hover 线程
-        _uia_done()
         _restore_editor_window(editor_hwnd)  # 捕获结束恢复并前置 RPA 编辑器
-    return captured
+
+
+def _latest_worker_uia_info(x, y) -> dict | None:
+    """读 hover worker 已算好的捕获信息（与用户看到的高亮一致）。
+
+    深搜慢的 XAML 应用（Windows Terminal/PowerShell 等）在 hover 期间 worker 已经把
+    细粒度元素算好了；捕获时直接复用，避免 _try_uia_capture 重新深搜撞 3s 超时降级成
+    整窗（"框到 tab、捕获整窗"）。仅当结果存在、含完整 path 且矩形包含捕获点才采纳。
+    """
+    w = _hover_worker_inst
+    if w is None:
+        return None
+    res = w.latest()
+    info = res.get("info")
+    if not info or not info.get("path"):
+        return None
+    r = info.get("rect") or {}
+    if r.get("width", 0) <= 0 or not _rect_contains(r, x, y):
+        return None
+    return info
 
 
 def _build_element_info(hwnd, x, y) -> ElementInfo:
@@ -2007,7 +2091,9 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
         # 点在图标间隙 → 回退整窗 FolderView
     uia = None
     if not _is_skip_uia(hwnd):
-        uia = _try_uia_capture(x, y)
+        # 优先复用 hover worker 已算好的结果（显示什么捕获什么，且不触发超时重查）；
+        # 无可用结果再走独立的限时 UIA 查询（快速命中场景秒回，深搜场景有 worker 兜底）。
+        uia = _latest_worker_uia_info(x, y) or _try_uia_capture(x, y)
     best_rect = rect
     if uia:
         info.control_type = uia.get("control_type", ""); info.automation_id = uia.get("automation_id", "")
@@ -2028,3 +2114,31 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
     info.screen_size = _screen_size()
     info.screenshot = _grab_region_screenshot(best_rect)
     return info
+
+
+def _finalize_capture(hwnd, x, y) -> ElementInfo | None:
+    """捕获手势确认后的收尾：暂停 hover UIA、等鼠标松开、UIA 枚举 + 截图。
+
+    调用方必须先卸载吞点击钩子（本函数不卸载）—— 否则主线程阻塞在 UIA 枚举/截图
+    期间，整机鼠标输入会被全局低级钩子串行化冻结。暂停 hover worker 避免与
+    _build_element_info 的 UIA 查询并发打满 provider（相互拖慢，XAML 应用深搜期间
+    尤为明显，甚至让 _try_uia_capture 超时降级）。
+    """
+    _pause_hover_uia()
+    # 有界等待鼠标松开：目标先退出 SetCapture 模态态，再做 UIA/文本查询，
+    # 避免目标不应答导致捕获卡死（最多等 1.5s，超时仍继续）。钩子已卸载/未安装，
+    # 这里用 GetAsyncKeyState 轮询物理按键状态（不再有吞点击干扰）。
+    wait_deadline = time.time() + 1.5
+    while (_GetAsyncKeyState(VK_LBUTTON) | _GetAsyncKeyState(VK_RBUTTON)
+           | _GetAsyncKeyState(VK_MBUTTON)) & 0x8000 and time.time() < wait_deadline:
+        time.sleep(0.02)
+    _dwm_flush()       # 等 DWM 合成完成（有界），确保蓝边已从屏幕移除
+    time.sleep(0.1)
+    # 尽力等 hover worker 当前查询结束（0.5s 内），期间持锁让 worker 无法再查询，
+    # 保证 _build_element_info 的 UIA 枚举独占 provider；等不到就并发（罕见且自限）。
+    lock_held = _uia_draw_lock.acquire(timeout=0.5)
+    try:
+        return _build_element_info(hwnd, x, y)
+    finally:
+        if lock_held:
+            _uia_draw_lock.release()

@@ -9,7 +9,7 @@ from ...workflow.extension_runner import LoopBreak, LoopContinue, logger
     description="当条件满足时重复执行循环体")
 class WhileConditionHandler:
     params = [
-        Param("conditionType", "条件类型", "str-dropdown", required=True, group="主属性",
+        Param("conditionType", "条件类型", "select", required=True, group="主属性",
               options=[
                   {"label": "元素存在", "value": "elementExists"},
                   {"label": "元素不存在", "value": "elementNotExists"},
@@ -18,13 +18,13 @@ class WhileConditionHandler:
                   {"label": "变量包含", "value": "varContains"},
                   {"label": "表达式", "value": "expression"},
               ]),
-        Param("elementName", "元素", "str-element", group="condition"),
+        Param("elementName", "元素", "element", group="condition"),
         Param("urlPattern", "URL 包含", "string", default="", group="condition"),
         Param("varName", "变量名", "string", default="", group="condition"),
         Param("varValue", "预期值", "string", default="", group="condition"),
         Param("condition", "表达式", "string", default="False", group="condition",
               placeholder="如: ${a} > 10"),
-        Param("maxIterations", "最大迭代次数", "int-number", default=100, group="advanced",
+        Param("maxIterations", "最大迭代次数", "number", default=100, group="advanced",
               description="防止死循环的熔断上限，达到后自动停止循环"),
     ]
 

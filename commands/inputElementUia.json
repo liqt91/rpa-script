@@ -1,13 +1,13 @@
 {
   "cmd": "inputElementUia",
-  "label": "控件输入 (UIA)",
+  "label": "输入文字 (UIA)",
   "runtime": "backend",
   "icon": "fa-keyboard",
   "iconColor": "text-green-500",
   "bgColor": "bg-green-50",
-  "categoryOrder": 60,
-  "commandOrder": 30,
-  "description": "使用 UI Automation 向控件输入文本 [UIA]",
+  "categoryOrder": 50,
+  "commandOrder": 17,
+  "description": "使用 UI Automation 向控件输入文本，推荐优先于「输入文字 (Win32)」",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -31,7 +31,7 @@
     "source": "src/runtime/commands/desktop_commands/inputElementUia.py"
   },
   "categories": [
-    "desktop-uia"
+    "desktop"
   ],
-  "category": "桌面操作UIA"
+  "category": "桌面操作"
 }

@@ -10,14 +10,14 @@ class TestSetVar:
     @pytest.mark.asyncio
     async def test_set_string(self):
         r = await run_handler("setVar", {
-            "name": "{{x}}", "value": "hello", "valueType": "str-input",
+            "name": "{{x}}", "value": "hello", "valueType": "string",
         })
         assert r.vars["x"] == "hello"
 
     @pytest.mark.asyncio
     async def test_set_int(self):
         r = await run_handler("setVar", {
-            "name": "{{x}}", "value": "42", "valueType": "int-number",
+            "name": "{{x}}", "value": "42", "valueType": "number",
         })
         assert r.vars["x"] == 42
 

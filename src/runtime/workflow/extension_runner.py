@@ -674,6 +674,18 @@ class ExtensionRunner:
             self._steps_started += 1
         elif etype in ("stepComplete", "stepError"):
             self._steps_finished += 1
+        # 复合指令（if/try/forRange/forEachElement 等）的 stepComplete 由 runner 直接 emit，
+        # 不会像普通 handler 那样自己 append results —— 在此统一补录，保证 API 运行结果完整。
+        # 普通 handler 已自行 append（含 stepId），靠 stepId 去重避免重复条目。
+        if event.get("type") == "stepComplete" and event.get("stepId"):
+            _sid = event["stepId"]
+            if not any(r.get("stepId") == _sid for r in self.results):
+                self.results.append({
+                    "stepId": _sid,
+                    "nodeId": event.get("nodeId"),
+                    "status": "success",
+                    "result": event.get("result", {}),
+                })
         # Enrich stepComplete events with cmdLabel from instruction
         if event.get("type") == "stepComplete":
             event.setdefault("cmdLabel", self._current_step.get("cmdLabel", ""))
@@ -757,7 +769,7 @@ class ExtensionRunner:
                 self._current_step = instr
                 if not await self._wait_if_paused():
                     break
-                summary = self._summarize(instr)
+                summary = self._summarize(instr, self.vars)
                 await self._emit({
                     "type": "stepStart",
                     "stepId": instr.get("stepId"),
@@ -1109,14 +1121,15 @@ class ExtensionRunner:
     _GENERIC_PARAM_NAMES = {"onError", "retryCount", "timeout", "description", "humanLike"}
 
     @staticmethod
-    def _summarize(instr: dict) -> str:
+    def _summarize(instr: dict, vars_dict: dict | None = None) -> str:
         """生成指令输入摘要，用于调试日志。
 
         优先从 handler registry 读取 summary_tpl 模板格式化；
         若无模板，遍历 params 拼 "标签: 值, ..." 作为通用兜底。
+        传入 vars_dict 时先解析 {{var}}/${var} 占位符，避免摘要显示未解析模板。
         """
         cmd = instr.get("cmdType", instr.get("cmd", ""))
-        extra = instr.get("extra") or {}
+        extra = ExtensionRunner._resolve_vars(instr.get("extra") or {}, vars_dict or {})
 
         from .handlers.registry import get_handler as _get_hdef
         hdef = _get_hdef(cmd)
@@ -1147,6 +1160,30 @@ class ExtensionRunner:
 
         return ""
 
+    @staticmethod
+    def _has_usable_locator(instr: dict) -> bool:
+        """检查指令是否有可用的元素定位器（主 locator 或 altLocators 任一有效）。
+
+        覆盖字符串 / 候选数组 / {locator|syntax|selector} 对象三种形态，
+        与 content.js 侧的多 locator 解析保持一致。
+        """
+        def _ok(v) -> bool:
+            if isinstance(v, str):
+                return bool(v.strip())
+            if isinstance(v, list):
+                return any(_ok(i) for i in v)
+            if isinstance(v, dict):
+                return (_ok(v.get("locator")) or _ok(v.get("syntax"))
+                        or _ok(v.get("selector")))
+            return bool(v)
+
+        if _ok(instr.get("locator")):
+            return True
+        for alt in instr.get("altLocators") or []:
+            if _ok(alt):
+                return True
+        return False
+
     async def _run_body(self, body: list[dict], emit_events: bool = True) -> bool:
         """Execute a list of instructions (a body block). Returns False if flow should stop."""
         for sub in body:
@@ -1161,7 +1198,7 @@ class ExtensionRunner:
                     "compound": sub.get("compound", False),
                     "cmdType": sub.get("cmdType", ""),
                     "cmdLabel": sub.get("cmdLabel", sub.get("cmdType", "")),
-                    "_summary": self._summarize(sub),
+                    "_summary": self._summarize(sub, self.vars),
                 })
             success = await self._execute_instruction(sub)
             if not success:
@@ -1397,6 +1434,33 @@ class ExtensionRunner:
 
         # Resolve variable placeholders in the instruction before sending
         resolved_instr = self._resolve_vars(instr, self.vars)
+
+        # P4: 元素定位器为空时给出明确错误，避免被扩展侧
+        # 「工作标签页已被手动关闭」等状态类错误掩盖真实原因。
+        if "locator" in resolved_instr and not self._has_usable_locator(resolved_instr):
+            msg = (f"指令「{cmd_type}」的元素定位器为空（locator 无有效值）。"
+                   f"请检查该步骤引用的元素是否已正确配置或重新捕获"
+                   f"（元素数据可能损坏、未选中元素，或变量未解析出定位器）。")
+            logger.error(f"[ExtensionRunner] {step_id} {msg}")
+            self.failed_steps.append({
+                "stepId": step_id, "nodeId": instr.get("nodeId"),
+                "instruction": instr, "error": msg,
+            })
+            self.results.append({
+                "stepId": step_id, "nodeId": instr.get("nodeId"),
+                "status": "error", "error": msg,
+            })
+            self._last_error = msg
+            await self._emit({
+                "type": "stepError", "stepId": step_id,
+                "nodeId": instr.get("nodeId"), "error": msg,
+            })
+            if on_error == "stop":
+                return False
+            elif on_error == "continue":
+                self.completed += 1
+                return True
+            return False
 
         last_error = None
         for attempt in range(retry_count + 1):

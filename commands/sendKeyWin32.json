@@ -1,13 +1,13 @@
 {
   "cmd": "sendKeyWin32",
-  "label": "发送按键 (Win32)",
+  "label": "发送按键",
   "runtime": "backend",
   "icon": "fa-keyboard",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 85,
-  "description": "通过 OS 级键盘事件发送按键（不依赖浏览器，适用于桌面操作） [Win32 API]",
+  "commandOrder": 18,
+  "description": "通过 OS 级键盘事件发送按键（不依赖浏览器，适用于桌面操作）",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -143,7 +143,7 @@
     {
       "name": "pressCount",
       "label": "重复次数 (Win32)",
-      "type": "int-number",
+      "type": "number",
       "default": "1",
       "placeholder": "连续按几次，如需要多次 Tab 跳转",
       "group": "advanced"
@@ -154,7 +154,7 @@
     "source": "src/runtime/commands/desktop_commands/sendKeyWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

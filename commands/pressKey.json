@@ -113,6 +113,14 @@
       "placeholder": "Ctrl,Alt,Shift, 可多个逗号分隔",
       "group": "advanced",
       "description": "同时按下的修饰键。Ctrl+C/V/A/Z 需要 modifier=Ctrl。注意：Ctrl+T/W/N 等浏览器标签页快捷键也会生效"
+    },
+    {
+      "name": "humanLike",
+      "label": "操作系统真实按键",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced",
+      "description": "勾选：runner 用 OS keybd_event 发送（可信，浏览器快捷键 F1/F5/F12 等可生效）；不勾选：页面内合成 KeyboardEvent（快，但不触发浏览器级快捷键）"
     }
   ],
   "categories": [

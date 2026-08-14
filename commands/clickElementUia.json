@@ -5,9 +5,9 @@
   "icon": "fa-hand-pointer",
   "iconColor": "text-green-500",
   "bgColor": "bg-green-50",
-  "categoryOrder": 60,
-  "commandOrder": 20,
-  "description": "使用 UI Automation 点击控件 [UIA]",
+  "categoryOrder": 50,
+  "commandOrder": 14,
+  "description": "使用 UI Automation 点击控件，按名称/类型定位更准，推荐优先于「点击控件 (Win32)」",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -24,7 +24,7 @@
     "source": "src/runtime/commands/desktop_commands/clickElementUia.py"
   },
   "categories": [
-    "desktop-uia"
+    "desktop"
   ],
-  "category": "桌面操作UIA"
+  "category": "桌面操作"
 }

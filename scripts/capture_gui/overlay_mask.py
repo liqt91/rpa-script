@@ -32,6 +32,16 @@ _WS_POPUP = 0x80000000
 _MASK_ALPHA = 110          # 遮罩压暗不透明度（0-255）
 _BORDER_COLOR_BGRA = (0xF6, 0x82, 0x3B, 255)  # 0x3b82f6 蓝 → BGRA 字节序
 _BORDER_W = 2              # 描边宽度（px）
+# 重新置顶（keep_topmost）：Windows Terminal / PowerShell 等应用点击/聚焦时会把自己
+# 设为 TOPMOST 盖到遮罩上方 → 高亮消失。周期重设遮罩为 TOPMOST 即可恢复。
+_HWND_TOPMOST = wintypes.HWND(-1)  # 64 位下必须是指针宽的 -1，不能传 c_int
+_SWP_NOSIZE = 0x0001
+_SWP_NOMOVE = 0x0002
+_SWP_NOACTIVATE = 0x0010
+_SetWindowPos = _user32.SetWindowPos
+_SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                          ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+_SetWindowPos.restype = wintypes.BOOL
 
 
 class _BITMAPINFOHEADER(ctypes.Structure):
@@ -179,6 +189,16 @@ class _MaskLayer:
             self._hole = self._render_pixels(rect)
         if need_region:
             self._apply_region(getattr(self, "_hole", None) if key else None)
+        self.keep_topmost()  # 重绘后重新置顶（防应用点击后把自己 TOPMOST 盖到遮罩上方）
+
+    def keep_topmost(self):
+        """把遮罩窗口重新置为 TOPMOST（不移动/不改变尺寸/不激活）。
+
+        Windows Terminal / PowerShell 等应用在点击/聚焦时会把自身设为 TOPMOST，
+        盖到遮罩上方 → 高亮消失（其他窗口不会）。周期重设遮罩为 TOPMOST 即可恢复。"""
+        if self.hwnd:
+            _SetWindowPos(self.hwnd, _HWND_TOPMOST, 0, 0, 0, 0,
+                          _SWP_NOMOVE | _SWP_NOSIZE | _SWP_NOACTIVATE)
 
     def hide(self):
         self._last_rect = None
@@ -299,7 +319,7 @@ class _MaskLayer:
 
 
 def run_capture_mask(mode: str = "desktop") -> ElementInfo | None:
-    """全屏遮罩式桌面元素捕获。hover 高亮 + Alt+点击捕获 + Esc/右键取消。"""
+    """全屏遮罩式桌面元素捕获。hover 高亮 + Alt+点击捕获 + Esc 取消。"""
     ov._com_init()
     mask = _MaskLayer()
     pt = wintypes.POINT()
@@ -308,23 +328,47 @@ def run_capture_mask(mode: str = "desktop") -> ElementInfo | None:
     editor_hwnd = ov._hide_editor_window()  # 捕获期间隐藏 RPA 编辑器
     try:
         ov._uia_init()
-        # 吞点击钩子：遮罩是鼠标穿透的，Alt+点击/右键取消会把真实点击落到下层应用。
+        # 吞点击钩子：遮罩是鼠标穿透的，Alt+点击会把真实点击落到下层应用。
         # 低级鼠标钩子在输入到达应用前拦截按键消息 → 只捕获，不触发实际点击。
-        # 钩子拦下的点击不会反映到 GetAsyncKeyState（实测恒 0），因此捕获/取消手势
-        # 一律从钩子状态读（_consume_mouse_click / _mouse_down）。
+        # 钩子装在独立泵消息线程（overlay._hook_pump），主循环阻塞（遮罩重绘/
+        # SetWindowRgn/UIA 查询）不再冻结整机鼠标。钩子拦下的点击不会反映到
+        # GetAsyncKeyState（实测恒 0），因此捕获手势从钩子状态读（_consume_mouse_click）。
         hook_ok = ov._install_mouse_swallow_hook()
         mask.show(None)  # 先出全遮罩
+        last_topmost_ts = time.time()  # 周期置顶节流（防 Windows Terminal/PowerShell 点击后 TOPMOST 盖住遮罩）
         # Esc 取消防粘连：进入捕获瞬间就按着的 Esc 不算取消意图（残留的合成按键、
         # 点击按钮时粘连，会让 GetAsyncKeyState 恒为按下 → 首次循环即 break）。
         # 改为"armed"逻辑：只有进入后松开再按下的 Esc 才触发取消。
-        # （右键取消走钩子信号，天然只有"新按下"才产生 → 无粘连问题。）
         esc_armed = not bool(ov._GetAsyncKeyState(ov.VK_ESCAPE) & 0x8000)
+
+        session_holder = {"browser": None}  # 当前网页会话的浏览器顶层窗口（退出监视比对用）
+
+        def _cursor_in_viewport():
+            """光标是否仍在**本会话同一浏览器**的页面内容框内（网页会话的退出监视）。
+
+            会话期间主循环阻塞在 _capture_via_extension 内，pt 不会更新 → 必须实时读
+            光标位置 + WindowFromPoint 判定。**必须比对浏览器窗口**：从 Edge 移到
+            Chrome 时，光标虽在"某个浏览器"的内容框内，但已离开本会话的浏览器 →
+            立即切回遮罩（否则 Edge 的捕获模式残留）。"""
+            p = wintypes.POINT()
+            ov._GetCursorPos(ctypes.byref(p))
+            t = ov._WindowFromPoint(p)
+            top = ov._web_capture_target(t, p.x, p.y) if t else None
+            return top is not None and top == session_holder["browser"]
+
         while True:
             # 泵消息：遮罩窗属于主线程 STA，UIA hit-test 会向它发 WM_GETOBJECT；
             # 主循环若不泵消息，worker 线程的 ControlFromPoint 会跨线程阻塞到超时
-            # （实测 10s+）。每帧泵取保持遮罩窗响应，同时驱动低级鼠标钩子回调。
+            # （实测 10s+）。每帧泵取保持遮罩窗响应（钩子回调已移入独立线程）。
             ov._pump_messages()
-            # 取消：Esc（键盘，GetAsyncKeyState 可靠）或 右键（钩子信号）
+            # 周期重新置顶遮罩（0.5s 一次，开销可忽略）：Windows Terminal/PowerShell
+            # 等应用点击/聚焦时会把自己设为 TOPMOST 盖到遮罩上方 → 高亮消失。重设
+            # 遮罩为 TOPMOST 恢复（覆盖"点击后不动鼠标"的场景；移动鼠标时 show() 里
+            # 也会顺带置顶）。
+            if time.time() - last_topmost_ts > 0.5:
+                last_topmost_ts = time.time()
+                mask.keep_topmost()
+            # 取消：仅 Esc（键盘，GetAsyncKeyState 可靠；右键已透传，不再承担取消）
             if ov._GetAsyncKeyState(ov.VK_ESCAPE) & 0x8000:
                 if esc_armed:
                     break
@@ -332,30 +376,54 @@ def run_capture_mask(mode: str = "desktop") -> ElementInfo | None:
                 esc_armed = True  # 松开过 → 之后按下视为新的取消意图
             if hook_ok:
                 gesture = ov._consume_mouse_click()
-                if gesture == "cancel":
-                    break
                 if gesture == "capture" and last_hwnd:
+                    # 手势确认即卸载全局吞点击钩子：主线程接下来阻塞在 UIA 枚举/截图
+                    # 期间，钩子仍在会把整机鼠标输入串行化冻结。
+                    ov._uninstall_mouse_swallow_hook()
+                    hook_ok = False
                     # Alt+点击 → 捕获（销毁遮罩：捕获线程 UIA 枚举顶层窗口会向遮罩窗
                     # 发 WM_GETOBJECT，主线程此时不再泵消息 → 跨线程阻塞到超时（实测
                     # 3s 超时回退整窗）。窗口销毁后 UIA 直接跳过。）
                     mask.destroy()
-                    deadline = time.time() + 1.5
-                    while ov._mouse_down() and time.time() < deadline:
-                        time.sleep(0.02)  # 等鼠标松开（目标退出 SetCapture 模态态）
-                    ov._dwm_flush()
-                    time.sleep(0.1)
-                    captured = ov._build_element_info(last_hwnd, pt.x, pt.y)
+                    ov._GetCursorPos(ctypes.byref(pt))  # 手势确认后刷新坐标
+                    # Alt+点击按目标路由：浏览器**内容框** → 委托扩展网页捕获（会话内
+                    # 监视光标，离开内容框自动切回遮罩）；浏览器外壳与非浏览器 → UIA。
+                    browser = ov._web_capture_target(last_hwnd, pt.x, pt.y)
+                    if browser and ov._extension_online(ov._browser_of(browser)):
+                        session_holder["browser"] = browser
+                        try:
+                            captured = ov._capture_via_extension(
+                                browser, pt.x, pt.y, web_only=True, viewport_watch=_cursor_in_viewport)
+                        except ov.BackToDesktop:
+                            mask = _MaskLayer()
+                            mask.show(None)
+                            ov._install_mouse_swallow_hook()
+                            hook_ok = True
+                            last_topmost_ts = time.time()
+                            continue
+                    else:
+                        captured = ov._finalize_capture(last_hwnd, pt.x, pt.y)
                     break
             elif (ov._GetAsyncKeyState(ov.VK_LBUTTON) & 0x8000) and \
                  (ov._GetAsyncKeyState(ov.VK_MENU) & 0x8000) and last_hwnd:
                 # 钩子未装上的兜底：轮询 GetAsyncKeyState 检测 Alt+点击
                 mask.destroy()
-                deadline = time.time() + 1.5
-                while (ov._GetAsyncKeyState(ov.VK_LBUTTON) & 0x8000) and time.time() < deadline:
-                    time.sleep(0.02)
-                ov._dwm_flush()
-                time.sleep(0.1)
-                captured = ov._build_element_info(last_hwnd, pt.x, pt.y)
+                ov._GetCursorPos(ctypes.byref(pt))
+                browser = ov._web_capture_target(last_hwnd, pt.x, pt.y)
+                if browser and ov._extension_online(ov._browser_of(browser)):
+                    session_holder["browser"] = browser
+                    try:
+                        captured = ov._capture_via_extension(
+                            browser, pt.x, pt.y, web_only=True, viewport_watch=_cursor_in_viewport)
+                    except ov.BackToDesktop:
+                        mask = _MaskLayer()
+                        mask.show(None)
+                        ov._install_mouse_swallow_hook()
+                        hook_ok = True
+                        last_topmost_ts = time.time()
+                        continue
+                else:
+                    captured = ov._finalize_capture(last_hwnd, pt.x, pt.y)
                 break
 
             ov._GetCursorPos(ctypes.byref(pt))
@@ -374,8 +442,29 @@ def run_capture_mask(mode: str = "desktop") -> ElementInfo | None:
             else:
                 ov._resume_hover_uia()
 
-            # hover → 高亮目标控件（复用 worker UIA + 桌面图标命中）
+            # hover → 浏览器页面内容框：自动进入网页拾取（切换点 = 渲染宿主视口；会话内
+            # 监视光标，离开内容框自动切回遮罩）；否则遮罩高亮（浏览器外壳/非浏览器 →
+            # UIA 桌面元素）。
             if not mouse_down and target:
+                browser = ov._web_capture_target(target, pt.x, pt.y)
+                if browser and ov._extension_online(ov._browser_of(browser)):
+                    ov._uninstall_mouse_swallow_hook()  # 网页确认靠 DOM click，钩子必须卸
+                    hook_ok = False
+                    mask.hide()
+                    session_holder["browser"] = browser
+                    try:
+                        captured = ov._capture_via_extension(
+                            browser, pt.x, pt.y, web_only=True, viewport_watch=_cursor_in_viewport)
+                    except ov.BackToDesktop:
+                        # 光标离开页面内容框 → 恢复遮罩 + 重装钩子，继续桌面拾取
+                        ov._route_log("[mask] 光标离开内容框 -> 恢复遮罩")
+                        mask.show(None)
+                        ov._install_mouse_swallow_hook()
+                        hook_ok = True
+                        last_topmost_ts = time.time()
+                        continue
+                    break  # web 元素（捕获完成）或 Esc（取消整场）
+                # 遮罩高亮（非浏览器内容框目标）
                 rect, _ = ov._get_best_rect(target, pt.x, pt.y)
                 # 绘制与 worker 的 UIA 查询互斥（同一把锁），但**先无锁预检有无变化**，
                 # 有变化才抢锁——主线程每帧抢锁会把 worker 的阻塞 acquire 饿死（实测

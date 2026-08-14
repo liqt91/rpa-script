@@ -57,35 +57,35 @@ class TestResolveVarsJson:
 
 class TestConvertValue:
     def test_str_input(self):
-        assert convert_value("hello {{n}}", "str-input", {"n": "x"}) == "hello x"
+        assert convert_value("hello {{n}}", "string", {"n": "x"}) == "hello x"
 
     def test_int_number(self):
-        assert convert_value("42", "int-number") == 42
-        assert convert_value("3.14", "int-number") == 3
-        assert convert_value("abc", "int-number") == 0
+        assert convert_value("42", "number") == 42
+        assert convert_value("3.14", "number") == 3
+        assert convert_value("abc", "number") == 0
 
     def test_bool_check(self):
-        assert convert_value("true", "bool-check") is True
-        assert convert_value("1", "bool-check") is True
-        assert convert_value("yes", "bool-check") is True
-        assert convert_value("false", "bool-check") is False
+        assert convert_value("true", "boolean") is True
+        assert convert_value("1", "boolean") is True
+        assert convert_value("yes", "boolean") is True
+        assert convert_value("false", "boolean") is False
 
     def test_list_input_json(self):
-        result = convert_value('["a", "b"]', "list-input")
+        result = convert_value('["a", "b"]', "code")
         assert result == ["a", "b"]
 
     def test_list_input_with_vars(self):
-        # list-input → code in new system
-        result = convert_value("[{{a}}, {{b}}]", "list-input", {"a": "hello", "b": "world"})
+        # code → code in new system
+        result = convert_value("[{{a}}, {{b}}]", "code", {"a": "hello", "b": "world"})
         assert result == ["hello", "world"]
 
     def test_list_input_comma_in_value(self):
-        result = convert_value('[{{a}}, {{b}}]', "list-input", {"a": "hello, world", "b": "foo"})
+        result = convert_value('[{{a}}, {{b}}]', "code", {"a": "hello, world", "b": "foo"})
         assert result == ["hello, world", "foo"]
 
     def test_list_input_invalid_json_fallback(self):
         # code type: invalid JSON → expression eval fails → fallback? No, _eval throws.
-        # list-input maps to code which tries JSON first, then expression eval.
+        # code maps to code which tries JSON first, then expression eval.
         # "not json" is invalid both ways, but the legacy behavior was [resolved].
         # With new system: code tries JSON.loads("not json") → fails → expr eval "not json" → NameError.
         # Let's test the intended path instead.
@@ -96,8 +96,8 @@ class TestConvertValue:
         assert convert_value("{{n}}", "any-input", {"n": "hello"}) == "hello"
 
     def test_any_expr(self):
-        # any-expr → code
-        assert convert_value("len(x)", "any-expr", {"x": [1, 2, 3]}) == 3
+        # code → code
+        assert convert_value("len(x)", "code", {"x": [1, 2, 3]}) == 3
 
     def test_explicit_expression(self):
         # =expr prefix bypasses JSON inference
@@ -111,7 +111,7 @@ class TestConvertValue:
         assert convert_value('["a"]', "code") == ["a"]
 
     def test_dropdown_no_transform(self):
-        assert convert_value("chrome", "str-dropdown") == "chrome"
+        assert convert_value("chrome", "select") == "chrome"
 
 
 class TestCleanVarRef:

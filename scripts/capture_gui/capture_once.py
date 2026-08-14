@@ -1,8 +1,8 @@
 """一次性捕获入口 — 子进程调用，输出 JSON。
 
 供 FastAPI 端点 /api/commands/gui-picker 使用：
-    1. 调用 overlay.run_capture()（桌面+浏览器浮窗捕获）
-    2. 将 ElementInfo 序列化为 JSON 输出到 stdout
+    1. web → overlay.run_capture("web")（委托扩展 DOM 拾取）
+    2. 其余 → overlay_mask.run_capture_mask("desktop")（全屏遮罩桌面捕获，含浏览器内容区自动转网页）
 """
 import json
 import os
@@ -27,13 +27,13 @@ with contextlib.redirect_stderr(_sink):
 
 
 def main():
-    mode = sys.argv[1] if len(sys.argv) > 1 else "desktop"  # desktop | web | desktop_mask
+    mode = sys.argv[1] if len(sys.argv) > 1 else "desktop_mask"  # web | desktop_mask
     try:
         with contextlib.redirect_stderr(_io.StringIO()):  # 压制 libpng 警告
-            if mode == "desktop_mask":
-                info = run_capture_mask("desktop")  # 全屏遮罩式捕获（新实现）
+            if mode == "web":
+                info = run_capture("web")            # 浏览器 DOM 拾取（委托扩展，网页元素）
             else:
-                info = run_capture(mode)
+                info = run_capture_mask("desktop")   # 全屏遮罩式桌面捕获（含浏览器内容区自动转网页）
         if not info:
             print(json.dumps({"cancelled": True}))
             return

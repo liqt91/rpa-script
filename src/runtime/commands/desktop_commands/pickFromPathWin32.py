@@ -9,12 +9,12 @@ import json
 
 
 @register_handler(
-    cmd="pickFromPathWin32", label="按层级取句柄 (Win32)",
+    cmd="pickFromPathWin32", label="从元素库取控件 (Win32)",
     category="桌面操作", runtime="backend",
     icon="fa-sitemap", icon_color="text-purple-500",
     bg_color="bg-purple-50",
-    description="从元素库桌面元素中选取层级，返回该层级的 HWND",
-    category_order=60, command_order=15,
+    description="按元素库中已捕获的桌面元素取指定层级的句柄（Win32 通道）。UIA 捕获的元素请用「从元素库取控件 (UIA)」",
+    category_order=50, command_order=10,
     summary_tpl="{elementName} L{levelIndex}",
 )
 class PickFromPathHandler:

@@ -9,7 +9,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
 class IfDictContainsHandler:
     params = [
         Param("dictVar", "字典变量", "str-var", required=True),
-        Param("key", "键名", "str-input", required=True),
+        Param("key", "键名", "string", required=True),
     ]
 
 

@@ -6,8 +6,8 @@
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 55,
-  "description": "点击指定控件句柄 [Win32 API]",
+  "commandOrder": 13,
+  "description": "点击指定控件句柄（Win32）。若目标元素由 UIA 捕获（含名称/类型），建议用「点击控件 (UIA)」",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -24,7 +24,7 @@
     "source": "src/runtime/commands/desktop_commands/clickControlWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

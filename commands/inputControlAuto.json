@@ -1,0 +1,37 @@
+{
+  "cmd": "inputControlAuto",
+  "label": "输入文字",
+  "runtime": "backend",
+  "icon": "fa-keyboard",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 50,
+  "commandOrder": 15,
+  "description": "向目标控件输入文本，自动识别引用类型选择 UIA/Win32 实现，兼容新旧捕获方式的变量",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "targetControl",
+      "label": "目标控件",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "统一控件引用/HWND/UIA 变量，如 {{edit}}"
+    },
+    {
+      "name": "text",
+      "label": "输入内容",
+      "type": "string",
+      "required": true,
+      "placeholder": "要输入的文本，支持 {{变量}} 引用"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/inputControlAuto.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

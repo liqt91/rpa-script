@@ -162,6 +162,41 @@ def find_child_by_auto_id(parent_uia, automation_id: str, depth: int = 5) -> dic
     return None
 
 
+def find_child_by_enum(parent_uia, info: dict) -> dict | None:
+    """兜底子级定位：uiautomation 的 .Control(...) 条件搜索对部分应用（Win11 记事本等）
+    恒失败 —— GetChildren() 直接枚举可见，但 ClassName/AutomationId/Name 条件搜索
+    exists=False。此时直接枚举父级子控件，按路径信息（index/control_type/name/
+    class_name/automation_id）匹配。"""
+    parent = _to_uia_control(parent_uia)
+    if parent is None:
+        return None
+    want_index = info.get("index")
+    want_type = (info.get("control_type") or "").strip().lower()
+    want_name = (info.get("name") or "").strip()
+    want_class = (info.get("class_name") or "").strip()
+    want_aid = (info.get("automation_id") or "").strip()
+    try:
+        children = parent.GetChildren()
+    except Exception:
+        return None
+    for i, c in enumerate(children):
+        if want_index is not None and i != want_index:
+            continue
+        try:
+            if want_type and (c.ControlTypeName or "").lower() != want_type:
+                continue
+            if want_name and (c.Name or "").strip() != want_name:
+                continue
+            if want_class and (c.ClassName or "").strip() != want_class:
+                continue
+            if want_aid and (c.AutomationId or "").strip() != want_aid:
+                continue
+        except Exception:
+            continue
+        return _ctrl_to_dict(c)
+    return None
+
+
 # ── 操作函数 ──
 
 def click_element(uia_ctrl: dict) -> bool:
@@ -310,6 +345,9 @@ def pick_from_path(path_json: list, level_index: int = -1,
                 child = find_child_by_name(parent, info.get("name", ""))
             if not child:
                 child = find_child_by_class(parent, info.get("class_name", ""))
+            if not child:
+                # 3) 兜底：条件搜索失效（Win11 记事本等）→ 直接枚举子级按信息匹配
+                child = find_child_by_enum(parent, info)
             if not child:
                 return None  # 某层没找到
             parent = child

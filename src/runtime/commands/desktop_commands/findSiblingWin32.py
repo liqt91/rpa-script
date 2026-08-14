@@ -8,12 +8,12 @@ from src.runtime.workflow.handlers.utils import clean_var_ref
 
 
 @register_handler(
-    cmd="findSiblingWin32", label="查找兄弟控件 (Win32)",
+    cmd="findSiblingWin32", label="查找兄弟控件",
     category="桌面操作", runtime="backend",
     icon="fa-arrow-right", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="从参考控件出发，按方向查找匹配类名的兄弟控件（如标签→输入框）",
-    category_order=60, command_order=13,
+    category_order=50, command_order=7,
     summary_tpl="{direction} {classFilter}",
 )
 class FindSiblingHandler:
@@ -35,7 +35,7 @@ class FindSiblingHandler:
                   {"label": "ListBox (列表框)", "value": "ListBox"},
                   {"label": "不筛选", "value": ""},
               ]),
-        Param("skip", "跳过几个", "int-number", default="0",
+        Param("skip", "跳过几个", "number", default="0",
               placeholder="跳过前N个匹配项，0=第一个"),
         Param("resultVar", "结果存入变量", "str-var", default="",
               placeholder="找到的控件句柄存入此变量"),
@@ -43,7 +43,7 @@ class FindSiblingHandler:
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
-        from ._win32 import find_sibling_by_class, get_window_text, get_class_name, is_windows, window_exists
+        from ._win32 import resolve_hwnd, find_sibling_by_class, get_window_text, get_class_name, is_windows, window_exists
 
         extra = instr.get("extra", {})
         ref_var = clean_var_ref(extra.get("refWindow", ""))
@@ -61,7 +61,7 @@ class FindSiblingHandler:
                                 "nodeId": instr.get("nodeId"), "error": result["error"]})
             return False
 
-        ref_hwnd = runner.vars.get(ref_var)
+        ref_hwnd = resolve_hwnd(runner.vars.get(ref_var))
         if not ref_hwnd or not window_exists(ref_hwnd):
             result = {"error": f"参考控件句柄无效: {ref_var} = {ref_hwnd}"}
             runner.completed += 1

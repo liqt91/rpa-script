@@ -8,11 +8,11 @@ from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
 
 @register_handler(
     cmd="findWindowUia", label="查找窗口 (UIA)",
-    category="桌面操作(UIA)", runtime="backend",
+    category="桌面操作", runtime="backend",
     icon="fa-window-maximize", icon_color="text-green-500",
     bg_color="bg-green-50",
-    description="使用 UI Automation 查找桌面窗口",
-    category_order=65, command_order=5,
+    description="使用 UI Automation 查找桌面窗口，可获取更丰富的控件信息，推荐优先使用（轻量场景可用「查找窗口 (Win32)」）",
+    category_order=50, command_order=5,
     summary_tpl="{windowTitle} (UIA)",
 )
 class FindWindowUiaHandler:
@@ -50,6 +50,9 @@ class FindWindowUiaHandler:
 
         if search_mode == "exact":
             win = find_window_by_title(window_title)
+        elif search_mode == "classname":
+            from ._uia import find_window_by_class
+            win = find_window_by_class(window_title)
         else:
             results = find_window_by_title_fuzzy(window_title)
             win = results[0] if results else None

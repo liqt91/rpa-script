@@ -1,0 +1,24 @@
+{
+  "cmd": "electronLaunchApp",
+  "label": "启动 Electron 应用",
+  "runtime": "backend",
+  "icon": "fa-window-restore",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 55,
+  "commandOrder": 1,
+  "description": "启动 Electron 应用（如咚咚），CDP 驱动，返回页面列表",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {"name": "exe", "label": "程序路径", "type": "string", "required": true,
+     "placeholder": "如 D:\\apps\\咚咚.exe，支持 {{变量}}"},
+    {"name": "args", "label": "启动参数", "type": "string", "default": "",
+     "placeholder": "空格分隔，如 --debug（CDP 端口由系统自动分配）"},
+    {"name": "resultVar", "label": "结果存入变量", "type": "str-var", "default": "",
+     "placeholder": "页面列表等结果存入此变量"}
+  ],
+  "handler": {"kind": "backend", "source": "src/runtime/commands/electron_commands/electronLaunchApp.py"},
+  "categories": ["electron"],
+  "category": "Electron 应用"
+}

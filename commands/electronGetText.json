@@ -1,0 +1,22 @@
+{
+  "cmd": "electronGetText",
+  "label": "取元素文本",
+  "runtime": "backend",
+  "icon": "fa-font",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 55,
+  "commandOrder": 5,
+  "description": "读取 Electron 应用页面元素的内文文本",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {"name": "elementName", "label": "元素库元素（可选）", "type": "string", "default": ""},
+    {"name": "selector", "label": "选择器（可选）", "type": "string", "default": ""},
+    {"name": "titleFragment", "label": "页面标题筛选（可选）", "type": "string", "default": ""},
+    {"name": "resultVar", "label": "文本存入变量", "type": "str-var", "default": ""}
+  ],
+  "handler": {"kind": "backend", "source": "src/runtime/commands/electron_commands/electronGetText.py"},
+  "categories": ["electron"],
+  "category": "Electron 应用"
+}

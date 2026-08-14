@@ -9,12 +9,12 @@ from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
 
 
 @register_handler(
-    cmd="clickMenuWin32", label="点击菜单 (Win32)",
+    cmd="clickMenuWin32", label="点击菜单",
     category="桌面操作", runtime="backend",
     icon="fa-bars", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="按菜单路径查找并点击 Windows 窗口菜单项（如 文件->另存为）",
-    category_order=60, command_order=25,
+    category_order=50, command_order=20,
     summary_tpl="{menuPath}",
 )
 class ClickMenuHandler:
@@ -27,7 +27,7 @@ class ClickMenuHandler:
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
-        from ._win32 import (
+        from ._win32 import (resolve_hwnd,
             find_menu_item, click_menu, activate_window,
             is_windows, window_exists,
         )
@@ -54,7 +54,7 @@ class ClickMenuHandler:
                                 "nodeId": instr.get("nodeId"), "error": result["error"]})
             return False
 
-        parent_hwnd = runner.vars.get(parent_var)
+        parent_hwnd = resolve_hwnd(runner.vars.get(parent_var))
         if not parent_hwnd or not window_exists(parent_hwnd):
             result = {"error": f"父窗口句柄无效: {parent_var} = {parent_hwnd}",
                       "hint": "请先使用 findWindow 或 openApp 获取窗口句柄"}
@@ -65,8 +65,8 @@ class ClickMenuHandler:
                                 "nodeId": instr.get("nodeId"), "error": result["error"]})
             return False
 
-        # 解析菜单路径
-        path = [p.strip() for p in menu_path_str.split("->") if p.strip()]
+        # 解析菜单路径：兼容提示文案的「→」与代码的「->」两种分隔符
+        path = [p.strip() for p in menu_path_str.replace("→", "->").split("->") if p.strip()]
         activate_window(parent_hwnd)
 
         item_id = find_menu_item(parent_hwnd, path)

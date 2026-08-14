@@ -8,12 +8,12 @@ import json
 
 
 @register_handler(
-    cmd="pickElementUia", label="按元素库取控件 (UIA)",
-    category="桌面操作(UIA)", runtime="backend",
+    cmd="pickElementUia", label="从元素库取控件 (UIA)",
+    category="桌面操作", runtime="backend",
     icon="fa-sitemap", icon_color="text-green-500",
     bg_color="bg-green-50",
-    description="从元素库UIA元素中按层级取控件",
-    category_order=65, command_order=15,
+    description="按元素库中已捕获的 UIA 元素取指定层级控件，信息更全，推荐优先于「从元素库取控件 (Win32)」",
+    category_order=50, command_order=11,
     summary_tpl="{elementName} L{levelIndex}",
 )
 class PickElementUiaHandler:

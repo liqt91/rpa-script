@@ -30,9 +30,15 @@ Output:
 
 import json
 import os
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# 允许 import src.runtime.workflow.param_options（$ref 共享参数展开）
+sys.path.insert(0, str(ROOT))
+
+from src.runtime.workflow.param_options import resolve_params  # noqa: E402
+
 COMMANDS_DIR = ROOT / "commands"
 HANDLERS_DIR = ROOT / "src" / "runtime" / "workflow" / "handlers"
 EXT_DOM_DIR = ROOT / "extension" / "dom_handlers"
@@ -94,7 +100,7 @@ def _category(d: dict) -> str:
 def generate_py(d: dict) -> str:
     """Generate the Python handler declaration file."""
     rtype = d["runtime"]
-    params = d.get("params", [])
+    params = resolve_params(d.get("params", []))
     handler = d.get("handler", {})
     category = _category(d)
 

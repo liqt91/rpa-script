@@ -107,11 +107,14 @@ def reload_emitters(user=Depends(auth.get_current_user)):
 
 
 @router.post("/reload")
-def reload_commands_endpoint(user=Depends(auth.get_current_user)):
-    """Runtime reload — handler registry is auto-reloaded on import."""
-    from src.runtime.workflow.emitters import reload_handlers
-    reload_handlers()
-    return {"success": True, "note": "handler registry auto-reloads on module reimport"}
+def reload_commands_endpoint(
+    db: Session = Depends(get_db),
+    user=Depends(auth.get_current_user),
+):
+    """Runtime reload — 重新导入指令模块、重建 LOCAL_HANDLERS、重载 emitters、
+    清分类缓存并同步 DB，改 py handler / JSON / 分类后无需重启服务器。"""
+    from src.runtime.workflow.command_reload import reload_command_runtime
+    return reload_command_runtime(db=db)
 
 
 @router.post("/validate")
@@ -172,7 +175,7 @@ def create_command(payload: dict[str, Any], db: Session = Depends(get_db), user=
     return {"id": cmd.id, "cmd": cmd.cmd}
 
 
-@router.put("/{cmd_id}")
+@router.put("/{cmd_id:int}")
 def update_command(
     cmd_id: int,
     payload: dict[str, Any],
@@ -261,7 +264,7 @@ def get_command_source(cmd_id: int, db: Session = Depends(get_db), user=Depends(
     return {"cmd": cmd.cmd, "source": None, "fallback": True}
 
 
-@router.delete("/{cmd_id}")
+@router.delete("/{cmd_id:int}")
 def delete_command(cmd_id: int, db: Session = Depends(get_db), user=Depends(auth.get_current_user)):
     cmd = db.get(models.WorkflowCommand, cmd_id)
     if not cmd:
@@ -468,13 +471,15 @@ _VALUE_TYPES_PATH = _Path(__file__).resolve().parent.parent / "commands" / "type
 
 @router.get("/definitions")
 def list_definitions(user=Depends(auth.get_current_user)):
-    """List all command definition JSON files."""
+    """List all command definition JSON files（$ref 共享参数已展开）。"""
+    from src.runtime.workflow.param_options import resolve_params
     if not _COMMANDS_DIR.exists():
         return []
     result = []
     for fp in sorted(_COMMANDS_DIR.glob("*.json")):
         with open(fp, encoding="utf-8") as f:
             data = json.load(f)
+        data["params"] = resolve_params(data.get("params", []))
         data["_file"] = fp.name
         result.append(data)
     return result
@@ -482,12 +487,15 @@ def list_definitions(user=Depends(auth.get_current_user)):
 
 @router.get("/definitions/{type_name}")
 def get_definition(type_name: str, user=Depends(auth.get_current_user)):
-    """Get a single command definition JSON."""
+    """Get a single command definition JSON（$ref 共享参数已展开，保存后固化为显式）。"""
+    from src.runtime.workflow.param_options import resolve_params
     fp = _COMMANDS_DIR / f"{type_name}.json"
     if not fp.exists():
         raise HTTPException(status_code=404, detail=f"Definition '{type_name}' not found")
     with open(fp, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    data["params"] = resolve_params(data.get("params", []))
+    return data
 
 
 @router.put("/definitions/{type_name}")
@@ -715,6 +723,9 @@ async def save_value_types(request: Request, user=Depends(auth.get_current_user)
     body = json.loads(await request.body())
     with open(_VALUE_TYPES_PATH, "w", encoding="utf-8") as f:
         json.dump(body, f, ensure_ascii=False, indent=2)
+    # 类型/模板同文件：清 $ref 模板缓存（paramTemplates 可能被一并修改）
+    from src.runtime.workflow.param_options import reload_param_options
+    reload_param_options()
     return {"ok": True}
 
 
@@ -761,6 +772,9 @@ async def save_generic_params(request: Request, user=Depends(auth.get_current_us
     body = json.loads(await request.body())
     with open(_GENERIC_PARAMS_PATH, "w", encoding="utf-8") as f:
         json.dump(body, f, ensure_ascii=False, indent=2)
+    # 热生效：registry 的通用参数缓存
+    from src.runtime.workflow.handlers.registry import _generic_params_reload
+    _generic_params_reload()
     return {"ok": True}
 
 

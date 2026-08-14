@@ -6,7 +6,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
     description="判断当前页面 URL 是否包含指定文本")
 class IfUrlContainsHandler:
     params = [
-        Param("urlPattern", "URL 包含", "str-input", required=True, placeholder="URL 包含的文本"),
+        Param("urlPattern", "URL 包含", "string", required=True, placeholder="URL 包含的文本"),
     ]
 
     @staticmethod

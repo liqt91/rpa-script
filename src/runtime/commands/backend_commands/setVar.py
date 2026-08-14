@@ -12,15 +12,14 @@ class SetVarHandler:
     params = [
         Param("name", "变量名", "str-var", required=True),
         Param("value", "值", "any-input"),
-        Param("valueType", "值类型", "str-dropdown",
+        Param("valueType", "值类型", "select",
               options=[
                   {"label": "自动", "value": "any-input"},
-                  {"label": "文本", "value": "str-input"},
-                  {"label": "数字", "value": "int-number"},
-                  {"label": "布尔", "value": "bool-check"},
-                  {"label": "列表", "value": "list-input"},
-                  {"label": "字典", "value": "dict-input"},
-                  {"label": "表达式", "value": "any-expr"},
+                  {"label": "文本", "value": "string"},
+                  {"label": "数字", "value": "number"},
+                  {"label": "布尔", "value": "boolean"},
+                  {"label": "代码/表达式", "value": "code",
+                   "description": "JSON 数组/对象、=表达式、Python 表达式"},
               ], default="any-input"),
     ]
 

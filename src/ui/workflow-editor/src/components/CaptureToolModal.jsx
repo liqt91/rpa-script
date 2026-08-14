@@ -234,34 +234,14 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
             <div className="flex items-center gap-3">
               <h2 className="text-sm font-semibold text-gray-800">元素捕获工具</h2>
               <button
-                onClick={() => startCapture('desktop')}
-                disabled={!!capturingMode}
-                className={PRIMARY_BTN}
-                title="捕获桌面窗口/控件（Win32+UIA）"
-              >
-                {capturingMode === 'desktop'
-                  ? <><i className="fas fa-spinner fa-spin"></i>捕获中... Alt+点击 选取目标</>
-                  : <><i className="fas fa-crosshairs"></i>捕获桌面元素</>}
-              </button>
-              <button
                 onClick={() => startCapture('desktop_mask')}
                 disabled={!!capturingMode}
                 className={PRIMARY_BTN}
-                title="捕获桌面窗口/控件（全屏遮罩式高亮，Win32+UIA）"
+                title="统一捕获：桌面控件（Win32+UIA）+ 网页元素（扩展），以页面内容框为界自动切换"
               >
                 {capturingMode === 'desktop_mask'
                   ? <><i className="fas fa-spinner fa-spin"></i>捕获中... Alt+点击 选取目标</>
-                  : <><i className="fas fa-vector-square"></i>捕获桌面元素新</>}
-              </button>
-              <button
-                onClick={() => startCapture('web')}
-                disabled={!!capturingMode}
-                className={PRIMARY_BTN}
-                title="对最前面的浏览器页面进入 DOM 拾取"
-              >
-                {capturingMode === 'web'
-                  ? <><i className="fas fa-spinner fa-spin"></i>捕获中... Alt+点击 选取目标</>
-                  : <><i className="fas fa-globe"></i>捕获网页元素</>}
+                  : <><i className="fas fa-location-crosshairs"></i>捕获元素</>}
               </button>
               {/* 扩展在线状态（按浏览器细分） */}
               <div className="flex items-center gap-2 border-l border-gray-200 pl-3 ml-1">
@@ -306,11 +286,10 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
           {showHelp && (
             <div className="px-4 py-3 bg-blue-50 border-b text-xs text-blue-700 space-y-2">
               <p className="font-medium">
-                网页元素：先打开 Chrome/Edge 并把目标页面放在最前面；桌面控件直接在当前屏幕上框选。
+                统一捕获：桌面控件直接框选；网页元素需先打开 Chrome/Edge 并把目标页面放在最前面（扩展在线时鼠标进入页面内容框自动转网页拾取）。
               </p>
               <ol className="list-decimal pl-4 space-y-1">
-                <li>点「捕获桌面元素」→ 鼠标移到目标上（蓝色边框高亮）→ Alt+点击 确认</li>
-                <li>点「捕获网页元素」→ 自动进入最前面浏览器的 DOM 拾取 → 鼠标悬停查看元素 → Alt+点击 确认；Alt+1/2 切父子级</li>
+                <li>点「捕获元素」→ 全屏遮罩：鼠标移到目标上（高亮框选）→ Alt+点击 确认；落在浏览器页面内容框内自动进入网页 DOM 拾取（页面内高亮）→ Alt+点击 确认；Alt+1/2 切父子级</li>
                 <li>网页捕获前提：打开 Chrome/Edge → chrome://extensions（edge://extensions）→ 开发者模式 → 加载已解压的扩展 → 选择项目目录下 <code className="bg-white border border-blue-100 px-1 rounded">extension/</code> 文件夹</li>
                 <li>捕获后编辑名称/选择器，验证通过后保存，元素自动同步到元素库</li>
               </ol>
@@ -333,7 +312,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
               /* 统一引导空态 */
               <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
                 <i className="fas fa-crosshairs text-3xl text-gray-300"></i>
-                <p className="text-sm">点击上方「捕获桌面元素」或「捕获网页元素」开始</p>
+                <p className="text-sm">点击上方「捕获元素」开始</p>
                 <p className="text-[11px]">捕获后可在此编辑选择器、验证并保存到元素库</p>
               </div>
             ) : (

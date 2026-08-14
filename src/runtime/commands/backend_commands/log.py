@@ -26,7 +26,13 @@ class LogHandler:
         level = extra.get("level", "info")
         result = {"log": str(message), "level": level}
         runner.completed += 1
-        runner.results.append(result)
+        # P2: 与其他指令一致，结果带 stepId/nodeId/status 包装，便于结果面板定位到步骤
+        runner.results.append({
+            "stepId": step_id,
+            "nodeId": instr.get("nodeId"),
+            "status": "success",
+            "result": result,
+        })
         await runner._emit({
             "type": "stepComplete",
             "stepId": step_id,

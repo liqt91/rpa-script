@@ -22,8 +22,8 @@ const CATEGORY_ICONS = {
   '浏览器操作': 'fa-chrome',
   '浏览器元素操作': 'fa-mouse-pointer',
   '变量及日志': 'fa-code',
-  '桌面操作win32': 'fa-desktop',
-  '桌面操作UIA': 'fa-window-maximize',
+  '桌面操作': 'fa-desktop',
+  'Electron 应用': 'fa-window-restore',
 };
 
 const CATEGORY_COLORS = {
@@ -47,8 +47,8 @@ const CATEGORY_COLORS = {
   '浏览器操作': 'text-blue-500',
   '浏览器元素操作': 'text-blue-500',
   '变量及日志': 'text-indigo-500',
-  '桌面操作win32': 'text-purple-500',
-  '桌面操作UIA': 'text-cyan-500',
+  '桌面操作': 'text-purple-500',
+  'Electron 应用': 'text-indigo-500',
 };
 
 export default function CommandPanel() {

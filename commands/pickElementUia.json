@@ -1,13 +1,13 @@
 {
   "cmd": "pickElementUia",
-  "label": "按元素库取控件 (UIA)",
+  "label": "从元素库取控件 (UIA)",
   "runtime": "backend",
   "icon": "fa-sitemap",
   "iconColor": "text-green-500",
   "bgColor": "bg-green-50",
-  "categoryOrder": 60,
-  "commandOrder": 40,
-  "description": "从元素库UIA元素中按层级取控件 [UIA]",
+  "categoryOrder": 50,
+  "commandOrder": 11,
+  "description": "按元素库中已捕获的 UIA 元素取指定层级控件，信息更全，推荐优先于「从元素库取控件 (Win32)」",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -39,7 +39,7 @@
     "source": "src/runtime/commands/desktop_commands/pickElementUia.py"
   },
   "categories": [
-    "desktop-uia"
+    "desktop"
   ],
-  "category": "桌面操作UIA"
+  "category": "桌面操作"
 }

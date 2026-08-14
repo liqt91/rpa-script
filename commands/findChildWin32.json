@@ -1,13 +1,13 @@
 {
   "cmd": "findChildWin32",
-  "label": "查找子控件 (Win32)",
+  "label": "查找子控件",
   "runtime": "backend",
   "icon": "fa-arrow-down",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 25,
-  "description": "在父窗口中按类名/标题查找第 N 个子控件 [Win32 API]",
+  "commandOrder": 8,
+  "description": "在父窗口中按类名/标题查找第 N 个子控件",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -72,7 +72,7 @@
     {
       "name": "matchIndex",
       "label": "匹配第几个 (Win32)",
-      "type": "int-number",
+      "type": "number",
       "default": "1",
       "placeholder": "从1开始"
     },
@@ -85,11 +85,11 @@
     }
   ],
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
   "handler": {
     "kind": "backend",
     "source": "src/runtime/commands/desktop_commands/findChildWin32.py"
   },
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

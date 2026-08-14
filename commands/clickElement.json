@@ -56,6 +56,14 @@
       ],
       "default": "visible",
       "group": "advanced"
+    },
+    {
+      "name": "humanLike",
+      "label": "真实鼠标点击",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced",
+      "description": "勾选：鼠标贝塞尔移动并真实点击（需浏览器窗口在前台）；不勾选：合成 click 事件（快，后台可用）"
     }
   ],
   "pythonAction": "click",

@@ -7,12 +7,12 @@ from src.runtime.workflow.handlers.utils import clean_var_ref
 
 
 @register_handler(
-    cmd="closeWindowWin32", label="关闭窗口 (Win32)",
+    cmd="closeWindowWin32", label="关闭窗口",
     category="桌面操作", runtime="backend",
     icon="fa-window-close", icon_color="text-purple-500",
     bg_color="bg-purple-50",
     description="向指定窗口发送 WM_CLOSE 消息关闭窗口",
-    category_order=60, command_order=35,
+    category_order=50, command_order=23,
     summary_tpl="{parentWindow}",
 )
 class CloseWindowHandler:
@@ -23,7 +23,7 @@ class CloseWindowHandler:
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
-        from ._win32 import close_window, get_window_text, is_windows, window_exists
+        from ._win32 import resolve_hwnd, close_window, get_window_text, is_windows, window_exists
 
         extra = instr.get("extra", {})
         parent_var = clean_var_ref(extra.get("parentWindow", ""))
@@ -37,7 +37,7 @@ class CloseWindowHandler:
                                 "nodeId": instr.get("nodeId"), "error": result["error"]})
             return False
 
-        hwnd = runner.vars.get(parent_var)
+        hwnd = resolve_hwnd(runner.vars.get(parent_var))
         if not hwnd or not window_exists(hwnd):
             result = {"error": f"窗口句柄无效: {parent_var} = {hwnd}",
                       "hint": "请先使用 findWindow 或 openApp 获取窗口句柄"}

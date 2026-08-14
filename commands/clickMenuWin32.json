@@ -1,13 +1,13 @@
 {
   "cmd": "clickMenuWin32",
-  "label": "点击菜单 (Win32)",
+  "label": "点击菜单",
   "runtime": "backend",
   "icon": "fa-bars",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 65,
-  "description": "按菜单路径查找并点击 Windows 窗口菜单项（如 文件->另存为） [Win32 API]",
+  "commandOrder": 20,
+  "description": "按菜单路径查找并点击 Windows 窗口菜单项（如 文件->另存为）",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -31,7 +31,7 @@
     "source": "src/runtime/commands/desktop_commands/clickMenuWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

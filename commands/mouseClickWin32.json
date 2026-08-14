@@ -1,0 +1,54 @@
+{
+  "cmd": "mouseClickWin32",
+  "label": "鼠标点击",
+  "runtime": "backend",
+  "icon": "fa-mouse-pointer",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 50,
+  "commandOrder": 19,
+  "description": "移动鼠标到指定坐标并点击（支持相对窗口坐标、双击与右键）",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "x",
+      "label": "X 坐标",
+      "type": "number",
+      "required": true,
+      "placeholder": "屏幕 X；提供「相对窗口」时为窗口客户区 X"
+    },
+    {
+      "name": "y",
+      "label": "Y 坐标",
+      "type": "number",
+      "required": true,
+      "placeholder": "屏幕 Y；提供「相对窗口」时为窗口客户区 Y"
+    },
+    {
+      "name": "windowHwnd",
+      "label": "相对窗口 (HWND变量，可选)",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "提供后 x/y 按窗口客户区坐标解释"
+    },
+    {
+      "$ref": "clickType"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量(坐标)",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "实际屏幕坐标存入此变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/mouseClickWin32.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

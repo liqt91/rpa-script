@@ -4,14 +4,6 @@ import re
 
 _VAR_RE = re.compile(r"\{\{([^}]+)\}\}|\$\{([^}]+)\}")
 
-# 旧类型名兼容映射 (str-input→string, int-number→number, etc.)
-_LEGACY_TYPE_MAP = {
-    "str-input": "string", "str-textarea": "text", "str-var": "string",
-    "str-dropdown": "select", "str-element": "element",
-    "int-number": "number", "bool-check": "boolean",
-    "any-expr": "code", "list-input": "code", "dict-input": "code",
-}
-
 
 def resolve_vars(text: str, runner_vars: dict) -> str:
     """将字符串中的 {{varName}} 或 ${varName} 替换为 runner.vars 中的值。"""
@@ -51,9 +43,8 @@ def convert_value(value, value_type: str, vars: dict | None = None):
     """将字符串值按类型转换。
 
     value_type: 参数类型名，见 commands/value_types.json
+    （str-var 变量引用 / any-input 自动推断为正式类型，无旧名映射）
     """
-    value_type = _LEGACY_TYPE_MAP.get(value_type, value_type)
-
     # any-input 保持自动推断：先尝试 JSON，再退回字符串
     if value_type == "any-input":
         s = str(value)
@@ -62,6 +53,9 @@ def convert_value(value, value_type: str, vars: dict | None = None):
             return _json.loads(resolved)
         except Exception:
             return resolve_vars(s, vars or {})
+    # str-var：变量名引用（通常为裸变量名/{{var}}，resolve 后原样返回字符串）
+    if value_type == "str-var":
+        return resolve_vars(str(value), vars or {})
 
     if value_type == "number":
         try:

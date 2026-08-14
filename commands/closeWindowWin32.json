@@ -1,13 +1,13 @@
 {
   "cmd": "closeWindowWin32",
-  "label": "关闭窗口 (Win32)",
+  "label": "关闭窗口",
   "runtime": "backend",
   "icon": "fa-window-close",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 105,
-  "description": "向指定窗口发送 WM_CLOSE 消息关闭窗口 [Win32 API]",
+  "commandOrder": 23,
+  "description": "向指定窗口发送 WM_CLOSE 消息关闭窗口",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -24,7 +24,7 @@
     "source": "src/runtime/commands/desktop_commands/closeWindowWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

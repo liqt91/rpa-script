@@ -5,7 +5,7 @@ Handler 单元测试辅助工具。
     from .handler_test_utils import make_runner, run_handler
 
     runner = make_runner(vars={"a": "hello"})
-    result = await run_handler("setVar", {"name": "{{x}}", "value": "42", "valueType": "int-number"}, runner)
+    result = await run_handler("setVar", {"name": "{{x}}", "value": "42", "valueType": "number"}, runner)
     assert runner.vars["x"] == 42
 """
 
@@ -88,8 +88,8 @@ async def run_sequence(steps, vars=None, table=None):
 
     例:
         runner = await run_sequence([
-            ("setVar", {"name": "{{x}}", "value": "10", "valueType": "int-number"}),
-            ("setVar", {"name": "{{y}}", "value": "20", "valueType": "int-number"}),
+            ("setVar", {"name": "{{x}}", "value": "10", "valueType": "number"}),
+            ("setVar", {"name": "{{y}}", "value": "20", "valueType": "number"}),
             ("log", {"message": "x={{x}}, y={{y}}"}),
         ])
         assert runner.vars["x"] == 10

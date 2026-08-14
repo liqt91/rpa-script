@@ -9,7 +9,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
 class IfVarEqualsHandler:
     params = [
         Param("varName", "变量名", "str-var", required=True),
-        Param("compareTo", "比较值", "str-input", required=True),
+        Param("compareTo", "比较值", "string", required=True),
     ]
     @staticmethod
     async def evaluate(runner, instr):

@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .param_options import resolve_params
+
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
 COMMANDS_DIR = ROOT / "commands"
 
@@ -75,9 +77,6 @@ def _load_generic_params() -> dict:
             {"name": "retryCount", "label": "重试次数", "type": "number", "default": 3, "group": "advanced"},
             {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 10, "group": "advanced"},
             {"name": "description", "label": "步骤说明", "type": "text", "default": "", "group": "advanced"},
-        ],
-        "extensionOnly": [
-            {"name": "humanLike", "label": "模拟人工操作", "type": "boolean", "default": True, "group": "advanced"},
         ],
     }
 
@@ -173,7 +172,7 @@ def load_new_catalog() -> dict[str, Any]:
             "bgColor": d.get("bgColor", "bg-gray-50"),
             "description": d.get("description", ""),
             "fields": _merge_fields(
-                [_normalize_field(p) for p in d.get("params", [])],
+                [_normalize_field(p) for p in resolve_params(d.get("params", []))],
                 [] if is_structural else _generic_extra_params(d.get("runtime", "extension")),
             ),
             "isContainer": bool(d.get("isContainer")),

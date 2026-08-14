@@ -1,13 +1,13 @@
 {
   "cmd": "findParentWin32",
-  "label": "查找父窗口 (Win32)",
+  "label": "查找父控件",
   "runtime": "backend",
   "icon": "fa-arrow-up",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 35,
-  "description": "获取指定控件的父窗口句柄 [Win32 API]",
+  "commandOrder": 6,
+  "description": "获取指定控件的父窗口句柄",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -31,7 +31,7 @@
     "source": "src/runtime/commands/desktop_commands/findParentWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

@@ -15,8 +15,8 @@ from src.runtime.workflow.handlers.utils import clean_var_ref
     category="桌面操作", runtime="backend",
     icon="fa-hand-pointer", icon_color="text-purple-500",
     bg_color="bg-purple-50",
-    description="点击指定控件句柄",
-    category_order=60, command_order=20,
+    description="点击指定控件句柄（Win32）。若目标元素由 UIA 捕获（含名称/类型），建议用「点击控件 (UIA)」",
+    category_order=50, command_order=13,
     summary_tpl="{targetHwnd}",
 )
 class ClickControlHandler:
@@ -27,7 +27,7 @@ class ClickControlHandler:
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
-        from ._win32 import (
+        from ._win32 import (resolve_hwnd,
             click_control, get_window_text, get_class_name,
             activate_window, is_windows, window_exists,
         )
@@ -43,7 +43,7 @@ class ClickControlHandler:
                                 "nodeId": instr.get("nodeId"), "error": result["error"]})
             return False
 
-        hwnd = runner.vars.get(target_var)
+        hwnd = resolve_hwnd(runner.vars.get(target_var))
         if not hwnd or not window_exists(hwnd):
             result = {"error": f"目标控件句柄无效: {target_var} = {hwnd}"}
             runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),

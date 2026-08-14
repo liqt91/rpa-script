@@ -1,0 +1,44 @@
+{
+  "cmd": "screenshotWindowWin32",
+  "label": "窗口截图",
+  "runtime": "backend",
+  "icon": "fa-camera",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 50,
+  "commandOrder": 22,
+  "description": "截取指定窗口图像保存为 PNG（PrintWindow 后台渲染，遮挡/最小化也可截取）",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "parentWindow",
+      "label": "窗口 (HWND变量)",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "要截图的窗口句柄变量"
+    },
+    {
+      "name": "savePath",
+      "label": "保存路径",
+      "type": "string",
+      "required": true,
+      "placeholder": "如 D:\\shots\\win.png，支持 {{变量}}"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量(路径)",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "实际保存路径存入此变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/screenshotWindowWin32.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

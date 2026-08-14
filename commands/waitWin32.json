@@ -1,13 +1,13 @@
 {
   "cmd": "waitWin32",
-  "label": "等待 (Win32)",
+  "label": "等待",
   "runtime": "backend",
   "icon": "fa-clock",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 120,
-  "description": "等待固定时间或随机时间（秒） [Win32 API]",
+  "commandOrder": 21,
+  "description": "等待固定时间或随机时间（秒）",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -56,7 +56,7 @@
     "source": "src/runtime/commands/desktop_commands/waitWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

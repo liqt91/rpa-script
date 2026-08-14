@@ -8,12 +8,12 @@ from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
 
 
 @register_handler(
-    cmd="inputControlWin32", label="控件输入 (Win32)",
+    cmd="inputControlWin32", label="输入文字 (Win32)",
     category="桌面操作", runtime="backend",
     icon="fa-keyboard", icon_color="text-purple-500",
     bg_color="bg-purple-50",
-    description="向指定控件句柄输入文本",
-    category_order=60, command_order=30,
+    description="向指定控件句柄输入文本（Win32）。UIA 捕获的控件建议用「输入文字 (UIA)」",
+    category_order=50, command_order=16,
     summary_tpl="{text}",
 )
 class InputControlHandler:
@@ -26,7 +26,7 @@ class InputControlHandler:
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
-        from ._win32 import (
+        from ._win32 import (resolve_hwnd,
             set_control_text, get_control_text, get_class_name,
             activate_window, is_windows, window_exists, focus_control,
         )
@@ -44,7 +44,7 @@ class InputControlHandler:
                                 "nodeId": instr.get("nodeId"), "error": result["error"]})
             return False
 
-        edit_hwnd = runner.vars.get(target_var)
+        edit_hwnd = resolve_hwnd(runner.vars.get(target_var))
         if not edit_hwnd or not window_exists(edit_hwnd):
             result = {"error": f"目标控件句柄无效: {target_var} = {edit_hwnd}"}
             runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),

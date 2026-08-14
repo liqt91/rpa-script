@@ -1,13 +1,13 @@
 {
   "cmd": "findSiblingWin32",
-  "label": "查找兄弟控件 (Win32)",
+  "label": "查找兄弟控件",
   "runtime": "backend",
   "icon": "fa-arrow-right",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 45,
-  "description": "从参考控件出发，按方向查找匹配类名的兄弟控件（如标签→输入框） [Win32 API]",
+  "commandOrder": 7,
+  "description": "从参考控件出发，按方向查找匹配类名的兄弟控件（如标签→输入框）",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -73,7 +73,7 @@
     {
       "name": "skip",
       "label": "跳过几个 (Win32)",
-      "type": "int-number",
+      "type": "number",
       "default": "0",
       "placeholder": "跳过前N个匹配项，0=第一个"
     },
@@ -90,7 +90,7 @@
     "source": "src/runtime/commands/desktop_commands/findSiblingWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

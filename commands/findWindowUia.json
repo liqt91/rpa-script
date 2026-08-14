@@ -5,9 +5,9 @@
   "icon": "fa-window-maximize",
   "iconColor": "text-green-500",
   "bgColor": "bg-green-50",
-  "categoryOrder": 60,
-  "commandOrder": 10,
-  "description": "使用 UI Automation 查找桌面窗口 [UIA]",
+  "categoryOrder": 50,
+  "commandOrder": 5,
+  "description": "使用 UI Automation 查找桌面窗口，可获取更丰富的控件信息，推荐优先使用（轻量场景可用「查找窗口 (Win32)」）",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -19,20 +19,7 @@
       "placeholder": "如：无标题 - 记事本，支持模糊匹配"
     },
     {
-      "name": "searchMode",
-      "label": "搜索模式",
-      "type": "select",
-      "default": "fuzzy",
-      "options": [
-        {
-          "label": "模糊匹配",
-          "value": "fuzzy"
-        },
-        {
-          "label": "精确匹配",
-          "value": "exact"
-        }
-      ]
+      "$ref": "searchMode"
     },
     {
       "name": "resultVar",
@@ -47,7 +34,7 @@
     "source": "src/runtime/commands/desktop_commands/findWindowUia.py"
   },
   "categories": [
-    "desktop-uia"
+    "desktop"
   ],
-  "category": "桌面操作UIA"
+  "category": "桌面操作"
 }

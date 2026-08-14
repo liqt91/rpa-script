@@ -1,0 +1,44 @@
+{
+  "cmd": "pickElementAuto",
+  "label": "从元素库取控件",
+  "runtime": "backend",
+  "icon": "fa-sitemap",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 50,
+  "commandOrder": 9,
+  "description": "按元素库中已捕获的桌面元素取指定层级控件，自动选择 UIA/Win32 通道，结果可直接用于点击/输入",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "elementName",
+      "label": "桌面元素",
+      "type": "string",
+      "required": true,
+      "placeholder": "元素库中 element_type=win32/uia 的元素名称"
+    },
+    {
+      "name": "levelIndex",
+      "label": "层级序号",
+      "type": "number",
+      "default": "-1",
+      "placeholder": "0=顶层，-1=最后一层(目标控件)"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "统一控件引用存入此变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/pickElementAuto.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

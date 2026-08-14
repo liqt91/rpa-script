@@ -72,13 +72,8 @@ def _load_ai_apps_from_db(db):
 
 
 def _read_handler_from_json(type_name):
-    import json as _json2
-    from pathlib import Path as _Path2
-    jp = _Path2(__file__).resolve().parent.parent / "commands" / f"{type_name}.json"
-    if jp.exists():
-        with open(jp, encoding="utf-8") as f2:
-            return _json2.load(f2).get("handler")
-    return None
+    from .workflow.command_sync import read_handler_from_json as _rhj
+    return _rhj(type_name)
 
 
 def _seed_categories_from_json():
@@ -112,48 +107,9 @@ def _seed_categories_from_json():
 
 
 def _seed_commands_to_db(db):
-    """将 handler 系统中的内置指令种子同步到数据库。
-
-    - 首次安装：插入所有内置指令。
-    - 后续启动：用代码种子更新已有内置指令（保持自定义指令不变）。
-    - 自定义指令（is_builtin=0）永远不会被覆盖。
-    """
-    from .workflow.handlers.registry import build_command_registry
-
-    registry = build_command_registry()
-    existing = {row.cmd: row for row in db.query(models.WorkflowCommand).all()}
-    for type_name, cmd in registry.items():
-        row = existing.get(type_name)
-        if row is not None and not row.is_builtin:
-            continue
-
-        ext = cmd.get("runtimes", {}).get("extension")
-        handler_json = _read_handler_from_json(type_name)
-        fields = {
-            "label": cmd.get("label", type_name),
-            "category": cmd.get("category", "其他"),
-            "icon": cmd.get("icon", "fa-circle"),
-            "icon_color": cmd.get("iconColor", "text-gray-500"),
-            "bg_color": cmd.get("bgColor", "bg-gray-50"),
-            "is_container": 1 if cmd.get("isContainer") else 0,
-            "is_branch": 1 if cmd.get("isBranch") else 0,
-            "is_structural": 1 if cmd.get("isStructural") else 0,
-            "closes_with": cmd.get("closesWith"),
-            "fields": json.dumps(cmd.get("fields", []), ensure_ascii=False),
-            "description": cmd.get("description", ""),
-            "is_builtin": 1,
-            "enabled": 1 if cmd.get("enabled", True) else 0,
-            "handler": json.dumps(handler_json) if handler_json else (ext.get("handler") if ext else None),
-            "local": 1 if ext and ext.get("local") else 0,
-            "category_order": cmd.get("categoryOrder", 0),
-            "command_order": cmd.get("commandOrder", 0),
-        }
-        if row is None:
-            db.add(models.WorkflowCommand(cmd=type_name, **fields))
-        else:
-            for key, value in fields.items():
-                setattr(row, key, value)
-    db.commit()
+    """将 handler 系统中的内置指令种子同步到数据库（实现移至 command_sync 供热重载共用）。"""
+    from .workflow.command_sync import seed_commands_to_db as _seed
+    _seed(db)
 
 
 def _load_commands_from_db(db):

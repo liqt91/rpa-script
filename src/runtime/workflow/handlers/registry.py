@@ -52,7 +52,7 @@ def _load_generic_params_from_json() -> dict:
                 return json.load(f)
     except Exception:
         pass
-    # hardcoded fallback
+    # hardcoded fallback（拟人化 humanLike 不在此列——由各指令自行声明）
     return {
         "common": [
             {"name": "onError", "label": "执行失败时", "type": "select",
@@ -63,9 +63,6 @@ def _load_generic_params_from_json() -> dict:
             {"name": "retryCount", "label": "重试次数", "type": "number", "default": 3, "group": "advanced"},
             {"name": "timeout", "label": "超时(秒)", "type": "number", "default": 10, "group": "advanced"},
             {"name": "description", "label": "步骤说明", "type": "text", "default": "", "group": "advanced"},
-        ],
-        "extensionOnly": [
-            {"name": "humanLike", "label": "模拟人工操作", "type": "boolean", "default": True, "group": "advanced"},
         ],
     }
 
@@ -98,7 +95,7 @@ class Param:
     """Handler 参数声明。handler 内部通过 `params["name"]` 读取。"""
     name: str                                    # 参数名（handler 读取的 key）
     label: str = ""                              # 编辑器显示标签
-    type: str = "str-input"                         # str-input|textarea|var|dropdown|element|int|bool|list
+    type: str = "string"                           # string|text|str-var|any-input|select|element|number|boolean|code
     required: bool = False
     default: Any = None
     group: str = "主属性"                         # 主属性 | advanced | output | input | anchor

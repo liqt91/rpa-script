@@ -135,7 +135,8 @@ def validate_category_colors(registry: dict) -> list[str]:
 def validate_common_advanced(registry: dict) -> list[str]:
     """Non-container / non-structural commands must have common advanced fields."""
     errors = []
-    required_common = {"onError", "retryCount", "timeout", "humanLike"}
+    # 拟人化行为（humanLike）不属于通用参数：由各指令自行声明（clickElement/pressKey 等）
+    required_common = {"onError", "retryCount", "timeout"}
     for cmd_type, meta in registry.items():
         if meta.get("isContainer") or meta.get("isStructural"):
             continue

@@ -1,0 +1,49 @@
+{
+  "cmd": "findWindowAuto",
+  "label": "查找窗口",
+  "runtime": "backend",
+  "icon": "fa-window-maximize",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 50,
+  "commandOrder": 3,
+  "description": "按标题查找桌面窗口，自动选择实现（优先 UIA，失败回退 Win32），结果可直接用于点击/输入",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "windowTitle",
+      "label": "窗口标题",
+      "type": "string",
+      "required": true,
+      "placeholder": "如：记事本，支持模糊匹配"
+    },
+    {
+      "$ref": "searchMode"
+    },
+    {
+      "$ref": "method"
+    },
+    {
+      "name": "autoActivate",
+      "label": "查找后激活窗口",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "default": "",
+      "placeholder": "统一控件引用存入此变量，供后续指令使用"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/findWindowAuto.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

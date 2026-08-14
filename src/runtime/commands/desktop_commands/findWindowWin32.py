@@ -12,8 +12,8 @@ from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
     category="桌面操作", runtime="backend",
     icon="fa-window-maximize", icon_color="text-purple-500",
     bg_color="bg-purple-50",
-    description="按标题或类名查找 Windows 桌面窗口，可选自动激活前置",
-    category_order=60, command_order=10,
+    description="按标题或类名查找 Windows 桌面窗口，可选自动激活前置。需要更多控件信息（名称/类型/自动化ID）时请改用「查找窗口 (UIA)」",
+    category_order=50, command_order=4,
     summary_tpl="{windowTitle} ({searchMode})",
 )
 class FindWindowHandler:

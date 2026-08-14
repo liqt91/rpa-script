@@ -471,7 +471,7 @@ export default function CommandEditor() {
               />
             </div>
             <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
-              编辑 src/runtime/commands/types/value_types.json。此文件是参数类型和值类型的唯一真相源。
+              编辑 src/runtime/commands/types/value_types.json：paramTypes（类型系统，含 str-var/any-input）、paramTemplates（参数模板，指令 JSON 用 {"{\"$ref\": \"名称\"}"} 引用）、valueTypes（值形状）。
             </div>
           </div>
         ) : selected && selected._type === '__generic_params__' ? (

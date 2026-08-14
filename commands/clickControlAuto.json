@@ -1,0 +1,30 @@
+{
+  "cmd": "clickControlAuto",
+  "label": "点击控件",
+  "runtime": "backend",
+  "icon": "fa-hand-pointer",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 50,
+  "commandOrder": 12,
+  "description": "点击目标控件，自动识别引用类型选择 UIA/Win32 实现，兼容新旧捕获方式的变量",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "targetControl",
+      "label": "目标控件",
+      "type": "str-var",
+      "required": true,
+      "placeholder": "统一控件引用/HWND/UIA 变量，如 {{win}}、{{edit}}"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/clickControlAuto.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

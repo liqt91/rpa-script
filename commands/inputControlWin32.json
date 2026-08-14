@@ -1,13 +1,13 @@
 {
   "cmd": "inputControlWin32",
-  "label": "控件输入 (Win32)",
+  "label": "输入文字 (Win32)",
   "runtime": "backend",
   "icon": "fa-keyboard",
   "iconColor": "text-purple-500",
   "bgColor": "bg-purple-50",
   "categoryOrder": 50,
-  "commandOrder": 75,
-  "description": "向指定控件句柄输入文本 [Win32 API]",
+  "commandOrder": 16,
+  "description": "向指定控件句柄输入文本（Win32）。UIA 捕获的控件建议用「输入文字 (UIA)」",
   "enabled": true,
   "isNew": true,
   "params": [
@@ -31,7 +31,7 @@
     "source": "src/runtime/commands/desktop_commands/inputControlWin32.py"
   },
   "categories": [
-    "desktop-win32"
+    "desktop"
   ],
-  "category": "桌面操作win32"
+  "category": "桌面操作"
 }

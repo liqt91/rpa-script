@@ -9,7 +9,7 @@ from src.runtime.workflow.handlers.registry import register_handler, Param
 class IfListContainsHandler:
     params = [
         Param("listVar", "列表变量", "str-var", required=True),
-        Param("value", "查找值", "str-input", required=True),
+        Param("value", "查找值", "string", required=True),
     ]
     @staticmethod
     async def evaluate(runner, instr):

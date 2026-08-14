@@ -7,12 +7,12 @@ from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
 
 
 @register_handler(
-    cmd="inputElementUia", label="控件输入 (UIA)",
-    category="桌面操作(UIA)", runtime="backend",
+    cmd="inputElementUia", label="输入文字 (UIA)",
+    category="桌面操作", runtime="backend",
     icon="fa-keyboard", icon_color="text-green-500",
     bg_color="bg-green-50",
-    description="使用 UI Automation 向控件输入文本",
-    category_order=65, command_order=30,
+    description="使用 UI Automation 向控件输入文本，推荐优先于「输入文字 (Win32)」",
+    category_order=50, command_order=17,
     summary_tpl="{text}",
 )
 class InputElementUiaHandler:
