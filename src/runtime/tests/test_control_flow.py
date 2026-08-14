@@ -117,7 +117,8 @@ async def test_if_var_equals_false_branch_skipped():
 async def test_if_var_equals_greater_than():
     res = await _run([
         {"cmd": "setVar", "extra": {"name": "{{a}}", "value": "7", "valueType": "number"}},
-        {"cmd": "ifVarEquals", "extra": {"varName": "a", "compareTo": "5", "valueType": "number", "operator": "greaterThan"}},
+        {"cmd": "ifVarEquals", "extra": {"varName": "a", "compareTo": "5",
+                                         "valueType": "number", "operator": "greaterThan"}},
         {"cmd": "log", "parentOrder": 2, "extra": {"message": "gt-ok", "level": "info"}},
         {"cmd": "endIf", "extra": {}},
     ])

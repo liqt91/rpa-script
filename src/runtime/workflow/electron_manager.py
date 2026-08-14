@@ -234,9 +234,10 @@ class ElectronManager:
             return {"error": f"CDP 执行失败: {str(e)[:200]}"}
 
     async def find_elements(self, selector: str, title_fragment: str = "") -> list[dict]:
-        sel = _selector_js(selector)
-        if selector.strip().lower().startswith("xpath:") or selector.strip().startswith("//"):
-            js = (f"(()=>{{const r=document.evaluate({json.dumps(selector.split(':',1)[1] if ':' in selector else selector)},"
+        low = selector.strip().lower()
+        if low.startswith("xpath:") or low.startswith("//"):
+            xp = selector.split(":", 1)[1] if ":" in selector else selector
+            js = (f"(()=>{{const r=document.evaluate({json.dumps(xp)},"
                   "document,null,XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,null);"
                   "return [...Array(r.snapshotLength)].map((_,i)=>{const el=r.snapshotItem(i);"
                   "return {index:i,text:(el.innerText||'').trim().slice(0,300)}});})()")

@@ -1,5 +1,5 @@
 """关闭 Electron 应用 — electronCloseApp"""
-from src.runtime.workflow.handlers.registry import register_handler, Param
+from src.runtime.workflow.handlers.registry import register_handler
 
 
 @register_handler(

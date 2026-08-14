@@ -43,7 +43,8 @@ class FindSiblingHandler:
 
     @staticmethod
     async def execute(runner, cmd_type, step_id, instr):
-        from ._win32 import resolve_hwnd, find_sibling_by_class, get_window_text, get_class_name, is_windows, window_exists
+        from ._win32 import (resolve_hwnd, find_sibling_by_class, get_window_text,
+                             get_class_name, is_windows, window_exists)
 
         extra = instr.get("extra", {})
         ref_var = clean_var_ref(extra.get("refWindow", ""))

@@ -1,6 +1,5 @@
 """点击元素 — electronClick"""
 from src.runtime.workflow.handlers.registry import register_handler, Param
-from src.runtime.workflow.handlers.utils import clean_var_ref
 
 
 @register_handler(

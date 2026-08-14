@@ -1,6 +1,6 @@
 """输入文本 — electronInput"""
 from src.runtime.workflow.handlers.registry import register_handler, Param
-from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
+from src.runtime.workflow.handlers.utils import convert_value
 
 
 @register_handler(

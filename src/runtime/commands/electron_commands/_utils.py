@@ -1,7 +1,7 @@
 """Electron 指令公共工具 — 选择器解析等。"""
 import json
 
-from src.runtime.workflow.handlers.utils import convert_value, clean_var_ref
+from src.runtime.workflow.handlers.utils import convert_value
 
 
 async def resolve_selector(runner, extra: dict) -> str:
