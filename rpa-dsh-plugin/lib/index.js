@@ -325,8 +325,8 @@ function apply(ctx, config) {
     description: "异步启动工作流（浏览器扩展执行），立即返回 run_id，不阻塞。用 rpa_run_wait 等结果、rpa_run_status 查进度、rpa_run_stop 停止。",
     parameters: {
       wf_id: { type: "integer", required: true, description: "工作流 id（rpa_import_workflow 的返回值）" },
-      parameters: { type: "object", description: "{\"变量名\": \"值\"} 覆盖流程参数默认值" },
-      initial_table_data: { type: "object", description: "{\"columns\": [...], \"rows\": [...]} 预置表格数据" },
+      parameters: { type: "object", additionalProperties: true, description: "{\"变量名\": \"值\"} 覆盖流程参数默认值" },
+      initial_table_data: { type: "object", additionalProperties: true, description: "{\"columns\": [...], \"rows\": [...]} 预置表格数据" },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     async execute(args, exec) {
@@ -402,7 +402,7 @@ function apply(ctx, config) {
       locator: { type: "string", description: "CSS 选择器或 XPath（selector_family=xpath）" },
       selector_family: { type: "string", enum: ["css", "xpath"] },
       action: { type: "string", description: "动作参数（部分指令需要）" },
-      extra: { type: "object", description: "指令参数（如 navigate 的 {\"url\": ...}、inputElement 的 {\"text\": ...}）" },
+      extra: { type: "object", additionalProperties: true, description: "指令参数（如 navigate 的 {\"url\": ...}、inputElement 的 {\"text\": ...}）" },
       timeout: { type: "number", description: "单指令超时秒数，默认 30" },
       allow_during_run: { type: "boolean", description: "工作流运行中仍强制执行" },
     },

@@ -130,6 +130,11 @@ dsh --profile headless "打开百度，搜索 RPA，把第一页标题存成工�
 
 ## 风险备忘
 
+- **工具参数 schema（dsh-tools 硬性要求）**：`type: "object"` 的参数必须显式声明
+  `additionalProperties: true/false`，否则插件树加载直接失败
+  （`unsupported JSON schema: <tool>.<param>.additionalProperties must be explicitly true or false`）。
+  新增/修改工具时注意：`rpa_run_start.parameters / initial_table_data`、
+  `rpa_browser_exec.extra` 都是自由形状对象，须带 `additionalProperties: true`。
 - 扩展连接单实例容量 1：运行中 `rpa_browser_exec` 会 409，`allow_during_run=true` 可强制。
 - 桌面指令（Win32/UIA）仅 Windows。
 - 认证默认种子 `admin/admin123`，首次使用请改。
