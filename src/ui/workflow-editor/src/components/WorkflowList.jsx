@@ -330,65 +330,68 @@ export default function WorkflowList() {
             </div>
           )}
           {/* 扩展状态 */}
-          <div className="mt-2 flex items-center gap-4 text-sm border-t border-gray-700/50 pt-2">
-            <span className="text-faint font-medium"><i className="fas fa-puzzle-piece mr-1"></i>扩展状态:</span>
+          <div className="mt-2 text-sm border-t border-gray-700/50 pt-2">
+            <div className="flex items-center gap-4">
+              <span className="text-faint font-medium"><i className="fas fa-puzzle-piece mr-1"></i>扩展状态:</span>
+              {(() => {
+                if (!extStatus) return <span className="text-muted">检测中...</span>;
+                const installed = extStatus.installed || [];
+                const anyOnline = (extStatus.browsers || []).length > 0;
+                return anyOnline ? (
+                  <span className="text-ok"><i className="fas fa-circle text-[8px] align-middle mr-1.5"></i>在线</span>
+                ) : installed.length ? (
+                  <span className="text-warn"><i className="fas fa-circle text-[8px] align-middle mr-1.5"></i>已安装 · 未连接</span>
+                ) : (
+                  <span className="text-danger"><i className="fas fa-circle text-[8px] align-middle mr-1.5"></i>未就绪</span>
+                );
+              })()}
+              <button
+                onClick={() => setShowInstallGuide(v => !v)}
+                className="ml-auto text-xs text-accent hover:text-accent-strong"
+              >
+                <i className={`fas ${showInstallGuide ? 'fa-chevron-up' : 'fa-chevron-down'} mr-1`}></i>
+                {showInstallGuide ? '收起说明' : '安装说明'}
+              </button>
+            </div>
+            {/* 每个浏览器的独立状态：浏览器 → 扩展 两级判定 */}
             {(() => {
-              if (!extStatus) return <span className="text-muted">检测中...</span>;
+              if (!extStatus) return null;
               const installed = extStatus.installed || [];
-              const chromeInstalled = installed.some(i => i.browser === 'chrome');
-              const edgeInstalled = installed.some(i => i.browser === 'edge');
-              const chromeOnline = extStatus.browsers?.some(b => b.browser === 'chrome');
-              const edgeOnline = extStatus.browsers?.some(b => b.browser === 'edge');
+              const renderRow = (browser, label, icon, found) => {
+                const isInstalled = installed.some(i => i.browser === browser);
+                const isOnline = (extStatus.browsers || []).some(b => b.browser === browser);
+                return (
+                  <div key={browser} className="flex items-center gap-2 mt-1.5 text-sm">
+                    <i className={`${icon} text-faint`}></i>
+                    <span className="text-faint">{label}:</span>
+                    {!found ? (
+                      <span className="text-muted">浏览器未安装</span>
+                    ) : isOnline ? (
+                      <span className="text-ok">扩展已安装 · 在线</span>
+                    ) : isInstalled ? (
+                      <span className="text-warn">扩展已安装 · 未连接</span>
+                    ) : (
+                      <>
+                        <span className="text-danger">扩展未安装</span>
+                        <button
+                          onClick={() => handleOpenExtPage(browser)}
+                          className="ml-1 px-2 py-0.5 bg-blue-700/60 hover:bg-blue-700 text-blue-100 rounded text-[10px] transition-colors"
+                          title={`打开 ${label} 并加载扩展`}
+                        >
+                          打开浏览器
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              };
               return (
                 <>
-                  <span className="flex items-center gap-1.5">
-                    <i className="fab fa-chrome text-faint"></i>
-                    {chromeOnline ? (
-                      <span className="text-ok">扩展已安装 · 在线</span>
-                    ) : chromeInstalled ? (
-                      <span className="text-warn">扩展已安装 · 未连接</span>
-                    ) : (
-                      <span className="text-danger">扩展未安装</span>
-                    )}
-                    {!chromeInstalled && (
-                      <button
-                        onClick={() => handleOpenExtPage('chrome')}
-                        className="ml-2 px-2 py-0.5 bg-blue-700/60 hover:bg-blue-700 text-blue-100 rounded text-[10px] transition-colors"
-                        title="打开 Chrome 浏览器"
-                      >
-                        打开浏览器
-                      </button>
-                    )}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <i className="fab fa-edge text-faint"></i>
-                    {edgeOnline ? (
-                      <span className="text-ok">扩展已安装 · 在线</span>
-                    ) : edgeInstalled ? (
-                      <span className="text-warn">扩展已安装 · 未连接</span>
-                    ) : (
-                      <span className="text-danger">扩展未安装</span>
-                    )}
-                    {!edgeInstalled && (
-                      <button
-                        onClick={() => handleOpenExtPage('edge')}
-                        className="ml-2 px-2 py-0.5 bg-blue-700/60 hover:bg-blue-700 text-blue-100 rounded text-[10px] transition-colors"
-                        title="打开 Edge 浏览器"
-                      >
-                        打开浏览器
-                      </button>
-                    )}
-                  </span>
+                  {renderRow('chrome', 'Chrome', 'fab fa-chrome', Boolean(browserPaths.chrome))}
+                  {renderRow('edge', 'Edge', 'fab fa-edge', Boolean(browserPaths.edge))}
                 </>
               );
             })()}
-            <button
-              onClick={() => setShowInstallGuide(v => !v)}
-              className="ml-auto text-xs text-accent hover:text-accent-strong"
-            >
-              <i className={`fas ${showInstallGuide ? 'fa-chevron-up' : 'fa-chevron-down'} mr-1`}></i>
-              {showInstallGuide ? '收起说明' : '安装说明'}
-            </button>
           </div>
           {showInstallGuide && (
             <div className="mt-2 text-xs text-faint bg-bg border border-gray-700 rounded p-3 space-y-2">
@@ -400,7 +403,7 @@ export default function WorkflowList() {
                 <li>选择本项目 <code className="text-warn">extension/</code> 文件夹（或 <code className="text-warn">dist/desktop/extension/</code>）</li>
                 <li>安装完成后刷新本页面，扩展状态将显示为「已安装 · 在线」</li>
               </ol>
-              <p className="text-muted">提示：运行工作流前需确保目标浏览器对应的扩展已安装并在线。</p>
+              <p className="text-muted">提示：运行工作流前需确保目标浏览器对应的扩展已安装并在线。若某浏览器显示「浏览器未安装」，请先安装对应浏览器（Chrome / Edge）。</p>
             </div>
           )}
         </div>
