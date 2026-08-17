@@ -37,6 +37,14 @@ from .handler_validator import validate_handler_sync  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
+# 扩展侧无需元素定位器的指令（由 extra.url / windowVar 驱动）：
+# P4 locator 校验仅对需要元素的指令生效，避免误杀导航/窗口类指令。
+_LOCATOR_FREE_EXTENSION_CMDS = frozenset({
+    "navigate", "newTab", "launchBrowser",
+    "closeBrowser", "closeTab", "switchTab",
+    "takeScreenshot", "pressKey", "getCurrentUrl",
+})
+
 
 def _get_cursor_pos():
     """Get current absolute cursor position. Windows only."""
@@ -1437,7 +1445,11 @@ class ExtensionRunner:
 
         # P4: 元素定位器为空时给出明确错误，避免被扩展侧
         # 「工作标签页已被手动关闭」等状态类错误掩盖真实原因。
-        if "locator" in resolved_instr and not self._has_usable_locator(resolved_instr):
+        # 仅对需要元素定位的指令生效：navigate/newTab/launchBrowser 等
+        # 无定位器指令（由 extra.url / windowVar 驱动）跳过该校验。
+        if ("locator" in resolved_instr
+                and cmd_type not in _LOCATOR_FREE_EXTENSION_CMDS
+                and not self._has_usable_locator(resolved_instr)):
             msg = (f"指令「{cmd_type}」的元素定位器为空（locator 无有效值）。"
                    f"请检查该步骤引用的元素是否已正确配置或重新捕获"
                    f"（元素数据可能损坏、未选中元素，或变量未解析出定位器）。")

@@ -291,3 +291,34 @@ async def test_continue_runs_all_iterations():
     ])
     assert res["success"], res
     assert _logs(res["results"]) == ["iter"] * 10
+
+
+@pytest.mark.asyncio
+async def test_navigate_without_locator_bypasses_p4_check(monkeypatch):
+    """navigate 等无定位器指令应跳过 P4 locator 校验，直接下发扩展（此前必失败）。
+
+    回归：P4 校验曾对所有带 locator 键的指令生效，navigate/newTab/launchBrowser
+    因 locator 为空被误判失败 —— DSH 文件式构建的导航工作流会踩到。
+    """
+    from src.runtime.workflow.extension_runner import ExtensionRunner
+
+    runner = ExtensionRunner("")
+    sent = {}
+
+    async def fake_send_and_wait(step_id, instr, timeout):
+        sent["instr"] = instr
+        return {"success": True, "navigatedTo": instr.get("extra", {}).get("url")}
+
+    monkeypatch.setattr(runner, "_send_and_wait", fake_send_and_wait)
+
+    instr = {
+        "stepId": "step_1", "nodeId": 1, "order": 1, "cmdType": "navigate",
+        "cmdLabel": "页面跳转", "type": "navigate",
+        "locator": "", "selectorFamily": "css", "action": "",
+        "extra": {"url": "https://www.baidu.com"},
+    }
+    runner._current_step = instr  # 真实流程由 _run_body 设置，直接调用需镜像
+    ok = await runner._execute_instruction(instr)
+    assert ok is True, "navigate 不应因空 locator 失败"
+    assert sent["instr"]["extra"]["url"] == "https://www.baidu.com", "extra.url 应原样下发"
+    assert runner.completed == 1
