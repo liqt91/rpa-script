@@ -138,6 +138,18 @@
         { "id": "test", "title": "15 新测全过 + ruff 0 + 结构测试 + 全量 pytest（119 passed，13 失败为 HEAD 存量）", "done": true }
       ],
       "domain": "workflows"
+    },
+    {
+      "id": "workflow-import-async-run",
+      "title": "DSH 集成 P0：POST /api/workflows/import 原子导入 + run/extension async 模式",
+      "passes": true,
+      "steps": [
+        { "id": "import", "title": "POST /api/workflows/import 原子创建（temp_id 父引用 + 元素库 + 失败回滚）", "done": true },
+        { "id": "async", "title": "run/extension async 模式（立即返回 run_id、容量满 503、log 接口 running 字段）", "done": true },
+        { "id": "mcp", "title": "MCP workflow_edit 加 import_workflow 工具（Claude 客户端同享）", "done": true },
+        { "id": "test", "title": "新增 4 测试全过 + 全量 pytest 183 passed + 结构测试 PASSED", "done": true }
+      ],
+      "domain": "workflows"
     }
   ]
 }

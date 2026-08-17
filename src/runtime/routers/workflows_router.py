@@ -4,10 +4,12 @@ Workflow CRUD + Node management + Python export
 
 import asyncio
 import json
+import logging
 import math
 import os
 import subprocess
 import sys
+from datetime import datetime
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from fastapi.responses import StreamingResponse
@@ -40,6 +42,8 @@ from src.service.elements_service import (
     normalize_element_capture,
     _looks_like_capture,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -153,11 +157,123 @@ def create_workflow(payload: schemas.WorkflowCreate, db: Session = Depends(get_d
         description=payload.description,
         url=payload.url,
         framework=payload.framework,
-        parameters=json.dumps(payload.parameters or [], ensure_ascii=False),
+        parameters=json.dumps([p.model_dump() for p in (payload.parameters or [])], ensure_ascii=False),
     )
     db.add(wf)
     db.commit()
     db.refresh(wf)
+    return wf
+
+
+def _element_from_import_dict(workflow_id: int, e: dict) -> models.WorkflowElement:
+    """把宽松的元素字典归一化为 WorkflowElement（DSH 导入用）。
+
+    支持两种形态：
+      {name, selector|web_selector, selector_family: css|xpath, ...}  最小形式
+      {name, web_selector: "css:.x", css_candidates: [...], ...}     完整捕获结构
+    selector 若未带 css:/xpath:/drission: 前缀且给了 selector_family，则补前缀
+    （web_selector 的存储约定，见 _infer_selector_family）。
+    """
+    name = str(e.get("name") or "").strip()
+    if not name:
+        raise ValueError("元素缺少 name")
+    selector = e.get("web_selector") or e.get("selector") or ""
+    selector_family = e.get("selector_family") or e.get("selectorFamily") or ""
+    if selector_family and selector and not str(selector).startswith(("css:", "xpath:", "drission:")):
+        prefix = "xpath" if str(selector_family).lower() == "xpath" else "css"
+        selector = f"{prefix}:{selector}"
+    return models.WorkflowElement(
+        workflow_id=workflow_id,
+        name=name,
+        element_type=str(e.get("element_type") or "web"),
+        element_kind=str(e.get("element_kind") or "plain"),
+        target_mode=str(e.get("target_mode") or "single"),
+        css_candidates=json.dumps(e.get("css_candidates") or [], ensure_ascii=False),
+        xpath_candidates=json.dumps(e.get("xpath_candidates") or [], ensure_ascii=False),
+        drission_candidates=json.dumps(e.get("drission_candidates") or [], ensure_ascii=False),
+        web_selector=str(selector),
+        drission_selector=str(e.get("drission_selector") or ""),
+        relative_selector=str(e.get("relative_selector") or ""),
+        anchor_selector=str(e.get("anchor_selector") or ""),
+        anchor_element_name=e.get("anchor_element_name"),
+        anchor_mode=str(e.get("anchor_mode") or "none"),
+        dom_path=json.dumps(e.get("dom_path") or [], ensure_ascii=False),
+        attributes=json.dumps(e.get("attributes") or {}, ensure_ascii=False),
+        screenshot=e.get("screenshot"),
+        page_url=str(e.get("page_url") or ""),
+    )
+
+
+def _add_import_nodes(db: Session, workflow_id: int, nodes: list[dict]) -> None:
+    """批量插入新节点并解析父引用（与 nodes/batch 同一套 temp_id 语义）。
+
+    父引用优先级：temp_id（字符串）→ 同 payload 内 id（int）→ 未知则置顶层。
+    任何缺失 cmd 或非法项抛 ValueError，由调用方回滚。
+    """
+    created: dict = {}  # str(temp_id) -> node；int(id) -> node
+    for item in nodes:
+        if not item.get("cmd"):
+            raise ValueError(f"节点缺少 cmd: {item}")
+        node = models.WorkflowNode(
+            workflow_id=workflow_id,
+            parent_id=None,  # 先置空，flush 后统一解析
+            order=item.get("order", 0),
+            cmd=item["cmd"],
+            action=item.get("action"),
+            element_name=item.get("element_name"),
+            enabled=1 if item.get("enabled") is None else item["enabled"],
+            extra=json.dumps(item.get("extra") or {}, ensure_ascii=False),
+        )
+        db.add(node)
+        if item.get("temp_id") is not None:
+            created[str(item["temp_id"])] = node
+        if item.get("id") is not None:
+            created[item["id"]] = node
+    db.flush()  # 拿真实 id
+    for item in nodes:
+        ref = item.get("parent_id")
+        if ref is None:
+            continue
+        target = created.get(str(ref)) if isinstance(ref, str) else created.get(ref)
+        if target is None:
+            continue  # 未知引用 → 保持顶层
+        key = str(item["temp_id"]) if item.get("temp_id") is not None else item.get("id")
+        node = created.get(key)
+        if node is not None and node.id != target.id:
+            node.parent_id = target.id
+
+
+@router.post("/import", response_model=schemas.WorkflowOut)
+def import_workflow(payload: schemas.WorkflowImportIn, db: Session = Depends(get_db),
+                    user=Depends(auth.get_current_user)):
+    """原子导入完整工作流定义（DSH 文件式构建入口）。
+
+    一次提交 name/description/url/framework/parameters + elements + nodes，
+    任何一步失败整体回滚，不产生半成品。nodes 的父引用用 temp_id 字符串。
+    """
+    wf = models.Workflow(
+        name=payload.name,
+        description=payload.description,
+        url=payload.url,
+        framework=payload.framework or "DrissionPage",
+        parameters=json.dumps([p.model_dump() for p in (payload.parameters or [])], ensure_ascii=False),
+    )
+    db.add(wf)
+    try:
+        db.flush()
+        for e in payload.elements or []:
+            db.add(_element_from_import_dict(wf.id, e))
+        _add_import_nodes(db, wf.id, payload.nodes or [])
+        db.commit()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"导入失败（已回滚）：{exc}") from exc
+
+    db.refresh(wf)
+    for n in wf.nodes:
+        _parse_node_fields(n)
     return wf
 
 
@@ -1009,6 +1125,79 @@ async def stop_run(wf_id: int, run_id: str, user=Depends(auth.get_current_user))
     return {"success": True, "runId": run_id, "action": "stop", "found": runner is not None}
 
 
+async def _run_extension_async(
+    wf_id: int, *,
+    run_id: str,
+    log_dir: str,
+    initial_table_data: dict | None,
+    parameters: dict,
+    trigger_type: str,
+) -> None:
+    """后台执行一次扩展运行（async 模式），完成后回写 Result 行。
+
+    使用独立 DB 会话（请求会话已随响应关闭）；任何异常兜底标记失败，
+    避免悬挂的 running 记录。容量不足时同样记失败（与阻塞模式 503 语义一致）。
+    """
+    result: dict = {}
+    success = False
+    error = None
+    try:
+        db = models.SessionLocal()
+        try:
+            wf = db.get(models.Workflow, wf_id)
+            if wf is None:
+                error = f"Workflow {wf_id} not found"
+                return
+            nodes = (db.query(models.WorkflowNode)
+                     .filter(models.WorkflowNode.workflow_id == wf_id)
+                     .order_by(models.WorkflowNode.order)
+                     .all())
+            for n in nodes:
+                _parse_node_fields(n)
+        finally:
+            db.close()
+
+        async with workflow_lock():
+            result = await run_workflow_extension(
+                wf, nodes,
+                run_id=run_id,
+                initial_table_data=initial_table_data,
+                initial_parameters=parameters,
+                trigger_type=trigger_type,
+            )
+        success = bool(result.get("success"))
+        error = result.get("error")
+    except WorkflowConcurrencyError as exc:
+        error = f"Workflow execution capacity full: {exc}"
+    except Exception as exc:  # noqa: BLE001 —— 后台任务必须兜底
+        logger.exception("[async run] wf=%s run=%s failed", wf_id, run_id)
+        error = f"Async run error: {exc}"
+
+    db = models.SessionLocal()
+    try:
+        row = (db.query(models.Result)
+               .filter(models.Result.workflow_id == wf_id, models.Result.run_id == run_id)
+               .first())
+        if row:
+            row.total = result.get("completedSteps", 0)
+            row.data = json.dumps({
+                "workflow_id": wf_id,
+                "mode": "extension",
+                "async": True,
+                "success": success,
+                "total_steps": result.get("totalSteps"),
+                "failed_steps": result.get("failedSteps"),
+                "error": error,
+                "outputs": result.get("outputs", {}),
+            }, ensure_ascii=False)
+            row.completed_at = datetime.now()
+            db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("[async run] failed to persist Result wf=%s run=%s", wf_id, run_id)
+    finally:
+        db.close()
+
+
 @router.post("/{wf_id}/run/extension")
 async def run_workflow_extension_endpoint(
     wf_id: int,
@@ -1020,6 +1209,8 @@ async def run_workflow_extension_endpoint(
     """Run workflow via browser extension (WebSocket).
     Supply run_id (e.g. a UUID) so the matching SSE stream can receive progress.
     Optional body: {"initialTableData": {...}, "parameters": {"postUrl": "..."}}
+    Body 带 "async": true 时立即返回 {runId, status:"started"}，后台执行；
+    进度经 GET /{wf_id}/runs/{run_id}/log（或 SSE /run/stream）查询。
     """
     wf = db.get(models.Workflow, wf_id)
     if not wf:
@@ -1034,6 +1225,43 @@ async def run_workflow_extension_endpoint(
 
     initial_table_data = payload.get("initialTableData")
     parameters = payload.get("parameters") or {}
+    trigger_type = payload.get("triggerType", "manual")
+
+    # ---------- async 模式：立即返回，后台执行 ----------
+    if payload.get("async"):
+        if current_workflow_lock_capacity() <= 0:
+            raise HTTPException(
+                status_code=503,
+                detail="Workflow execution capacity full. Please retry later.",
+                headers={"Retry-After": str(math.ceil(WORKFLOW_LOCK_TIMEOUT_SECONDS))},
+            )
+        import time as _t
+        _run_id = run_id or f"run_{int(_t.time() * 1000)}"
+        log_root = os.environ.get("RPA_LOG_DIR") or config.DATA_DIR
+        log_dir = os.path.join(log_root, "run_logs", str(wf.id), _run_id)
+        os.makedirs(log_dir, exist_ok=True)
+        # 预写 Result 行：运行期间 get_run_log 即可查到（running 状态）
+        db.add(models.Result(
+            workflow_id=wf.id,
+            run_id=_run_id,
+            url=wf.url or "",
+            trigger_type=trigger_type,
+            log_dir=log_dir,
+            started_at=datetime.now(),
+            data=json.dumps({"mode": "extension", "async": True, "success": None}, ensure_ascii=False),
+        ))
+        db.commit()
+        asyncio.create_task(_run_extension_async(
+            wf.id,
+            run_id=_run_id,
+            log_dir=log_dir,
+            initial_table_data=initial_table_data,
+            parameters=parameters,
+            trigger_type=trigger_type,
+        ))
+        return {"runId": _run_id, "status": "started", "workflowId": wf.id, "logDir": log_dir}
+
+    # ---------- 阻塞模式（原行为不变） ----------
     import datetime as _dt
     started_at = _dt.datetime.now()
 
@@ -1044,6 +1272,7 @@ async def run_workflow_extension_endpoint(
                 run_id=run_id or None,
                 initial_table_data=initial_table_data,
                 initial_parameters=parameters,
+                trigger_type=trigger_type,
             )
     except WorkflowConcurrencyError:
         raise HTTPException(
@@ -1071,7 +1300,7 @@ async def run_workflow_extension_endpoint(
                 "outputs": result.get("outputs", {}),
             }),
             client_id=None,
-            trigger_type=payload.get("triggerType", "manual"),
+            trigger_type=trigger_type,
             log_dir=result.get("logDir", ""),
             started_at=started_at,
             completed_at=completed_at,
@@ -1132,6 +1361,9 @@ def get_run_log(
         raise HTTPException(status_code=404, detail="Run log not found")
     log_path = os.path.join(row.log_dir, "run.log")
     if not os.path.exists(log_path):
+        # async 模式：run.log 由 runner 启动后创建；尚未生成且未结束 → 运行中
+        if row.completed_at is None:
+            return {"events": [], "running": True, "runId": run_id}
         raise HTTPException(status_code=404, detail="Log file not found")
     with open(log_path, "r", encoding="utf-8") as f:
         lines = [line.strip() for line in f if line.strip()]
@@ -1141,7 +1373,7 @@ def get_run_log(
             events.append(json.loads(line))
         except Exception:
             events.append({"raw": line})
-    return {"events": events}
+    return {"events": events, "running": row.completed_at is None, "runId": run_id}
 
 
 @router.get("/{wf_id}/runs/{run_id}/table")

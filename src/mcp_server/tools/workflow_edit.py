@@ -7,6 +7,34 @@ from ..client import RpaApiError, get_client
 
 def register(mcp: FastMCP) -> None:
     @mcp.tool(tags={"write"})
+    async def import_workflow(
+        name: str,
+        nodes: list,
+        description: str = "",
+        url: str = "",
+        framework: str = "",
+        parameters: list | None = None,
+        elements: list | None = None,
+    ) -> dict:
+        """原子导入完整工作流定义（推荐构建方式，一次调用替代逐节点创建）。
+
+        nodes: [{cmd, action?, element_name?, parent_id?, order?, extra?}]；
+        新节点用字符串 temp_id 占位并在 parent_id 中引用，后端自动解析为真实 id。
+        elements: [{name, selector|web_selector, selector_family?, ...}] 宽松 schema。
+        任一步失败整体回滚。返回 {id, name, ...}。
+        """
+        payload = {
+            "name": name,
+            "description": description,
+            "url": url,
+            "framework": framework,
+            "parameters": parameters or [],
+            "nodes": nodes,
+            "elements": elements or [],
+        }
+        return await get_client().post("/api/workflows/import", json=payload)
+
+    @mcp.tool(tags={"write"})
     async def create_workflow(
         name: str,
         description: str = "",

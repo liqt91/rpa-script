@@ -192,6 +192,22 @@ class WorkflowCreate(BaseModel):
     parameters: list[WorkflowParameter] = Field(default_factory=list)
 
 
+class WorkflowImportIn(BaseModel):
+    """原子导入完整工作流定义（DSH 文件式构建用）。
+
+    nodes: [{cmd, action?, element_name?, parent_id?|temp_id?, order?, extra?}]
+    elements: [{name, selector|web_selector, selector_family?, ...}] 宽松 schema。
+    """
+
+    name: str
+    description: str = ""
+    url: str = ""
+    framework: str = "DrissionPage"
+    parameters: list[WorkflowParameter] = Field(default_factory=list)
+    nodes: list[dict] = Field(default_factory=list)
+    elements: list[dict] = Field(default_factory=list)
+
+
 class WorkflowUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None

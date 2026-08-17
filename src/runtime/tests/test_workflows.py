@@ -188,3 +188,115 @@ async def test_local_sleep_is_interruptible():
     runner._stopped = True
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(task, timeout=1.0)
+
+
+# ---------- POST /api/workflows/import（DSH 文件式构建入口） ----------
+
+def test_import_workflow_creates_full_definition(client, auth_headers):
+    """原子导入：nodes 层级（temp_id 父引用）+ 元素库 + 参数一次创建。"""
+    payload = {
+        "name": "导入测试",
+        "url": "https://www.baidu.com",
+        "parameters": [{"name": "kw", "label": "关键词", "type": "text", "default": "rpa"}],
+        "elements": [
+            {"name": "搜索框", "selector": "#kw", "selector_family": "css"},
+            {"name": "结果链接", "web_selector": "css:.result a"},
+        ],
+        "nodes": [
+            {"temp_id": "n1", "cmd": "launchBrowser", "order": 1},
+            {"temp_id": "n2", "cmd": "navigate", "order": 2, "parent_id": "n1",
+             "extra": {"url": "https://www.baidu.com"}},
+            {"cmd": "inputElement", "order": 3, "element_name": "搜索框", "extra": {"text": "${kw}"}},
+        ],
+    }
+    r = client.post("/api/workflows/import", json=payload, headers=auth_headers)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["name"] == "导入测试"
+    assert data["parameters"][0]["name"] == "kw"
+
+    wf_id = data["id"]
+    rn = client.get(f"/api/workflows/{wf_id}/nodes", headers=auth_headers)
+    assert rn.status_code == 200, rn.text
+    nodes = rn.json()
+    assert len(nodes) == 3
+    by_order = {n["order"]: n for n in nodes}
+    n1, n2 = by_order[1], by_order[2]
+    assert n2["parent_id"] == n1["id"], f"temp_id 父引用未解析: {nodes}"
+
+    re_ = client.get(f"/api/workflows/{wf_id}/elements", headers=auth_headers)
+    els = re_.json()
+    by_name = {e["name"]: e for e in els}
+    # selector_family=css → web_selector 补 css: 前缀
+    assert by_name["搜索框"]["web_selector"] == "css:#kw"
+    assert by_name["结果链接"]["web_selector"] == "css:.result a"
+
+
+def test_import_workflow_rolls_back_on_invalid_node(client, auth_headers):
+    """导入任一步失败整体回滚，不产生半成品工作流。"""
+    r = client.post("/api/workflows/import", json={
+        "name": "坏流程",
+        "nodes": [
+            {"order": 1},  # 缺 cmd → ValueError
+            {"temp_id": "x", "cmd": "log", "parent_id": "nope"},
+        ],
+    }, headers=auth_headers)
+    assert r.status_code == 400, r.text
+    rl = client.get("/api/workflows", headers=auth_headers)
+    names = [w["name"] for w in rl.json()]
+    assert "坏流程" not in names
+
+
+# ---------- run/extension async 模式 ----------
+
+@pytest.mark.asyncio
+async def test_run_extension_async_returns_immediately(client, auth_headers, workflow_id, monkeypatch):
+    """async 模式立即返回 run_id 并预写 Result 行；后台任务完成后回写 success。"""
+    import src.runtime.routers.workflows_router as router_module
+
+    async def fake_run(wf, nodes, **kwargs):
+        await asyncio.sleep(0.05)
+        return {"runId": kwargs.get("run_id", ""), "success": True, "completedSteps": 1,
+                "totalSteps": 1, "failedSteps": 0, "error": None, "outputs": {}}
+
+    monkeypatch.setattr(router_module, "run_workflow_extension", fake_run)
+
+    r = client.post(f"/api/workflows/{workflow_id}/run/extension", json={"async": True}, headers=auth_headers)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "started"
+    run_id = data["runId"]
+    assert run_id
+
+    db = models.SessionLocal()
+    try:
+        row = db.query(models.Result).filter(models.Result.run_id == run_id).first()
+        assert row is not None, "async 模式应预写 Result 行"
+        assert row.completed_at is None
+    finally:
+        db.close()
+
+    # 后台任务应尽快完成并回写
+    for _ in range(100):
+        db = models.SessionLocal()
+        try:
+            row = db.query(models.Result).filter(models.Result.run_id == run_id).first()
+            if row and row.completed_at is not None:
+                assert json.loads(row.data)["success"] is True
+                break
+        finally:
+            db.close()
+        await asyncio.sleep(0.02)
+    else:
+        pytest.fail("async run did not complete within timeout")
+
+
+@pytest.mark.asyncio
+async def test_run_extension_async_respects_capacity(client, auth_headers, workflow_id, monkeypatch):
+    """容量占满时 async 模式同样返回 503（与阻塞模式语义一致）。"""
+    import src.runtime.routers.workflows_router as router_module
+    monkeypatch.setattr(router_module, "WORKFLOW_LOCK_TIMEOUT_SECONDS", 0.05)
+    async with workflow_lock():
+        r = client.post(f"/api/workflows/{workflow_id}/run/extension", json={"async": True}, headers=auth_headers)
+        assert r.status_code == 503, r.text
+        assert "capacity full" in r.json()["detail"].lower()
