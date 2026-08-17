@@ -51,38 +51,52 @@ RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建�
 
 ## 安装（web profile）
 
-```bash
-# 在仓库根目录执行（相对路径以调用目录为准）
-dsh plugin --profile web add file:rpa-dsh-plugin
+> 实测要点：① 路径必须带 `./`（`file:./`），否则 dsh plugin 的锚定正则不匹配，
+> pnpm 会按 profile 目录解析；② 跨盘符的 `link:`/`file:` 绝对路径会被 pnpm 拼错
+> （URL 解析把 `D:` 当 host），且软链会让 Node 按真实路径找依赖 —— 因此推荐
+> **把插件实体拷进 profile 目录**再 `file:./` 引用。
+
+```powershell
+# 1) 把插件拷进 profile（保持与仓库同步：改动后重新拷贝即可）
+Copy-Item rpa-dsh-plugin "$env:USERPROFILE\.dsh\profiles\web\rpa-dsh-plugin" -Recurse
+
+# 2) 声明依赖（peer 显式声明，保证与宿主单一实例）
+#    编辑 %USERPROFILE%\.dsh\profiles\web\package.json 的 dependencies 加入：
+#      "@deepseek-ai/cordis": "^4.0.1",
+#      "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+#      "rpa-dsh-plugin": "file:./rpa-dsh-plugin"
+
+# 3) 安装
+cd "$env:USERPROFILE\.dsh\profiles\web"; pnpm install
 ```
 
-然后编辑 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml`，加入实例条目：
+然后编辑 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml`，**新增实例必须用 `insert:`**
+（普通 `id` 条目是"修改已有行"，id 不存在会被跳过）：
 
 ```yaml
-- id: rpa
-  name: rpa-dsh-plugin
-  config:
-    backendUrl: http://127.0.0.1:8000
-    token: !!js process.env.RPA_API_TOKEN || ''
-    username: !!js process.env.RPA_USERNAME || 'admin'
-    password: !!js process.env.RPA_PASSWORD || 'admin123'
-    # 可选：激活时自动拉起后端
-    autoStartBackend: false
-    backendCommand: '"D:\Users\Administrator\Documents\代码\rpa_script\.venv\Scripts\python.exe" -m src.runtime.main'
-    backendCwd: 'D:\Users\Administrator\Documents\代码\rpa_script'
+- insert:
+    - id: rpa
+      name: rpa-dsh-plugin
+      config:
+        backendUrl: http://127.0.0.1:8000
+        token: !!js process.env.RPA_API_TOKEN || ''
+        username: !!js process.env.RPA_USERNAME || 'admin'
+        password: !!js process.env.RPA_PASSWORD || 'admin123'
+        # 可选：激活时自动拉起后端
+        autoStartBackend: false
+        backendCommand: '"D:\Users\Administrator\Documents\代码\rpa_script\.venv\Scripts\python.exe" -m src.runtime.main'
+        backendCwd: 'D:\Users\Administrator\Documents\代码\rpa_script'
 ```
 
-重启 `dsh web` 生效。headless 同样可用：首次使用会自动初始化 profile，
-把同样的实例条目加到 `~/.dsh/profiles/headless/cordis.patch.yml`，然后：
+验证（不起服务即可检查配置树）：`dsh --profile web --dump-config | findstr rpa`。
+然后**重启 `dsh web`** 激活插件。
+
+headless 同样可用：首次使用会自动初始化 profile，按同样步骤把实例加到
+`~/.dsh/profiles/headless/cordis.patch.yml`，然后一条命令端到端：
 
 ```bash
 dsh --profile headless "打开百度，搜索 RPA，把第一页标题存成工作流并运行"
 ```
-
-> 说明：本包当前是普通依赖（未声明 `dsh.bundle`），`dsh plugin add` 会提示
-> "declares no dsh.bundle" —— 属预期。稳定后可在 `package.json` 加
-> `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }` 并在包内放同名 patch，
-> 即可实现 `dsh plugin add` 一键自动激活（reconciler 会把 bundle 加入 layers）。
 
 ## 后端前置（P0 已完成 ✅）
 
