@@ -30,6 +30,16 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import z from "@deepseek-ai/schemastery";
 import { spawn, execFile } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
+import { createRequire } from "node:module";
+
+const _require = createRequire(import.meta.url);
+function require_node_child_process() {
+  return _require("node:child_process");
+}
 
 const name = "rpa-bridge";
 const inject = ["tools", "systemPrompt"];
@@ -48,6 +58,110 @@ const Config = z.object({
   // rpa_run_wait 轮询间隔
   waitPollMs: z.number().default(1500),
 });
+
+/* ------------------------------------------------------------------ */
+/* Python 后端自举（npm 发布形态：无仓库可用时在包内建 venv）          */
+/* ------------------------------------------------------------------ */
+
+/** 本模块绝对路径对应的包根目录（<pkg>/lib/index.js → <pkg>）。 */
+function packageRoot() {
+  return resolve(dirname(fileURLToPath(import.meta.url)), "..");
+}
+
+/** 包内 python/ 后端目录（npm 形态）。 */
+function bundledPythonDir() {
+  return join(packageRoot(), "python");
+}
+
+/** 数据目录：npm 形态落到用户 .dsh 下（不污染 node_modules）。 */
+function defaultDataDir() {
+  return join(homedir(), ".dsh", "rpa-data");
+}
+
+function hasCommand(cmd) {
+  try {
+    const { spawnSync } = require_node_child_process();
+    const r = spawnSync(cmd, ["--version"], { stdio: "ignore", timeout: 10000, shell: process.platform === "win32" });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+// 动态 require（ESM 下避免静态依赖 child_process 的 spawnSync 影响 tree-shake 无碍）
+
+/**
+ * 确保 python/ 下有可用 venv（uv 优先，pip 兜底），返回 python 可执行文件路径。
+ * 幂等：venv 已存在且 requirements 满足则直接复用（快速路径）。
+ */
+async function ensureBundledVenv(pythonDir, log) {
+  const venvPy = join(pythonDir, ".venv", "Scripts", "python.exe");
+  if (existsSync(venvPy)) {
+    log?.("[rpa-bridge] 复用已有 venv");
+    return venvPy;
+  }
+  const req = join(pythonDir, "requirements.txt");
+  if (!existsSync(req)) {
+    throw new Error(`[rpa-bridge] python/ 缺少 requirements.txt（${req}）—— 插件包构建不完整`);
+  }
+  const { spawnSync } = require_node_child_process();
+
+  // 1) uv 优先：uv venv + uv pip install（约快 10x）
+  if (hasCommand("uv")) {
+    log?.("[rpa-bridge] 使用 uv 创建 venv（首次安装，耗时约 1-3 分钟）…");
+    const mk = spawnSync("uv", ["venv", ".venv", "--python", "3.12"], { cwd: pythonDir, stdio: "inherit", timeout: 120000 });
+    if (mk.status === 0) {
+      const inst = spawnSync("uv", ["pip", "install", "-r", "requirements.txt"], {
+        cwd: pythonDir, stdio: "inherit", timeout: 600000,
+      });
+      if (inst.status === 0) return venvPy;
+      log?.("[rpa-bridge] uv 安装失败，回退 pip");
+    } else {
+      log?.("[rpa-bridge] uv venv 创建失败，回退 pip");
+    }
+  }
+
+  // 2) pip 兜底：python -m venv + pip install
+  const py = process.env.RPA_PYTHON || "py";
+  log?.("[rpa-bridge] 使用 pip 创建 venv（首次安装，耗时 3-10 分钟）…");
+  const mk2 = spawnSync(py, ["-3", "-m", "venv", ".venv"], { cwd: pythonDir, stdio: "inherit", timeout: 180000 });
+  if (mk2.status !== 0) {
+    const mk3 = spawnSync("python", ["-m", "venv", ".venv"], { cwd: pythonDir, stdio: "inherit", timeout: 180000 });
+    if (mk3.status !== 0) throw new Error("[rpa-bridge] 无法创建 Python venv：请安装 Python 3.12+ 并加入 PATH（或设置 RPA_PYTHON）");
+  }
+  const pip = join(pythonDir, ".venv", "Scripts", "pip.exe");
+  const inst2 = spawnSync(pip, ["install", "-r", "requirements.txt"], { cwd: pythonDir, stdio: "inherit", timeout: 600000 });
+  if (inst2.status !== 0) throw new Error("[rpa-bridge] pip 安装依赖失败，请手动运行：uv pip install -r requirements.txt（在 python/ 目录）");
+  return venvPy;
+}
+
+/**
+ * 解析后端启动命令。
+ * 返回 { command, cwd, env } 或 null（不可启动）。
+ * - backendCommand 已配置（本地 file: 形态）→ 原样使用
+ * - 未配置且包内 python/ 存在（npm 形态）→ 自举 venv 后使用
+ */
+async function resolveBackendLaunch(cfg, log) {
+  if (cfg.backendCommand) {
+    return {
+      command: cfg.backendCommand,
+      cwd: cfg.backendCwd || undefined,
+      env: {},
+    };
+  }
+  const pythonDir = bundledPythonDir();
+  if (!existsSync(join(pythonDir, "src", "runtime", "main.py"))) {
+    return null; // 无包内后端：调用方决定是否告警
+  }
+  const venvPy = await ensureBundledVenv(pythonDir, log);
+  const dataDir = process.env.RPA_DATA_DIR || defaultDataDir();
+  mkdirSync(dataDir, { recursive: true });
+  return {
+    command: `"${venvPy}" -m src.runtime.main`,
+    cwd: pythonDir,
+    env: { RPA_DATA_DIR: dataDir, RPA_REPO_ROOT: pythonDir },
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* 迷你 REST 客户端（镜像 src/mcp_server/client.py 的认证逻辑）        */
@@ -199,26 +313,41 @@ function apply(ctx, config) {
    *   3. 端口被非本项目进程占用 → 仅告警，不 spawn（工具会报错并提示手动启动）
    */
   let ownedBackend = null;
+  let launchErrorShown = false;
   setTimeout(async () => {
     try {
       await api.get("/health", { auth: false, timeoutMs: 3000 });
       ctx.logger.info("[rpa-bridge] 后端已在运行，接管现有实例（adopt，不回收）");
     } catch (err) {
-      if (!config.autoStartBackend || !config.backendCommand) {
-        ctx.logger.warn(`[rpa-bridge] 后端不可达（${err.message}）。请启动后端，或在配置中开启 autoStartBackend。`);
+      if (!config.autoStartBackend) {
+        if (!launchErrorShown) {
+          ctx.logger.warn(`[rpa-bridge] 后端不可达（${err.message}）。请启动后端，或开启 autoStartBackend 自动拉起。`);
+          launchErrorShown = true;
+        }
         return;
       }
       try {
-        const child = spawn(config.backendCommand, {
-          cwd: config.backendCwd || undefined,
+        const launch = await resolveBackendLaunch(config, (m) => ctx.logger.info(m));
+        if (!launch) {
+          ctx.logger.warn(
+            `[rpa-bridge] 后端不可达（${err.message}）且无可自举的 Python 后端。` +
+            `本地形态请配置 backendCommand（指向仓库 venv）或手动启动后端；` +
+            `npm 形态请确认插件包含 python/ 目录（重新安装最新版）。`
+          );
+          return;
+        }
+        const env = { ...process.env, ...launch.env };
+        const child = spawn(launch.command, {
+          cwd: launch.cwd || undefined,
           detached: true,
           stdio: "ignore",
           shell: true,
+          env,
         });
         child.on("error", (e) => ctx.logger.warn(`[rpa-bridge] 后端启动失败: ${e.message}`));
         child.unref();
         ownedBackend = child;
-        ctx.logger.info("[rpa-bridge] 已托管启动后端（owned，dispose 时回收）");
+        ctx.logger.info(`[rpa-bridge] 已托管启动后端（owned，dispose 时回收）${launch.command}`);
       } catch (e) {
         ctx.logger.warn(`[rpa-bridge] 后端启动异常: ${e.message}`);
       }

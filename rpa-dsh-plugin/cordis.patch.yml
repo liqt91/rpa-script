@@ -1,0 +1,19 @@
+# rpa-dsh-plugin bundle patch — 由 dsh plugin add 自动应用（无需手写 profile 配置）。
+# 配置项全部走环境变量兜底：本地 file: 形态可在 profile 层覆盖（同 id 整体替换 config）。
+- insert:
+    - id: rpa
+      name: rpa-dsh-plugin
+      config:
+        backendUrl: http://127.0.0.1:8000
+        token: !!js process.env.RPA_API_TOKEN || ''
+        username: !!js process.env.RPA_USERNAME || 'admin'
+        password: !!js process.env.RPA_PASSWORD || 'admin123'
+        # 自动拉起后端：默认开（npm 形态自举 venv）；显式关掉用 RPA_AUTOSTART_BACKEND=0
+        autoStartBackend: !!js process.env.RPA_AUTOSTART_BACKEND !== '0'
+        # 本地 file: 形态可配置指向仓库 venv；npm 形态留空则自举 python/ 内 venv
+        backendCommand: !!js process.env.RPA_BACKEND_COMMAND || ''
+        backendCwd: !!js process.env.RPA_BACKEND_CWD || ''
+        # 浏览器单指令默认超时（毫秒）
+        browserExecTimeoutMs: !!js Number(process.env.RPA_BROWSER_EXEC_TIMEOUT_MS || 30000)
+        # rpa_run_wait 轮询间隔（毫秒）
+        waitPollMs: !!js Number(process.env.RPA_WAIT_POLL_MS || 1500)

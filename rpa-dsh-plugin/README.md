@@ -49,12 +49,74 @@ RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建�
 
 产品分工变化：桌面版保留"人工编辑/执行"角色；NL 生成入口（TODO C4）由 DSH 承担，C1–C4 可删。
 
-## 安装（web profile）
+## 安装（web profile）— 双形态
+
+插件是 **dsh bundle**（`package.json` 声明 `dsh.bundle.patch`）：`dsh plugin add` 后
+自动加入 `dsh.profile.bundles` 并应用插件自带的 `cordis.patch.yml`（insert rpa 实例），
+**无需手写 profile 配置**。两种安装形态：
+
+### 形态 A：本地仓库安装（开发/单机，推荐）
+
+插件直接 `file:./` 链接仓库目录——仓库更新插件代码后 profile 自动同步，无需重装。
+
+```powershell
+# 一键安装（自动检查 pnpm → dsh plugin add → 写机器路径覆盖 → 验证）
+powershell -ExecutionPolicy Bypass -File scripts/install-dsh-plugin.ps1
+
+# 或手动（等价）：
+dsh plugin --profile web add file:./rpa-dsh-plugin
+```
+
+### 形态 B：npm 发布安装（分发/其他机器）
+
+```powershell
+dsh plugin --profile web add rpa-dsh-plugin
+```
+
+npm 形态下用户没有仓库，**Python 后端由插件自举**：激活时若
+`backendCommand` 未配置，自动在包内 `python/` 建 venv（uv 优先，pip 兜底）
+并安装 `requirements.txt`，然后启动后端。数据目录落到
+`~/.dsh/rpa-data/`（`RPA_DATA_DIR` 可改）。
+
+### 安装后
+
+验证（不起服务即可检查配置树）：`dsh --profile web --dump-config | findstr rpa`。
+然后**重启 `dsh web`** 激活插件（运行中的实例会在写入 patch 后经 HMR 热应用）。
+
+headless 同样可用：首次使用会自动初始化 profile，把实例加到
+`~/.dsh/profiles/headless/cordis.patch.yml`，然后一条命令端到端：
+
+```bash
+dsh --profile headless "打开百度，搜索 RPA，把第一页标题存成工作流并运行"
+```
+
+### 发布 npm 包
+
+```powershell
+# 构建后端源码集 + 前端产物到 python/，然后打 tarball（不实际发布）
+npm pack --prefix rpa-dsh-plugin
+
+# 实际发布（需 npm 账号）
+npm publish --prefix rpa-dsh-plugin
+```
+
+`package.json` 的 `prepack` 钩子自动执行 `scripts/build-plugin-package.ps1`
+（同步后端最小集 + 构建前端产物）。tarball 内容由 `files` 白名单控制：
+`lib/` + `cordis.patch.yml` + `python/`（含后端源码、指令 JSON、前端产物、requirements.txt）。
+
+### 环境变量（bundle patch 默认值）
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `RPA_API_TOKEN` / `RPA_USERNAME` / `RPA_PASSWORD` | admin/admin123 | 后端认证（401 自动重登） |
+| `RPA_AUTOSTART_BACKEND` | 开（非 `'0'`） | 激活时自动拉起后端 |
+| `RPA_BACKEND_COMMAND` / `RPA_BACKEND_CWD` | 空（npm 形态自举） | 本地形态指向仓库 venv |
+| `RPA_BROWSER_EXEC_TIMEOUT_MS` / `RPA_WAIT_POLL_MS` | 30000 / 1500 | 超时与轮询 |
 
 > 实测要点：
 > ① 路径必须带 `./`（`file:./`），否则 dsh plugin 的锚定正则不匹配；
 > ② 跨盘符的 `link:`/`file:` 绝对路径会被 pnpm 拼错（URL 解析把 `D:` 当 host），
-> 因此推荐**把插件实体拷进 profile 目录**再 `file:./` 引用；
+> 因此本地形态推荐在**仓库根**执行（同盘）；
 > ③ **不要**在 profile 里手动加 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`
 > 依赖。宿主 dsh 会把整个依赖闭包软链到 `~/.dsh/profiles/node_modules`
 > （`healProfilesModuleFallback`，每次启动维护），插件从该 fallback 解析到
@@ -64,47 +126,6 @@ RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建�
 > 作用域解析退化为全局层，会触发
 > `prompt section "deployment:persona" is already registered`（standard preset
 > 挂载失败，模型选择处报 resume failed）。这是本插件第二次失败的真实根因。
-
-```powershell
-# 1) 把插件拷进 profile（保持与仓库同步：改动后重新拷贝即可）
-Copy-Item rpa-dsh-plugin "$env:USERPROFILE\.dsh\profiles\web\rpa-dsh-plugin" -Recurse
-
-# 2) 声明依赖（只加 rpa-dsh-plugin 本身；cordis/dsh-tools/schemastery 均为
-#    peer，由宿主 fallback 提供单一实例，勿手动加进 dependencies）
-#    编辑 %USERPROFILE%\.dsh\profiles\web\package.json 的 dependencies 加入：
-#      "rpa-dsh-plugin": "file:./rpa-dsh-plugin"
-
-# 3) 安装
-cd "$env:USERPROFILE\.dsh\profiles\web"; pnpm install
-```
-
-然后编辑 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml`，**新增实例必须用 `insert:`**
-（普通 `id` 条目是"修改已有行"，id 不存在会被跳过）：
-
-```yaml
-- insert:
-    - id: rpa
-      name: rpa-dsh-plugin
-      config:
-        backendUrl: http://127.0.0.1:8000
-        token: !!js process.env.RPA_API_TOKEN || ''
-        username: !!js process.env.RPA_USERNAME || 'admin'
-        password: !!js process.env.RPA_PASSWORD || 'admin123'
-        # 可选：激活时自动拉起后端（不接管生命周期，dispose 不回收）
-        autoStartBackend: false
-        backendCommand: '"D:\Users\Administrator\Documents\代码\rpa_script\.venv\Scripts\python.exe" -m src.runtime.main'
-        backendCwd: 'D:\Users\Administrator\Documents\代码\rpa_script'
-```
-
-验证（不起服务即可检查配置树）：`dsh --profile web --dump-config | findstr rpa`。
-然后**重启 `dsh web`** 激活插件（运行中的实例会在写入 patch 后经 HMR 热应用）。
-
-headless 同样可用：首次使用会自动初始化 profile，按同样步骤把实例加到
-`~/.dsh/profiles/headless/cordis.patch.yml`，然后一条命令端到端：
-
-```bash
-dsh --profile headless "打开百度，搜索 RPA，把第一页标题存成工作流并运行"
-```
 
 ## 后端前置（P0 已完成 ✅）
 

@@ -1,0 +1,92 @@
+# build-plugin-package.ps1 — 构建 rpa-dsh-plugin 的 npm 发布包
+#
+# 职责：
+#   1. 把后端最小运行集（src 7 个包 + commands/ 指令 JSON + requirements.txt）
+#      同步到 rpa-dsh-plugin/python/（npm 形态插件自举用）
+#   2. 可选：构建前端产物并放入 python/static/workflow-editor（编辑器开箱即用）
+#   3. （由 npm pack 自动触发时）打 tarball
+#
+# 用法：
+#   powershell -File scripts/build-plugin-package.ps1            # 全量（后端 + 前端 + 仅同步）
+#   powershell -File scripts/build-plugin-package.ps1 -BackendOnly  # 只同步后端源码
+#   （npm pack / npm publish 会自动通过 package.json 的 prepack 钩子调用全量）
+#
+# 注意：本脚本在仓库根执行；--BackendOnly 供开发期快速同步。
+
+param(
+  [switch]$BackendOnly,
+  [switch]$SkipFrontend
+)
+
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot          # 仓库根
+$pkg  = Join-Path $root "rpa-dsh-plugin"
+$py   = Join-Path $pkg "python"
+
+Write-Host "== 构建 rpa-dsh-plugin npm 包 =="
+Write-Host "  仓库根: $root"
+
+# ---------- 1) 同步后端源码最小集 ----------
+$srcPkgs = @("config", "dtypes", "providers", "repo", "runtime", "service", "shared")
+foreach ($p in $srcPkgs) {
+  $from = Join-Path $root "src\$p"
+  $to   = Join-Path $py "src\$p"
+  if (-not (Test-Path $from)) { throw "缺少 src/$p" }
+  Write-Host "  sync src/$p -> python/src/$p"
+  # 排除测试/缓存
+  robocopy $from $to /E /XD __pycache__ tests /XF "*.pyc" /NFL /NDL /NJH /NJS /NP | Out-Null
+}
+# commands/ 指令 JSON（后端 _ROOT/commands 读取）
+robocopy (Join-Path $root "commands") (Join-Path $py "commands") /E /NFL /NDL /NJH /NJS /NP | Out-Null
+Write-Host "  sync commands/ -> python/commands/"
+
+# requirements.txt（pip/uv 自举用）
+Copy-Item (Join-Path $root "requirements.txt") (Join-Path $py "requirements.txt") -Force
+Write-Host "  sync requirements.txt"
+
+# 运行时数据目录骨架（data/ 由 RPA_DATA_DIR 重定向，不打包；但建目录避免首启告警）
+New-Item -ItemType Directory -Path (Join-Path $py "data") -Force | Out-Null
+
+if ($BackendOnly) {
+  Write-Host "`n✅ 后端同步完成（python/ 就绪）。"
+  exit 0
+}
+
+# ---------- 2) 前端产物（可选） ----------
+if (-not $SkipFrontend) {
+  $feDir = Join-Path $root "src\ui\workflow-editor"
+  if (Test-Path (Join-Path $feDir "node_modules\.bin\vite.cmd")) {
+    Write-Host "`n== 构建前端产物 =="
+    Push-Location $feDir
+    try {
+      $buildOut = npm run build 2>&1 | Out-String
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host "  ⚠ vite build 失败（$($buildOut.Split("`n") | Select-Object -Last 2)）"
+        Write-Host "  将回退使用已有产物（若 src/runtime/static/workflow-editor/ 存在）"
+      }
+    } finally { Pop-Location }
+    # 产物在 src/runtime/static/workflow-editor/，拷入 python/static/
+    $staticFrom = Join-Path $root "src\runtime\static\workflow-editor"
+    $staticTo   = Join-Path $py "static\workflow-editor"
+    if (Test-Path $staticFrom) {
+      robocopy $staticFrom $staticTo /E /NFL /NDL /NJH /NJS /NP | Out-Null
+      Write-Host "  sync 前端产物 -> python/static/workflow-editor/"
+    } else {
+      Write-Host "  ⚠ 未找到前端产物目录，跳过"
+    }
+  } else {
+    Write-Host "`n⚠ 前端依赖未安装（node_modules 缺失），跳过前端构建——npm 包内编辑器将不可用。"
+    Write-Host "  先执行: cd src/ui/workflow-editor && npm install"
+  }
+} else {
+  Write-Host "`n（跳过前端构建）"
+}
+
+# ---------- 3) 清理 + 汇总 ----------
+# 删除 __pycache__ 残留（robocopy 排除不彻底时）
+Get-ChildItem $py -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+$sizeMB = [math]::Round(((Get-ChildItem $py -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 2)
+$fileCount = (Get-ChildItem $py -Recurse -File).Count
+Write-Host "`n✅ python/ 就绪: $fileCount 文件, $sizeMB MB"
+Write-Host "   npm pack / npm publish 将自动包含 python/（package.json files 白名单）"
