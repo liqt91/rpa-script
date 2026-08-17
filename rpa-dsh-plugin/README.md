@@ -128,6 +128,18 @@ dsh --profile headless "打开百度，搜索 RPA，把第一页标题存成工�
    （复用 `scan_installed_extensions`）与兜底提示（Chrome 版本兼容风险）。
 4. **P3 打磨**：skills 入 `~/.dsh/skills/`；可选 headless profile 一条命令跑流程。
 
+## 启动失败恢复
+
+如果 `dsh web` 启动崩溃（插件树加载失败），一条命令回到无插件状态：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.dsh\profiles\web\rollback-rpa.ps1"
+```
+
+脚本先备份当前 profile 配置与插件实体到 `~/.dsh/profiles/web-backup-<时间戳>/`，
+再把 profile 还原为纯 bundles（清空 `cordis.patch.yml`、移除插件、剪除依赖），
+随后重启 `dsh web` 即恢复。备份目录保留出问题的配置，排查时可对照。
+
 ## 风险备忘
 
 - **工具参数 schema（dsh-tools 硬性要求）**：`type: "object"` 的参数必须显式声明
