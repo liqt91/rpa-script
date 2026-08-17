@@ -115,7 +115,7 @@ export default function Layout() {
   }, []);
 
   return (
-    <div className="h-screen flex flex-col bg-[#f0f2f5] overflow-hidden">
+    <div className="h-screen flex flex-col bg-bg overflow-hidden">
       <Toolbar />
       <div className="flex flex-1 min-h-0">
         <CommandPanel />

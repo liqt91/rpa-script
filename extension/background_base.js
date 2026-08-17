@@ -96,6 +96,19 @@ class AgentBackground {
   }
 
   async start() {
+    // 恢复工作窗口状态：MV3 service worker 会在空闲后休眠/重启，内存中的
+    // workWindowId/workTabId 会丢失，导致步骤间"工作窗口已失效"。持久化到
+    // chrome.storage.local，重启后在此恢复。
+    try {
+      const saved = await chrome.storage.local.get('rpaWorkState');
+      const s = saved.rpaWorkState;
+      if (s && s.workWindowId) {
+        this.workWindowId = s.workWindowId;
+        this.workTabId = s.workTabId || null;
+        console.log('[Agent] restored work state:', this.workWindowId, this.workTabId);
+      }
+    } catch (_) {}
+
     const wsUrl = await getBackendUrl();
     this._connect(wsUrl);
 
@@ -221,6 +234,7 @@ class AgentBackground {
       this.workWindowId = null;
       this.workTabId = null;
       this._lastTabUrl = null;
+      await this._clearWorkState();
       console.log('[Agent] work window/tab reset for new run');
       return;
     }
@@ -390,6 +404,19 @@ class AgentBackground {
     return restricted.some(p => url.startsWith(p));
   }
 
+  // ── 工作窗口状态持久化（MV3 service worker 休眠不丢） ──
+  async _persistWorkState() {
+    try {
+      await chrome.storage.local.set({
+        rpaWorkState: { workWindowId: this.workWindowId, workTabId: this.workTabId },
+      });
+    } catch (_) {}
+  }
+
+  async _clearWorkState() {
+    try { await chrome.storage.local.remove('rpaWorkState'); } catch (_) {}
+  }
+
   async _ensureWorkTab(step) {
     const explicitWindowId = step.extra?.windowId ? Number(step.extra.windowId) : null;
     const explicitTabId = step.extra?.tabId ? Number(step.extra.tabId) : null;
@@ -456,10 +483,23 @@ class AgentBackground {
   }
 
   async _executeStepOnTab(tabId, step) {
-    return await chrome.tabs.sendMessage(tabId, {
-      action: 'executeStep',
-      step,
+    // sendMessage 在 content script 存在但不回调 sendResponse 时永不 settle（既不 resolve 也不 reject），
+    // 会导致后端 exec 永久挂起。加超时保护，超时明确报错而非挂死。
+    const timeoutMs = 15000;
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(
+        `目标标签页 content script 无响应（${timeoutMs / 1000}s），请刷新该页面或重载扩展后重试`
+      )), timeoutMs);
     });
+    try {
+      return await Promise.race([
+        chrome.tabs.sendMessage(tabId, { action: 'executeStep', step }),
+        timeout,
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async _handleExecuteStep(step) {
@@ -482,6 +522,15 @@ class AgentBackground {
     try {
       // Ensure we have a valid work tab (creates new one for navigate if needed)
       const tabId = await this._ensureWorkTab(step);
+
+      // 操作前把目标窗口置前（best-effort）：真实鼠标/键盘操作必须窗口在前台才有效，
+      // 也避免与用户当前所在窗口冲突。
+      try {
+        const workTab = await chrome.tabs.get(tabId);
+        if (workTab?.windowId) {
+          await chrome.windows.update(workTab.windowId, { focused: true });
+        }
+      } catch (_) {}
 
       // 向页面注入运行提示
       if (tabId) {

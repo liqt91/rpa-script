@@ -377,23 +377,23 @@ export default function DataTableTab({ wfId }) {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-slate-200 bg-white shrink-0">
+      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border bg-surface shrink-0">
         <span className="text-xs text-slate-400 font-medium mr-1">数据表格</span>
         <div className="w-px h-4 bg-slate-200"></div>
-        <button onClick={addColumn} className="text-[11px] px-2.5 py-1.5 border border-slate-200 rounded-md hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-colors">+ 列</button>
-        <button onClick={addRow} className="text-[11px] px-2.5 py-1.5 border border-slate-200 rounded-md hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-colors">+ 行</button>
+        <button onClick={addColumn} className="text-[11px] px-2.5 py-1.5 border border-border rounded-md hover:border-blue-300 hover:text-accent hover:bg-accent-soft/50 transition-colors">+ 列</button>
+        <button onClick={addRow} className="text-[11px] px-2.5 py-1.5 border border-border rounded-md hover:border-blue-300 hover:text-accent hover:bg-accent-soft/50 transition-colors">+ 行</button>
         <div className="w-px h-4 bg-slate-200"></div>
-        <button onClick={() => fileInputRef.current?.click()} className="text-[11px] px-2.5 py-1.5 border border-slate-200 rounded-md hover:border-slate-300 hover:bg-slate-50 transition-colors">导入</button>
+        <button onClick={() => fileInputRef.current?.click()} className="text-[11px] px-2.5 py-1.5 border border-border rounded-md hover:border-slate-300 hover:bg-slate-50 transition-colors">导入</button>
         <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
-        <button onClick={handleExport} className="text-[11px] px-2.5 py-1.5 border border-slate-200 rounded-md hover:border-slate-300 hover:bg-slate-50 transition-colors">导出</button>
-        <button onClick={handleRefresh} className="text-[11px] px-2.5 py-1.5 border border-slate-200 rounded-md hover:border-slate-300 hover:bg-slate-50 transition-colors" title="从本地存储重新加载">
+        <button onClick={handleExport} className="text-[11px] px-2.5 py-1.5 border border-border rounded-md hover:border-slate-300 hover:bg-slate-50 transition-colors">导出</button>
+        <button onClick={handleRefresh} className="text-[11px] px-2.5 py-1.5 border border-border rounded-md hover:border-slate-300 hover:bg-slate-50 transition-colors" title="从本地存储重新加载">
           <i className="fas fa-sync-alt text-[10px] mr-1"></i>刷新
         </button>
         <div className="flex-1"></div>
         {selectedCells.size > 0 && (
-          <span className="text-[11px] text-blue-500">{selectedCells.size} 个单元格已选中</span>
+          <span className="text-[11px] text-accent">{selectedCells.size} 个单元格已选中</span>
         )}
-        <button onClick={handleClear} className="text-[11px] px-2.5 py-1.5 border border-red-200 rounded-md text-red-500 hover:bg-red-50 hover:border-red-300 transition-colors">清空</button>
+        <button onClick={handleClear} className="text-[11px] px-2.5 py-1.5 border border-danger rounded-md text-danger hover:bg-danger-soft hover:border-red-300 transition-colors">清空</button>
       </div>
 
       {/* Grid */}
@@ -415,7 +415,7 @@ export default function DataTableTab({ wfId }) {
           <table className="w-full border-collapse text-xs">
             <thead className="sticky top-0 z-10">
               <tr>
-                <th className="w-10 h-9 bg-slate-700 text-slate-300 font-medium text-center border-r border-slate-600 text-[11px]">#</th>
+                <th className="w-10 h-9 bg-slate-700 text-faint font-medium text-center border-r border-slate-600 text-[11px]">#</th>
                 {columns.map((col, ci) => (
                   <th key={ci} className="bg-slate-700 text-white font-medium border-r border-slate-600 min-w-[88px] relative group last:border-r-0">
                     <div className="flex items-center">
@@ -426,7 +426,7 @@ export default function DataTableTab({ wfId }) {
                       />
                       <button
                         onClick={() => removeColumn(ci)}
-                        className="opacity-0 group-hover:opacity-100 shrink-0 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-red-400 transition-colors"
+                        className="opacity-0 group-hover:opacity-100 shrink-0 w-6 h-6 flex items-center justify-center text-faint hover:text-danger transition-colors"
                         title="删除列"
                       >
                         <i className="fas fa-times text-[9px]"></i>
@@ -435,7 +435,7 @@ export default function DataTableTab({ wfId }) {
                   </th>
                 ))}
                 <th className="w-8 bg-slate-700 border-l border-slate-600">
-                  <button onClick={addColumn} className="w-full h-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-600 transition-colors" title="添加列">
+                  <button onClick={addColumn} className="w-full h-full flex items-center justify-center text-faint hover:text-white hover:bg-slate-600 transition-colors" title="添加列">
                     <i className="fas fa-plus text-[10px]"></i>
                   </button>
                 </th>
@@ -445,13 +445,13 @@ export default function DataTableTab({ wfId }) {
               {rows.map((row, ri) => (
                 <tr
                   key={ri}
-                  className={`group transition-colors ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}`}
+                  className={`group transition-colors ${ri % 2 === 0 ? 'bg-surface' : 'bg-slate-50/70'}`}
                 >
                   <td className="border-t border-slate-100 bg-slate-50 text-center text-slate-400 text-[11px] font-mono relative w-10">
                     {ri + 1}
                     <button
                       onClick={() => removeRow(ri)}
-                      className="absolute left-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-slate-300 hover:text-red-500 transition-all rounded"
+                      className="absolute left-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-faint hover:text-danger transition-all rounded"
                       title="删除行"
                     >
                       <i className="fas fa-times text-[9px]"></i>
@@ -464,14 +464,14 @@ export default function DataTableTab({ wfId }) {
                     return (
                       <td
                         key={ci}
-                        className={`border-t border-slate-100 min-w-[88px] select-none cursor-cell ${sel ? 'bg-blue-100' : ''}`}
+                        className={`border-t border-slate-100 min-w-[88px] select-none cursor-cell ${sel ? 'bg-accent-soft' : ''}`}
                         onClick={(e) => handleCellClick(ri, ci, e)}
                         onDoubleClick={() => handleCellDoubleClick(ri, ci)}
                       >
                         {editing ? (
                           <input
                             autoFocus
-                            className="w-full px-3 py-2 min-h-[30px] text-slate-700 bg-white ring-2 ring-inset ring-blue-400 outline-none text-xs"
+                            className="w-full px-3 py-2 min-h-[30px] text-slate-700 bg-surface ring-2 ring-inset ring-blue-400 outline-none text-xs"
                             defaultValue={String(val)}
                             onBlur={(e) => {
                               const newVal = e.target.value;
@@ -500,7 +500,7 @@ export default function DataTableTab({ wfId }) {
               ))}
               <tr>
                 <td
-                  className="border-t-2 border-slate-200 bg-slate-50/80 text-center text-slate-400 cursor-pointer hover:bg-blue-50 hover:text-blue-500 transition-colors"
+                  className="border-t-2 border-border bg-slate-50/80 text-center text-slate-400 cursor-pointer hover:bg-accent-soft hover:text-accent transition-colors"
                   onClick={addRow}
                   colSpan={columns.length + 2}
                 >
@@ -517,7 +517,7 @@ export default function DataTableTab({ wfId }) {
 
       {/* Toast */}
       {toast && (
-        <div className={`absolute bottom-3 right-3 px-3 py-1.5 rounded text-xs shadow ${toast.type === 'error' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+        <div className={`absolute bottom-3 right-3 px-3 py-1.5 rounded text-xs shadow ${toast.type === 'error' ? 'bg-danger-soft text-danger' : 'bg-ok-soft text-ok'}`}>
           {toast.msg}
         </div>
       )}

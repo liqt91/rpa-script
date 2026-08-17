@@ -5,7 +5,9 @@ WebSocket 长连接 + HTTP 命令下发
 """
 
 import asyncio
-from fastapi import APIRouter, WebSocket, Path, Query, HTTPException
+import json
+from fastapi import APIRouter, WebSocket, Path, Query, HTTPException, Form, File, UploadFile
+from fastapi.responses import HTMLResponse
 from typing import Optional
 
 from ..websocket_manager import ext_manager
@@ -18,7 +20,7 @@ from src.service.extension_scanner import scan_installed_extensions
 from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
 from src.dtypes.schemas import ExtensionWorkflowElementOut
-import json
+
 def _safe_json_loads(value, default=None):
     """Safely parse a JSON column string; return default on any failure."""
     if not value:
@@ -525,3 +527,135 @@ async def exec_extension_command(request: dict = None):
     if resp.get("status") == "error":
         return {"success": False, "error": resp.get("error"), "clientId": resp.get("client_id")}
     return {"success": True, "result": resp.get("result"), "clientId": resp.get("client_id")}
+
+
+@router.post("/elements/image")
+async def register_image_element_endpoint(
+    workflow_id: int = Form(...),
+    name: str = Form(...),
+    file: UploadFile = File(...),
+    similarity: float = Form(0.8),
+    scope: str = Form("screen"),
+    source: str = Form(""),
+):
+    """注册 image 元素：上传参考图 → 复制到 data/images/<wf>/ 并建元素库行。
+
+    Body: multipart/form-data（workflow_id, name, file, similarity?, scope?, source?）
+    """
+    from src.service.elements_service import register_image_element
+
+    file_bytes = await file.read()
+    try:
+        el = register_image_element(
+            workflow_id=workflow_id, name=name, file_bytes=file_bytes,
+            similarity=similarity, scope=scope, source=source,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "element": {"id": el.id, "name": el.name,
+                                     "elementType": el.element_type,
+                                     "attributes": json.loads(el.attributes or "{}")}}
+
+
+# ── 现场截图（图像元素参考图）：启动系统截图工具 + 轮询剪贴板取新图 ──
+
+def _clipboard_image_fingerprint():
+    """读剪贴板图片并返回内容指纹（无图返回 None）。"""
+    from PIL import Image, ImageGrab
+    try:
+        img = ImageGrab.grabclipboard()
+    except Exception:
+        return None
+    if not isinstance(img, Image.Image):
+        return None
+    small = img.convert("RGB").resize((64, 64))
+    import hashlib
+    return hashlib.md5(small.tobytes()).hexdigest()
+
+
+@router.post("/screenshot-tool/start")
+def screenshot_tool_start():
+    """启动系统截图工具（SnippingTool，Win11 区域截图，框选完自动复制到剪贴板）。
+
+    返回 baseline：启动时剪贴板图片指纹（"" 表示启动时无图）。
+    前端随后轮询 /screenshot-tool/poll 取新截图。
+    """
+    import subprocess
+    baseline = _clipboard_image_fingerprint()
+    try:
+        subprocess.Popen(["SnippingTool.exe"])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"无法启动系统截图工具: {e}")
+    return {"ok": True, "baseline": baseline if baseline else ""}
+
+
+@router.get("/screenshot-tool/poll")
+def screenshot_tool_poll(baseline: str = Query("")):
+    """轮询剪贴板：出现与基线不同的图片视为新截图，返回 base64 dataUrl。
+
+    :param baseline: start 接口返回的指纹（"" 表示启动时无图）。
+    """
+    import base64
+    import hashlib
+    import io
+    from PIL import Image, ImageGrab
+    try:
+        img = ImageGrab.grabclipboard()
+    except Exception:
+        return {"ready": False}
+    if not isinstance(img, Image.Image):
+        return {"ready": False}
+    small = img.convert("RGB").resize((64, 64))
+    fp = hashlib.md5(small.tobytes()).hexdigest()
+    if baseline and fp == baseline:
+        return {"ready": False}
+    buf = io.BytesIO()
+    img.convert("RGB").save(buf, "PNG")
+    data_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return {"ready": True, "dataUrl": data_url, "width": img.width, "height": img.height}
+
+
+@router.get("/image-upload-page")
+def image_upload_page():
+    """手动截图上传页：选择截图文件 + 元素名，注册为 image 元素供 findImage/clickImage 使用。"""
+    html = """<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8"><title>RPA 图像元素注册</title>
+<style>
+body{font-family:system-ui;max-width:640px;margin:40px auto;padding:0 20px;color:#222}
+h1{font-size:20px} label{display:block;margin:12px 0 4px;font-weight:600}
+input[type=text],input[type=number],select{width:100%;padding:8px;border:1px solid #ccc;
+  border-radius:6px;box-sizing:border-box}
+input[type=file]{padding:8px;border:1px dashed #aaa;border-radius:6px;width:100%;box-sizing:border-box}
+button{margin-top:16px;padding:10px 24px;background:#0b7;color:#fff;border:0;
+  border-radius:6px;cursor:pointer;font-size:15px}
+#result{margin-top:16px;white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:6px;font-size:13px}
+.hint{color:#777;font-size:12px;margin-top:4px}
+</style></head><body>
+<h1>📷 RPA 图像元素注册</h1>
+<p class="hint">用 Windows 截图（Win+Shift+S）或浏览器元素截图保存 PNG，然后上传并命名。
+注册后可在 findImage / clickImage 指令的 imageRef 里直接填元素名。</p>
+<form id="f">
+  <label>工作流 ID <span class="hint">(rpa_import_workflow 返回值 / /rpa list 可查)</span></label>
+  <input type="number" name="workflow_id" required>
+  <label>元素名</label>
+  <input type="text" name="name" required placeholder="如 筛选按钮">
+  <label>相似度阈值</label>
+  <input type="number" name="similarity" value="0.8" min="0.5" max="1" step="0.05">
+  <label>参考图文件 (PNG)</label>
+  <input type="file" name="file" accept="image/png,image/jpeg" required>
+  <label>来源说明 <span class="hint">可选，如「小红书筛选按钮截图」</span></label>
+  <input type="text" name="source" placeholder="可选">
+  <button type="submit">注册</button>
+</form>
+<div id="result"></div>
+<script>
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const r = await fetch('/api/extension/elements/image', { method: 'POST', body: fd });
+  const j = await r.json();
+  document.getElementById('result').textContent = JSON.stringify(j, null, 2);
+});
+</script>
+</body></html>"""
+    return HTMLResponse(content=html)

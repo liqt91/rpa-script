@@ -121,6 +121,72 @@ def _os_click() -> bool:
         return False
 
 
+def _screen_rects() -> list:
+    """All monitor working-area rects as (left, top, right, bottom). Windows only.
+
+    支持负坐标屏（副屏在主屏上方/左侧）：坐标可能为负，属正常布局，不应视为错误。
+    """
+    if os.name != "nt":
+        return []
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        rects = []
+        MonitorEnumProc = ctypes.WINFUNCTYPE(
+            ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong,
+            ctypes.POINTER(wintypes.RECT), ctypes.c_double,
+        )
+
+        def _cb(_hmon, _hdc, lprc, _dw):
+            r = lprc.contents
+            rects.append((r.left, r.top, r.right, r.bottom))
+            return 1
+
+        ctypes.windll.user32.EnumDisplayMonitors(0, 0, MonitorEnumProc(_cb), 0)
+        return rects
+    except Exception:
+        return []
+
+
+def _in_screen(x: int, y: int) -> bool:
+    """Whether (x, y) falls inside any monitor rect. No monitors → assume valid."""
+    rects = _screen_rects()
+    if not rects:
+        return True
+    for left, top, right, bottom in rects:
+        if left <= x < right and top <= y < bottom:
+            return True
+    return False
+
+
+def _user_mouse_idle(wait_total: float = 3.0, threshold: int = 8) -> bool:
+    """Wait until the user's physical mouse has been still ~0.3s, or timeout.
+
+    用户抢鼠标检测：移动真实光标前先确认用户没有在操作（连续采样光标位置），
+    避免 SetCursorPos 与用户输入打架导致点击落空或误点。
+    """
+    if os.name != "nt":
+        return True
+    try:
+        deadline = time.time() + wait_total
+        last = None
+        while time.time() < deadline:
+            cur = _get_cursor_pos()
+            if last is not None:
+                if abs(cur[0] - last[0]) < threshold and abs(cur[1] - last[1]) < threshold:
+                    # 静止一个采样周期后再确认一次，避免把"停顿瞬间"误判为空闲
+                    time.sleep(0.3)
+                    cur2 = _get_cursor_pos()
+                    if abs(cur2[0] - cur[0]) < threshold and abs(cur2[1] - cur[1]) < threshold:
+                        return True
+            last = cur
+            time.sleep(0.15)
+        return False
+    except Exception:
+        return True
+
+
 # Virtual key code map for common keys
 _VK_MAP = {
     "Enter": 0x0D, "Tab": 0x09, "Escape": 0x1B, "Backspace": 0x08,
@@ -924,6 +990,10 @@ class ExtensionRunner:
             "stepId": step_id, "nodeId": node_id,
             "type": handler,
             **payload,
+            # 提升 extra.locator/selectorFamily 到顶层：让工作流节点可以像 exec 一样
+            # 直接用 extra.locator 定位（content.js 只认 instr 顶层的 locator 字段）。
+            "locator": payload.get("locator") or extra.get("locator", "") or "",
+            "selectorFamily": payload.get("selectorFamily") or extra.get("selectorFamily", "") or "css",
         }
         logger.info(f"[ExtensionRunner] -> ext handler={handler} stepId={step_id} payload={payload}")
         future = await ext_manager.register_step_future(step_id)
@@ -1186,6 +1256,9 @@ class ExtensionRunner:
             return bool(v)
 
         if _ok(instr.get("locator")):
+            return True
+        extra = instr.get("extra") or {}
+        if _ok(extra.get("locator")):
             return True
         for alt in instr.get("altLocators") or []:
             if _ok(alt):
@@ -1677,24 +1750,50 @@ class ExtensionRunner:
 
     async def _handle_mouse_op(self, result: dict, extra: dict) -> None:
         """Move OS mouse to element + optionally click (result.osClick). Calibrates on first call."""
-        sx = result.get("screenX"); sy = result.get("screenY")
+        sx = result.get("screenX")
+        sy = result.get("screenY")
         if result.get("_needsCalib"):
-            if sx is not None: _os_move_mouse(sx, sy, instant=True)
-            await asyncio.sleep(0.6)
-            try:
-                coords = await self._call_extension_handler(
-                    "recomputeScreenCoords",
-                    {"extra": {"viewX": result["viewX"], "viewY": result["viewY"],
-                               "dpr": result.get("dpr", 1)}},
-                    timeout=5.0,
-                )
-                sx = coords.get("screenX"); sy = coords.get("screenY")
-            except Exception:
-                pass
-        if sx is not None and sy is not None:
-            _os_move_mouse(sx, sy)
-            result["screenX"] = sx; result["screenY"] = sy
-            result.pop("_needsCalib", None)
+            if sx is not None and _in_screen(sx, sy):
+                _os_move_mouse(sx, sy, instant=True)
+                await asyncio.sleep(0.6)
+                try:
+                    coords = await self._call_extension_handler(
+                        "recomputeScreenCoords",
+                        {"extra": {"viewX": result["viewX"], "viewY": result["viewY"],
+                                   "dpr": result.get("dpr", 1)}},
+                        timeout=5.0,
+                    )
+                    sx = coords.get("screenX")
+                    sy = coords.get("screenY")
+                    logger.info(
+                        f"[ExtensionRunner] recalib result coords=({sx},{sy}) "
+                        f"(from event-diff calibration)"
+                    )
+                except Exception:
+                    pass
+        if sx is None or sy is None:
+            return
+        result["screenX"] = sx
+        result["screenY"] = sy
+        result.pop("_needsCalib", None)
+        logger.info(f"[ExtensionRunner] final mouse target=({sx},{sy})")
+
+        # 越界检查：目标不在任何显示器内（含负坐标副屏的正规坐标）→ 跳过真实移动，
+        # 避免 SetCursorPos 把光标送到屏幕外。
+        if not _in_screen(sx, sy):
+            logger.warning(
+                f"[ExtensionRunner] 目标屏幕坐标 ({sx},{sy}) 不在任何显示器内，跳过 OS 鼠标操作"
+            )
+            return
+
+        # 用户抢鼠标检测：移动真实光标前确认用户鼠标空闲，避免打架。
+        if not _user_mouse_idle():
+            logger.warning(
+                "[ExtensionRunner] 检测到用户正在使用鼠标，跳过真实鼠标移动/点击"
+            )
+            return
+
+        _os_move_mouse(sx, sy)
         # Real OS click (clickElement, or input focus for OS typing)
         if result.get("osClick"):
             await asyncio.sleep(0.1)
@@ -1740,6 +1839,13 @@ class ExtensionRunner:
                     except (ValueError, TypeError):
                         extra["windowId"] = window_val
         instr = {**instr, "extra": extra}
+
+        # 提升 extra.locator/selectorFamily 到顶层：让工作流节点可以像 exec 一样
+        # 直接用 extra.locator 定位（content.js 只认 executeStep 顶层的 locator 字段）。
+        if not instr.get("locator") and extra.get("locator"):
+            instr = {**instr, "locator": extra["locator"]}
+        if not instr.get("selectorFamily") and extra.get("selectorFamily"):
+            instr = {**instr, "selectorFamily": extra["selectorFamily"]}
 
         # Inject loop context into extra so content.js resolves locators by index alignment
         ctx = self._resolve_loop_context(extra)

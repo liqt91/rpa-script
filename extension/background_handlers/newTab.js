@@ -21,6 +21,7 @@ registerBackgroundHandler('newTab', async function(step, agent) {
 
   const newTab = await chrome.tabs.create({ url, active, windowId });
   agent.workTabId = newTab.id;
+  await agent._persistWorkState();
 
   await new Promise(r => setTimeout(r, 500));
   try { await agent._injectContentScript(newTab.id); } catch (e) {}

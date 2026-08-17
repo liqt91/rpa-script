@@ -16,4 +16,5 @@ class ClickElementHandler:
         Param("loopAnchor", "锚点元素", "string", default="", group="anchor"),
         Param("visibilityMode", "元素可见性", "select", default="visible", options=[{"label": "仅可见", "value": "visible"}, {"label": "所有", "value": "any"}], group="advanced"),
         Param("humanLike", "真实鼠标点击", "boolean", default=True, group="advanced", description="勾选：鼠标贝塞尔移动并真实点击（需浏览器窗口在前台）；不勾选：合成 click 事件（快，后台可用）"),
+        Param("clickMethod", "点击方式", "select", default="auto", options=[{"label": "自动（真实鼠标）", "value": "auto"}, {"label": "合成事件（不碰鼠标，后台可用）", "value": "js"}, {"label": "仅真实鼠标（需窗口前台）", "value": "os"}], group="advanced", description="auto：真实鼠标移动+点击（兼容现状）；js：页面内合成完整鼠标事件序列（mousemove/mousedown/mouseup/click），不移动系统鼠标、后台可用，适合被遮挡元素/反爬页；os：强制真实鼠标"),
     ]

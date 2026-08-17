@@ -540,21 +540,21 @@ export default function Toolbar() {
 
   const closeResult = () => setRunResult(null);
 
-  const extDotColor = extStatus?.online ? 'bg-green-500' : 'bg-red-500';
+  const extDotColor = extStatus?.online ? 'bg-ok' : 'bg-danger';
 
   return (
     <>
-      <header className="h-11 bg-white border-b border-[#e8e8e8] flex items-center justify-between px-3 select-none shrink-0">
+      <header className="h-11 bg-surface border-b border-border flex items-center justify-between px-3 select-none shrink-0">
         {/* 左侧：标题 */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <div className="w-6 h-6 bg-[#1677ff] rounded flex items-center justify-center text-white text-xs font-bold">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 brand-mark rounded-md flex items-center justify-center text-white text-xs font-bold">
               <i className="fas fa-project-diagram text-[10px]"></i>
             </div>
             {editingName ? (
               <input
                 autoFocus
-                className="text-sm font-medium text-gray-700 border border-[#1677ff] rounded px-1.5 py-0.5 outline-none w-48"
+                className="text-sm font-medium text-body bg-surface-2 border border-accent rounded px-1.5 py-0.5 outline-none w-48"
                 value={editNameValue}
                 onChange={(e) => setEditNameValue(e.target.value)}
                 onKeyDown={(e) => {
@@ -568,7 +568,7 @@ export default function Toolbar() {
               />
             ) : (
               <span
-                className="text-sm font-medium text-gray-700 truncate max-w-[200px] cursor-pointer hover:text-[#1677ff]"
+                className="text-sm font-medium text-body truncate max-w-[200px] cursor-pointer hover:text-accent transition-colors"
                 onClick={() => {
                   setEditNameValue(workflow?.name || '');
                   setEditingName(true);
@@ -579,8 +579,8 @@ export default function Toolbar() {
               </span>
             )}
           </div>
-          {saving && <span className="text-xs text-gray-400">保存中...</span>}
-          {isDirty && !saving && <span className="text-xs text-orange-500">● 未保存</span>}
+          {saving && <span className="text-xs text-faint">保存中...</span>}
+          {isDirty && !saving && <span className="text-xs text-warn">● 未保存</span>}
         </div>
 
         {/* 中间：工具按钮 */}
@@ -588,8 +588,8 @@ export default function Toolbar() {
           <button
             className={`h-7 px-3 flex items-center gap-1.5 rounded text-xs transition-colors ${
               isDirty
-                ? 'bg-[#1677ff] hover:bg-[#4096ff] text-white'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                ? 'bg-accent hover:bg-accent-strong text-white'
+                : 'bg-surface-3 text-faint cursor-not-allowed'
             }`}
             onClick={handleSave}
             disabled={!isDirty || saving}
@@ -598,23 +598,23 @@ export default function Toolbar() {
             <i className="fas fa-save text-[10px]"></i>
             <span>保存</span>
           </button>
-          <div className="w-px h-5 bg-gray-200 mx-1"></div>
+          <div className="w-px h-5 bg-surface-3 mx-1"></div>
           <button
-            className="h-7 px-3 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
+            className="h-7 px-3 flex items-center gap-1.5 rounded border border-border-strong hover:border-accent hover:text-accent text-xs text-muted transition-colors"
             onClick={handleExport}
           >
             <i className="fas fa-code text-[10px]"></i>
             <span>导出 Python</span>
           </button>
           <button
-            className="h-7 px-3 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
+            className="h-7 px-3 flex items-center gap-1.5 rounded border border-border-strong hover:border-accent hover:text-accent text-xs text-muted transition-colors"
             onClick={handleExportJSON}
           >
             <i className="fas fa-file-export text-[10px]"></i>
             <span>导出流程</span>
           </button>
           <button
-            className="h-7 px-3 flex items-center gap-1.5 rounded border border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-xs text-gray-600 transition-colors"
+            className="h-7 px-3 flex items-center gap-1.5 rounded border border-border-strong hover:border-accent hover:text-accent text-xs text-muted transition-colors"
             onClick={() => importInputRef.current?.click()}
           >
             <i className="fas fa-file-import text-[10px]"></i>
@@ -627,11 +627,11 @@ export default function Toolbar() {
             className="hidden"
             onChange={handleImportJSON}
           />
-          <div className="w-px h-5 bg-gray-200 mx-1"></div>
+          <div className="w-px h-5 bg-surface-3 mx-1"></div>
 
           {/* Extension connection indicator */}
           <div
-            className="flex items-center gap-1.5 px-2 h-7 rounded border border-[#d9d9d9] text-xs text-gray-600"
+            className="flex items-center gap-1.5 px-2 h-7 rounded border border-border-strong text-xs text-muted"
             title={extStatus?.online ? `扩展在线 (${extStatus.count})` : '扩展未连接'}
           >
             <span className={`w-2 h-2 rounded-full ${extDotColor}`}></span>
@@ -643,8 +643,8 @@ export default function Toolbar() {
             <div
               className={`flex items-center gap-1.5 px-2 h-7 rounded border text-xs ${
                 runStatus.availableSlots === 0
-                  ? 'border-amber-300 bg-amber-50 text-amber-700'
-                  : 'border-[#d9d9d9] text-gray-600'
+                  ? 'border-warn bg-warn-soft text-warn'
+                  : 'border-border-strong text-muted'
               }`}
               title={runStatus.availableSlots === 0 ? '并发已满，请等待' : `可用运行槽位 ${runStatus.availableSlots}/${runStatus.maxConcurrent}`}
             >
@@ -658,8 +658,8 @@ export default function Toolbar() {
             <button
               className={`h-7 px-3 flex items-center gap-1.5 rounded text-xs transition-colors ${
                 runStatus?.availableSlots === 0 || isBusy
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-[#1f1f1f] hover:bg-black text-white run-pulse'
+                  ? 'bg-surface-3 text-muted cursor-not-allowed'
+                  : 'bg-accent hover:bg-accent-strong text-white run-pulse'
               }`}
               onClick={handleRunClick}
               disabled={runStatus?.availableSlots === 0 || isBusy}
@@ -672,7 +672,7 @@ export default function Toolbar() {
             <div className="flex items-center gap-1">
               {paused ? (
                 <button
-                  className="h-7 px-3 flex items-center gap-1.5 rounded bg-green-600 hover:bg-green-700 text-white text-xs transition-colors"
+                  className="h-7 px-3 flex items-center gap-1.5 rounded bg-ok hover:bg-green-700 text-white text-xs transition-colors"
                   onClick={handleResume}
                 >
                   <i className="fas fa-play text-[10px]"></i>
@@ -680,7 +680,7 @@ export default function Toolbar() {
                 </button>
               ) : (
                 <button
-                  className="h-7 px-3 flex items-center gap-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs transition-colors"
+                  className="h-7 px-3 flex items-center gap-1.5 rounded bg-warn hover:bg-amber-600 text-white text-xs transition-colors"
                   onClick={handlePause}
                 >
                   <i className="fas fa-pause text-[10px]"></i>
@@ -688,7 +688,7 @@ export default function Toolbar() {
                 </button>
               )}
               <button
-                className="h-7 px-3 flex items-center gap-1.5 rounded bg-red-500 hover:bg-red-600 text-white text-xs transition-colors"
+                className="h-7 px-3 flex items-center gap-1.5 rounded bg-danger-solid hover:bg-danger-solid text-inverse text-xs transition-colors"
                 onClick={handleStop}
               >
                 <i className="fas fa-stop text-[10px]"></i>
@@ -701,8 +701,8 @@ export default function Toolbar() {
             disabled={running}
             className={`h-7 px-2.5 flex items-center gap-1.5 rounded border text-xs transition-colors ${
               running
-                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'border-[#d9d9d9] hover:border-[#1677ff] hover:text-[#1677ff] text-gray-600'
+                ? 'border-border bg-surface-3 text-faint cursor-not-allowed'
+                : 'border-border-strong hover:border-accent hover:text-accent text-muted'
             }`}
             title={running ? '工作流正在运行，请先停止' : '返回工作流列表'}
           >
@@ -715,20 +715,20 @@ export default function Toolbar() {
         <div className="flex items-center gap-3">
           {typeof window !== 'undefined' && window.__USER__ ? (
             <>
-              <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                <i className="fas fa-user-circle text-gray-400"></i>
+              <div className="flex items-center gap-1.5 text-xs text-muted">
+                <i className="fas fa-user-circle text-faint"></i>
                 <span className="font-medium">{window.__USER__.username}</span>
               </div>
               <a
                 href="/admin/logout"
-                className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                className="text-xs text-faint hover:text-danger transition-colors"
                 title="退出登录"
               >
                 <i className="fas fa-sign-out-alt"></i>
               </a>
             </>
           ) : (
-            <span className="text-xs text-gray-400">workflow-editor</span>
+            <span className="text-xs text-faint">workflow-editor</span>
           )}
         </div>
       </header>
@@ -765,27 +765,27 @@ function RunResultModal({ result, onClose, nodes, typeMap }) {
   };
 
   const title = stopped ? '停止执行' : (success ? '运行成功' : '运行失败');
-  const titleIcon = stopped ? 'fa-hand-paper text-amber-500' : (success ? 'fa-check-circle text-green-500' : 'fa-times-circle text-red-500');
+  const titleIcon = stopped ? 'fa-hand-paper text-warn' : (success ? 'fa-check-circle text-ok' : 'fa-times-circle text-danger');
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div className="bg-surface rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
         {/* 头部 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             <i className={`fas ${titleIcon}`}></i>
             <span className="text-sm font-medium">
               {title}
             </span>
             {result.completedSteps !== undefined && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-faint">
                 步骤: {result.completedSteps}/{result.totalSteps}
               </span>
             )}
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-3 text-faint"
           >
             <i className="fas fa-times text-xs"></i>
           </button>
@@ -796,21 +796,21 @@ function RunResultModal({ result, onClose, nodes, typeMap }) {
           {/* Extension mode results */}
           {result.results && (
             <div>
-              <div className="text-xs text-gray-500 mb-1 font-medium">执行结果</div>
-              <div className="bg-gray-50 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
+              <div className="text-xs text-muted mb-1 font-medium">执行结果</div>
+              <div className="bg-surface-2 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
                 {result.results.map((r, i) => {
                   const isCaught = r.status !== 'success' && r.caught;
                   return (
                     <div key={i} className="text-xs font-mono flex items-start gap-2">
                       <span className={`shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${
-                        r.status === 'success' ? 'bg-green-100 text-green-600' :
-                        isCaught ? 'bg-amber-100 text-amber-600' :
-                        'bg-red-100 text-red-600'
+                        r.status === 'success' ? 'bg-ok-soft text-ok' :
+                        isCaught ? 'bg-warn-soft text-warn' :
+                        'bg-danger-soft text-danger'
                       }`}>
                         {r.status === 'success' ? '✓' : isCaught ? '⚠' : '✗'}
                       </span>
-                      <span className="text-gray-600">{isCaught ? `已捕获 ${getLabel(r)}` : getLabel(r)}:</span>
-                      <span className={`truncate ${isCaught ? 'text-amber-700' : 'text-gray-800'}`}>
+                      <span className="text-muted">{isCaught ? `已捕获 ${getLabel(r)}` : getLabel(r)}:</span>
+                      <span className={`truncate ${isCaught ? 'text-warn' : 'text-inverse'}`}>
                         {r.status === 'success' ? (r.result?.log !== undefined ? r.result.log : JSON.stringify(r.result)) : r.error}
                       </span>
                     </div>
@@ -822,10 +822,10 @@ function RunResultModal({ result, onClose, nodes, typeMap }) {
 
           {result.failedSteps && result.failedSteps.length > 0 && (
             <div>
-              <div className="text-xs text-red-500 mb-1 font-medium">失败步骤</div>
-              <div className="bg-red-50 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
+              <div className="text-xs text-danger mb-1 font-medium">失败步骤</div>
+              <div className="bg-danger-soft rounded p-3 space-y-1 max-h-48 overflow-y-auto">
                 {result.failedSteps.map((s, i) => (
-                  <pre key={i} className="text-xs text-red-700 whitespace-pre-wrap font-mono">
+                  <pre key={i} className="text-xs text-danger whitespace-pre-wrap font-mono">
                     {getLabel(s)}: {s.error}
                   </pre>
                 ))}
@@ -835,15 +835,15 @@ function RunResultModal({ result, onClose, nodes, typeMap }) {
 
           {/* No output fallback */}
           {(!result.results || result.results.length === 0) && (!result.failedSteps || result.failedSteps.length === 0) && (
-            <div className="text-sm text-gray-400 text-center py-8">无输出</div>
+            <div className="text-sm text-faint text-center py-8">无输出</div>
           )}
         </div>
 
         {/* 底部 */}
-        <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+        <div className="px-4 py-3 border-t border-border flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-[#1677ff] hover:bg-[#4096ff] text-white text-xs rounded transition-colors"
+            className="px-4 py-1.5 bg-accent hover:bg-accent-strong text-white text-xs rounded transition-colors"
           >
             关闭
           </button>

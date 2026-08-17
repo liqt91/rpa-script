@@ -1,13 +1,86 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────
+   RPA Script 工作流编辑器 — 深色主题（可靠精密风）
+   语义 token：bg / surface / border / text / accent
+   克制的蓝青主色，中性色向蓝青轻微偏色，OKLCH 均匀感知
+   ───────────────────────────────────────────── */
+@theme {
+  /* 表面层级（越亮越靠前） */
+  --color-bg: oklch(0.165 0.012 250);        /* 页面底 */
+  --color-surface: oklch(0.195 0.014 250);   /* 面板/弹窗底 */
+  --color-surface-2: oklch(0.225 0.016 250); /* 输入框/条带 */
+  --color-surface-3: oklch(0.26 0.018 250);  /* hover / 分隔 */
+  --color-border: oklch(0.30 0.02 250);
+  --color-border-strong: oklch(0.37 0.022 250);
+
+  /* 文字 */
+  --color-body: oklch(0.90 0.008 250);       /* 主文字 */
+  --color-muted: oklch(0.72 0.014 250);      /* 次级 */
+  --color-faint: oklch(0.55 0.016 250);      /* 弱提示 */
+  --color-inverse: oklch(0.96 0.004 250);    /* 深底上的亮字 */
+
+  /* 强调（蓝青，克制的精密感） */
+  --color-accent: oklch(0.68 0.12 238);      /* 主操作/链接 */
+  --color-accent-strong: oklch(0.74 0.11 234);
+  --color-accent-soft: oklch(0.26 0.05 242); /* 选中底色 */
+  --color-accent-line: oklch(0.42 0.09 242); /* 选中边框 */
+
+  /* 状态色（深色适配） */
+  --color-ok: oklch(0.73 0.12 155);
+  --color-ok-soft: oklch(0.24 0.04 155);
+  --color-warn: oklch(0.76 0.11 75);
+  --color-warn-soft: oklch(0.26 0.04 75);
+  --color-danger: oklch(0.76 0.16 25);       /* 亮红：深底上错误文字/图标必须清晰可辨 */
+  --color-danger-soft: oklch(0.24 0.06 25);
+  --color-danger-solid: oklch(0.52 0.16 25); /* 暗红：实色按钮/toast 底，白字对比佳 */
+  --color-vision: oklch(0.74 0.13 350);      /* 图像识别粉 */
+  --color-vision-soft: oklch(0.26 0.05 350);
+
+  /* 字体 */
+  --font-sans: "Saira", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Microsoft YaHei", monospace;
+
+  /* 未纳入语义 token 的标签色（深色适配：50/100 为深底，600 等为亮字） */
+  --color-purple-50: oklch(0.22 0.05 300);
+  --color-purple-100: oklch(0.24 0.055 300);
+  --color-purple-600: oklch(0.70 0.12 305);
+  --color-orange-50: oklch(0.22 0.045 55);
+  --color-orange-100: oklch(0.24 0.05 55);
+  --color-orange-600: oklch(0.72 0.13 60);
+  --color-cyan-50: oklch(0.22 0.04 220);
+  --color-cyan-500: oklch(0.68 0.11 220);
+  --color-yellow-50: oklch(0.24 0.045 90);
+  --color-yellow-100: oklch(0.26 0.05 90);
+  --color-yellow-500: oklch(0.74 0.12 90);
+  --color-yellow-600: oklch(0.76 0.11 90);
+  --color-slate-50: oklch(0.21 0.014 255);
+  --color-slate-100: oklch(0.27 0.018 255);
+  --color-slate-400: oklch(0.62 0.02 255);
+  /* 状态标签边框/选中环 */
+  --color-blue-100: oklch(0.30 0.06 242);
+  --color-blue-200: oklch(0.38 0.07 242);
+  --color-red-200: oklch(0.40 0.07 25);
+  --color-amber-200: oklch(0.40 0.05 75);
+  --color-green-200: oklch(0.40 0.06 155);
+  --color-purple-200: oklch(0.38 0.06 300);
+}
+
 * { box-sizing: border-box; }
+
+html { color-scheme: dark; }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: #f0f2f5;
-  color: #333;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-body);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
@@ -15,81 +88,137 @@ body {
   height: 100vh;
 }
 
-/* 自定义滚动条 */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* 数字/标识用更紧凑的字体特性 */
+b, strong { font-weight: 600; }
+
+/* ── 滚动条（深色细条） ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-
-/* 品牌色 */
-.yd-blue { color: #1677ff; }
-.bg-yd-blue { background-color: #1677ff; }
-.border-yd-blue { border-color: #1677ff; }
-
-/* 拖拽相关 */
-.dragging { opacity: 0.5; }
-.drag-over { background-color: #e6f7ff !important; border: 2px dashed #1677ff !important; }
-
-/* 步骤选中 */
-.step-selected { background-color: #e6f7ff; border-left-color: #1677ff !important; }
-
-/* 步骤默认左边框 */
-.step-item { border-left: 3px solid transparent; transition: all 0.2s; }
-.step-item:hover { background-color: #f5f5f5; }
-.step-item.step-selected:hover { background-color: #e6f7ff; }
-
-/* 分类项 */
-.category-item { transition: background-color 0.2s; }
-.category-item:hover { background-color: #f5f5f5; }
-
-/* Tab 选中 */
-.tab-active { border-bottom: 2px solid #1677ff; color: #1677ff; font-weight: 500; }
-
-/* 运行按钮脉冲 */
-@keyframes pulse-black {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0.3); }
-  50% { box-shadow: 0 0 0 4px rgba(0,0,0,0.1); }
+::-webkit-scrollbar-thumb {
+  background: oklch(0.32 0.02 250);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
-.run-pulse { animation: pulse-black 2s infinite; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.42 0.02 250); background-clip: padding-box; }
 
-/* 步骤运行中整行高亮脉冲 */
-@keyframes step-pulse-bg {
-  0%, 100% { background-color: rgba(34, 197, 94, 0.18); }
-  50% { background-color: rgba(34, 197, 94, 0.35); }
-}
-.step-running {
-  animation: step-pulse-bg 1s infinite ease-in-out;
-  border-left: 3px solid #22c55e !important;
-}
-/* 步骤错误整行高亮 */
-.step-error {
-  background-color: rgba(239, 68, 68, 0.12);
-  border-left: 3px solid #ef4444 !important;
-}
-
-/* 拖拽分隔线 */
+/* ── 布局拖拽把手 ── */
 .resize-handle-v {
-  width: 4px;
-  background: transparent;
+  width: 5px;
   cursor: col-resize;
-  position: relative;
-  z-index: 10;
-  transition: background 0.15s;
-  flex-shrink: 0;
-}
-.resize-handle-v:hover, .resize-handle-v.resizing { background: #1677ff; }
-.resize-handle-h {
-  height: 4px;
   background: transparent;
-  cursor: row-resize;
-  position: relative;
-  z-index: 10;
   transition: background 0.15s;
-  flex-shrink: 0;
+  position: relative;
 }
-.resize-handle-h:hover, .resize-handle-h.resizing { background: #1677ff; }
-.resizing-active { user-select: none; }
+.resize-handle-v::after {
+  content: '';
+  position: absolute;
+  left: 2px; top: 0; bottom: 0;
+  width: 1px;
+  background: var(--color-border);
+}
+.resize-handle-v:hover, .resize-handle-v.resizing {
+  background: color-mix(in oklch, var(--color-accent) 25%, transparent);
+}
+.resize-handle-v:hover::after, .resize-handle-v.resizing::after {
+  background: var(--color-accent);
+}
+.resize-handle-h {
+  height: 5px;
+  cursor: row-resize;
+  background: transparent;
+  transition: background 0.15s;
+  position: relative;
+}
+.resize-handle-h::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 2px;
+  height: 1px;
+  background: var(--color-border);
+}
+.resize-handle-h:hover, .resize-handle-h.resizing {
+  background: color-mix(in oklch, var(--color-accent) 25%, transparent);
+}
+.resize-handle-h:hover::after, .resize-handle-h.resizing::after {
+  background: var(--color-accent);
+}
+body.resizing-active { cursor: col-resize; user-select: none; }
 
-/* 拖拽节点时禁止文本选择 */
-body.dragging-node { user-select: none !important; -webkit-user-select: none !important; }
-body.dragging-node * { user-select: none !important; -webkit-user-select: none !important; }
+/* ── 拖拽相关 ── */
+.dragging { opacity: 0.45; }
+.drag-over {
+  background: var(--color-accent-soft) !important;
+  border: 1px dashed var(--color-accent-line) !important;
+  border-radius: 6px;
+}
+
+/* ── 步骤选中/悬停 ── */
+.step-selected {
+  background: var(--color-accent-soft);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+.step-item {
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.step-item:hover { background: var(--color-surface-3); }
+.step-item.step-selected:hover { background: var(--color-accent-soft); }
+
+/* ── 品牌小徽标 ── */
+.brand-mark {
+  background: linear-gradient(145deg, oklch(0.62 0.14 240), oklch(0.55 0.13 265));
+  box-shadow: 0 1px 0 oklch(1 0 0 / 0.12) inset, 0 2px 6px oklch(0 0 0 / 0.35);
+}
+
+/* ── 表格/输入统一样式微调 ── */
+input, select, textarea, button { font-family: inherit; }
+input::placeholder, textarea::placeholder { color: var(--color-faint); }
+
+/* 聚焦环（蓝色光晕，精密仪器感） */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-accent) 22%, transparent);
+}
+
+/* ── 细分割线助手 ── */
+.hairline { border-color: var(--color-border); }
+
+/* ── 运行脉冲（运行按钮的呼吸提示） ── */
+@keyframes run-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-accent) 35%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-accent) 0%, transparent); }
+}
+.run-pulse { animation: run-pulse 2.2s ease-in-out infinite; }
+
+/* ── 底部 Tab 选中态 ── */
+.tab-active {
+  color: var(--color-accent);
+  border-bottom: 2px solid var(--color-accent);
+  margin-bottom: -1px;
+  font-weight: 500;
+}
+
+/* ── 运行中步骤脉冲指示 ── */
+.step-running {
+  box-shadow: inset 2px 0 0 var(--color-ok);
+}
+.step-running::after {
+  content: '';
+  position: absolute;
+  right: 8px; top: 50%;
+  width: 6px; height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--color-ok);
+  animation: run-dot 1.4s ease-in-out infinite;
+}
+@keyframes run-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── 出错步骤 ── */
+.step-error {
+  box-shadow: inset 2px 0 0 var(--color-danger);
+}

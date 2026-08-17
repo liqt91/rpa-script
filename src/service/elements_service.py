@@ -6,9 +6,131 @@ Runtime routers delegate here; this layer orchestrates repo calls.
 """
 
 import json
+import os
+import time
 
 from src.repo import runtime_models as models
 from src.repo.models import SessionLocal
+
+# 参考图（image 元素）统一存放目录：<repo>/data/images/<workflow_id>/<name>.png
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_IMAGES_ROOT = os.path.join(_PROJECT_ROOT, "data", "images")
+
+
+def images_dir(workflow_id: int) -> str:
+    d = os.path.join(_IMAGES_ROOT, str(workflow_id))
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def register_image_element(workflow_id: int, name: str, file_bytes: bytes,
+                           similarity: float = 0.8, scope: str = "screen",
+                           source: str = "", page_url: str = ""):
+    """注册一个 image 元素：参考图复制到 data/images/<wf>/<name>.png 并建元素库行。
+
+    :returns: 保存的 WorkflowElement 或抛 ValueError
+    """
+    name = (name or "").strip()[:128]
+    if not name:
+        raise ValueError("元素名不能为空")
+    if not file_bytes:
+        raise ValueError("参考图内容为空")
+
+    db = SessionLocal()
+    try:
+        workflow = db.query(models.Workflow).filter(models.Workflow.id == workflow_id).first()
+        if not workflow:
+            raise ValueError(f"工作流 {workflow_id} 不存在")
+
+        # 先做同名校验，再落盘：拒绝时不留残留文件
+        existing = (
+            db.query(models.WorkflowElement)
+            .filter(models.WorkflowElement.workflow_id == workflow_id,
+                    models.WorkflowElement.name == name)
+            .first()
+        )
+        if existing and existing.element_type != "image":
+            raise ValueError(
+                f"元素名 '{name}' 已被非图像元素占用（类型 {existing.element_type}），"
+                f"请换一个名称或先删除该元素"
+            )
+
+        # 参考图落盘（覆盖同名）
+        safe_name = "".join(c for c in name if c.isalnum() or c in ("_", "-")) or "image"
+        rel_path = os.path.join(str(workflow_id), f"{safe_name}.png")
+        abs_path = os.path.join(_IMAGES_ROOT, rel_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "wb") as f:
+            f.write(file_bytes)
+
+        attrs = {
+            "imagePath": rel_path,
+            "similarity": similarity,
+            "scope": scope,
+            "source": source[:2048],
+            "capturedAt": int(time.time() * 1000),
+        }
+
+        if existing:
+            existing.element_type = "image"
+            existing.attributes = json.dumps(attrs, ensure_ascii=False)
+            existing.page_url = page_url[:2048]
+            db.commit()
+            db.refresh(existing)
+            return existing
+
+        el = models.WorkflowElement(
+            workflow_id=workflow_id,
+            name=name,
+            element_type="image",
+            element_kind="plain",
+            attributes=json.dumps(attrs, ensure_ascii=False),
+            page_url=page_url[:2048],
+        )
+        db.add(el)
+        db.commit()
+        db.refresh(el)
+        return el
+    finally:
+        db.close()
+
+
+def resolve_image_ref(db, image_ref: str) -> dict:
+    """解析 imageRef：元素库 image 元素名 → {path, similarity, scope}；否则视为文件路径。
+
+    设计说明：图像元素**全局可复用**（不限 workflow）——参考图是独立资产，
+    任何工作流的 findImage/clickImage 都可按元素名引用；同名列取最新一条。
+    与元素库按工作流隔离的心智不同，这是有意为之（图像元素是共享素材，
+    而非页面定位器）。若后续需要按工作流隔离，可在此加 workflow_id 过滤。
+
+    :param db: SQLAlchemy session
+    :param image_ref: 元素名 或 文件路径
+    """
+    if not image_ref:
+        return {}
+    # 先按元素名查（全库最新一条 image 元素）
+    el = (
+        db.query(models.WorkflowElement)
+        .filter(models.WorkflowElement.name == image_ref,
+                models.WorkflowElement.element_type == "image")
+        .order_by(models.WorkflowElement.id.desc())
+        .first()
+    )
+    if el:
+        try:
+            attrs = json.loads(el.attributes or "{}")
+        except Exception:
+            attrs = {}
+        rel = attrs.get("imagePath", "")
+        abs_path = os.path.join(_IMAGES_ROOT, rel) if rel else ""
+        if abs_path and os.path.isfile(abs_path):
+            return {
+                "path": abs_path,
+                "similarity": float(attrs.get("similarity", 0.8)),
+                "scope": attrs.get("scope", "screen"),
+            }
+    # 兜底：当作文件路径
+    return {"path": image_ref, "similarity": None, "scope": None}
 
 
 def _partition_candidates(candidates: list) -> tuple[list, list, list]:
@@ -541,6 +663,11 @@ async def save_captured_element(payload: dict) -> models.WorkflowElement | None:
             )
 
         if existing:
+            # 同名保护：网页捕获不能覆盖图像元素（图像元素只能经上传/替换维护）
+            if existing.element_type == "image":
+                raise ValueError(
+                    f"元素名 '{name}' 已被图像元素占用，请换一个名称或先在元素库删除该图像元素"
+                )
             # When editing by id and renaming, make sure the new name is not
             # already used by another element in the same workflow.
             if existing.id and el_id and existing.name != name:

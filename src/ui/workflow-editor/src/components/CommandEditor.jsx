@@ -169,7 +169,7 @@ export default function CommandEditor() {
     if (!type) return;
     const template = {
       type, label: type, categories: [], runtime: 'extension',
-      icon: 'fa-circle', iconColor: 'text-gray-500', bgColor: 'bg-gray-50',
+      icon: 'fa-circle', iconColor: 'text-muted', bgColor: 'bg-surface-2',
       commandOrder: 0, description: '', enabled: true,
       params: [],
     };
@@ -285,9 +285,9 @@ export default function CommandEditor() {
   }
 
   // ── common tailwind classes ──
-  const labelCls = 'text-[10px] text-gray-400 mb-0.5';
-  const inputCls = 'w-full px-2 py-1 bg-[#0f172a] border border-gray-600 rounded text-gray-200 text-xs outline-none focus:border-blue-500';
-  const selectCls = 'w-full px-2 py-1 bg-[#0f172a] border border-gray-600 rounded text-gray-200 text-xs outline-none focus:border-blue-500';
+  const labelCls = 'text-[10px] text-faint mb-0.5';
+  const inputCls = 'w-full px-2 py-1 bg-bg border border-border-strong rounded text-body text-xs outline-none focus:border-blue-500';
+  const selectCls = 'w-full px-2 py-1 bg-bg border border-border-strong rounded text-body text-xs outline-none focus:border-blue-500';
 
   const isBackend = form && form.runtime === 'backend';
   const isExtension = form && form.runtime === 'extension';
@@ -350,17 +350,17 @@ export default function CommandEditor() {
   return (
     <div className="flex-1 flex min-h-0">
       {/* Left panel — list */}
-      <div className="w-56 bg-[#0f172a] border-r border-gray-700 flex flex-col shrink-0">
+      <div className="w-56 bg-bg border-r border-gray-700 flex flex-col shrink-0">
         <div className="px-3 py-3 border-b border-gray-700 flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-200">指令定义</span>
-          <button onClick={createNew} className="text-xs text-blue-400 hover:text-blue-300">+ 新建</button>
+          <span className="text-sm font-medium text-body">指令定义</span>
+          <button onClick={createNew} className="text-xs text-accent hover:text-accent-strong">+ 新建</button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
           {/* 类型注册表入口 */}
           <button
             onClick={() => { setSelected({ _type: '__type_registry__' }); setForm(null); }}
             className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
-              selected && selected._type === '__type_registry__' ? 'bg-amber-600/30 text-amber-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+              selected && selected._type === '__type_registry__' ? 'bg-warn/30 text-warn' : 'text-faint hover:bg-gray-800 hover:text-body'
             }`}>
             <i className="fas fa-database text-[10px] w-4 text-center"></i>
             类型注册表
@@ -369,7 +369,7 @@ export default function CommandEditor() {
           <button
             onClick={() => { setSelected({ _type: '__categories__' }); setForm(null); }}
             className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
-              selected && selected._type === '__categories__' ? 'bg-purple-600/30 text-purple-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+              selected && selected._type === '__categories__' ? 'bg-purple-600/30 text-purple-200' : 'text-faint hover:bg-gray-800 hover:text-body'
             }`}>
             <i className="fas fa-tags text-[10px] w-4 text-center"></i>
             分类管理
@@ -378,7 +378,7 @@ export default function CommandEditor() {
           <button
             onClick={() => { setSelected({ _type: '__generic_params__' }); setForm(null); }}
             className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
-              selected && selected._type === '__generic_params__' ? 'bg-emerald-600/30 text-emerald-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+              selected && selected._type === '__generic_params__' ? 'bg-emerald-600/30 text-emerald-200' : 'text-faint hover:bg-gray-800 hover:text-body'
             }`}>
             <i className="fas fa-sliders-h text-[10px] w-4 text-center"></i>
             通用参数
@@ -388,7 +388,7 @@ export default function CommandEditor() {
           <div className="px-2 pt-1">
             <input
               type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              placeholder="搜索指令..." className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-500"
+              placeholder="搜索指令..." className="w-full px-2 py-1 bg-gray-800 border border-border-strong rounded text-xs text-body placeholder-gray-500"
             />
           </div>
 
@@ -404,20 +404,20 @@ export default function CommandEditor() {
                 <div key={cat} className="mt-0.5">
                   <button
                     onClick={() => setCollapsedGroups(g => ({...g, [cat]: !isCol}))}
-                    className="w-full text-left px-2 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-300 flex items-center gap-1"
+                    className="w-full text-left px-2 py-1 text-[11px] font-medium text-muted hover:text-muted flex items-center gap-1"
                   >
                     <span className="text-[10px]">{isCol ? '▸' : '▾'}</span>
                     {cat}
-                    <span className="text-gray-600 ml-auto">{cmds.length}</span>
+                    <span className="text-muted ml-auto">{cmds.length}</span>
                   </button>
                   {!isCol && cmds.map((d, i) => {
                     const isCur = selected && selected.cmd === d.cmd;
                     return (
                       <button key={d.cmd || d.label || i} onClick={() => selectDef(d)}
                         className={`w-full text-left pl-5 pr-2 py-1 rounded text-xs transition-colors ${
-                          isCur ? 'bg-blue-600/30 text-blue-200' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
+                          isCur ? 'bg-accent/30 text-accent-strong' : 'text-faint hover:bg-gray-800 hover:text-body'}`}>
                         {d.label}
-                        <span className="text-gray-600 ml-1">{d.cmd}</span>
+                        <span className="text-muted ml-1">{d.cmd}</span>
                       </button>
                     );
                   })}
@@ -428,13 +428,13 @@ export default function CommandEditor() {
         </div>
         <div className="px-2 py-2 border-t border-gray-700">
           <button onClick={runBuild}
-            className="w-full text-xs px-2 py-1.5 rounded bg-green-700/40 text-green-300 hover:bg-green-700/60 transition-colors">
+            className="w-full text-xs px-2 py-1.5 rounded bg-ok/25 text-ok hover:bg-ok/40 transition-colors">
             <i className="fas fa-hammer mr-1"></i>构建生成
           </button>
           {buildResult && (
-            <div className="mt-1 text-[10px] text-gray-500">
+            <div className="mt-1 text-[10px] text-muted">
               {buildResult.results?.map((r, i) => (
-                <div key={i} className={r.returncode === 0 ? 'text-green-400' : 'text-red-400'}>
+                <div key={i} className={r.returncode === 0 ? 'text-ok' : 'text-danger'}>
                   {r.script.split('/').pop()}: {r.returncode === 0 ? '✓' : '✗'}
                 </div>
               ))}
@@ -447,17 +447,17 @@ export default function CommandEditor() {
       <div className="flex-1 flex flex-col min-w-0">
         {selected && selected._type === '__type_registry__' ? (
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-[#0f172a] shrink-0">
+            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-bg shrink-0">
               <div className="flex items-center gap-2">
                 <i className="fas fa-database text-amber-400 text-sm"></i>
-                <span className="text-sm font-medium text-gray-200">类型注册表</span>
-                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">src/runtime/commands/types/value_types.json</code>
+                <span className="text-sm font-medium text-body">类型注册表</span>
+                <code className="text-[10px] text-muted bg-gray-800 px-1.5 py-0.5 rounded">src/runtime/commands/types/value_types.json</code>
               </div>
               <div className="flex items-center gap-2">
-                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
-                {error && <span className="text-xs text-red-400">{error}</span>}
+                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-danger' : 'text-ok'}`}>{status}</span>}
+                {error && <span className="text-xs text-danger">{error}</span>}
                 <button onClick={saveTypeRegistry}
-                  className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">
+                  className="text-xs px-3 py-1 rounded bg-accent text-white hover:bg-accent">
                   <i className="fas fa-save mr-1"></i>保存
                 </button>
               </div>
@@ -466,27 +466,27 @@ export default function CommandEditor() {
               <textarea
                 value={typeRegistryJson}
                 onChange={e => setTypeRegistryJson(e.target.value)}
-                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
+                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
                 spellCheck={false}
               />
             </div>
-            <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
+            <div className="px-4 py-2 border-t border-gray-700 bg-bg text-[10px] text-muted">
               编辑 src/runtime/commands/types/value_types.json：paramTypes（类型系统，含 str-var/any-input）、paramTemplates（参数模板，指令 JSON 用 {"{\"$ref\": \"名称\"}"} 引用）、valueTypes（值形状）。
             </div>
           </div>
         ) : selected && selected._type === '__generic_params__' ? (
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-[#0f172a] shrink-0">
+            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-bg shrink-0">
               <div className="flex items-center gap-2">
                 <i className="fas fa-sliders-h text-emerald-400 text-sm"></i>
-                <span className="text-sm font-medium text-gray-200">通用参数</span>
-                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">src/runtime/commands/types/generic_params.json</code>
+                <span className="text-sm font-medium text-body">通用参数</span>
+                <code className="text-[10px] text-muted bg-gray-800 px-1.5 py-0.5 rounded">src/runtime/commands/types/generic_params.json</code>
               </div>
               <div className="flex items-center gap-2">
-                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
-                {error && <span className="text-xs text-red-400">{error}</span>}
+                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-danger' : 'text-ok'}`}>{status}</span>}
+                {error && <span className="text-xs text-danger">{error}</span>}
                 <button onClick={saveGenericParams}
-                  className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">
+                  className="text-xs px-3 py-1 rounded bg-accent text-white hover:bg-accent">
                   <i className="fas fa-save mr-1"></i>保存
                 </button>
               </div>
@@ -495,27 +495,27 @@ export default function CommandEditor() {
               <textarea
                 value={genericParamsJson}
                 onChange={e => setGenericParamsJson(e.target.value)}
-                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
+                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
                 spellCheck={false}
               />
             </div>
-            <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
+            <div className="px-4 py-2 border-t border-gray-700 bg-bg text-[10px] text-muted">
               common 对所有执行指令生效，extensionOnly 仅对扩展端（DOM操作）指令生效。修改后重启服务器生效。
             </div>
           </div>
         ) : selected && selected._type === '__categories__' ? (
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-[#0f172a] shrink-0">
+            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-bg shrink-0">
               <div className="flex items-center gap-2">
                 <i className="fas fa-tags text-purple-400 text-sm"></i>
-                <span className="text-sm font-medium text-gray-200">分类管理</span>
-                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">src/runtime/commands/types/categories.json</code>
+                <span className="text-sm font-medium text-body">分类管理</span>
+                <code className="text-[10px] text-muted bg-gray-800 px-1.5 py-0.5 rounded">src/runtime/commands/types/categories.json</code>
               </div>
               <div className="flex items-center gap-2">
-                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
-                {error && <span className="text-xs text-red-400">{error}</span>}
+                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-danger' : 'text-ok'}`}>{status}</span>}
+                {error && <span className="text-xs text-danger">{error}</span>}
                 <button onClick={saveCategoriesJson}
-                  className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">
+                  className="text-xs px-3 py-1 rounded bg-accent text-white hover:bg-accent">
                   <i className="fas fa-save mr-1"></i>保存
                 </button>
               </div>
@@ -524,33 +524,33 @@ export default function CommandEditor() {
               <textarea
                 value={categoriesJson}
                 onChange={e => setCategoriesJson(e.target.value)}
-                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-gray-600 rounded text-gray-300 outline-none resize-none focus:border-blue-500"
+                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
                 spellCheck={false}
               />
             </div>
-            <div className="px-4 py-2 border-t border-gray-700 bg-[#0f172a] text-[10px] text-gray-500">
+            <div className="px-4 py-2 border-t border-gray-700 bg-bg text-[10px] text-muted">
               编辑 src/runtime/commands/types/categories.json。此文件是指令分类的唯一真相源。
             </div>
           </div>
         ) : !form ? (
-          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+          <div className="flex-1 flex items-center justify-center text-muted text-sm">
             选择一个指令定义或新建
           </div>
         ) : (
           <>
             {/* Toolbar */}
-            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-[#0f172a] shrink-0">
+            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-bg shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-200">{form.label || form.cmd}</span>
-                <code className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{form.cmd}</code>
+                <span className="text-sm font-medium text-body">{form.label || form.cmd}</span>
+                <code className="text-[10px] text-muted bg-gray-800 px-1.5 py-0.5 rounded">{form.cmd}</code>
               </div>
               <div className="flex items-center gap-2">
-                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-red-400' : 'text-green-400'}`}>{status}</span>}
-                {error && <span className="text-xs text-red-400">{error}</span>}
+                {status && <span className={`text-xs ${status.includes('失败') || error ? 'text-danger' : 'text-ok'}`}>{status}</span>}
+                {error && <span className="text-xs text-danger">{error}</span>}
                 <button onClick={saveDef}
-                  className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-500">保存</button>
+                  className="text-xs px-3 py-1 rounded bg-accent text-white hover:bg-accent">保存</button>
                 <button onClick={deleteDef}
-                  className="text-xs px-3 py-1 rounded bg-red-700/60 text-red-200 hover:bg-red-700">删除</button>
+                  className="text-xs px-3 py-1 rounded bg-danger/30 text-danger hover:bg-danger/45">删除</button>
               </div>
             </div>
 
@@ -558,13 +558,13 @@ export default function CommandEditor() {
             <div className="flex-1 flex min-h-0">
               {/* Col 1: 指令配置 */}
               <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0">
+                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-faint bg-bg shrink-0">
                   指令配置
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-3">
                   {/* Basic info */}
                   <fieldset className="border border-gray-700 rounded p-2.5">
-                    <legend className="text-[10px] font-medium text-gray-400 px-1">基本信息</legend>
+                    <legend className="text-[10px] font-medium text-faint px-1">基本信息</legend>
                     <div className="space-y-2">
                       <div>
                         <div className={labelCls}>类型名</div>
@@ -579,26 +579,26 @@ export default function CommandEditor() {
                         <div className="relative">
                           <button
                             onClick={() => setForm(prev => ({ ...prev, _catOpen: !prev._catOpen }))}
-                            className={`w-full px-2 py-1 bg-[#0f172a] border border-gray-600 rounded text-xs text-left outline-none focus:border-blue-500 flex items-center justify-between`}
+                            className={`w-full px-2 py-1 bg-bg border border-border-strong rounded text-xs text-left outline-none focus:border-blue-500 flex items-center justify-between`}
                           >
-                            <span className="text-gray-200">
+                            <span className="text-body">
                               {(() => {
                                 const cats = form.categories || (form.category ? [form.category] : []);
-                                if (cats.length === 0) return <span className="text-gray-500">选择分类…</span>;
+                                if (cats.length === 0) return <span className="text-muted">选择分类…</span>;
                                 return cats.map(s => categories.find(c => c.slug === s)?.name || s).join(', ');
                               })()}
                             </span>
-                            <i className="fas fa-chevron-down text-gray-500 text-[9px]"></i>
+                            <i className="fas fa-chevron-down text-muted text-[9px]"></i>
                           </button>
                           {form._catOpen && (
-                            <div className="absolute z-20 mt-1 w-full bg-[#1a2236] border border-gray-600 rounded shadow-lg max-h-40 overflow-y-auto">
+                            <div className="absolute z-20 mt-1 w-full bg-[#1a2236] border border-border-strong rounded shadow-lg max-h-40 overflow-y-auto">
                               {categories.map(cat => {
                                 const cats = form.categories || (form.category ? [form.category] : []);
                                 const checked = cats.includes(cat.slug);
                                 return (
                                   <label key={cat.slug} onClick={() => { const next = checked ? cats.filter(s => s !== cat.slug) : [...cats, cat.slug]; updateField('categories', next); }}
-                                    className={`flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-[10px] hover:bg-gray-700/50 ${checked ? 'text-blue-300' : 'text-gray-300'}`}>
-                                    <i className={`fas fa-check text-[9px] ${checked ? 'text-blue-400' : 'text-transparent'}`}></i>
+                                    className={`flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-[10px] hover:bg-gray-700/50 ${checked ? 'text-accent-strong' : 'text-muted'}`}>
+                                    <i className={`fas fa-check text-[9px] ${checked ? 'text-accent' : 'text-transparent'}`}></i>
                                     <i className={`fas ${cat.icon || 'fa-folder'} text-[9px] w-3 text-center`}></i>
                                     {cat.name}
                                   </label>
@@ -613,7 +613,7 @@ export default function CommandEditor() {
                         <select value={form.runtime} onChange={e => updateField('runtime', e.target.value)} className={selectCls}>
                           {CMD_TYPES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
-                        <div className="text-[9px] text-gray-500 mt-0.5 leading-tight">
+                        <div className="text-[9px] text-muted mt-0.5 leading-tight">
                           {CMD_TYPES.find(t => t.value === form.runtime)?.desc}
                         </div>
                       </div>
@@ -622,7 +622,7 @@ export default function CommandEditor() {
                         <div className={labelCls}>图标</div>
                         <button
                           onClick={() => setForm(prev => ({ ...prev, _iconOpen: !prev._iconOpen }))}
-                          className="w-full px-2 py-1.5 bg-[#0f172a] border border-gray-600 rounded text-xs outline-none focus:border-blue-500 flex items-center gap-2 hover:border-gray-500"
+                          className="w-full px-2 py-1.5 bg-bg border border-border-strong rounded text-xs outline-none focus:border-blue-500 flex items-center gap-2 hover:border-gray-500"
                         >
                           <span
                             className="w-7 h-7 rounded flex items-center justify-center text-sm shrink-0"
@@ -633,11 +633,11 @@ export default function CommandEditor() {
                           >
                             <i className={`fas ${form.icon || 'fa-circle'}`}></i>
                           </span>
-                          <span className="text-gray-400 flex-1 text-left truncate">{form.icon || 'fa-circle'}</span>
-                          <i className="fas fa-chevron-down text-gray-500 text-[9px]"></i>
+                          <span className="text-faint flex-1 text-left truncate">{form.icon || 'fa-circle'}</span>
+                          <i className="fas fa-chevron-down text-muted text-[9px]"></i>
                         </button>
                         {form._iconOpen && (
-                          <div className="mt-1 p-2 bg-[#1a2236] border border-gray-600 rounded grid grid-cols-6 gap-1 max-h-36 overflow-y-auto">
+                          <div className="mt-1 p-2 bg-[#1a2236] border border-border-strong rounded grid grid-cols-6 gap-1 max-h-36 overflow-y-auto">
                             {ICONS.map(i => (
                               <button
                                 key={i}
@@ -661,20 +661,20 @@ export default function CommandEditor() {
                         <div className={labelCls}>图标颜色</div>
                         <button
                           onClick={() => setForm(prev => ({ ...prev, _icolorOpen: !prev._icolorOpen }))}
-                          className="w-full px-2 py-1 bg-[#0f172a] border border-gray-600 rounded text-xs outline-none focus:border-blue-500 flex items-center gap-2 hover:border-gray-500"
+                          className="w-full px-2 py-1 bg-bg border border-border-strong rounded text-xs outline-none focus:border-blue-500 flex items-center gap-2 hover:border-gray-500"
                         >
                           <span className="w-4 h-4 rounded-sm shrink-0" style={{ backgroundColor: _iconHex(form.iconColor) }}></span>
-                          <span className="text-gray-300 flex-1 text-left">{form.iconColor || 'text-blue-500'}</span>
-                          <i className="fas fa-chevron-down text-gray-500 text-[9px]"></i>
+                          <span className="text-muted flex-1 text-left">{form.iconColor || 'text-accent'}</span>
+                          <i className="fas fa-chevron-down text-muted text-[9px]"></i>
                         </button>
                         {form._icolorOpen && (
-                          <div className="mt-1 p-2 bg-[#1a2236] border border-gray-600 rounded grid grid-cols-8 gap-1">
+                          <div className="mt-1 p-2 bg-[#1a2236] border border-border-strong rounded grid grid-cols-8 gap-1">
                             {PALETTE.map(c => (
                               <button
                                 key={'icon-' + c.name}
                                 onClick={() => updateField('iconColor', `text-${c.name}-500`)}
                                 className={`w-5 h-5 rounded-sm border cursor-pointer transition ${
-                                  (form.iconColor || '').includes(c.name) ? 'ring-1 ring-white' : 'border-gray-600'
+                                  (form.iconColor || '').includes(c.name) ? 'ring-1 ring-white' : 'border-border-strong'
                                 }`}
                                 style={{ backgroundColor: c.hex }}
                                 title={c.name}
@@ -687,20 +687,20 @@ export default function CommandEditor() {
                         <div className={labelCls}>背景颜色</div>
                         <button
                           onClick={() => setForm(prev => ({ ...prev, _bgcolorOpen: !prev._bgcolorOpen }))}
-                          className="w-full px-2 py-1 bg-[#0f172a] border border-gray-600 rounded text-xs outline-none focus:border-blue-500 flex items-center gap-2 hover:border-gray-500"
+                          className="w-full px-2 py-1 bg-bg border border-border-strong rounded text-xs outline-none focus:border-blue-500 flex items-center gap-2 hover:border-gray-500"
                         >
                           <span className="w-4 h-4 rounded-sm shrink-0 border border-gray-500" style={{ backgroundColor: _bgHex(form.bgColor) }}></span>
-                          <span className="text-gray-300 flex-1 text-left">{form.bgColor || 'bg-blue-50'}</span>
-                          <i className="fas fa-chevron-down text-gray-500 text-[9px]"></i>
+                          <span className="text-muted flex-1 text-left">{form.bgColor || 'bg-accent-soft'}</span>
+                          <i className="fas fa-chevron-down text-muted text-[9px]"></i>
                         </button>
                         {form._bgcolorOpen && (
-                          <div className="mt-1 p-2 bg-[#1a2236] border border-gray-600 rounded grid grid-cols-8 gap-1">
+                          <div className="mt-1 p-2 bg-[#1a2236] border border-border-strong rounded grid grid-cols-8 gap-1">
                             {PALETTE.map(c => (
                               <button
                                 key={'bg-' + c.name}
                                 onClick={() => updateField('bgColor', `bg-${c.name}-50`)}
                                 className={`w-5 h-5 rounded-sm border cursor-pointer transition ${
-                                  (form.bgColor || '').includes(c.name) ? 'ring-1 ring-white' : 'border-gray-600'
+                                  (form.bgColor || '').includes(c.name) ? 'ring-1 ring-white' : 'border-border-strong'
                                 }`}
                                 style={{ backgroundColor: c.hex50 }}
                                 title={c.name}
@@ -715,13 +715,13 @@ export default function CommandEditor() {
                           className={inputCls} />
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer">
+                        <label className="flex items-center gap-1.5 text-[10px] text-faint cursor-pointer">
                           <input type="checkbox" checked={form.enabled !== false} onChange={e => updateField('enabled', e.target.checked)}
                             className="accent-blue-500" />
                           启用
                         </label>
                         {!isControl && (
-                          <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer">
+                          <label className="flex items-center gap-1.5 text-[10px] text-faint cursor-pointer">
                             <input type="checkbox" checked={form.isContainer || false} onChange={e => updateField('isContainer', e.target.checked)}
                               className="accent-green-500" />
                             容器指令
@@ -742,59 +742,59 @@ export default function CommandEditor() {
 
                   {/* Handler info (derived from instruction type) */}
                   <div className="border border-gray-700 rounded p-2.5 bg-[#0a0f1a]/50">
-                    <div className="text-[10px] font-medium text-gray-400 mb-1.5">Handler 文件</div>
+                    <div className="text-[10px] font-medium text-faint mb-1.5">Handler 文件</div>
                     {isControl ? (
-                      <div className="text-[10px] text-gray-500">无需 handler，由流程引擎直接解释执行</div>
+                      <div className="text-[10px] text-muted">无需 handler，由流程引擎直接解释执行</div>
                     ) : isBackend ? (
-                      <div className="text-[10px] text-gray-300 font-mono">commands/backend_commands/{form.cmd}.py</div>
+                      <div className="text-[10px] text-muted font-mono">commands/backend_commands/{form.cmd}.py</div>
                     ) : (
-                      <div className="text-[10px] text-gray-300 font-mono">commands/extension_commands/{form.cmd}.py</div>
+                      <div className="text-[10px] text-muted font-mono">commands/extension_commands/{form.cmd}.py</div>
                     )}
                   </div>
 
                   {/* Params */}
                   <fieldset className="border border-gray-700 rounded p-2.5">
-                    <legend className="text-[10px] font-medium text-gray-400 px-1 flex items-center gap-2">
+                    <legend className="text-[10px] font-medium text-faint px-1 flex items-center gap-2">
                       参数
-                      <button onClick={addParam} className="text-[10px] text-blue-400 hover:text-blue-300">+ 添加</button>
+                      <button onClick={addParam} className="text-[10px] text-accent hover:text-accent-strong">+ 添加</button>
                     </legend>
                     <div className="space-y-2">
                       {(form.params || []).map((p, i) => (
                         <div key={i} className="bg-[#0a0f1a] rounded p-2">
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10px] text-gray-500">#{i + 1}</span>
-                            <button onClick={() => removeParam(i)} className="text-red-400 hover:text-red-300 text-[10px]" title="删除">
+                            <span className="text-[10px] text-muted">#{i + 1}</span>
+                            <button onClick={() => removeParam(i)} className="text-danger hover:text-danger text-[10px]" title="删除">
                               <i className="fas fa-trash-alt"></i>
                             </button>
                           </div>
                           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                             <div>
-                              <div className="text-[9px] text-gray-500 mb-0.5">变量名</div>
+                              <div className="text-[9px] text-muted mb-0.5">变量名</div>
                               <input value={p.name || ''} onChange={e => updateParam(i, 'name', e.target.value)}
                                 className={`${inputCls} text-[10px]`} placeholder="url" />
                             </div>
                             <div>
-                              <div className="text-[9px] text-gray-500 mb-0.5">显示名</div>
+                              <div className="text-[9px] text-muted mb-0.5">显示名</div>
                               <input value={p.label || ''} onChange={e => updateParam(i, 'label', e.target.value)}
                                 className={`${inputCls} text-[10px]`} placeholder="目标地址" />
                             </div>
                           </div>
                           <div className="grid grid-cols-3 gap-1.5 mb-1.5">
                             <div>
-                              <div className="text-[9px] text-gray-500 mb-0.5">类型</div>
+                              <div className="text-[9px] text-muted mb-0.5">类型</div>
                               <select value={p.type || 'str-input'} onChange={e => updateParam(i, 'type', e.target.value)} className={`${selectCls} text-[10px]`}>
                                 {paramTypes.map(t => <option key={t} value={t}>{t}</option>)}
                               </select>
                             </div>
                             <div>
-                              <div className="text-[9px] text-gray-500 mb-0.5">分组</div>
+                              <div className="text-[9px] text-muted mb-0.5">分组</div>
                               <select value={p.group || '主属性'} onChange={e => updateParam(i, 'group', e.target.value)}
                                 className={`${selectCls} text-[10px]`}>
                                 {PARAM_GROUPS.map(g => <option key={g.v} value={g.v}>{g.l}</option>)}
                               </select>
                             </div>
                             <div className="flex items-end pb-1 gap-2">
-                              <label className="flex items-center gap-1 text-[10px] text-gray-400">
+                              <label className="flex items-center gap-1 text-[10px] text-faint">
                                 <input type="checkbox" checked={p.required || false} onChange={e => updateParam(i, 'required', e.target.checked)} />
                                 必填
                               </label>
@@ -802,7 +802,7 @@ export default function CommandEditor() {
                           </div>
                           {Object.keys(valueTypes).length > 0 && (
                             <div className="mb-1.5">
-                              <div className="text-[9px] text-gray-500 mb-0.5">期望值类型</div>
+                              <div className="text-[9px] text-muted mb-0.5">期望值类型</div>
                               <select
                                 value={p.valueType || ''}
                                 onChange={e => updateParam(i, 'valueType', e.target.value || undefined)}
@@ -817,29 +817,29 @@ export default function CommandEditor() {
                           )}
                           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                             <div>
-                              <div className="text-[9px] text-gray-500 mb-0.5">默认值</div>
+                              <div className="text-[9px] text-muted mb-0.5">默认值</div>
                               <input value={p.default !== undefined ? String(p.default) : ''} onChange={e => updateParam(i, 'default', e.target.value)}
                                 className={`${inputCls} text-[10px]`} placeholder="默认值" />
                             </div>
                             <div>
-                              <div className="text-[9px] text-gray-500 mb-0.5">占位提示</div>
+                              <div className="text-[9px] text-muted mb-0.5">占位提示</div>
                               <input value={p.placeholder || ''} onChange={e => updateParam(i, 'placeholder', e.target.value)}
                                 className={`${inputCls} text-[10px]`} placeholder="输入提示..." />
                             </div>
                           </div>
                           <div className="mb-1.5">
-                            <div className="text-[9px] text-gray-500 mb-0.5">参数说明</div>
+                            <div className="text-[9px] text-muted mb-0.5">参数说明</div>
                             <input value={p.description || ''} onChange={e => updateParam(i, 'description', e.target.value)}
                               className={`${inputCls} text-[10px]`} placeholder="向用户说明该参数的用途" />
                           </div>
                           {(p.type === 'select' || p.type === 'str-dropdown') && (
                             <div>
-                              <div className="text-[9px] text-gray-500 mb-0.5 flex items-center justify-between">
+                              <div className="text-[9px] text-muted mb-0.5 flex items-center justify-between">
                                 <span>下拉选项</span>
                                 <button onClick={() => {
                                   const opts = [...(p.options || []), { label: '', value: '' }];
                                   updateParam(i, 'options', opts);
-                                }} className="text-[10px] text-blue-400 hover:text-blue-300">+ 添加</button>
+                                }} className="text-[10px] text-accent hover:text-accent-strong">+ 添加</button>
                               </div>
                               {(p.options || []).map((opt, oi) => (
                                 <div key={oi} className="flex items-center gap-1 mb-1">
@@ -855,7 +855,7 @@ export default function CommandEditor() {
                                   }} className={`${inputCls} text-[10px] flex-1`} placeholder="值" />
                                   <button onClick={() => {
                                     updateParam(i, 'options', (p.options || []).filter((_, j) => j !== oi));
-                                  }} className="text-red-400 hover:text-red-300 text-[10px] shrink-0"><i className="fas fa-times"></i></button>
+                                  }} className="text-danger hover:text-danger text-[10px] shrink-0"><i className="fas fa-times"></i></button>
                                 </div>
                               ))}
                             </div>
@@ -869,46 +869,46 @@ export default function CommandEditor() {
 
               {/* Col 2: JSON 预览 */}
               <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0">
+                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-faint bg-bg shrink-0">
                   JSON 预览
                 </div>
-                <pre className="flex-1 overflow-auto p-3 text-[10px] text-gray-300 font-mono bg-[#0a0f1a] whitespace-pre-wrap m-0 leading-relaxed">
+                <pre className="flex-1 overflow-auto p-3 text-[10px] text-muted font-mono bg-[#0a0f1a] whitespace-pre-wrap m-0 leading-relaxed">
                   {JSON.stringify(form, null, 2)}
                 </pre>
               </div>
 
               {/* Col 3: Python Handler 预览 */}
               <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0">
+                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-faint bg-bg shrink-0">
                   Python Handler 预览
                 </div>
                 {!isControl && (
                   <div className="px-3 py-1.5 border-b border-gray-700/50 bg-[#0a0f1a] shrink-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-gray-400">操作</span>
+                      <span className="text-[10px] text-faint">操作</span>
                       <div className="flex items-center gap-1.5">
                         <button onClick={reviewHandler} disabled={aiLoading || !pythonCode}
                           className="text-[10px] px-2 py-1 rounded bg-emerald-600/80 text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
                           AI 审查
                         </button>
                         <button onClick={savePythonCode} disabled={!pythonCode}
-                          className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                          className="text-[10px] px-2 py-1 rounded bg-accent text-white hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed">
                           保存
                         </button>
                       </div>
                     </div>
-                    <span className="text-[10px] text-gray-500 font-mono">commands/{isBackend ? 'backend' : 'extension'}_commands/{form.cmd}.py</span>
+                    <span className="text-[10px] text-muted font-mono">commands/{isBackend ? 'backend' : 'extension'}_commands/{form.cmd}.py</span>
                     {/* Review findings */}
                     {reviewFindings && reviewFindings.length > 0 && (
                       <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
                         {reviewFindings.map((f, i) => (
                           <div key={i} className={`text-[10px] px-2 py-1 rounded ${
-                            f.level === 'error' ? 'bg-red-900/30 text-red-300 border border-red-800' :
-                            f.level === 'warning' ? 'bg-yellow-900/30 text-yellow-300 border border-yellow-800' :
-                            'bg-blue-900/30 text-blue-300 border border-blue-800'
+                            f.level === 'error' ? 'bg-danger/25 text-danger border border-danger' :
+                            f.level === 'warning' ? 'bg-warn/25 text-warn border border-warn' :
+                            'bg-blue-900/30 text-accent-strong border border-blue-800'
                           }`}>
                             <span className="font-medium">{f.check}</span>
-                            {f.line && <span className="text-gray-500 ml-1">L{f.line}</span>}
+                            {f.line && <span className="text-muted ml-1">L{f.line}</span>}
                             <span className="mx-1">—</span>
                             {f.message}
                           </div>
@@ -921,7 +921,7 @@ export default function CommandEditor() {
                   value={pythonCode}
                   onChange={e => setPythonCode(e.target.value)}
                   disabled={isControl}
-                  className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-gray-300 outline-none resize-none disabled:opacity-50"
+                  className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-muted outline-none resize-none disabled:opacity-50"
                   spellCheck={false}
                   placeholder={isControl ? '控制指令无需 Python handler' : '# Python handler 代码 — 使用 CLI agent 编写'}
                 />
@@ -929,13 +929,13 @@ export default function CommandEditor() {
 
               {/* Col 4: JS Handler 预览 */}
               <div className="flex-1 flex flex-col min-w-0">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-gray-400 bg-[#0f172a] shrink-0">
+                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-faint bg-bg shrink-0">
                   JS Handler 预览
                 </div>
                 {isExtension && (
                   <div className="px-3 py-1 border-b border-gray-700/50 bg-[#0a0f1a] shrink-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-gray-400">操作</span>
+                      <span className="text-[10px] text-faint">操作</span>
                       <div className="flex items-center gap-1.5">
                         <button onClick={async () => {
                           if (!form || !jsCode) return;
@@ -952,19 +952,19 @@ export default function CommandEditor() {
                           AI 审查
                         </button>
                         <button onClick={async () => { try { await api.saveJsHandlerCode(form.cmd, jsCode); setStatus('JS 代码已保存'); } catch(e) { setError('保存失败: ' + e.message); } }} disabled={!jsCode}
-                          className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                          className="text-[10px] px-2 py-1 rounded bg-accent text-white hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed">
                           保存
                         </button>
                       </div>
                     </div>
-                    <span className="text-[10px] text-gray-500 font-mono">{(form.handler && form.handler.source) || `extension/dom_handlers_new/${form.cmd}.js`}</span>
+                    <span className="text-[10px] text-muted font-mono">{(form.handler && form.handler.source) || `extension/dom_handlers_new/${form.cmd}.js`}</span>
                   </div>
                 )}
                 <textarea
                   value={jsCode}
                   onChange={e => setJsCode(e.target.value)}
                   disabled={!isExtension}
-                  className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-gray-300 outline-none resize-none disabled:opacity-50"
+                  className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-muted outline-none resize-none disabled:opacity-50"
                   spellCheck={false}
                   placeholder={isControl ? '控制指令无需 JS handler' : isExtension ? '// JS handler 代码' : '仅扩展端执行指令支持 JS handler'}
                 />

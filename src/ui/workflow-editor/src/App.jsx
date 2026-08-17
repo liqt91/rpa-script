@@ -14,9 +14,9 @@ function EditorPage() {
   const wfId = parseInt(id, 10);
   if (isNaN(wfId)) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-900 text-white">
+      <div className="h-screen flex items-center justify-center bg-bg text-white">
         <div className="text-center">
-          <p className="text-gray-400 mb-4">无效的工作流 ID</p>
+          <p className="text-faint mb-4">无效的工作流 ID</p>
         </div>
       </div>
     );
@@ -39,11 +39,11 @@ function SidebarLayout({ children }) {
   }
 
   return (
-    <div className="h-screen bg-[#0f172a] text-gray-200 flex overflow-hidden">
+    <div className="h-screen bg-bg text-body flex overflow-hidden">
       {/* 侧边栏 */}
-      <div className="w-52 bg-[#1e293b] border-r border-gray-700 flex flex-col shrink-0">
+      <div className="w-52 bg-surface-2 border-r border-gray-700 flex flex-col shrink-0">
         <div className="px-4 py-5 flex items-center gap-2 border-b border-gray-700">
-          <i className="fas fa-project-diagram text-blue-400 text-lg"></i>
+          <i className="fas fa-project-diagram text-accent text-lg"></i>
           <span className="font-semibold text-white">RPA Script</span>
         </div>
         <nav className="flex-1 py-3 space-y-1">
@@ -52,7 +52,7 @@ function SidebarLayout({ children }) {
             end
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-blue-600/20 text-blue-300 border-r-2 border-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
               }`
             }
           >
@@ -63,7 +63,7 @@ function SidebarLayout({ children }) {
             to="/schedules"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-blue-600/20 text-blue-300 border-r-2 border-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
               }`
             }
           >
@@ -74,7 +74,7 @@ function SidebarLayout({ children }) {
             to="/logs"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-blue-600/20 text-blue-300 border-r-2 border-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
               }`
             }
           >
@@ -85,7 +85,7 @@ function SidebarLayout({ children }) {
             to="/admin/password"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-blue-600/20 text-blue-300 border-r-2 border-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
               }`
             }
           >
@@ -96,7 +96,7 @@ function SidebarLayout({ children }) {
             to="/commands/definitions"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-blue-600/20 text-blue-300 border-r-2 border-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
               }`
             }
           >
@@ -107,7 +107,7 @@ function SidebarLayout({ children }) {
             to="/ai-config"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-blue-600/20 text-blue-300 border-r-2 border-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
               }`
             }
           >
@@ -118,8 +118,8 @@ function SidebarLayout({ children }) {
 
         {activeRun && (
           <div className="px-3 py-3 border-t border-gray-700">
-            <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-2.5">
-              <div className="flex items-center gap-2 text-xs text-blue-300 mb-1.5">
+            <div className="bg-accent/15 border border-accent/30 rounded-lg p-2.5">
+              <div className="flex items-center gap-2 text-xs text-accent-strong mb-1.5">
                 <i className="fas fa-circle-notch fa-spin"></i>
                 <span className="truncate" title={activeRun.workflow_name || `流程 #${activeRun.workflow_id}`}>
                   运行中：{activeRun.workflow_name || `流程 #${activeRun.workflow_id}`}
@@ -127,7 +127,7 @@ function SidebarLayout({ children }) {
               </div>
               <button
                 onClick={stopActiveRun}
-                className="w-full px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs flex items-center justify-center gap-1 transition-colors"
+                className="w-full px-2 py-1 bg-danger/20 hover:bg-danger/30 text-danger rounded text-xs flex items-center justify-center gap-1 transition-colors"
               >
                 <i className="fas fa-stop"></i>
                 停止运行
@@ -139,13 +139,13 @@ function SidebarLayout({ children }) {
           <div className="px-3 py-3 border-t border-gray-700">
             <div className={`rounded-lg p-2.5 border ${
               runResult.kind === 'success'
-                ? 'bg-green-600/10 border-green-600/30'
+                ? 'bg-ok/10 border-green-600/30'
                 : runResult.kind === 'stopped'
                   ? 'bg-yellow-600/10 border-yellow-600/30'
-                  : 'bg-red-600/10 border-red-600/30'
+                  : 'bg-danger/15 border-danger/30'
             }`}>
               <div className={`flex items-center gap-2 text-xs ${
-                runResult.kind === 'success' ? 'text-green-300' : runResult.kind === 'stopped' ? 'text-yellow-300' : 'text-red-300'
+                runResult.kind === 'success' ? 'text-ok' : runResult.kind === 'stopped' ? 'text-warn' : 'text-danger'
               }`}>
                 <i className={`fas ${runResult.kind === 'success' ? 'fa-check-circle' : runResult.kind === 'stopped' ? 'fa-pause-circle' : 'fa-times-circle'}`}></i>
                 <span className="truncate" title={runResult.error || ''}>
@@ -159,7 +159,7 @@ function SidebarLayout({ children }) {
                     navigate(`/logs?wf=${runResult.workflow_id}&run=${encodeURIComponent(runResult.run_id)}`);
                     clearRunResult();
                   }}
-                  className="mt-1.5 w-full px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded text-xs flex items-center justify-center gap-1 transition-colors"
+                  className="mt-1.5 w-full px-2 py-1 bg-accent/20 hover:bg-accent-strong/30 text-accent-strong rounded text-xs flex items-center justify-center gap-1 transition-colors"
                 >
                   <i className="fas fa-file-alt"></i>
                   查看日志

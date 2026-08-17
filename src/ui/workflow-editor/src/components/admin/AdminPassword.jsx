@@ -38,59 +38,59 @@ export default function AdminPassword() {
     <div className="p-6 max-w-xl">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-white">修改密码</h1>
-        <p className="text-gray-500 text-sm mt-1">修改当前登录用户的密码</p>
+        <p className="text-muted text-sm mt-1">修改当前登录用户的密码</p>
       </div>
 
       {success && (
-        <div className="mb-4 p-3 bg-green-900/30 border border-green-700 rounded-lg text-green-300 text-sm">
+        <div className="mb-4 p-3 bg-green-900/30 border border-green-700 rounded-lg text-ok text-sm">
           <i className="fas fa-check-circle mr-2"></i>{success}
-          <button onClick={() => setSuccess('')} className="ml-2 text-green-400 hover:text-green-200">×</button>
+          <button onClick={() => setSuccess('')} className="ml-2 text-ok hover:text-green-200">×</button>
         </div>
       )}
       {error && (
-        <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
+        <div className="mb-4 p-3 bg-danger/25 border border-danger rounded-lg text-danger text-sm">
           <i className="fas fa-exclamation-circle mr-2"></i>{error}
-          <button onClick={() => setError('')} className="ml-2 text-red-400 hover:text-red-200">×</button>
+          <button onClick={() => setError('')} className="ml-2 text-danger hover:text-red-200">×</button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-[#1e293b] rounded-xl border border-gray-700 p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="bg-surface-2 rounded-xl border border-gray-700 p-6 space-y-4">
         <div>
-          <label className="block text-sm text-gray-400 mb-1.5">原密码</label>
+          <label className="block text-sm text-faint mb-1.5">原密码</label>
           <input
             type="password"
             value={form.old_password}
             onChange={e => setForm(f => ({ ...f, old_password: e.target.value }))}
             required
-            className="w-full px-3 py-2 bg-[#0f172a] border border-gray-600 rounded-lg text-white text-sm"
+            className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-white text-sm"
           />
         </div>
         <div>
-          <label className="block text-sm text-gray-400 mb-1.5">新密码</label>
+          <label className="block text-sm text-faint mb-1.5">新密码</label>
           <input
             type="password"
             value={form.new_password}
             onChange={e => setForm(f => ({ ...f, new_password: e.target.value }))}
             required
-            className="w-full px-3 py-2 bg-[#0f172a] border border-gray-600 rounded-lg text-white text-sm"
+            className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-white text-sm"
           />
-          <p className="text-xs text-gray-500 mt-1">至少 6 位</p>
+          <p className="text-xs text-muted mt-1">至少 6 位</p>
         </div>
         <div>
-          <label className="block text-sm text-gray-400 mb-1.5">确认新密码</label>
+          <label className="block text-sm text-faint mb-1.5">确认新密码</label>
           <input
             type="password"
             value={form.confirm_password}
             onChange={e => setForm(f => ({ ...f, confirm_password: e.target.value }))}
             required
-            className="w-full px-3 py-2 bg-[#0f172a] border border-gray-600 rounded-lg text-white text-sm"
+            className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-white text-sm"
           />
         </div>
         <div className="pt-2">
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800/50 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-accent hover:bg-accent disabled:bg-blue-800/50 text-white rounded-lg text-sm font-medium"
           >
             {loading && <i className="fas fa-circle-notch fa-spin mr-2"></i>}
             保存

@@ -148,13 +148,13 @@ export default function RunLogs() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-white">运行日志</h1>
-          <p className="text-gray-500 text-sm mt-1">查看所有工作流的执行历史和结果</p>
+          <p className="text-muted text-sm mt-1">查看所有工作流的执行历史和结果</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={exportRunsToCSV}
             disabled={runs.length === 0}
-            className="px-3 py-1.5 bg-green-700/60 hover:bg-green-700 disabled:bg-gray-800 disabled:text-gray-500 text-white rounded text-sm flex items-center gap-2 transition-colors"
+            className="px-3 py-1.5 bg-ok/40 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted text-white rounded text-sm flex items-center gap-2 transition-colors"
           >
             <i className="fas fa-file-export"></i>
             导出
@@ -170,32 +170,32 @@ export default function RunLogs() {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
+        <div className="mb-4 p-3 bg-danger/25 border border-danger rounded-lg text-danger text-sm">
           <i className="fas fa-exclamation-circle mr-2"></i>{error}
         </div>
       )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <i className="fas fa-circle-notch fa-spin text-blue-400 text-2xl"></i>
-          <span className="ml-3 text-gray-400">加载中...</span>
+          <i className="fas fa-circle-notch fa-spin text-accent text-2xl"></i>
+          <span className="ml-3 text-faint">加载中...</span>
         </div>
       ) : runs.length === 0 ? (
-        <div className="bg-[#1e293b] rounded-xl border border-gray-700 p-12 text-center">
-          <i className="fas fa-file-alt text-gray-600 text-4xl mb-4"></i>
-          <p className="text-gray-500">暂无运行记录</p>
+        <div className="bg-surface-2 rounded-xl border border-gray-700 p-12 text-center">
+          <i className="fas fa-file-alt text-muted text-4xl mb-4"></i>
+          <p className="text-muted">暂无运行记录</p>
         </div>
       ) : (
-        <div className="bg-[#1e293b] rounded-xl border border-gray-700 overflow-hidden">
+        <div className="bg-surface-2 rounded-xl border border-gray-700 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-700 bg-[#252f47]">
-                <th className="text-left px-4 py-3 font-medium text-gray-400">流程</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-400">开始时间</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-400">触发方式</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-400">耗时</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-400">运行结果</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-400">操作</th>
+                <th className="text-left px-4 py-3 font-medium text-faint">流程</th>
+                <th className="text-left px-4 py-3 font-medium text-faint">开始时间</th>
+                <th className="text-left px-4 py-3 font-medium text-faint">触发方式</th>
+                <th className="text-left px-4 py-3 font-medium text-faint">耗时</th>
+                <th className="text-left px-4 py-3 font-medium text-faint">运行结果</th>
+                <th className="text-right px-4 py-3 font-medium text-faint">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -204,39 +204,39 @@ export default function RunLogs() {
                   <td className="px-4 py-3">
                     <div className="font-medium text-white">{run.workflowName || `流程 #${run.workflowId}`}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-400">{formatDate(run.startedAt)}</td>
+                  <td className="px-4 py-3 text-faint">{formatDate(run.startedAt)}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs ${
                       run.triggerType === 'scheduled'
                         ? 'bg-purple-900/40 text-purple-300'
                         : run.triggerType === 'api'
-                          ? 'bg-green-900/40 text-green-300'
-                          : 'bg-blue-900/40 text-blue-300'
+                          ? 'bg-green-900/40 text-ok'
+                          : 'bg-accent/25 text-accent-strong'
                     }`}>
                       {run.triggerType === 'scheduled' ? '计划执行' : run.triggerType === 'api' ? 'API 调用' : '手动运行'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-400">{formatDuration(run.startedAt, run.completedAt)}</td>
+                  <td className="px-4 py-3 text-faint">{formatDuration(run.startedAt, run.completedAt)}</td>
                   <td className="px-4 py-3">
                     <div>
                       {run.success === true ? (
-                        <span className="flex items-center gap-1.5 text-green-400">
+                        <span className="flex items-center gap-1.5 text-ok">
                           <i className="fas fa-check-circle"></i>
                           运行成功
                         </span>
                       ) : run.success === false ? (
-                        <span className="flex items-center gap-1.5 text-red-400">
+                        <span className="flex items-center gap-1.5 text-danger">
                           <i className="fas fa-times-circle"></i>
                           运行失败
-                          {run.error && <span className="text-red-500 text-xs ml-1">({run.error})</span>}
+                          {run.error && <span className="text-danger text-xs ml-1">({run.error})</span>}
                         </span>
                       ) : (
-                        <span className="text-gray-500">未知</span>
+                        <span className="text-muted">未知</span>
                       )}
                       {run.outputs && Object.keys(run.outputs).length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {Object.entries(run.outputs).map(([key, value]) => (
-                            <span key={key} className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-300 font-mono">
+                            <span key={key} className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-muted font-mono">
                               {key}: {typeof value === 'object' ? JSON.stringify(value).slice(0, 40) : String(value ?? '-')}
                             </span>
                           ))}
@@ -248,21 +248,21 @@ export default function RunLogs() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => viewLog(run)}
-                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded text-xs transition-colors"
+                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-muted rounded text-xs transition-colors"
                         title="查看日志"
                       >
                         <i className="fas fa-file-alt mr-1"></i>日志
                       </button>
                       <button
                         onClick={() => viewTable(run)}
-                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded text-xs transition-colors"
+                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-muted rounded text-xs transition-colors"
                         title="查看数据表格"
                       >
                         <i className="fas fa-table mr-1"></i>表格
                       </button>
                       <button
                         onClick={() => openFolder(run)}
-                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded text-xs transition-colors"
+                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-muted rounded text-xs transition-colors"
                         title="打开日志文件夹"
                       >
                         <i className="fas fa-folder-open mr-1"></i>文件夹
@@ -279,14 +279,14 @@ export default function RunLogs() {
       {/* 详情弹窗 */}
       {detailRun && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-[#1e293b] rounded-xl border border-gray-700 w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col">
+          <div className="bg-surface-2 rounded-xl border border-gray-700 w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
               <h3 className="text-lg font-semibold text-white">
                 {detailRun.type === 'log' ? '运行日志' : '数据表格'} — {detailRun.runId}
               </h3>
               <button
                 onClick={() => { setDetailRun(null); setDetailData(null); }}
-                className="text-gray-400 hover:text-white"
+                className="text-faint hover:text-white"
               >
                 <i className="fas fa-times"></i>
               </button>
@@ -294,28 +294,28 @@ export default function RunLogs() {
             <div className="flex-1 overflow-auto p-4">
               {detailLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <i className="fas fa-circle-notch fa-spin text-blue-400"></i>
+                  <i className="fas fa-circle-notch fa-spin text-accent"></i>
                 </div>
               ) : detailData?.error ? (
-                <div className="text-red-400 text-sm">{detailData.error}</div>
+                <div className="text-danger text-sm">{detailData.error}</div>
               ) : detailRun.type === 'log' ? (
                 <div className="space-y-1 font-mono text-xs">
                   {(detailData?.events || []).map((evt, i) => (
                     <div key={i} className={`px-2 py-1 rounded ${
-                      evt.type === 'stepError' ? 'bg-red-900/30 text-red-300' :
-                      evt.type === 'done' ? 'bg-green-900/30 text-green-300' :
-                      'text-gray-300'
+                      evt.type === 'stepError' ? 'bg-danger/25 text-danger' :
+                      evt.type === 'done' ? 'bg-green-900/30 text-ok' :
+                      'text-muted'
                     }`}>
-                      <span className="text-gray-500 mr-2">[{evt.type}]</span>
-                      {(evt.cmdLabel || evt.cmdType) && <span className="text-blue-400 mr-2">{evt.cmdLabel || evt.cmdType}</span>}
-                      {evt.endOrder && <span className="text-blue-300 mr-2">#{evt.endOrder} 第#{evt.order}步</span>}
-                      {evt.error && <span className="text-red-400">{evt.error}</span>}
+                      <span className="text-muted mr-2">[{evt.type}]</span>
+                      {(evt.cmdLabel || evt.cmdType) && <span className="text-accent mr-2">{evt.cmdLabel || evt.cmdType}</span>}
+                      {evt.endOrder && <span className="text-accent-strong mr-2">#{evt.endOrder} 第#{evt.order}步</span>}
+                      {evt.error && <span className="text-danger">{evt.error}</span>}
                       {evt.result?.log !== undefined ? (
-                        <span className="text-gray-300">{evt.result.log}</span>
+                        <span className="text-muted">{evt.result.log}</span>
                       ) : evt.result && typeof evt.result === 'object' ? (
-                        <span className="text-gray-400">{JSON.stringify(evt.result).slice(0, 200)}</span>
+                        <span className="text-faint">{JSON.stringify(evt.result).slice(0, 200)}</span>
                       ) : evt.result ? (
-                        <span className="text-gray-400">{String(evt.result).slice(0, 200)}</span>
+                        <span className="text-faint">{String(evt.result).slice(0, 200)}</span>
                       ) : null}
                     </div>
                   ))}
@@ -329,14 +329,14 @@ export default function RunLogs() {
                       : rows.length > 0 ? [...new Set(rows.flatMap(Object.keys))].map(k => ({ name: k }))
                       : [];
                     if (inferredCols.length === 0) {
-                      return <div className="text-gray-500 text-center py-8">无数据</div>;
+                      return <div className="text-muted text-center py-8">无数据</div>;
                     }
                     return (
                       <>
                         <div className="mb-2 flex justify-end">
                           <button
                             onClick={exportTableToCSV}
-                            className="px-3 py-1.5 bg-green-700/60 hover:bg-green-700 text-white rounded text-xs flex items-center gap-1.5 transition-colors"
+                            className="px-3 py-1.5 bg-ok/40 hover:bg-green-700 text-white rounded text-xs flex items-center gap-1.5 transition-colors"
                           >
                             <i className="fas fa-file-export"></i>
                             导出表格
@@ -346,7 +346,7 @@ export default function RunLogs() {
                           <thead>
                             <tr>
                               {inferredCols.map((col, ci) => (
-                                <th key={ci} className="border border-gray-600 bg-gray-800 px-2 py-1 text-gray-300">{col.name}</th>
+                                <th key={ci} className="border border-border-strong bg-gray-800 px-2 py-1 text-muted">{col.name}</th>
                               ))}
                             </tr>
                           </thead>
@@ -354,7 +354,7 @@ export default function RunLogs() {
                             {rows.map((row, ri) => (
                               <tr key={ri}>
                                 {inferredCols.map((col, ci) => (
-                                  <td key={ci} className="border border-gray-600 px-2 py-1 text-gray-300">{row[col.name] ?? ''}</td>
+                                  <td key={ci} className="border border-border-strong px-2 py-1 text-muted">{row[col.name] ?? ''}</td>
                                 ))}
                               </tr>
                             ))}

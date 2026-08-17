@@ -211,26 +211,26 @@ export default function NodeForm() {
 
   if (!selectedNode) {
     return (
-      <aside className="w-[280px] bg-white border-l border-[#e8e8e8] flex items-center justify-center text-gray-400 text-sm shrink-0">
+      <aside className="w-[280px] bg-surface border-l border-border flex items-center justify-center text-faint text-sm shrink-0">
         选择一个节点以编辑属性
       </aside>
     );
   }
 
   return (
-    <aside className="w-[280px] bg-white border-l border-[#e8e8e8] flex flex-col shrink-0 select-none overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#e8e8e8]">
-        <h2 className="text-sm font-medium text-gray-700">节点属性</h2>
-        <p className="text-xs text-gray-500">#{selectedNode.order} {command?.label || selectedNode.cmd}</p>
+    <aside className="w-[280px] bg-surface border-l border-border flex flex-col shrink-0 select-none overflow-hidden">
+      <div className="px-4 py-3 border-b border-border">
+        <h2 className="text-sm font-medium text-body">节点属性</h2>
+        <p className="text-xs text-muted">#{selectedNode.order} {command?.label || selectedNode.cmd}</p>
         {command?.description && (
-          <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed bg-gray-50 rounded px-2 py-1.5 border border-gray-100">
+          <p className="text-[11px] text-faint mt-1.5 leading-relaxed bg-surface-2 rounded px-2 py-1.5 border border-border">
             {command.description}
           </p>
         )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {/* Tab 导航 */}
-        <div className="flex border-b border-[#e8e8e8]">
+        <div className="flex border-b border-border">
           {[
             { key: 'element', label: '元素' },
             { key: 'params', label: '参数' },
@@ -241,8 +241,8 @@ export default function NodeForm() {
               onClick={() => setActiveTab(tab.key)}
               className={`flex-1 py-2 text-xs font-medium transition-colors ${
                 activeTab === tab.key
-                  ? 'text-[#1677ff] border-b-2 border-[#1677ff]'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'text-accent border-b-2 border-accent'
+                  : 'text-muted hover:text-body'
               }`}
             >
               {tab.label}
@@ -262,9 +262,9 @@ export default function NodeForm() {
                           type="checkbox"
                           checked={!!extra.referenceItemItself}
                           onChange={(e) => handleReferenceItemToggle(e.target.checked)}
-                          className="w-4 h-4 accent-[#1677ff]"
+                          className="w-4 h-4 accent-accent"
                         />
-                        <span className="text-xs text-gray-700">引用循环项本身</span>
+                        <span className="text-xs text-body">引用循环项本身</span>
                       </label>
                     )}
 
@@ -279,26 +279,26 @@ export default function NodeForm() {
                     />
 
                     {selectedElement && (
-                      <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 rounded px-2 py-1.5 space-y-0.5">
+                      <div className="mt-2 text-[11px] text-muted bg-surface-2 rounded px-2 py-1.5 space-y-0.5">
                         <div className="flex items-center gap-2">
                           {selectedElement.element_type === 'win32' || selectedElement.element_type === 'uia' ? (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                              selectedElement.element_type === 'uia' ? 'bg-green-100 text-green-600' : 'bg-purple-100 text-purple-600'
+                              selectedElement.element_type === 'uia' ? 'bg-ok-soft text-ok' : 'bg-purple-100 text-purple-600'
                             }`}>
                               {selectedElement.element_type === 'uia' ? 'UIA' : '桌面'}
                             </span>
                           ) : (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                              selectedElement.element_kind === 'anchor' ? 'bg-blue-100 text-blue-600' :
+                              selectedElement.element_kind === 'anchor' ? 'bg-accent-soft text-accent' :
                               selectedElement.element_kind === 'child' ? 'bg-orange-100 text-orange-600' :
-                              'bg-gray-100 text-gray-500'
+                              'bg-surface-3 text-muted'
                             }`}>
                               {selectedElement.element_kind === 'anchor' ? '锚点' :
                                selectedElement.element_kind === 'child' ? '子元素' : '普通'}
                             </span>
                           )}
                           {selectedElement.relative_selector && (
-                            <span className="px-1.5 py-0.5 bg-[#1677ff]/10 text-[#1677ff] rounded text-[10px]">相对定位</span>
+                            <span className="px-1.5 py-0.5 bg-accent/10 text-accent rounded text-[10px]">相对定位</span>
                           )}
                         </div>
                         {selectedElementChain.length > 1 && (
@@ -306,8 +306,8 @@ export default function NodeForm() {
                             {'父链: '}
                             {selectedElementChain.map((e, i) => (
                               <span key={e.name}>
-                                {i > 0 && <span className="text-gray-300 mx-1">/</span>}
-                                <span className={e.name === selectedElement.name ? 'text-gray-800 font-medium' : ''}>{e.name}</span>
+                                {i > 0 && <span className="text-muted mx-1">/</span>}
+                                <span className={e.name === selectedElement.name ? 'text-inverse font-medium' : ''}>{e.name}</span>
                               </span>
                             ))}
                           </div>
@@ -325,14 +325,14 @@ export default function NodeForm() {
                   </div>
 
                   {selectedElement?.element_kind === 'child' && selectedElement.relative_selector && (
-                    <div className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
+                    <div className="text-[10px] text-accent bg-accent-soft border border-blue-100 rounded px-2 py-1.5">
                       该元素为子元素，将自动在其锚点循环项内使用相对选择器解析。
                     </div>
                   )}
 
                   {singleElementExtraFields.map(field => (
                     <div key={field.name}>
-                      <label className="block text-[10px] text-gray-400 mb-1">{field.label || field.name}</label>
+                      <label className="block text-[10px] text-faint mb-1">{field.label || field.name}</label>
                       <SchemaControl
                         field={field}
                         value={extra[field.name]}
@@ -341,7 +341,7 @@ export default function NodeForm() {
                         elements={elements}
                       />
                       {field.description && (
-                        <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        <p className="text-[11px] text-faint mt-1 leading-relaxed">
                           {field.description}
                         </p>
                       )}
@@ -358,7 +358,7 @@ export default function NodeForm() {
                   ))}
                 </>
               ) : (
-                <div className="text-xs text-gray-400 py-6 text-center">该指令不涉及元素操作</div>
+                <div className="text-xs text-faint py-6 text-center">该指令不涉及元素操作</div>
               )}
             </div>
           )}
@@ -366,12 +366,12 @@ export default function NodeForm() {
           {activeTab === 'params' && (
             <div className="space-y-3">
               {nonElementExtraFields.length > 0 ? (
-                <div className="border border-[#d9d9d9] rounded overflow-hidden">
+                <div className="border border-border-strong rounded overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-[#fafafa]">
+                    <thead className="bg-surface-2">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-b border-[#e8e8e8] w-28">参数</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-b border-[#e8e8e8]">值</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted border-b border-border w-28">参数</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted border-b border-border">值</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -381,22 +381,28 @@ export default function NodeForm() {
                         const groupLabel = group === '主属性' ? '基本参数' : group === 'input' ? '输入参数' : group === 'output' ? '输出参数' : '高级参数';
                         return (
                           <Fragment key={`group-${group}`}>
-                            <tr className="bg-gray-50">
-                              <td colSpan={2} className="px-3 py-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">
-                                {groupLabel}
+                            <tr className="bg-surface-3/70">
+                              <td colSpan={2} className="px-3 py-2">
+                                <span className="flex items-center gap-2">
+                                  <span className="text-[11px] font-semibold text-muted tracking-wider">{groupLabel}</span>
+                                  <span className="text-[10px] text-faint font-mono">{groupFields.length}</span>
+                                  <span className="flex-1 h-px bg-border/60"></span>
+                                </span>
                               </td>
                             </tr>
                             {groupFields.map(field => (
-                              <tr key={field.name} className="border-b border-[#f0f0f0] last:border-0 hover:bg-[#fafafa]">
-                                <td className="px-3 py-2 text-xs text-gray-600 align-middle whitespace-nowrap">
-                                  {field.label || field.name}
-                                  <span className="relative inline-flex items-center justify-center w-4 h-4 ml-1.5 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-500 text-[10px] font-bold cursor-help select-none group">
-                                    ?
-                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-800 text-white text-[11px] rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
-                                      >回传: {(TYPE_INFO[field.type]||{}).type||'str'} | 示例: {(TYPE_INFO[field.type]||{}).example||field.placeholder||'—'}</span>
-                                  </span>
+                              <tr key={field.name} className="align-top hover:bg-surface-2/50 transition-colors">
+                                <td className="px-3 pt-2.5 pb-3 text-xs text-muted align-top whitespace-nowrap">
+                                  <div className="flex items-center gap-1">
+                                    {field.label || field.name}
+                                    <span className="relative inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface-3 text-faint hover:bg-accent-soft hover:text-accent text-[10px] font-bold cursor-help select-none group">
+                                      ?
+                                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-surface-3 text-inverse text-[11px] rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+                                        >回传: {(TYPE_INFO[field.type]||{}).type||'str'} | 示例: {(TYPE_INFO[field.type]||{}).example||field.placeholder||'—'}</span>
+                                    </span>
+                                  </div>
                                 </td>
-                                <td className="px-3 py-2 align-middle">
+                                <td className="px-3 pt-2.5 pb-3 align-top">
                                   <SchemaControl
                                     field={field}
                                     value={extra[field.name]}
@@ -406,7 +412,7 @@ export default function NodeForm() {
                                     fullscreenTitle={`#${selectedNode.order} ${command?.label || selectedNode.cmd}-${field.label || field.name}`}
                                   />
                                   {field.description && (
-                                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                                    <p className="text-[11px] text-faint mt-1 leading-relaxed">
                                       {field.description}
                                     </p>
                                   )}
@@ -420,7 +426,7 @@ export default function NodeForm() {
                   </table>
                 </div>
               ) : (
-                <div className="text-xs text-gray-400 py-6 text-center">该指令无参数</div>
+                <div className="text-xs text-faint py-6 text-center">该指令无参数</div>
               )}
             </div>
           )}
@@ -429,11 +435,11 @@ export default function NodeForm() {
             <div className="space-y-3">
               {containerNodes.length > 0 && (
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">父节点 (嵌套)</label>
+                  <label className="block text-xs text-muted mb-1">父节点 (嵌套)</label>
                   <select
                     value={form.parent_id || ''}
                     onChange={(e) => handleChange('parent_id', e.target.value)}
-                    className="w-full px-2 py-1.5 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
+                    className="w-full px-2 py-1.5 bg-surface-2 border border-border-strong rounded text-sm text-body outline-none focus:border-accent"
                   >
                     <option value="">无 (顶层)</option>
                     {containerNodes.map(n => (
@@ -445,8 +451,8 @@ export default function NodeForm() {
                 </div>
               )}
               <div>
-                <label className="block text-xs text-gray-500 mb-1">节点类型</label>
-                <div className="px-2 py-1.5 bg-gray-50 border border-[#d9d9d9] rounded text-sm text-gray-500">
+                <label className="block text-xs text-muted mb-1">节点类型</label>
+                <div className="px-2 py-1.5 bg-surface-2 border border-border-strong rounded text-sm text-muted">
                   {command?.label || selectedNode.cmd}
                 </div>
               </div>
@@ -625,7 +631,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
             <button
               type="button"
               onClick={openFullscreen}
-              className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 bg-white/80 border border-gray-200 rounded text-[10px]"
+              className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-faint hover:text-muted bg-surface/80 border border-border rounded text-[10px]"
               title="全屏编辑"
             >
               <i className="fas fa-expand"></i>
@@ -639,7 +645,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
             <button
               type="button"
               onClick={openFullscreen}
-              className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 bg-white/80 border border-gray-200 rounded text-[10px]"
+              className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-faint hover:text-muted bg-surface/80 border border-border rounded text-[10px]"
               title="全屏编辑"
             >
               <i className="fas fa-expand"></i>
@@ -648,17 +654,17 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
         </div>
       )}
       {ctx && filtered.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-[#d9d9d9] rounded shadow-lg max-h-48 overflow-y-auto">
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-surface border border-border-strong rounded shadow-lg max-h-48 overflow-y-auto">
           {filtered.map((v, idx) => (
             <div
               key={v.name}
               onClick={() => insertVar(v.name)}
-              className={`px-3 py-2 cursor-pointer border-b border-gray-100 last:border-0 text-sm flex items-center justify-between ${
-                idx === highlighted ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+              className={`px-3 py-2 cursor-pointer border-b border-border last:border-0 text-sm flex items-center justify-between ${
+                idx === highlighted ? 'bg-accent-soft text-accent' : 'hover:bg-surface-2 text-body'
               }`}
             >
               <span className="font-mono">${v.name}</span>
-              <span className="text-[11px] text-gray-400 ml-2">
+              <span className="text-[11px] text-faint ml-2">
                 {v.node ? `#${v.node.order} ${v.node.cmd}` : (v.source || '流程参数')}
               </span>
             </div>
@@ -669,12 +675,12 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
       {/* Fullscreen editor modal — simple mode */}
       {fullscreen && fullscreenMode === 'simple' && createPortal(
         <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4" onMouseDown={(e) => e.stopPropagation()}>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <span className="text-sm font-medium text-gray-700">{fullscreenTitle}</span>
+          <div className="bg-surface rounded-lg shadow-xl w-full max-w-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span className="text-sm font-medium text-body">{fullscreenTitle}</span>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={saveFullscreen} className="text-xs px-4 py-1.5 bg-[#1677ff] text-white rounded hover:bg-[#4096ff]">保存</button>
-                <button type="button" onClick={() => setFullscreen(false)} className="text-xs px-4 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-50">取消</button>
+                <button type="button" onClick={saveFullscreen} className="text-xs px-4 py-1.5 bg-accent text-white rounded hover:bg-accent-strong">保存</button>
+                <button type="button" onClick={() => setFullscreen(false)} className="text-xs px-4 py-1.5 border border-border-strong text-muted rounded hover:bg-surface-2">取消</button>
               </div>
             </div>
             <div className="p-4 space-y-3">
@@ -686,13 +692,13 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
                   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFullscreen(); }
                   if (e.key === 'Escape') setFullscreen(false);
                 }}
-                className="w-full h-48 p-3 border border-gray-300 rounded text-sm outline-none focus:border-[#1677ff] resize-y"
+                className="w-full h-48 p-3 border border-border-strong rounded text-sm outline-none focus:border-accent resize-y"
                 placeholder={placeholder}
                 autoFocus
               />
               {vars.length > 0 && (
                 <div>
-                  <div className="text-[11px] text-gray-400 mb-1.5">可用变量（点击插入 {'{{变量名}}'}）</div>
+                  <div className="text-[11px] text-faint mb-1.5">可用变量（点击插入 {'{{变量名}}'}）</div>
                   <div className="flex flex-wrap gap-1">
                     {vars.map(v => (
                       <button
@@ -711,7 +717,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
                             el.setSelectionRange(start + insert.length, start + insert.length);
                           });
                         }}
-                        className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-[11px] text-blue-600 hover:bg-blue-100 font-mono"
+                        className="px-2 py-0.5 bg-accent-soft border border-blue-200 rounded text-[11px] text-accent hover:bg-accent-soft font-mono"
                         title={v.node ? `#${v.node.order} ${v.node.cmd}` : (v.source || '流程参数')}
                       >
                         {v.name}
@@ -795,13 +801,13 @@ function ElementNameListField({ field, value, onChange, elements = [] }) {
 
   return (
     <div className="space-y-2">
-      <label className="block text-[10px] text-gray-400 mb-1">{field.label || field.name}</label>
+      <label className="block text-[10px] text-faint mb-1">{field.label || field.name}</label>
       {list.map((name, idx) => (
         <div key={idx} className="flex items-center gap-2">
           <select
             value={name || ''}
             onChange={(e) => update(idx, e.target.value || '')}
-            className="flex-1 px-2 py-1.5 bg-white border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
+            className="flex-1 px-2 py-1.5 bg-surface border border-border-strong rounded text-sm text-body outline-none focus:border-accent"
           >
             <option value="">-- 选择元素 --</option>
             {elements.map(el => (
@@ -811,7 +817,7 @@ function ElementNameListField({ field, value, onChange, elements = [] }) {
           <button
             type="button"
             onClick={() => remove(idx)}
-            className="px-2 py-1 bg-red-50 text-red-500 rounded text-xs hover:bg-red-100"
+            className="px-2 py-1 bg-danger-soft text-danger rounded text-xs hover:bg-danger-soft"
             title="删除"
           >
             -
@@ -821,7 +827,7 @@ function ElementNameListField({ field, value, onChange, elements = [] }) {
       <button
         type="button"
         onClick={add}
-        className="w-full px-2 py-1.5 bg-[#fafafa] border border-dashed border-[#d9d9d9] rounded text-xs text-gray-600 hover:border-[#1677ff] hover:text-[#1677ff]"
+        className="w-full px-2 py-1.5 bg-surface-2 border border-dashed border-border-strong rounded text-xs text-muted hover:border-accent hover:text-accent"
       >
         + 添加元素
       </button>
@@ -834,7 +840,7 @@ function ElementNameListField({ field, value, onChange, elements = [] }) {
  * Supports: string, number, select, boolean, text, string, element, list-input, dict-input, code, any-input
  */
 function SchemaControl({ field, value, onChange, availableVars = [], elements = [], fullscreenTitle = '' }) {
-  const inputClass = "w-full px-3 py-2 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]";
+  const inputClass = "w-full px-3 py-2 bg-surface-2 border border-border-strong rounded text-sm text-body outline-none focus:border-accent";
   const currentValue = value !== undefined ? value : (field.default ?? '');
 
   switch (field.type) {
@@ -844,7 +850,7 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
           type="checkbox"
           checked={!!currentValue}
           onChange={(e) => onChange(e.target.checked)}
-          className="w-4 h-4 accent-[#1677ff]"
+          className="w-4 h-4 accent-accent"
         />
       );
 
@@ -891,6 +897,10 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
       );
 
     case 'element':
+      // field.elementType 存在时只列出该类型的元素（如 imageRef 只列图像元素）
+      const elementPool = field.elementType
+        ? elements.filter(el => el.element_type === field.elementType)
+        : elements;
       return (
         <select
           value={currentValue || ''}
@@ -898,7 +908,7 @@ function SchemaControl({ field, value, onChange, availableVars = [], elements = 
           className={inputClass}
         >
           <option value="">-- 选择元素 --</option>
-          {elements.map(el => (
+          {elementPool.map(el => (
             <option key={el.name} value={el.name}>
               {el.name}
             </option>

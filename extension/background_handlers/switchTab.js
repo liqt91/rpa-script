@@ -37,6 +37,7 @@ registerBackgroundHandler('switchTab', async function(step, agent) {
 
   agent.workWindowId = windowId;
   agent.workTabId = tab.id;
+  await agent._persistWorkState();
 
   await new Promise(r => setTimeout(r, 500));
   try { await agent._injectContentScript(tab.id); } catch (e) {}

@@ -109,26 +109,31 @@ def validate_handlers(registry: dict, js_handlers: set) -> list[str]:
 
 
 def validate_category_colors(registry: dict) -> list[str]:
+    """颜色合法性校验：iconColor/bgColor 格式合法且成对同色系。
+
+    注意：不强制同类目内颜色一致 —— 颜色是 per-command 语义（如关闭=红、导航=蓝、
+    文本=绿、截图=灰），历史上同类目本就允许不同色。旧版按"类目首个指令颜色"
+    作为基准强制统一，会把有意设计的语义色误报为差异（40+ 条）。
+    """
     errors = []
-    category_styles: dict[str, tuple] = {}
     for cmd_type, meta in registry.items():
-        cat = meta.get("category", "")
         color = meta.get("iconColor", "")
         bg = meta.get("bgColor", "")
-        if cat in category_styles:
-            expected_color, expected_bg = category_styles[cat]
-            if color != expected_color:
+        if not color and not bg:
+            continue
+        if color and not re.match(r"^text-[a-z]+-\d{3}$", color):
+            errors.append(f"{cmd_type}: iconColor '{color}' 格式非法（应为 text-<色>-<级>，如 text-blue-500）")
+        if bg and not re.match(r"^bg-[a-z]+-\d{2,3}$", bg):
+            errors.append(f"{cmd_type}: bgColor '{bg}' 格式非法（应为 bg-<色>-<级>，如 bg-blue-50）")
+        # 都非空时必须是同一色系（text-xxx-* 配 bg-xxx-*）
+        if color and bg:
+            mc = re.match(r"^text-([a-z]+)-", color)
+            mb = re.match(r"^bg-([a-z]+)-", bg)
+            if mc and mb and mc.group(1) != mb.group(1):
                 errors.append(
-                    f"{cmd_type}: category '{cat}' iconColor '{color}' != "
-                    f"expected '{expected_color}'"
+                    f"{cmd_type}: iconColor '{color}' 与 bgColor '{bg}' 不同色系"
+                    f"（icon 色系 '{mc.group(1)}' vs bg 色系 '{mb.group(1)}'）"
                 )
-            if bg != expected_bg:
-                errors.append(
-                    f"{cmd_type}: category '{cat}' bgColor '{bg}' != "
-                    f"expected '{expected_bg}'"
-                )
-        else:
-            category_styles[cat] = (color, bg)
     return errors
 
 

@@ -1,0 +1,58 @@
+{
+  "cmd": "findImage",
+  "label": "图像查找",
+  "runtime": "backend",
+  "category": "图像识别",
+  "icon": "fa-image",
+  "iconColor": "text-pink-500",
+  "bgColor": "bg-pink-50",
+  "categoryOrder": 55,
+  "commandOrder": 10,
+  "description": "用参考图在当前屏幕（默认，纯 Python 截全屏，浏览器/桌面统一）或浏览器页面内容中做模板匹配，返回匹配位置与屏幕坐标",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "imageRef",
+      "label": "参考图元素",
+      "type": "element",
+      "elementType": "image",
+      "required": true,
+      "placeholder": "从元素库选择图像元素（上传的参考图）",
+      "description": "选择元素库中的图像元素（元素库「上传图像」注册的参考图）；需要直接传文件路径时，可在运行参数中覆盖该值"
+    },
+    {
+      "name": "scope",
+      "label": "匹配范围",
+      "type": "select",
+      "options": [
+        { "label": "全屏幕（默认，所见即所得）", "value": "screen" },
+        { "label": "浏览器页面内容（需扩展，后台可截）", "value": "page" }
+      ],
+      "default": "screen",
+      "group": "advanced"
+    },
+    {
+      "name": "similarity",
+      "label": "相似度阈值",
+      "type": "number",
+      "default": 0.8,
+      "group": "advanced",
+      "description": "0.6~1.0，越高越严格。低于阈值视为未找到"
+    },
+    {
+      "name": "timeout",
+      "label": "超时(秒)",
+      "type": "number",
+      "default": 10,
+      "group": "advanced"
+    }
+  ],
+  "categories": [
+    "vision"
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/backend_commands/findImage.py"
+  }
+}

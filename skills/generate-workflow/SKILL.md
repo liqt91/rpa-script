@@ -72,6 +72,34 @@ onError (stop/continue) / retryCount / timeout / description
 - child 元素只能在 `forEachElement` 循环内使用
 - 同流程 `windowVar` 引用必须一致
 
+### 标准验证模式（L1 约定，2026-08-17，生成时必须遵守）
+
+> 目的：每个页面操作后必须有可观测的验证节点，保证失败可发现、可兜底。
+> 未来 L2：录制器会把"操作后验证信号"自动提取为 `verify` 参数（见下"verify 语义预留"），
+> 本约定是手工生成时的最低标准。
+
+**映射规则（操作 → 紧跟的验证节点）：**
+
+| 操作 | 验证节点 | 示例 extra |
+|---|---|---|
+| `navigate`（关键跳转） | `waitForElement` 落地页关键元素，或 `ifUrlContains` 断言 URL | `waitForElement: {locator/element, timeout: 10}` |
+| `clickElement`（触发导航/加载/面板） | `waitForElement` 目标或结果元素（timeout 5~15s） | 点击"搜索"后等结果列表 `{timeout: 15}` |
+| `clickElement`（不触发变化的轻量点击） | `checkElementExists` 或跳过 | — |
+| `inputElement` | `getText` 回读目标元素 → `ifTextContains`/`ifVarEquals` 比对期望值 | 输入后回读搜索框值 |
+| 数据提取（getText 存变量） | `log` 或 `setVar` 记录，便于检查 | — |
+| 任何验证失败 | 用 `ifElementExists`/`ifVarEquals` 条件分支（else 走重试/提示），或 `onError: continue` 兜底 | — |
+
+**规则：**
+- 验证节点紧跟其验证的操作之后（order 相邻）
+- `waitForElement` 必须设 `timeout`（5~15s），不要依赖默认
+- 验证失败不得静默继续：要么条件分支处理，要么 `onError: continue` + 记录
+- 最终结果类操作（保存/提取/提交）后必须有一个验证或记录节点
+
+**verify 语义预留（L2，勿在节点中使用）：**
+未来 `clickElement`/`inputElement` 将支持 `extra.verify`：
+`verify: {type: "waitElement"|"textEquals"|"urlContains", target: <元素名或选择器>, expected?: <期望值>, timeout: <秒>}`
+由录制器从"操作前/后页面状态"自动生成。手工生成时用上面的显式验证节点即可，二者等价。
+
 ## 执行流程
 
 ### 步骤 1：读取并解析流程描述
@@ -202,6 +230,8 @@ elseBody 内独立编号
 □ order 无重复、无跳号
 □ closeBrowser 在最后（browser 流程）
 □ extra 中 windowVar 引用一致
+□ 每个页面操作（navigate/clickElement/inputElement）后带验证节点（见"标准验证模式"）
+□ 验证节点设了 timeout，失败有兜底（条件分支或 onError: continue）
 ```
 
 **节点数组示例：**

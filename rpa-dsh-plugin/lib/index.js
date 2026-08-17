@@ -246,6 +246,8 @@ function apply(ctx, config) {
       "RPA 浏览器自动化系统可用（工具前缀 rpa_）。用法约定：",
       "- 构建工作流：先 rpa_commands 看指令目录，把完整定义写入工作区 JSON 文件（节点含 parent_id/order/extra），再 rpa_import_workflow 一次性导入 —— 不要逐节点多次调用。",
       "- 运行：rpa_run_start 异步启动 → rpa_run_wait 等结果（可中断）。不要在同一工具调用里长时间阻塞。",
+      "- 元素定位：页面操作优先用元素库 —— 先 rpa_elements(workflow_id) 查已捕获元素，用其 name 对应的选择器（css/xpath）精确定位；没有现成元素时才推断选择器。",
+      "- 标准验证模式（每个操作后必须补验证节点）：导航后 → 用 waitForElement / ifUrlContains 核对落地页；点击后 → 若触发导航/加载/面板，紧跟 waitForElement（目标或结果元素，timeout 5~15s）；输入后 → getText 回读目标元素并与期望比对（ifTextContains / ifVarEquals）；验证失败 → 用 if 条件分支或 onError=continue 兜底，不要静默继续。",
       "- 浏览器扩展连接是单实例：工作流运行中调 rpa_browser_exec 会 409，除非 allow_during_run=true。",
       "- 桌面指令（Win32/UIA）仅 Windows；后端需常驻且扩展已连接，先 rpa_status 确认。",
     ].join("\n"),
@@ -281,14 +283,48 @@ function apply(ctx, config) {
         description: "editor=全量编辑器目录；browser=扩展可执行指令",
       },
     },
-    output: { schema: { type: "array", items: { type: "object", additionalProperties: true } }, render: toText },
+    output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
     async execute(args, exec) {
       const browser = (args.side ?? "editor") === "browser";
-      return await api.get(browser ? "/api/extension/commands" : "/api/workflows/commands", {
+      const data = await api.get(browser ? "/api/extension/commands" : "/api/workflows/commands", {
         auth: !browser,
         signal: exec.signal,
       });
+      // 后端返回 {commands, ...} 对象（browser）或 {categories, commands, containerTypes, branchTypes}（editor）；
+      // 兼容裸数组，统一按对象返回，避免 dsh-tools 输出 schema 校验失败。
+      return Array.isArray(data) ? { commands: data } : data;
+    },
+  }));
+
+  /* ================= 2b. 元素库（按元素名索引的选择器库，工作流绑定） ================= */
+  ctx.tools.register(defineTool({
+    name: "rpa_elements",
+    description: "列出指定工作流的元素库：每个元素含名称、类型与定位数据（webSelector / cssCandidates / xpathCandidates / pageUrl）。操作已捕获过元素的页面时，先调本工具拿元素名对应的选择器精确定位，不要猜 CSS；运行工作流时元素名由扩展端解析。",
+    parameters: {
+      workflow_id: { type: "integer", required: true, description: "工作流 id（rpa_import_workflow 的返回值，或 /rpa list 查看）" },
+    },
+    output: { schema: { type: "object", additionalProperties: true }, render: toText },
+    isConcurrencySafe: () => true,
+    async execute(args, exec) {
+      const data = await api.get(`/api/extension/elements?workflow_id=${args.workflow_id}`, {
+        auth: false,
+        signal: exec.signal,
+      });
+      const items = Array.isArray(data) ? data : (data.elements ?? []);
+      return {
+        workflow_id: args.workflow_id,
+        count: items.length,
+        elements: items.map((el) => ({
+          name: el.name,
+          elementType: el.elementType ?? "",
+          elementKind: el.elementKind ?? "",
+          css: el.webSelector ?? "",
+          cssCandidates: Array.isArray(el.cssCandidates) ? el.cssCandidates : [],
+          xpathCandidates: Array.isArray(el.xpathCandidates) ? el.xpathCandidates : [],
+          pageUrl: el.pageUrl ?? "",
+        })),
+      };
     },
   }));
 
@@ -484,8 +520,8 @@ function apply(ctx, config) {
 
     commandCtx.commands.register({
       name: "rpa",
-      description: "RPA 状态与页面入口：/rpa 状态、/rpa open 打开编辑器、/rpa list 列工作流、/rpa run <名称|id>",
-      input: { hint: "[open|list|run <名称|id>]" },
+      description: "RPA 控制台与状态：/rpa 状态、/rpa console 打开控制台（流程列表/图像元素注册/运行）、/rpa open 编辑器、/rpa list 工作流、/rpa run <名称|id>、/rpa image <工作流id> 注册截图",
+      input: { hint: "[console|open|list|image <id>|run <名称|id>]" },
       async handler({ rawInput }) {
         const line = rawInput.trim();
         if (!line) {
@@ -494,13 +530,21 @@ function apply(ctx, config) {
             return {
               kind: "success",
               text: `RPA 后端在线，扩展 ${s.online ? "已连接" : "未连接"}（${s.count} 连接）。\n` +
+                `控制台：${config.backendUrl}/tools/rpa-console\n` +
                 `编辑器：${config.backendUrl}/workflow-editor/\n` +
-                `/rpa open ｜ /rpa list ｜ /rpa run <名称|id>`,
+                `/rpa console ｜ /rpa open ｜ /rpa list ｜ /rpa run <名称|id>`,
             };
           } catch (e) { return apiErr(e); }
         }
         const [cmd, ...rest] = line.split(/\s+/);
         const arg = rest.join(" ");
+        if (cmd === "console") {
+          return { kind: "success", text: `打开 RPA 控制台：${config.backendUrl}/tools/rpa-console\n（流程列表 · 图像元素注册截图 · 一键运行）` };
+        }
+        if (cmd === "image") {
+          const wf = rest[0] || "";
+          return { kind: "success", text: `注册图像元素：打开 ${config.backendUrl}/tools/rpa-console，在「图像元素」区填入工作流 ID${wf ? `（${wf}）` : ""}后上传截图。\n或直接访问 ${config.backendUrl}/api/extension/image-upload-page` };
+        }
         if (cmd === "open") {
           return { kind: "success", text: `打开 RPA 编辑器：${config.backendUrl}/workflow-editor/（指令定义页在左侧导航）` };
         }

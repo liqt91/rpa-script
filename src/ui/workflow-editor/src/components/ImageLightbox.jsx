@@ -37,7 +37,7 @@ export default function ImageLightbox({ src, alt, onClose }) {
       <button
         onClick={handleClose}
         title="关闭 (Esc)"
-        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-surface/10 hover:bg-surface/20 text-white transition-colors"
       >
         <i className="fas fa-times"></i>
       </button>
@@ -49,11 +49,11 @@ export default function ImageLightbox({ src, alt, onClose }) {
           src={src}
           alt={alt || '截图预览'}
           onLoad={(e) => setNaturalSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
-          className="max-w-full max-h-[82vh] object-contain bg-white rounded-lg shadow-2xl"
+          className="max-w-full max-h-[82vh] object-contain bg-surface rounded-lg shadow-2xl"
         />
-        <div className="text-xs text-gray-300">
+        <div className="text-xs text-muted">
           {alt || '截图预览'}
-          {naturalSize && <span className="ml-2 text-gray-400">{naturalSize.w} × {naturalSize.h}</span>}
+          {naturalSize && <span className="ml-2 text-faint">{naturalSize.w} × {naturalSize.h}</span>}
         </div>
       </div>
     </div>

@@ -11,27 +11,27 @@ function TreeNode({ node, depth, selectedName, expandedNames, onToggle, onSelect
     <div className="relative">
       {depth > 0 && (
         <div
-          className="absolute border-t border-gray-200"
+          className="absolute border-t border-border"
           style={{ left: guideLeft - 8, top: 11, width: 8 }}
         />
       )}
       {isExpanded && hasChildren && (
         <div
-          className="absolute border-l border-gray-200"
+          className="absolute border-l border-border"
           style={{ left: guideLeft, top: 24, bottom: 0 }}
         />
       )}
       <div
         style={{ paddingLeft }}
         className={`group relative z-10 flex items-center gap-1 py-1 pr-2 cursor-pointer ${
-          selectedName === node.name ? 'bg-blue-50' : 'hover:bg-gray-100'
+          selectedName === node.name ? 'bg-accent-soft' : 'hover:bg-surface-3'
         }`}
         onClick={() => onSelect(node.name)}
       >
         {hasChildren ? (
           <button
             onClick={(e) => { e.stopPropagation(); onToggle(node.name); }}
-            className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600 shrink-0"
+            className="w-4 h-4 flex items-center justify-center text-faint hover:text-muted shrink-0"
           >
             <i className={`fas fa-chevron-${isExpanded ? 'down' : 'right'} text-[9px]`}></i>
           </button>
@@ -39,7 +39,7 @@ function TreeNode({ node, depth, selectedName, expandedNames, onToggle, onSelect
           <span className="w-4 shrink-0"></span>
         )}
         <span className={`text-xs truncate flex-1 min-w-0 ${
-          selectedName === node.name ? 'text-blue-700 font-medium' : 'text-gray-700'
+          selectedName === node.name ? 'text-accent font-medium' : 'text-body'
         }`}>
           {node.name}
         </span>
@@ -103,25 +103,25 @@ export default function ElementTreeSelect({ label, value, onChange, elements, pl
   return (
     <div className="relative" ref={ref}>
       {label && (
-        <label className="block text-[10px] text-gray-400 mb-1">{label}</label>
+        <label className="block text-[10px] text-faint mb-1">{label}</label>
       )}
       <button
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen(!open)}
-        className={`w-full px-2 py-1.5 border border-[#d9d9d9] rounded text-sm text-left outline-none focus:border-[#1677ff] flex items-center justify-between ${
+        className={`w-full px-2 py-1.5 border border-border-strong rounded text-sm text-left outline-none focus:border-accent flex items-center justify-between ${
           disabled
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-white text-gray-700'
+            ? 'bg-surface-3 text-faint cursor-not-allowed'
+            : 'bg-surface text-body'
         }`}
       >
         <span className="truncate">{disabled ? disabledPlaceholder : (selectedElement ? selectedElement.name : placeholder)}</span>
-        {!disabled && <i className={`fas fa-chevron-${open ? 'up' : 'down'} text-[10px] text-gray-400`}></i>}
+        {!disabled && <i className={`fas fa-chevron-${open ? 'up' : 'down'} text-[10px] text-faint`}></i>}
       </button>
       {open && (
-        <div className="absolute z-50 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-white border border-[#d9d9d9] rounded shadow-lg py-1">
+        <div className="absolute z-50 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-surface border border-border-strong rounded shadow-lg py-1">
           {elements.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-gray-400">暂无元素</div>
+            <div className="px-2 py-1.5 text-xs text-faint">暂无元素</div>
           ) : (
             tree.map((root) => (
               <TreeNode

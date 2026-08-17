@@ -61,3 +61,6 @@ rpa_uia_debug.log
 
 
 tdSelector_1.2.7/
+
+# Runtime image elements (user-uploaded reference screenshots)
+data/images/

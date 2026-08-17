@@ -21,6 +21,7 @@ registerBackgroundHandler('launchBrowser', async function(step, agent) {
         await chrome.windows.update(win.id, { focused: true });
       }
       agent.workTabId = tab.id;
+      await agent._persistWorkState();
       await new Promise(r => setTimeout(r, 500));
       try { await agent._injectContentScript(tab.id); } catch (e) {}
       return { windowId: win.id, tabId: tab.id };
@@ -33,6 +34,7 @@ registerBackgroundHandler('launchBrowser', async function(step, agent) {
   const newTab = newWindow.tabs?.[0];
   if (newTab?.id) {
     agent.workTabId = newTab.id;
+    await agent._persistWorkState();
     await new Promise(r => setTimeout(r, 500));
     try { await agent._injectContentScript(newTab.id); } catch (e) {}
     return { windowId: newWindow.id, tabId: newTab.id };

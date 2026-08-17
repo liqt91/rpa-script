@@ -25,5 +25,12 @@ registerHandler('takeScreenshot', async function({ locator, selectorFamily, extr
   // Full page screenshot
   const resp = await chrome.runtime.sendMessage({ action: 'captureScreenshot' });
   if (resp?.error) throw new Error(`截图失败: ${resp.error}`);
-  return { dataUrl: resp.dataUrl, elementScreenshot: false };
+  // 附上视口左上角的屏幕坐标（CSS px）+ dpr，供后端把截图内匹配坐标换算成屏幕坐标
+  return {
+    dataUrl: resp.dataUrl,
+    elementScreenshot: false,
+    screenX: window.screenX || 0,
+    screenY: window.screenY || 0,
+    dpr: window.devicePixelRatio || 1,
+  };
 });

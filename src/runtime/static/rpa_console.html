@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>RPA 控制台</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--line:#e4e7ec;--primary:#0b7;--danger:#d33}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;background:var(--bg);color:#222}
+header{background:#1f2328;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:17px;margin:0;flex:1}
+header .hint{font-size:12px;opacity:.7}
+main{max-width:1100px;margin:20px auto;padding:0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+.card h2{font-size:15px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:#666;font-weight:600}
+button{padding:6px 14px;border:0;border-radius:6px;cursor:pointer;font-size:13px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-run{background:#2563eb;color:#fff}
+.btn-del{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+input,select{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px}
+label{display:block;margin:10px 0 4px;font-weight:600;font-size:13px}
+.hidden{display:none}
+#login-box{max-width:360px;margin:80px auto}
+#result{font-size:12px;color:#666;margin-top:8px;white-space:pre-wrap}
+.wf-status{font-size:11px;padding:2px 8px;border-radius:10px}
+.st-ok{background:#d9f5e3;color:#0a7}
+.st-err{background:#fde3e3;color:#c22}
+.st-run{background:#dbeafe;color:#1d4ed8}
+.st-new{background:#eee;color:#666}
+.el-img{font-size:11px;color:#0b7}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔧 RPA 控制台</h1>
+  <span class="hint">本地工具 · 后端 :8000</span>
+</header>
+
+<div id="login-box" class="card">
+  <h2>登录</h2>
+  <label>用户名</label><input id="u" value="admin">
+  <label>密码</label><input id="p" type="password" value="admin123">
+  <button class="btn-primary" onclick="login()" style="margin-top:14px">登录</button>
+  <div id="result"></div>
+</div>
+
+<main id="app" class="hidden">
+  <div class="grid">
+    <div class="card">
+      <h2>📋 流程列表</h2>
+      <table><thead><tr><th>ID</th><th>名称</th><th>节点</th><th>操作</th></tr></thead>
+      <tbody id="wf-body"></tbody></table>
+      <div id="wf-result" style="font-size:12px;color:#666;margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>🖼️ 图像元素（选中流程）</h2>
+      <label>工作流 ID（查看/注册图像元素）</label>
+      <input id="el-wf" type="number" placeholder="输入工作流 ID">
+      <button class="btn-primary" onclick="loadElements()" style="margin-top:8px">加载元素</button>
+      <table style="margin-top:10px"><thead><tr><th>名称</th><th>类型</th></tr></thead>
+      <tbody id="el-body"></tbody></table>
+      <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+      <h2 style="margin-bottom:6px">📤 注册图像元素（截图上传）</h2>
+      <label>元素名</label><input id="reg-name" placeholder="如 搜索按钮">
+      <label>参考图文件 (PNG)</label><input id="reg-file" type="file" accept="image/png,image/jpeg">
+      <label>相似度阈值</label><input id="reg-sim" type="number" value="0.8" min="0.5" max="1" step="0.05">
+      <label>来源说明</label><input id="reg-src" placeholder="可选，如「小红书筛选按钮」">
+      <button class="btn-primary" onclick="registerImage()" style="margin-top:12px">注册</button>
+      <div id="reg-result" style="font-size:12px;color:#666;margin-top:8px"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+let token = localStorage.getItem('rpa_token') || '';
+const api = (path, opt={}) => {
+  opt.headers = Object.assign({'Authorization':'Bearer '+token}, opt.headers||{});
+  return fetch('http://127.0.0.1:8000'+path, opt).then(r=>r.json());
+};
+async function login(){
+  const r = await fetch('http://127.0.0.1:8000/api/auth/login',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})});
+  const j = await r.json();
+  if(j.access_token){ token=j.access_token; localStorage.setItem('rpa_token',token);
+    document.getElementById('login-box').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    loadWorkflows();
+  } else { document.getElementById('result').textContent = '登录失败: '+JSON.stringify(j); }
+}
+async function loadWorkflows(){
+  const j = await api('/api/workflows');
+  const rows = Array.isArray(j)?j:(j.workflows||[]);
+  const tb = document.getElementById('wf-body'); tb.innerHTML='';
+  for(const w of rows){
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${w.id}</td><td>${esc(w.name)}</td><td>${(w.nodes||[]).length||'-'}</td>
+      <td><button class="btn-run" onclick="runWf(${w.id},'${esc(w.name)}')">▶ 运行</button></td>`;
+    tb.appendChild(tr);
+  }
+}
+async function runWf(id,name){
+  document.getElementById('wf-result').textContent = `启动 ${name} ...`;
+  const j = await api(`/api/workflows/${id}/run/extension`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({async:true})});
+  document.getElementById('wf-result').textContent = JSON.stringify(j,null,2);
+}
+async function loadElements(){
+  const wf = document.getElementById('el-wf').value;
+  if(!wf) return;
+  const j = await api('/api/extension/elements?workflow_id='+wf);
+  const items = Array.isArray(j)?j:(j.elements||[]);
+  const tb=document.getElementById('el-body'); tb.innerHTML='';
+  for(const e of items){
+    const tr=document.createElement('tr');
+    const tag = e.elementType==='image' ? '<span class="el-img">image</span>' : esc(e.elementType||'');
+    tr.innerHTML=`<td>${esc(e.name)}</td><td>${tag}</td>`; tb.appendChild(tr);
+  }
+}
+async function registerImage(){
+  const wf = document.getElementById('el-wf').value;
+  const name = document.getElementById('reg-name').value;
+  const file = document.getElementById('reg-file').files[0];
+  if(!wf||!name||!file){ document.getElementById('reg-result').textContent='请填写工作流ID、元素名并选择文件'; return; }
+  const fd = new FormData();
+  fd.append('workflow_id',wf); fd.append('name',name);
+  fd.append('similarity',document.getElementById('reg-sim').value||'0.8');
+  fd.append('source',document.getElementById('reg-src').value||'');
+  fd.append('file',file);
+  const r = await fetch('http://127.0.0.1:8000/api/extension/elements/image',{method:'POST',body:fd});
+  const j = await r.json();
+  document.getElementById('reg-result').textContent = JSON.stringify(j,null,2);
+  loadElements();
+}
+function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+if(token){ document.getElementById('login-box').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); loadWorkflows(); }
+</script>
+</body>
+</html>

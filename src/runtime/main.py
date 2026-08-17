@@ -203,9 +203,26 @@ app.include_router(public_router)
 # Workflow-editor SPA directory
 _static_dir = os.path.join(os.path.dirname(__file__), "static", "workflow-editor")
 
+# RPA 控制台（本地工具页，免认证）：流程列表 + 图像元素注册 + 运行控制
+@app.get("/tools/rpa-console")
+def rpa_console_page():
+    from fastapi.responses import FileResponse
+    p = os.path.join(os.path.dirname(__file__), "static", "rpa_console.html")
+    if os.path.isfile(p):
+        return FileResponse(p)
+    return HTMLResponse("控制台页面缺失", status_code=404)
+
 # Serve static assets (js/css) without auth
 if os.path.isdir(_static_dir):
     app.mount("/workflow-editor/assets", StaticFiles(directory=os.path.join(_static_dir, "assets")), name="wf-assets")
+
+# 图像元素参考图静态访问（元素库缩略图 / 图像详情预览；免认证，本机素材）
+_images_root = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "data", "images",
+)
+if os.path.isdir(_images_root):
+    app.mount("/api/images", StaticFiles(directory=_images_root), name="rpa-images")
 
 
 def _inject_user_to_index(user):

@@ -55,27 +55,27 @@ export default function RunParametersDialog({ parameters, onConfirm, onCancel })
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-lg shadow-xl w-[420px] max-w-[90vw] max-h-[80vh] flex flex-col"
+        className="bg-surface rounded-lg shadow-xl w-[420px] max-w-[90vw] max-h-[80vh] flex flex-col"
       >
-        <div className="px-4 py-3 border-b border-[#e8e8e8]">
-          <h3 className="text-sm font-medium text-gray-800">运行参数</h3>
-          <p className="text-xs text-gray-500">请填写本次运行所需的参数</p>
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-medium text-inverse">运行参数</h3>
+          <p className="text-xs text-muted">请填写本次运行所需的参数</p>
         </div>
         <div className="p-4 space-y-3 overflow-y-auto">
           {inputParams.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-4">此流程无需运行参数</p>
+            <p className="text-xs text-faint text-center py-4">此流程无需运行参数</p>
           ) : (
             inputParams.map((p) => (
               <div key={p.name}>
-                <label className="block text-xs text-gray-600 mb-1">
+                <label className="block text-xs text-muted mb-1">
                   {p.label || p.name}
-                  <span className="ml-1 text-[10px] text-gray-400">(${p.name})</span>
+                  <span className="ml-1 text-[10px] text-faint">(${p.name})</span>
                 </label>
                 {p.type === 'bool' ? (
                   <select
                     value={values[p.name] ? 'true' : 'false'}
                     onChange={(e) => setValue(p.name, e.target.value === 'true')}
-                    className="w-full px-2 py-1.5 border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
+                    className="w-full px-2 py-1.5 border border-border-strong rounded text-sm text-body outline-none focus:border-accent"
                   >
                     <option value="true">是</option>
                     <option value="false">否</option>
@@ -86,7 +86,7 @@ export default function RunParametersDialog({ parameters, onConfirm, onCancel })
                     onChange={(e) => setValue(p.name, e.target.value)}
                     placeholder={p.type === 'list' ? '[1, 2, 3]' : '{"key": "value"}'}
                     rows={3}
-                    className="w-full px-2 py-1.5 border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff] font-mono"
+                    className="w-full px-2 py-1.5 border border-border-strong rounded text-sm text-body outline-none focus:border-accent font-mono"
                   />
                 ) : (
                   <input
@@ -94,24 +94,24 @@ export default function RunParametersDialog({ parameters, onConfirm, onCancel })
                     value={values[p.name] ?? ''}
                     onChange={(e) => setValue(p.name, e.target.value)}
                     placeholder={p.default !== undefined ? String(p.default) : ''}
-                    className="w-full px-2 py-1.5 border border-[#d9d9d9] rounded text-sm text-gray-700 outline-none focus:border-[#1677ff]"
+                    className="w-full px-2 py-1.5 border border-border-strong rounded text-sm text-body outline-none focus:border-accent"
                   />
                 )}
               </div>
             ))
           )}
         </div>
-        <div className="px-4 py-3 border-t border-[#e8e8e8] flex justify-end gap-2">
+        <div className="px-4 py-3 border-t border-border flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="px-3 py-1.5 text-xs text-gray-600 border border-[#d9d9d9] rounded hover:bg-gray-50"
+            className="px-3 py-1.5 text-xs text-muted border border-border-strong rounded hover:bg-surface-2"
           >
             取消
           </button>
           <button
             type="submit"
-            className="px-3 py-1.5 text-xs text-white bg-[#1677ff] rounded hover:bg-[#4096ff]"
+            className="px-3 py-1.5 text-xs text-white bg-accent rounded hover:bg-accent-strong"
           >
             开始运行
           </button>

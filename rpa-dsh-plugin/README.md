@@ -6,7 +6,7 @@ RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建�
 异步运行控制、浏览器实时指令。直接 fetch 调后端 REST（**不经 MCP 双跳**），认证机制与
 `src/mcp_server/client.py` 一致（Bearer token + 401 重登一次）。
 
-## 工具集（12 个）
+## 工具集（13 个）
 
 | 工具 | 用途 |
 |---|---|
@@ -29,7 +29,7 @@ RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建�
 | 后台服务 | **T1**：插件托管 Python 后端（激活时拉起、配置 `autoStartBackend`），用户无感 |
 | 并行 | 先单流程（默认容量 1），并行后置 |
 | 认证 | 保持后端登录，**DSH 代管凭证**（token 或 username+password，401 自动重登） |
-| 页面 | 独立页面（:8000）+ DSH 内 `/rpa` 跳转，不做 UI 嵌入 |
+| 页面 | 独立页面（:8000）+ **DSH 内嵌抽屉**（client 半身，侧边栏 ⚙ 展开 iframe 内嵌 workflow-editor）+ `/rpa` 跳转 |
 | NL 生成 | 模型直接产出节点 JSON，C1–C4 向量匹配不做 |
 | 扩展安装 | 桌面安装器自动注入（External Extensions JSON） |
 
@@ -51,19 +51,27 @@ RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建�
 
 ## 安装（web profile）
 
-> 实测要点：① 路径必须带 `./`（`file:./`），否则 dsh plugin 的锚定正则不匹配，
-> pnpm 会按 profile 目录解析；② 跨盘符的 `link:`/`file:` 绝对路径会被 pnpm 拼错
-> （URL 解析把 `D:` 当 host），且软链会让 Node 按真实路径找依赖 —— 因此推荐
-> **把插件实体拷进 profile 目录**再 `file:./` 引用。
+> 实测要点：
+> ① 路径必须带 `./`（`file:./`），否则 dsh plugin 的锚定正则不匹配；
+> ② 跨盘符的 `link:`/`file:` 绝对路径会被 pnpm 拼错（URL 解析把 `D:` 当 host），
+> 因此推荐**把插件实体拷进 profile 目录**再 `file:./` 引用；
+> ③ **不要**在 profile 里手动加 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`
+> 依赖。宿主 dsh 会把整个依赖闭包软链到 `~/.dsh/profiles/node_modules`
+> （`healProfilesModuleFallback`，每次启动维护），插件从该 fallback 解析到
+> **与宿主完全相同的实例**（cordis / dsh-tools / dsh-scope / dsh-system-prompt 单实例）。
+> 若按旧做法在 profile 里 pnpm 装一份 cordis+dsh-tools，进程内会出现**两份
+> cordis / dsh-tools 副本**：`Symbol("dsh.scope")` 这类跨模块共享符号错位，
+> 作用域解析退化为全局层，会触发
+> `prompt section "deployment:persona" is already registered`（standard preset
+> 挂载失败，模型选择处报 resume failed）。这是本插件第二次失败的真实根因。
 
 ```powershell
 # 1) 把插件拷进 profile（保持与仓库同步：改动后重新拷贝即可）
 Copy-Item rpa-dsh-plugin "$env:USERPROFILE\.dsh\profiles\web\rpa-dsh-plugin" -Recurse
 
-# 2) 声明依赖（peer 显式声明，保证与宿主单一实例）
+# 2) 声明依赖（只加 rpa-dsh-plugin 本身；cordis/dsh-tools/schemastery 均为
+#    peer，由宿主 fallback 提供单一实例，勿手动加进 dependencies）
 #    编辑 %USERPROFILE%\.dsh\profiles\web\package.json 的 dependencies 加入：
-#      "@deepseek-ai/cordis": "^4.0.1",
-#      "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
 #      "rpa-dsh-plugin": "file:./rpa-dsh-plugin"
 
 # 3) 安装
@@ -82,14 +90,14 @@ cd "$env:USERPROFILE\.dsh\profiles\web"; pnpm install
         token: !!js process.env.RPA_API_TOKEN || ''
         username: !!js process.env.RPA_USERNAME || 'admin'
         password: !!js process.env.RPA_PASSWORD || 'admin123'
-        # 可选：激活时自动拉起后端
+        # 可选：激活时自动拉起后端（不接管生命周期，dispose 不回收）
         autoStartBackend: false
         backendCommand: '"D:\Users\Administrator\Documents\代码\rpa_script\.venv\Scripts\python.exe" -m src.runtime.main'
         backendCwd: 'D:\Users\Administrator\Documents\代码\rpa_script'
 ```
 
 验证（不起服务即可检查配置树）：`dsh --profile web --dump-config | findstr rpa`。
-然后**重启 `dsh web`** 激活插件。
+然后**重启 `dsh web`** 激活插件（运行中的实例会在写入 patch 后经 HMR 热应用）。
 
 headless 同样可用：首次使用会自动初始化 profile，按同样步骤把实例加到
 `~/.dsh/profiles/headless/cordis.patch.yml`，然后一条命令端到端：
@@ -128,6 +136,37 @@ dsh --profile headless "打开百度，搜索 RPA，把第一页标题存成工�
    （复用 `scan_installed_extensions`）与兜底提示（Chrome 版本兼容风险）。
 4. **P3 打磨**：skills 入 `~/.dsh/skills/`；可选 headless profile 一条命令跑流程。
 
+## DSH Web UI 集成（client 半身）
+
+插件带 **client 半身**（`lib/client.js`）：在 dsh web 侧边栏底部注册"RPA 控制台"入口，
+点击展开右侧抽屉，**iframe 内嵌现有 workflow-editor SPA**（`http://127.0.0.1:8000/workflow-editor/`），
+不重新写前端。头部提供"新窗口打开"兜底。
+
+机制（DSH client-module 系统）：
+
+- `package.json` 声明 `dsh.client: { platform: "web", inject: ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-locale"] }`
+  + `exports["./client"] → lib/client.js`。dsh 启动扫描到声明后，把该包注入
+  `window.__DSH_BOOT__` 入口图，并 serve `/plugins/rpa-dsh-plugin/client.js`。
+- `lib/client.js` 是**浏览器直接执行的 bundle**（`window.__ModuleLoader__.load({id, factory})`），
+  保持 ES5 风格；`require("react")` 等解析到前端 staticModules（react / react/jsx-runtime /
+  react-dom / @deepseek-ai/cordis 等，**无需自己打包**）。
+- `factory` 导出 `apply(ctx)` + `inject`（cordis 插件惯例）：`ctx.slots.inject("sidebar.footer.action", ...)`
+  注册组件到侧边栏底部（与 cordis-panel 同 slot，不同 id 共存）。
+
+改动后生效（重要）：
+
+```powershell
+# 1) 同步到 profile 的两处（workspace 源 + pnpm 安装副本，二者都要）
+Copy-Item rpa-dsh-plugin\lib\client.js "$env:USERPROFILE\.dsh\profiles\web\rpa-dsh-plugin\lib\client.js" -Force
+Copy-Item rpa-dsh-plugin\lib\client.js "$env:USERPROFILE\.dsh\profiles\web\node_modules\rpa-dsh-plugin\lib\client.js" -Force
+Copy-Item rpa-dsh-plugin\package.json "$env:USERPROFILE\.dsh\profiles\web\rpa-dsh-plugin\package.json" -Force
+Copy-Item rpa-dsh-plugin\package.json "$env:USERPROFILE\.dsh\profiles\web\node_modules\rpa-dsh-plugin\package.json" -Force
+# 2) 重启 dsh web（client 元数据/bundle 变化需重启；页面刷新加载新 bundle）
+```
+
+> 注意：loader 实际解析的是 `node_modules/rpa-dsh-plugin`（pnpm 安装副本），
+> 只拷 workspace 源会报 `client bundle not found`（`MissingClientBundleError`）。
+
 ## 启动失败恢复
 
 如果 `dsh web` 启动崩溃（插件树加载失败），一条命令回到无插件状态：
@@ -145,8 +184,15 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.dsh\profiles\web\rol
 - **工具参数 schema（dsh-tools 硬性要求）**：`type: "object"` 的参数必须显式声明
   `additionalProperties: true/false`，否则插件树加载直接失败
   （`unsupported JSON schema: <tool>.<param>.additionalProperties must be explicitly true or false`）。
-  新增/修改工具时注意：`rpa_run_start.parameters / initial_table_data`、
-  `rpa_browser_exec.extra` 都是自由形状对象，须带 `additionalProperties: true`。
+  当前代码已全部合规（`rpa_run_start.parameters / initial_table_data`、
+  `rpa_browser_exec.extra` 均带 `additionalProperties: true`）；新增/修改工具时保持。
+- **禁止在 profile 里重复安装 cordis 生态包**：只允许 `rpa-dsh-plugin` 一个依赖，
+  cordis/dsh-tools/schemastery 由 `~/.dsh/profiles/node_modules` fallback 提供宿主单实例。
+  若进程内出现第二份 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` 副本，
+  会表现为 standard preset 挂载失败：
+  `prompt section "deployment:persona" is already registered (for a per-agent override, ...)`，
+  模型选择处报 `resume failed`。恢复：跑 rollback 脚本或把 package.json 的 dependencies
+  只留 `rpa-dsh-plugin` 后 `pnpm install`。
 - 扩展连接单实例容量 1：运行中 `rpa_browser_exec` 会 409，`allow_during_run=true` 可强制。
 - 桌面指令（Win32/UIA）仅 Windows。
 - 认证默认种子 `admin/admin123`，首次使用请改。

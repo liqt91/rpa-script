@@ -281,59 +281,59 @@ export default function WorkflowList() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-white">流程列表</h1>
-          <p className="text-gray-500 text-sm mt-1">管理工作流，配置执行浏览器，手动触发运行</p>
+          <p className="text-muted text-sm mt-1">管理工作流，配置执行浏览器，手动触发运行</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+          className="px-4 py-2 bg-accent hover:bg-accent text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
         >
           <i className="fas fa-plus"></i>
           新建工作流
         </button>
       </div>
         {error && (
-          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
+          <div className="mb-4 p-3 bg-danger/25 border border-danger rounded-lg text-danger text-sm">
             <i className="fas fa-exclamation-circle mr-2"></i>
             {error}
-            <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-200">×</button>
+            <button onClick={() => setError(null)} className="ml-2 text-danger hover:text-red-200">×</button>
           </div>
         )}
 
         {/* 浏览器与扩展状态检测 */}
-        <div className="mb-4 p-3 bg-[#1e293b] border border-gray-700 rounded-lg">
+        <div className="mb-4 p-3 bg-surface-2 border border-gray-700 rounded-lg">
           <div className="flex items-center gap-4 text-sm">
-            <span className="text-gray-400 font-medium"><i className="fas fa-browser mr-1"></i>浏览器检测:</span>
+            <span className="text-faint font-medium"><i className="fas fa-browser mr-1"></i>浏览器检测:</span>
             <span className="flex items-center gap-1.5">
-              <i className="fab fa-chrome text-gray-400"></i>
-              <span className={browserPaths.chrome ? 'text-green-400' : 'text-red-400'}>
+              <i className="fab fa-chrome text-faint"></i>
+              <span className={browserPaths.chrome ? 'text-ok' : 'text-danger'}>
                 {browserPaths.chrome ? 'Chrome 已找到' : 'Chrome 未找到'}
               </span>
             </span>
             <span className="flex items-center gap-1.5">
-              <i className="fab fa-edge text-gray-400"></i>
-              <span className={browserPaths.edge ? 'text-green-400' : 'text-red-400'}>
+              <i className="fab fa-edge text-faint"></i>
+              <span className={browserPaths.edge ? 'text-ok' : 'text-danger'}>
                 {browserPaths.edge ? 'Edge 已找到' : 'Edge 未找到'}
               </span>
             </span>
             <button
               onClick={() => { loadBrowserPaths(); loadExtensionStatus(); }}
-              className="ml-auto text-xs text-blue-400 hover:text-blue-300"
+              className="ml-auto text-xs text-accent hover:text-accent-strong"
               title="重新检测"
             >
               <i className="fas fa-sync-alt"></i> 重新检测
             </button>
           </div>
           {(browserPaths.chrome || browserPaths.edge) && (
-            <div className="mt-2 text-xs text-gray-500 font-mono space-y-0.5">
+            <div className="mt-2 text-xs text-muted font-mono space-y-0.5">
               {browserPaths.chrome && <div>Chrome: {browserPaths.chrome}</div>}
               {browserPaths.edge && <div>Edge: {browserPaths.edge}</div>}
             </div>
           )}
           {/* 扩展状态 */}
           <div className="mt-2 flex items-center gap-4 text-sm border-t border-gray-700/50 pt-2">
-            <span className="text-gray-400 font-medium"><i className="fas fa-puzzle-piece mr-1"></i>扩展状态:</span>
+            <span className="text-faint font-medium"><i className="fas fa-puzzle-piece mr-1"></i>扩展状态:</span>
             {(() => {
-              if (!extStatus) return <span className="text-gray-500">检测中...</span>;
+              if (!extStatus) return <span className="text-muted">检测中...</span>;
               const installed = extStatus.installed || [];
               const chromeInstalled = installed.some(i => i.browser === 'chrome');
               const edgeInstalled = installed.some(i => i.browser === 'edge');
@@ -342,13 +342,13 @@ export default function WorkflowList() {
               return (
                 <>
                   <span className="flex items-center gap-1.5">
-                    <i className="fab fa-chrome text-gray-400"></i>
+                    <i className="fab fa-chrome text-faint"></i>
                     {chromeOnline ? (
-                      <span className="text-green-400">扩展已安装 · 在线</span>
+                      <span className="text-ok">扩展已安装 · 在线</span>
                     ) : chromeInstalled ? (
-                      <span className="text-yellow-400">扩展已安装 · 未连接</span>
+                      <span className="text-warn">扩展已安装 · 未连接</span>
                     ) : (
-                      <span className="text-red-400">扩展未安装</span>
+                      <span className="text-danger">扩展未安装</span>
                     )}
                     {!chromeInstalled && (
                       <button
@@ -361,13 +361,13 @@ export default function WorkflowList() {
                     )}
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <i className="fab fa-edge text-gray-400"></i>
+                    <i className="fab fa-edge text-faint"></i>
                     {edgeOnline ? (
-                      <span className="text-green-400">扩展已安装 · 在线</span>
+                      <span className="text-ok">扩展已安装 · 在线</span>
                     ) : edgeInstalled ? (
-                      <span className="text-yellow-400">扩展已安装 · 未连接</span>
+                      <span className="text-warn">扩展已安装 · 未连接</span>
                     ) : (
-                      <span className="text-red-400">扩展未安装</span>
+                      <span className="text-danger">扩展未安装</span>
                     )}
                     {!edgeInstalled && (
                       <button
@@ -384,46 +384,46 @@ export default function WorkflowList() {
             })()}
             <button
               onClick={() => setShowInstallGuide(v => !v)}
-              className="ml-auto text-xs text-blue-400 hover:text-blue-300"
+              className="ml-auto text-xs text-accent hover:text-accent-strong"
             >
               <i className={`fas ${showInstallGuide ? 'fa-chevron-up' : 'fa-chevron-down'} mr-1`}></i>
               {showInstallGuide ? '收起说明' : '安装说明'}
             </button>
           </div>
           {showInstallGuide && (
-            <div className="mt-2 text-xs text-gray-400 bg-[#0f172a] border border-gray-700 rounded p-3 space-y-2">
-              <p className="font-medium text-gray-300">浏览器扩展安装步骤：</p>
+            <div className="mt-2 text-xs text-faint bg-bg border border-gray-700 rounded p-3 space-y-2">
+              <p className="font-medium text-muted">浏览器扩展安装步骤：</p>
               <ol className="list-decimal list-inside space-y-1">
-                <li>打开 Chrome 或 Edge 浏览器，进入扩展管理页面（地址栏输入 <code className="text-blue-300">chrome://extensions</code> 或 <code className="text-blue-300">edge://extensions</code>）</li>
+                <li>打开 Chrome 或 Edge 浏览器，进入扩展管理页面（地址栏输入 <code className="text-accent-strong">chrome://extensions</code> 或 <code className="text-accent-strong">edge://extensions</code>）</li>
                 <li>开启右上角「开发者模式」</li>
                 <li>点击「加载已解压的扩展程序」</li>
-                <li>选择本项目 <code className="text-yellow-300">extension/</code> 文件夹（或 <code className="text-yellow-300">dist/desktop/extension/</code>）</li>
+                <li>选择本项目 <code className="text-warn">extension/</code> 文件夹（或 <code className="text-warn">dist/desktop/extension/</code>）</li>
                 <li>安装完成后刷新本页面，扩展状态将显示为「已安装 · 在线」</li>
               </ol>
-              <p className="text-gray-500">提示：运行工作流前需确保目标浏览器对应的扩展已安装并在线。</p>
+              <p className="text-muted">提示：运行工作流前需确保目标浏览器对应的扩展已安装并在线。</p>
             </div>
           )}
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <i className="fas fa-circle-notch fa-spin text-blue-400 text-2xl"></i>
-            <span className="ml-3 text-gray-400">加载中...</span>
+            <i className="fas fa-circle-notch fa-spin text-accent text-2xl"></i>
+            <span className="ml-3 text-faint">加载中...</span>
           </div>
         ) : workflows.length === 0 ? (
           <div className="text-center py-20">
-            <i className="fas fa-folder-open text-gray-600 text-5xl mb-4"></i>
-            <p className="text-gray-500 text-lg">暂无工作流</p>
-            <p className="text-gray-600 text-sm mt-2">点击右上角"新建工作流"开始</p>
+            <i className="fas fa-folder-open text-muted text-5xl mb-4"></i>
+            <p className="text-muted text-lg">暂无工作流</p>
+            <p className="text-muted text-sm mt-2">点击右上角"新建工作流"开始</p>
           </div>
         ) : (
-          <div className="bg-[#1e293b] rounded-xl border border-gray-700 overflow-hidden">
+          <div className="bg-surface-2 rounded-xl border border-gray-700 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-700 bg-[#252f47]">
-                  <th className="text-left px-4 py-3 font-medium text-gray-400">名称</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-400 w-40 whitespace-nowrap">更新时间</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-400 w-60 whitespace-nowrap">操作</th>
+                  <th className="text-left px-4 py-3 font-medium text-faint">名称</th>
+                  <th className="text-left px-4 py-3 font-medium text-faint w-40 whitespace-nowrap">更新时间</th>
+                  <th className="text-right px-4 py-3 font-medium text-faint w-60 whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -435,11 +435,11 @@ export default function WorkflowList() {
                     <td className="px-4 py-3">
                       <div className="font-medium text-white">{wf.name}</div>
                       {wf.description && (
-                        <div className="text-gray-500 text-xs mt-0.5">{wf.description}</div>
+                        <div className="text-muted text-xs mt-0.5">{wf.description}</div>
                       )}
                       {lastResults[wf.id] && (() => {
                         const r = lastResults[wf.id];
-                        const cls = r.success ? 'text-green-400' : r.stopped ? 'text-yellow-400' : 'text-red-400';
+                        const cls = r.success ? 'text-ok' : r.stopped ? 'text-warn' : 'text-danger';
                         const icon = r.success ? 'fa-check-circle' : r.stopped ? 'fa-pause-circle' : 'fa-times-circle';
                         const label = r.success ? '执行成功' : r.stopped ? '已停止' : '执行失败';
                         return (
@@ -453,13 +453,13 @@ export default function WorkflowList() {
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{formatDate(wf.updated_at)}</td>
+                    <td className="px-4 py-3 text-faint whitespace-nowrap">{formatDate(wf.updated_at)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                         {runningId === wf.id ? (
                           <button
                             onClick={() => handleStop(wf)}
-                            className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs transition-colors"
+                            className="px-3 py-1.5 bg-danger/20 hover:bg-danger/30 text-danger rounded text-xs transition-colors"
                             title="停止"
                           >
                             <i className="fas fa-stop mr-1"></i>停止
@@ -470,8 +470,8 @@ export default function WorkflowList() {
                             disabled={isBusy || runningId !== null}
                             className={`px-3 py-1.5 rounded text-xs transition-colors ${
                               isBusy || runningId !== null
-                                ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                                : 'bg-green-600/20 hover:bg-green-600/30 text-green-300'
+                                ? 'bg-gray-700/50 text-muted cursor-not-allowed'
+                                : 'bg-ok/20 hover:bg-ok/30 text-ok'
                             }`}
                             title={isBusy || runningId !== null ? '已有流程运行中，请先停止' : '执行'}
                           >
@@ -483,8 +483,8 @@ export default function WorkflowList() {
                           disabled={isBusy || runningId !== null}
                           className={`px-3 py-1.5 rounded text-xs transition-colors ${
                             isBusy || runningId !== null
-                              ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                              : 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300'
+                              ? 'bg-gray-700/50 text-muted cursor-not-allowed'
+                              : 'bg-accent/20 hover:bg-accent-strong/30 text-accent-strong'
                           }`}
                           title={isBusy || runningId !== null ? '流程运行中，不可编辑' : '编辑'}
                         >
@@ -492,7 +492,7 @@ export default function WorkflowList() {
                         </button>
                         <button
                           onClick={() => setDeleteId(wf.id)}
-                          className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded text-xs transition-colors"
+                          className="px-3 py-1.5 bg-danger/20 hover:bg-danger/30 text-danger rounded text-xs transition-colors"
                           title="删除"
                         >
                           <i className="fas fa-trash mr-1"></i>删除
@@ -509,50 +509,50 @@ export default function WorkflowList() {
       {/* Create Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-[#1e293b] rounded-xl border border-gray-700 w-full max-w-md mx-4">
+          <div className="bg-surface-2 rounded-xl border border-gray-700 w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
               <h2 className="text-lg font-semibold text-white">新建工作流</h2>
               <button
                 onClick={() => { setShowCreate(false); setForm({ name: '', description: '' }); }}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-faint hover:text-white transition-colors"
               >
                 <i className="fas fa-times"></i>
               </button>
             </div>
             <form onSubmit={handleCreate} className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">名称 <span className="text-red-400">*</span></label>
+                <label className="block text-sm text-faint mb-1.5">名称 <span className="text-danger">*</span></label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="例如：小红书评论采集"
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
                   autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">描述</label>
+                <label className="block text-sm text-faint mb-1.5">描述</label>
                 <input
                   type="text"
                   value={form.description}
                   onChange={e => setForm({ ...form, description: e.target.value })}
                   placeholder="简短描述这个工作流的用途"
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 text-gray-400 hover:text-white text-sm transition-colors"
+                  className="px-4 py-2 text-faint hover:text-white text-sm transition-colors"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={creating || !form.name.trim()}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800/50 disabled:text-blue-300/50 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="px-4 py-2 bg-accent hover:bg-accent disabled:bg-blue-800/50 disabled:text-accent-strong/50 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   {creating ? <i className="fas fa-circle-notch fa-spin mr-2"></i> : null}
                   创建并编辑
@@ -579,22 +579,22 @@ export default function WorkflowList() {
       {/* Delete Confirm */}
       {deleteId !== null && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-[#1e293b] rounded-xl border border-gray-700 w-full max-w-sm mx-4 px-6 py-5">
+          <div className="bg-surface-2 rounded-xl border border-gray-700 w-full max-w-sm mx-4 px-6 py-5">
             <div className="flex items-center gap-3 mb-3">
-              <i className="fas fa-exclamation-triangle text-red-400 text-lg"></i>
+              <i className="fas fa-exclamation-triangle text-danger text-lg"></i>
               <h2 className="text-lg font-semibold text-white">确认删除</h2>
             </div>
-            <p className="text-gray-400 text-sm mb-5">删除后无法恢复，是否继续？</p>
+            <p className="text-faint text-sm mb-5">删除后无法恢复，是否继续？</p>
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => setDeleteId(null)}
-                className="px-4 py-2 text-gray-400 hover:text-white text-sm transition-colors"
+                className="px-4 py-2 text-faint hover:text-white text-sm transition-colors"
               >
                 取消
               </button>
               <button
                 onClick={() => handleDelete(deleteId)}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-danger-solid hover:bg-danger text-white rounded-lg text-sm font-medium transition-colors"
               >
                 确认删除
               </button>

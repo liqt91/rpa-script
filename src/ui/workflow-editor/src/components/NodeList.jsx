@@ -364,13 +364,13 @@ export default function NodeList() {
 
   return (
     <main
-      className="flex-1 flex flex-col min-w-0 bg-white relative"
+      className="flex-1 flex flex-col min-w-0 bg-surface relative"
       onDragOver={handleDragOverPanel}
       onDragEnter={handleDragOverPanel}
       onDragLeave={handleDragLeavePanel}
       onDrop={handleDropPanel}
     >
-      <div className={`flex-1 overflow-y-auto p-4 transition-colors node-list-container ${dragOver ? 'bg-blue-50/30' : ''}`}>
+      <div className={`flex-1 overflow-y-auto p-4 transition-colors node-list-container ${dragOver ? 'bg-accent-soft/30' : ''}`}>
         {treeNodes.length === 0 ? (
           <EmptyState />
         ) : (
@@ -402,7 +402,7 @@ export default function NodeList() {
                   {/* 容器节点下方的子节点插槽 */}
                   {typeInfo.isContainer && !hasChildren && (
                     <div
-                      className="h-0.5 bg-red-500 rounded-sm my-1"
+                      className="h-0.5 bg-danger rounded-sm my-1"
                       style={{ marginLeft: `${(node.depth || 0) * 20 + 24}px` }}
                     />
                   )}
@@ -416,17 +416,17 @@ export default function NodeList() {
 
       {/* 多选操作工具栏 */}
       {hasMultiSelection && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white border shadow-lg rounded-lg px-3 py-2 flex items-center gap-2 z-20">
-          <span className="text-xs text-gray-500 mr-1">{selectedNodeIds.size} 个节点</span>
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-surface border shadow-lg rounded-lg px-3 py-2 flex items-center gap-2 z-20">
+          <span className="text-xs text-muted mr-1">{selectedNodeIds.size} 个节点</span>
           {!selectionValidation.valid && (
-            <span className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded" title={selectionValidation.reason}>
+            <span className="text-[10px] text-danger bg-danger-soft px-1.5 py-0.5 rounded" title={selectionValidation.reason}>
               {selectionValidation.reason}
             </span>
           )}
           <button
             onClick={() => handleBatchMove('up')}
             disabled={!canBatchMove}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed text-muted"
             title="上移"
           >
             <i className="fas fa-arrow-up text-[10px]"></i>
@@ -434,30 +434,30 @@ export default function NodeList() {
           <button
             onClick={() => handleBatchMove('down')}
             disabled={!canBatchMove}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed text-muted"
             title="下移"
           >
             <i className="fas fa-arrow-down text-[10px]"></i>
           </button>
-          <div className="w-px h-4 bg-gray-200 mx-1" />
+          <div className="w-px h-4 bg-surface-3 mx-1" />
           <button
             onClick={() => copyNodes(Array.from(selectedNodeIds))}
             disabled={!selectionValidation.valid}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-blue-100 text-gray-400 hover:text-blue-500 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-accent-soft text-faint hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed"
             title="复制"
           >
             <i className="fas fa-copy text-[10px]"></i>
           </button>
           <button
             onClick={(e) => handleDelete(e, Array.from(selectedNodeIds)[0])}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-danger-soft text-faint hover:text-danger"
             title="删除"
           >
             <i className="fas fa-trash-alt text-[10px]"></i>
           </button>
           <button
             onClick={handleClearSelection}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-3 text-faint hover:text-muted"
             title="取消选择"
           >
             <i className="fas fa-times text-[10px]"></i>
@@ -467,8 +467,8 @@ export default function NodeList() {
 
       {/* 画布为空时的拖拽提示 */}
       {dragOver && treeNodes.length === 0 && (
-        <div className="absolute inset-0 border-2 border-dashed border-[#1677ff] m-4 rounded flex items-center justify-center pointer-events-none">
-          <div className="text-[#1677ff] text-lg font-medium">
+        <div className="absolute inset-0 border-2 border-dashed border-accent m-4 rounded flex items-center justify-center pointer-events-none">
+          <div className="text-accent text-lg font-medium">
             <i className="fas fa-plus-circle mr-2"></i>释放以添加步骤
           </div>
         </div>
@@ -490,13 +490,13 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
   const errorCls = runError ? 'step-error' : '';
   const disabledCls = isDisabled ? 'opacity-40 grayscale' : '';
   const draggingCls = isDragging ? 'opacity-30' : '';
-  const colors = ['bg-red-50', 'bg-cyan-50', 'bg-orange-50', 'bg-blue-50', 'bg-green-50', 'bg-purple-50', 'bg-yellow-50'];
+  const colors = ['bg-danger-soft', 'bg-cyan-50', 'bg-orange-50', 'bg-accent-soft', 'bg-ok-soft', 'bg-purple-50', 'bg-yellow-50'];
 
   return (
     <div
       className={`
         step-item flex items-start gap-2 px-3 py-2.5 rounded cursor-pointer relative select-none
-        ${isSelected ? 'step-selected' : 'hover:bg-[#f5f5f5]'}
+        ${isSelected ? 'step-selected' : 'hover:bg-surface-3'}
         ${runningCls}
         ${errorCls}
         ${disabledCls}
@@ -515,7 +515,7 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
         return (
           <div
             key={i}
-            className={`absolute ${isWarning ? 'bg-red-100' : colors[bandDepth % colors.length]}`}
+            className={`absolute ${isWarning ? 'bg-danger-soft' : colors[bandDepth % colors.length]}`}
             style={{ left: `${-(depth - i) * 20}px`, top: '-2px', bottom: '-2px', width: '20px' }}
           />
         );
@@ -524,7 +524,7 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
       {/* 容器/结束行左侧细竖线，颜色与内部最内层缩进带一致 */}
       {(typeInfo.isContainer || typeInfo.isStructural) && (
         <div
-          className={`absolute ${warningBand?.get(index)?.has(depth) ? 'bg-red-400' : colors[depth % colors.length]}`}
+          className={`absolute ${warningBand?.get(index)?.has(depth) ? 'bg-danger' : colors[depth % colors.length]}`}
           style={{ left: '0px', top: '-2px', bottom: '-2px', width: '3px' }}
         />
       )}
@@ -533,31 +533,31 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
       <div
         draggable
         onDragStart={(e) => onDragStart && onDragStart(e, node.id)}
-        className="drag-handle w-6 h-6 flex items-center justify-center shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 rounded hover:bg-gray-100 touch-none"
+        className="drag-handle w-6 h-6 flex items-center justify-center shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-muted hover:text-muted rounded hover:bg-surface-3 touch-none"
         title="拖拽排序"
         onClick={(e) => e.stopPropagation()}
       >
         <i className="fas fa-grip-vertical text-xs pointer-events-none"></i>
       </div>
-      <span className="text-xs text-gray-400 font-mono mt-0.5 w-6 text-right shrink-0">{index + 1}</span>
-      <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 mt-0.5 ${typeInfo.bgColor || 'bg-gray-50'}`}>
-        <i className={`fas ${typeInfo.icon || 'fa-circle'} ${typeInfo.iconColor || 'text-gray-400'} text-xs`}></i>
+      <span className="text-xs text-faint font-mono mt-0.5 w-6 text-right shrink-0">{index + 1}</span>
+      <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 mt-0.5 ${typeInfo.bgColor || 'bg-surface-2'}`}>
+        <i className={`fas ${typeInfo.icon || 'fa-circle'} ${typeInfo.iconColor || 'text-faint'} text-xs`}></i>
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <div className="text-xs font-medium text-gray-800">{typeInfo.label || node.cmd}</div>
+          <div className="text-xs font-medium text-inverse">{typeInfo.label || node.cmd}</div>
           {runError && (
-            <span className="text-[10px] text-red-600 bg-red-100 px-1 rounded truncate max-w-[200px]" title={runError}>
+            <span className="text-[10px] text-danger bg-danger-soft px-1 rounded truncate max-w-[200px]" title={runError}>
               {runError}
             </span>
           )}
         </div>
-        <div className="text-[11px] text-gray-500 mt-0.5 truncate">{getNodeDesc(node, NODE_TYPE_MAP, elements)}</div>
+        <div className="text-[11px] text-muted mt-0.5 truncate">{getNodeDesc(node, NODE_TYPE_MAP, elements)}</div>
       </div>
       {onDelete && (
         <div className="flex items-center gap-1 shrink-0">
           <label
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 cursor-pointer"
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-3 cursor-pointer"
             title={isDisabled ? '已禁用（执行时跳过）' : '已启用'}
             onClick={(e) => e.stopPropagation()}
           >
@@ -565,12 +565,12 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
               type="checkbox"
               checked={!isDisabled}
               onChange={(e) => onToggleEnabled && onToggleEnabled(e, node)}
-              className="w-3.5 h-3.5 accent-[#1677ff] cursor-pointer"
+              className="w-3.5 h-3.5 accent-accent cursor-pointer"
             />
           </label>
           <button
             onClick={(e) => onDelete(e, node.id)}
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-danger-soft text-faint hover:text-danger"
             title="删除"
           >
             <i className="fas fa-trash-alt text-[10px]"></i>
@@ -584,11 +584,11 @@ function NodeRow({ node, index, isSelected, isDragging, NODE_TYPE_MAP, onSelect,
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center">
-      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-        <i className="fas fa-mouse-pointer text-gray-400 text-2xl"></i>
+      <div className="w-16 h-16 bg-surface-3 rounded-full flex items-center justify-center mb-4">
+        <i className="fas fa-mouse-pointer text-faint text-2xl"></i>
       </div>
-      <p className="text-gray-500 mb-2">画布为空</p>
-      <p className="text-sm text-gray-400 mb-4">从左侧拖拽指令到此处，或点击添加</p>
+      <p className="text-muted mb-2">画布为空</p>
+      <p className="text-sm text-faint mb-4">从左侧拖拽指令到此处，或点击添加</p>
     </div>
   );
 }
@@ -596,8 +596,8 @@ function EmptyState() {
 function InsertPlaceholder() {
   return (
     <div className="relative h-1 -my-0.5 z-10 pointer-events-none">
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-[#1677ff] rounded-full shadow-[0_0_4px_rgba(22,119,255,0.4)]" />
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-[#1677ff] rounded-full" />
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-accent rounded-full shadow-[0_0_4px_rgba(22,119,255,0.4)]" />
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-accent rounded-full" />
     </div>
   );
 }
@@ -613,7 +613,7 @@ const OP_LABELS = {
 };
 
 function V({ children }) {
-  return <span className="font-bold text-red-600">{children}</span>;
+  return <span className="font-bold text-danger">{children}</span>;
 }
 
 function getNodeDesc(node, NODE_TYPE_MAP, elements) {
@@ -636,7 +636,7 @@ function getNodeDesc(node, NODE_TYPE_MAP, elements) {
       parts.push(<span key="prefix">如果</span>);
     }
     if (opLabel) {
-      parts.push(<span key="op" className="text-gray-500 font-medium">[{opLabel}]</span>);
+      parts.push(<span key="op" className="text-muted font-medium">[{opLabel}]</span>);
     }
 
     if (node.element_name) {

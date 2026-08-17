@@ -27,25 +27,25 @@ const CATEGORY_ICONS = {
 };
 
 const CATEGORY_COLORS = {
-  '页面导航': 'text-blue-500',
-  '元素点击': 'text-blue-500',
-  '文本输入': 'text-blue-500',
-  '数据提取': 'text-green-500',
+  '页面导航': 'text-accent',
+  '元素点击': 'text-accent',
+  '文本输入': 'text-accent',
+  '数据提取': 'text-ok',
   '滚动': 'text-cyan-500',
-  '等待': 'text-gray-500',
+  '等待': 'text-muted',
   '条件判断': 'text-orange-500',
   '循环': 'text-purple-500',
   '变量与数据': 'text-indigo-500',
-  '输出与日志': 'text-gray-600',
-  '鼠标键盘': 'text-gray-600',
-  '网络请求': 'text-blue-700',
+  '输出与日志': 'text-muted',
+  '鼠标键盘': 'text-muted',
+  '网络请求': 'text-accent',
   'AI集成': 'text-indigo-500',
-  '子流程': 'text-pink-500',
-  '异常处理': 'text-red-500',
-  '自定义': 'text-gray-500',
+  '子流程': 'text-vision',
+  '异常处理': 'text-danger',
+  '自定义': 'text-muted',
   // 新指令分类
-  '浏览器操作': 'text-blue-500',
-  '浏览器元素操作': 'text-blue-500',
+  '浏览器操作': 'text-accent',
+  '浏览器元素操作': 'text-accent',
   '变量及日志': 'text-indigo-500',
   '桌面操作': 'text-purple-500',
   'Electron 应用': 'text-indigo-500',
@@ -144,7 +144,7 @@ export default function CommandPanel() {
 
   if (commandsLoading) {
     return (
-      <aside className="w-[250px] bg-white border-r border-[#e8e8e8] flex flex-col shrink-0 select-none items-center justify-center text-gray-400 text-xs">
+      <aside className="w-[250px] bg-surface border-r border-border flex flex-col shrink-0 select-none items-center justify-center text-faint text-xs">
         加载指令库...
       </aside>
     );
@@ -152,7 +152,7 @@ export default function CommandPanel() {
 
   if (!commands) {
     return (
-      <aside className="w-[250px] bg-white border-r border-[#e8e8e8] flex flex-col shrink-0 select-none items-center justify-center text-red-400 text-xs px-4 text-center">
+      <aside className="w-[250px] bg-surface border-r border-border flex flex-col shrink-0 select-none items-center justify-center text-danger text-xs px-4 text-center">
         指令库加载失败
       </aside>
     );
@@ -161,7 +161,7 @@ export default function CommandPanel() {
   const renderCommandItem = (cmd) => (
     <div
       key={cmd.cmd}
-      className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-grab text-xs text-gray-600 draggable-item ${cmd.isNew ? 'border-l-2 border-l-blue-400' : ''}`}
+      className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-3 cursor-grab text-xs text-muted draggable-item ${cmd.isNew ? 'border-l-2 border-l-blue-400' : ''}`}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', JSON.stringify({ cmd: cmd.cmd, category: cmd.category }));
@@ -177,16 +177,16 @@ export default function CommandPanel() {
       }}
       title={cmd.description || cmd.label}
     >
-      <i className="fas fa-grip-vertical text-gray-300 text-[10px] mr-1"></i>
+      <i className="fas fa-grip-vertical text-muted text-[10px] mr-1"></i>
       <span className="truncate flex-1">{cmd.label}</span>
       {cmd.isNew && (
-        <span className="shrink-0 text-[10px] px-1 py-0 rounded bg-blue-100 text-blue-600" title="JSON 定义的新指令">
+        <span className="shrink-0 text-[10px] px-1 py-0 rounded bg-accent-soft text-accent" title="JSON 定义的新指令">
           新
         </span>
       )}
       {cmd.hasRuntime && (
         <span
-          className={`shrink-0 text-[10px] px-1 py-0 rounded ${cmd.local ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600'}`}
+          className={`shrink-0 text-[10px] px-1 py-0 rounded ${cmd.local ? 'bg-surface-3 text-muted' : 'bg-accent-soft text-accent'}`}
           title={cmd.local ? '本地执行（后端）' : '扩展执行（浏览器）'}
         >
           {cmd.local ? '本地' : '扩展'}
@@ -209,9 +209,9 @@ export default function CommandPanel() {
             className="category-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer"
             onClick={() => toggleCategory(cat)}
           >
-            <i className={`fas fa-chevron-right text-gray-400 text-[10px] w-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}></i>
-            <i className={`fas ${CATEGORY_ICONS[cat] || 'fa-folder'} ${CATEGORY_COLORS[cat] || 'text-gray-500'} text-xs w-4 text-center`}></i>
-            <span className="text-xs text-gray-700 flex-1 truncate">{cat}</span>
+            <i className={`fas fa-chevron-right text-faint text-[10px] w-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}></i>
+            <i className={`fas ${CATEGORY_ICONS[cat] || 'fa-folder'} ${CATEGORY_COLORS[cat] || 'text-muted'} text-xs w-4 text-center`}></i>
+            <span className="text-xs text-body flex-1 truncate">{cat}</span>
           </div>
         )}
         <div className={`ml-4 space-y-0.5 ${isExpanded ? '' : 'hidden'}`}>
@@ -222,18 +222,18 @@ export default function CommandPanel() {
   };
 
   return (
-    <aside className="w-[250px] bg-white border-r border-[#e8e8e8] flex flex-col shrink-0 select-none">
+    <aside className="w-[250px] bg-surface border-r border-border flex flex-col shrink-0 select-none">
       {/* 头部 */}
-      <div className="px-3 py-2 border-b border-[#e8e8e8]">
+      <div className="px-3 py-2 border-b border-border">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-700">指令</span>
+          <span className="text-sm font-medium text-body">指令</span>
         </div>
       </div>
 
       {/* 搜索框 */}
       <div className="px-3 py-2">
-        <div className="flex items-center gap-2 bg-[#f5f5f5] rounded px-2.5 py-1.5">
-          <i className="fas fa-search text-gray-400 text-xs"></i>
+        <div className="flex items-center gap-2 bg-surface-2 rounded px-2.5 py-1.5">
+          <i className="fas fa-search text-faint text-xs"></i>
           <input
             type="text"
             placeholder="搜索指令"
@@ -251,13 +251,13 @@ export default function CommandPanel() {
           <div className="mb-2">
             {!search && (
               <div
-                className="category-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer bg-blue-50/50"
+                className="category-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer bg-accent-soft/50"
                 onClick={() => setNewExpanded(v => !v)}
               >
-                <i className={`fas fa-chevron-right text-blue-400 text-[10px] w-3 transition-transform ${newExpanded ? 'rotate-90' : ''}`}></i>
-                <i className="fas fa-bolt text-blue-500 text-xs w-4 text-center"></i>
-                <span className="text-xs font-medium text-blue-700 flex-1 truncate">新指令</span>
-                <span className="text-[10px] px-1 py-0 rounded bg-blue-100 text-blue-600">JSON</span>
+                <i className={`fas fa-chevron-right text-accent text-[10px] w-3 transition-transform ${newExpanded ? 'rotate-90' : ''}`}></i>
+                <i className="fas fa-bolt text-accent text-xs w-4 text-center"></i>
+                <span className="text-xs font-medium text-accent flex-1 truncate">新指令</span>
+                <span className="text-[10px] px-1 py-0 rounded bg-accent-soft text-accent">JSON</span>
               </div>
             )}
             {(search || newExpanded) && (
@@ -270,15 +270,15 @@ export default function CommandPanel() {
           </div>
         )}
         {newCommandsLoading && (
-          <div className="px-3 py-2 text-[10px] text-gray-400">
+          <div className="px-3 py-2 text-[10px] text-faint">
             <i className="fas fa-circle-notch fa-spin mr-1"></i>加载新指令...
           </div>
         )}
 
         {/* 老指令区 */}
-        <div className="border-t border-[#e8e8e8] pt-1">
+        <div className="border-t border-border pt-1">
           {!search && (
-            <div className="px-2 py-1 text-[10px] text-gray-400 font-medium">
+            <div className="px-2 py-1 text-[10px] text-faint font-medium">
               现有指令
             </div>
           )}

@@ -11,6 +11,6 @@ registerHandler('hover', async function hover({ locator, selectorFamily, extra }
   const rect = el.getBoundingClientRect();
   const viewX = Math.round(rect.left + rect.width / 2);
   const viewY = Math.round(rect.top + rect.height / 2);
-  _ensureCalibrationCapture();
+  _captureCalibrationOnce();
   return { hovered: true, ...coordsResult(viewX, viewY) };
 });

@@ -3,6 +3,7 @@ import { useWorkflow } from '../store/WorkflowContext';
 import { api } from '../api';
 import DataTableTab from './DataTableTab';
 import CaptureToolModal from './CaptureToolModal';
+import UploadImageModal from './UploadImageModal';
 import ImageLightbox from './ImageLightbox';
 import WorkflowParametersPanel from './WorkflowParametersPanel';
 import ApiSettingsPanel from './ApiSettingsPanel';
@@ -32,6 +33,7 @@ export default function ElementLibraryTab() {
   const renameRef = useRef(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [captureModal, setCaptureModal] = useState(false);
+  const [uploadModal, setUploadModal] = useState(false);
   const [lightbox, setLightbox] = useState(null); // {src, alt} 截图灯箱
   const logsRef = useRef(null);
   const panelRef = useRef(null);
@@ -111,16 +113,17 @@ export default function ElementLibraryTab() {
     setExpandedNames(new Set(elements.map(e => e.name)));
   }, [elements]);
 
-  const typeLabel = { web: '网页', win32: '桌面', uia: 'UIA' };
+  const typeLabel = { web: '网页', win32: '桌面', uia: 'UIA', image: '图像' };
   const typeClass = {
-    web: 'bg-blue-100 text-blue-600',
+    web: 'bg-accent-soft text-accent',
     win32: 'bg-purple-100 text-purple-600',
-    uia: 'bg-green-100 text-green-600',
+    uia: 'bg-ok-soft text-ok',
+    image: 'bg-vision-soft text-vision',
   };
   const kindLabel = { plain: '普通', anchor: '锚点', child: '子元素' };
   const kindClass = {
-    plain: 'bg-gray-100 text-gray-500',
-    anchor: 'bg-blue-100 text-blue-600',
+    plain: 'bg-surface-3 text-muted',
+    anchor: 'bg-accent-soft text-accent',
     child: 'bg-orange-100 text-orange-600',
   };
 
@@ -276,13 +279,13 @@ export default function ElementLibraryTab() {
       <div className="relative">
         {parentGuideLeft !== null && (
           <div
-            className="absolute border-t border-gray-200"
+            className="absolute border-t border-border"
             style={{ left: parentGuideLeft, top: 11, width: rowPaddingLeft - parentGuideLeft }}
           />
         )}
         {isExpanded && hasChildren && (
           <div
-            className="absolute border-l border-gray-200"
+            className="absolute border-l border-border"
             style={{ left: guideLeft, top: 24, bottom: 0 }}
           />
         )}
@@ -291,14 +294,14 @@ export default function ElementLibraryTab() {
           style={{ paddingLeft: rowPaddingLeft }}
           className={`group relative z-10 flex items-center gap-1 py-1 pr-2 cursor-pointer ${
             selectedElementId === node.id
-              ? 'bg-blue-50'
-              : 'hover:bg-gray-100'
+              ? 'bg-accent-soft'
+              : 'hover:bg-surface-3'
           }`}
         >
           {hasChildren ? (
             <button
               onClick={(e) => { e.stopPropagation(); toggleExpandedName(node.name); }}
-              className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600 shrink-0"
+              className="w-4 h-4 flex items-center justify-center text-faint hover:text-muted shrink-0"
             >
               <i className={`fas fa-chevron-${isExpanded ? 'down' : 'right'} text-[9px]`}></i>
             </button>
@@ -306,25 +309,25 @@ export default function ElementLibraryTab() {
             <span className="w-4 shrink-0"></span>
           )}
           <span className={`flex-1 min-w-0 text-xs truncate ${
-            selectedElementId === node.id ? 'text-blue-700 font-medium' : 'text-gray-700'
+            selectedElementId === node.id ? 'text-accent font-medium' : 'text-body'
           }`}>
             {node.name}
           </span>
           {isOrphan && (
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" title="父元素不存在" />
+            <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" title="父元素不存在" />
           )}
           {renamingId !== node.id && (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <button
                 onClick={(e) => { e.stopPropagation(); startRename(node); }}
-                className="text-gray-400 hover:text-blue-500 px-1"
+                className="text-faint hover:text-accent px-1"
                 title="重命名"
               >
                 <i className="fas fa-pen text-[9px]"></i>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); handleDelete(node.id, node.name); }}
-                className="text-gray-400 hover:text-red-500 px-1"
+                className="text-faint hover:text-danger px-1"
                 title="删除"
               >
                 <i className="fas fa-trash text-[9px]"></i>
@@ -345,9 +348,9 @@ export default function ElementLibraryTab() {
 
   if (!expanded) {
     return (
-      <div className="h-8 bg-white border-t border-[#e8e8e8] flex items-center px-4 cursor-pointer hover:bg-gray-50"
+      <div className="h-8 bg-surface border-t border-border flex items-center px-4 cursor-pointer hover:bg-surface-2"
            onClick={() => toggleExpanded(true)}>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted">
           <i className="fas fa-chevron-up mr-1"></i>
           元素库 ({elements.length})
         </span>
@@ -356,14 +359,14 @@ export default function ElementLibraryTab() {
   }
 
   return (
-    <div ref={panelRef} className="h-[220px] bg-white border-t border-[#e8e8e8] flex flex-col shrink-0 select-none">
+    <div ref={panelRef} className="h-[220px] bg-surface border-t border-border flex flex-col shrink-0 select-none">
       {/* Tab 栏 */}
-      <div className="flex items-center border-b border-[#e8e8e8] px-2">
+      <div className="flex items-center border-b border-border px-2">
         {BOTTOM_TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-3 py-2 text-xs ${activeTab === tab.key ? 'tab-active' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-3 py-2 text-xs ${activeTab === tab.key ? 'tab-active' : 'text-muted hover:text-body'}`}
           >
             <i className={`fas ${tab.icon} mr-1`}></i>
             {tab.label}
@@ -371,7 +374,7 @@ export default function ElementLibraryTab() {
         ))}
         <button
           onClick={() => toggleExpanded(false)}
-          className="ml-auto px-2 py-2 text-xs text-gray-400 hover:text-gray-600"
+          className="ml-auto px-2 py-2 text-xs text-faint hover:text-muted"
         >
           <i className="fas fa-chevron-down"></i>
         </button>
@@ -382,7 +385,7 @@ export default function ElementLibraryTab() {
         {activeTab === 'logs' && (
           <div ref={logsRef} className="flex-1 overflow-y-auto p-2 font-mono text-xs select-text">
             {runLogs.length === 0 ? (
-              <div className="text-center text-gray-400 py-8">
+              <div className="text-center text-faint py-8">
                 {runStatus === 'running' ? (
                   <span><i className="fas fa-spinner fa-spin mr-1"></i>等待执行日志...</span>
                 ) : (
@@ -397,14 +400,14 @@ export default function ElementLibraryTab() {
                   const msgWithoutStep = stepNum ? log.msg.slice(stepMatch[0].length) : log.msg;
                   return (
                     <div key={i} className={`flex gap-2 px-2 py-1 rounded ${
-                      log.level === 'error' ? 'bg-red-50 text-red-700' :
-                      log.level === 'warn' ? 'bg-amber-50 text-amber-700' :
-                      log.level === 'success' ? 'bg-green-50 text-green-700' :
-                      'text-gray-600'
+                      log.level === 'error' ? 'bg-danger-soft text-danger' :
+                      log.level === 'warn' ? 'bg-warn-soft text-warn' :
+                      log.level === 'success' ? 'bg-ok-soft text-ok' :
+                      'text-muted'
                     }`}>
-                      <span className="text-gray-400 shrink-0">{log.time}</span>
+                      <span className="text-faint shrink-0">{log.time}</span>
                       {stepNum && (
-                        <span className="shrink-0 px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 text-[10px] font-mono leading-4">
+                        <span className="shrink-0 px-1.5 py-0.5 rounded bg-surface-3 text-muted text-[10px] font-mono leading-4">
                           #{stepNum}
                         </span>
                       )}
@@ -419,12 +422,12 @@ export default function ElementLibraryTab() {
         {activeTab === 'elements' && (
           <>
             {/* 左侧元素树 */}
-            <div className="w-[280px] border-r border-[#e8e8e8] overflow-y-auto p-2">
+            <div className="w-[280px] border-r border-border overflow-y-auto p-2">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs text-gray-400 flex-1">{elements.length} 个元素</span>
+                <span className="text-xs text-faint flex-1">{elements.length} 个元素</span>
               </div>
               {elements.length === 0 ? (
-                <div className="text-center text-gray-400 text-xs py-8">暂无元素</div>
+                <div className="text-center text-faint text-xs py-8">暂无元素</div>
               ) : (
                 <div>
                   {elementTree.map((root) => (
@@ -443,17 +446,25 @@ export default function ElementLibraryTab() {
                   return (
                     <span
                       key={b}
-                      className="flex items-center gap-1 text-[10px] text-gray-400"
+                      className="flex items-center gap-1 text-[10px] text-faint"
                       title={`${label} 扩展${online ? '在线' : '离线'}`}
                     >
-                      <span className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                      <span className={`w-2 h-2 rounded-full ${online ? 'bg-ok' : 'bg-surface-3'}`}></span>
                       {label} {online ? '在线' : '离线'}
                     </span>
                   );
                 })}
               </div>
               <button
-                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-blue-500 hover:bg-blue-600 text-white"
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-vision hover:bg-vision text-white"
+                onClick={() => setUploadModal(true)}
+                title="上传截图作为图像元素（供「图像查找 / 图像点击」指令使用）"
+              >
+                <i className="fas fa-upload text-[10px]"></i>
+                <span>上传图像</span>
+              </button>
+              <button
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-accent hover:bg-accent-strong text-white"
                 onClick={handleCaptureTool}
                 title="捕获元素（统一捕获网页/桌面/UIA 元素）"
               >
@@ -465,8 +476,8 @@ export default function ElementLibraryTab() {
                 <div className="max-w-2xl">
                   {/* 标题 */}
                   <div className="flex items-center gap-2 mb-2">
-                    <i className="fas fa-crosshairs text-blue-500"></i>
-                    <h3 className="text-sm font-medium text-gray-800">{selectedElement.name}</h3>
+                    <i className="fas fa-crosshairs text-accent"></i>
+                    <h3 className="text-sm font-medium text-inverse">{selectedElement.name}</h3>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${typeClass[selectedElement.element_type || 'web']}`}>
                       {typeLabel[selectedElement.element_type || 'web']}
                     </span>
@@ -476,21 +487,21 @@ export default function ElementLibraryTab() {
                       </span>
                     )}
                     {selectedElement.tag && (
-                      <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500">
+                      <span className="px-1.5 py-0.5 bg-surface-3 rounded text-[10px] text-muted">
                         {selectedElement.tag}
                       </span>
                     )}
                     <div className="ml-auto flex items-center gap-1">
                       <button
                         onClick={() => startRename(selectedElement)}
-                        className="text-gray-400 hover:text-blue-500 px-1.5 py-0.5 rounded hover:bg-gray-100"
+                        className="text-faint hover:text-accent px-1.5 py-0.5 rounded hover:bg-surface-3"
                         title="重命名"
                       >
                         <i className="fas fa-pen text-xs"></i>
                       </button>
                       <button
                         onClick={() => handleDelete(selectedElement.id, selectedElement.name)}
-                        className="text-gray-400 hover:text-red-500 px-1.5 py-0.5 rounded hover:bg-gray-100"
+                        className="text-faint hover:text-danger px-1.5 py-0.5 rounded hover:bg-surface-3"
                         title="删除"
                       >
                         <i className="fas fa-trash text-xs"></i>
@@ -499,12 +510,12 @@ export default function ElementLibraryTab() {
                   </div>
 
                   {selectedChain.length > 1 && (
-                    <div className="mb-3 text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded truncate">
+                    <div className="mb-3 text-[10px] text-muted bg-surface-2 px-2 py-1 rounded truncate">
                       {'父链: '}
                       {selectedChain.map((e, i) => (
                         <span key={e.name}>
-                          {i > 0 && <span className="text-gray-300 mx-1">/</span>}
-                          <span className={e.name === selectedElement.name ? 'text-gray-800 font-medium' : ''}>{e.name}</span>
+                          {i > 0 && <span className="text-muted mx-1">/</span>}
+                          <span className={e.name === selectedElement.name ? 'text-inverse font-medium' : ''}>{e.name}</span>
                         </span>
                       ))}
                     </div>
@@ -523,7 +534,7 @@ export default function ElementLibraryTab() {
                         {/* 截图（图像兜底参考） */}
                         {selectedScreenshot && (
                           <div className="mb-2">
-                            <div className="text-xs text-gray-500 mb-1">截图</div>
+                            <div className="text-xs text-muted mb-1">截图</div>
                             <div
                               className="relative inline-block group cursor-zoom-in"
                               title="点击预览大图"
@@ -532,9 +543,9 @@ export default function ElementLibraryTab() {
                               <img
                                 src={selectedScreenshot}
                                 alt={selectedElement.name}
-                                className="max-h-40 border border-gray-200 rounded bg-white"
+                                className="max-h-40 border border-border rounded bg-surface"
                               />
-                              <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                              <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-accent-strong/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                                 <i className="fas fa-expand text-white text-xs"></i>
                               </div>
                             </div>
@@ -542,37 +553,37 @@ export default function ElementLibraryTab() {
                         )}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <div className="text-[10px] text-gray-400">{isUia ? '名称' : '类名'}</div>
-                            <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono">{isUia ? (target?.name || '-') : (target?.class_name || '-')}</div>
+                            <div className="text-[10px] text-faint">{isUia ? '名称' : '类名'}</div>
+                            <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono">{isUia ? (target?.name || '-') : (target?.class_name || '-')}</div>
                           </div>
                           {isUia ? (
                             <>
                               <div>
-                                <div className="text-[10px] text-gray-400">控件类型</div>
-                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono">{target?.control_type || '-'}</div>
+                                <div className="text-[10px] text-faint">控件类型</div>
+                                <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono">{target?.control_type || '-'}</div>
                               </div>
                               <div>
-                                <div className="text-[10px] text-gray-400">类名</div>
-                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono">{target?.class_name || '-'}</div>
+                                <div className="text-[10px] text-faint">类名</div>
+                                <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono">{target?.class_name || '-'}</div>
                               </div>
                               <div>
-                                <div className="text-[10px] text-gray-400">AutomationId</div>
-                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono truncate">{target?.automation_id || '(空)'}</div>
+                                <div className="text-[10px] text-faint">AutomationId</div>
+                                <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono truncate">{target?.automation_id || '(空)'}</div>
                               </div>
                             </>
                           ) : (
                             <>
                               <div>
-                                <div className="text-[10px] text-gray-400">句柄 (HWND)</div>
-                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded font-mono">0x{(target?.hwnd || 0).toString(16).toUpperCase()}</div>
+                                <div className="text-[10px] text-faint">句柄 (HWND)</div>
+                                <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono">0x{(target?.hwnd || 0).toString(16).toUpperCase()}</div>
                               </div>
                               <div>
-                                <div className="text-[10px] text-gray-400">标题</div>
-                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded truncate">{target?.title || '(空)'}</div>
+                                <div className="text-[10px] text-faint">标题</div>
+                                <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded truncate">{target?.title || '(空)'}</div>
                               </div>
                               <div>
-                                <div className="text-[10px] text-gray-400">尺寸</div>
-                                <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded">{target?.rect?.width || '?'} x {target?.rect?.height || '?'}</div>
+                                <div className="text-[10px] text-faint">尺寸</div>
+                                <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded">{target?.rect?.width || '?'} x {target?.rect?.height || '?'}</div>
                               </div>
                             </>
                           )}
@@ -585,18 +596,18 @@ export default function ElementLibraryTab() {
                             ? attr.uia_target_index : attr.path.length - 1;
                           return (
                           <div>
-                            <div className="text-[10px] text-gray-400 mb-1">控件层级 ({attr.path.length})</div>
+                            <div className="text-[10px] text-faint mb-1">控件层级 ({attr.path.length})</div>
                             <div className="space-y-0.5 max-h-48 overflow-y-auto">
                               {attr.path.map((node, idx) => (
-                                <div key={idx} className={`text-xs px-2 py-1 rounded flex items-center gap-2 ${idx === tidx ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-gray-50'}`}>
-                                  <span className="text-gray-300 w-4 text-right shrink-0">{idx === 0 ? '⊞' : '└'}</span>
-                                  <span className={isUia ? 'text-green-600 font-mono text-[10px]' : 'text-purple-600 font-mono text-[10px]'}>{isUia ? (node.control_type || node.class_name) : node.class_name}</span>
-                                  {node.index != null && <span className="text-gray-400 text-[10px] font-mono shrink-0">#{node.index}</span>}
-                                  {isUia ? (node.name && <span className="text-gray-500 truncate">"{node.name}"</span>) : (node.title && <span className="text-gray-500 truncate">"{node.title}"</span>)}
-                                  {isUia && node.automation_id && <span className="text-gray-400 text-[10px] font-mono truncate" title={node.automation_id}>{node.automation_id}</span>}
-                                  {node.enabled === false && <span className="text-amber-500 text-[10px] shrink-0">禁用</span>}
-                                  {idx === tidx && <span className="text-[#1677ff] text-[10px] font-medium shrink-0">目标</span>}
-                                  <span className="text-gray-300 text-[10px] ml-auto">{node.rect?.width}x{node.rect?.height}</span>
+                                <div key={idx} className={`text-xs px-2 py-1 rounded flex items-center gap-2 ${idx === tidx ? 'bg-accent-soft ring-1 ring-blue-200' : 'bg-surface-2'}`}>
+                                  <span className="text-muted w-4 text-right shrink-0">{idx === 0 ? '⊞' : '└'}</span>
+                                  <span className={isUia ? 'text-ok font-mono text-[10px]' : 'text-purple-600 font-mono text-[10px]'}>{isUia ? (node.control_type || node.class_name) : node.class_name}</span>
+                                  {node.index != null && <span className="text-faint text-[10px] font-mono shrink-0">#{node.index}</span>}
+                                  {isUia ? (node.name && <span className="text-muted truncate">"{node.name}"</span>) : (node.title && <span className="text-muted truncate">"{node.title}"</span>)}
+                                  {isUia && node.automation_id && <span className="text-faint text-[10px] font-mono truncate" title={node.automation_id}>{node.automation_id}</span>}
+                                  {node.enabled === false && <span className="text-warn text-[10px] shrink-0">禁用</span>}
+                                  {idx === tidx && <span className="text-accent text-[10px] font-medium shrink-0">目标</span>}
+                                  <span className="text-muted text-[10px] ml-auto">{node.rect?.width}x{node.rect?.height}</span>
                                 </div>
                               ))}
                             </div>
@@ -607,13 +618,69 @@ export default function ElementLibraryTab() {
                     );
                   })()}
 
-                  {/* ─── Web 元素（非 win32/uia） ─── */}
-                  {selectedElement.element_type !== 'win32' && selectedElement.element_type !== 'uia' && (<>
+                  {/* ─── 图像元素（参考图，findImage/clickImage 用） ─── */}
+                  {selectedElement.element_type === 'image' && (() => {
+                    const attr = selectedElement.attributes || {};
+                    const imgPath = attr.imagePath || '';
+                    const imgUrl = imgPath ? `/api/images/${imgPath}` : '';
+                    const sim = attr.similarity != null ? attr.similarity : 0.8;
+                    const scope = attr.scope || 'screen';
+                    const scopeLabel = scope === 'page' ? '浏览器页面内容' : '全屏幕';
+                    const capturedAt = attr.capturedAt ? new Date(attr.capturedAt).toLocaleString() : '';
+                    return (
+                      <div className="space-y-3 mb-4">
+                        {/* 参考图 */}
+                        <div>
+                          <div className="text-xs text-muted mb-1">参考图（findImage/clickImage 匹配模板）</div>
+                          {imgUrl ? (
+                            <div
+                              className="relative inline-block group cursor-zoom-in"
+                              title="点击预览大图"
+                              onClick={() => setLightbox({ src: imgUrl, alt: selectedElement.name })}
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={selectedElement.name}
+                                className="max-h-48 border border-border rounded bg-surface"
+                              />
+                              <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-accent-strong/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                <i className="fas fa-expand text-white text-xs"></i>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-faint bg-surface-2 px-2 py-3 rounded text-center">参考图文件缺失（{imgPath || '无路径'}）</div>
+                          )}
+                        </div>
+                        {/* 匹配参数 */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <div className="text-[10px] text-faint mb-0.5">相似度阈值</div>
+                            <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded">{sim}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-faint mb-0.5">默认匹配范围</div>
+                            <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded">{scopeLabel}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-faint mb-0.5">注册时间</div>
+                            <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded truncate">{capturedAt || '-'}</div>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-faint leading-relaxed">
+                          图像元素是全局可复用的参考图素材：任何工作流的「图像查找 / 图像点击」指令
+                          都可从元素库下拉选中它（也可在运行参数中直接传文件路径）。
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ─── Web 元素（非 win32/uia/image） ─── */}
+                  {selectedElement.element_type === 'web' && (<>
 
                   {/* 截图 */}
                   {selectedScreenshot && (
                     <div className="mb-4">
-                      <div className="text-xs text-gray-500 mb-1">截图</div>
+                      <div className="text-xs text-muted mb-1">截图</div>
                       <div
                         className="relative inline-block group cursor-zoom-in"
                         title="点击预览大图"
@@ -622,9 +689,9 @@ export default function ElementLibraryTab() {
                         <img
                           src={selectedScreenshot}
                           alt={selectedElement.name}
-                          className="max-h-48 border border-gray-200 rounded bg-white"
+                          className="max-h-48 border border-border rounded bg-surface"
                         />
-                        <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                        <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-accent-strong/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                           <i className="fas fa-expand text-white text-xs"></i>
                         </div>
                       </div>
@@ -634,14 +701,14 @@ export default function ElementLibraryTab() {
                   {/* 定位信息 */}
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     <div>
-                      <div className="text-[10px] text-gray-400 mb-0.5">选择器类型</div>
-                      <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded truncate">
+                      <div className="text-[10px] text-faint mb-0.5">选择器类型</div>
+                      <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded truncate">
                         {(selectedElement.web_selector || '').toLowerCase().startsWith('xpath:') ? 'XPath' : 'CSS'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-gray-400 mb-0.5">页面 URL</div>
-                      <div className="text-xs text-gray-700 truncate bg-gray-50 px-2 py-1 rounded" title={selectedElement.page_url}>
+                      <div className="text-[10px] text-faint mb-0.5">页面 URL</div>
+                      <div className="text-xs text-body truncate bg-surface-2 px-2 py-1 rounded" title={selectedElement.page_url}>
                         {selectedElement.page_url || '-'}
                       </div>
                     </div>
@@ -649,12 +716,12 @@ export default function ElementLibraryTab() {
 
                   {/* 相对锚点 */}
                   <div className="mb-4">
-                    <div className="text-[10px] text-gray-400 mb-1">相对锚点</div>
+                    <div className="text-[10px] text-faint mb-1">相对锚点</div>
                     <div className="flex items-center gap-2">
                       <select
                         value={selectedElement.anchor_element_name || ''}
                         onChange={(e) => updateAnchor(selectedElement, e.target.value)}
-                        className="flex-1 min-w-0 px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700 outline-none"
+                        className="flex-1 min-w-0 px-2 py-1 bg-surface-2 border border-border rounded text-xs text-body outline-none"
                       >
                         <option value="">不使用相对解析</option>
                         {elements
@@ -668,7 +735,7 @@ export default function ElementLibraryTab() {
                       {selectedElement.anchor_element_name && (
                         <button
                           onClick={() => updateAnchor(selectedElement, '')}
-                          className="text-gray-400 hover:text-red-500 px-1.5 py-1 rounded hover:bg-gray-100"
+                          className="text-faint hover:text-danger px-1.5 py-1 rounded hover:bg-surface-3"
                           title="清除锚点"
                         >
                           <i className="fas fa-times text-xs"></i>
@@ -677,8 +744,8 @@ export default function ElementLibraryTab() {
                     </div>
                     {selectedElement.relative_selector && (
                       <div className="mt-1">
-                        <div className="text-[10px] text-gray-400 mb-0.5">相对选择器</div>
-                        <code className="block text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded break-all font-mono">
+                        <div className="text-[10px] text-faint mb-0.5">相对选择器</div>
+                        <code className="block text-xs text-muted bg-surface-2 px-2 py-1 rounded break-all font-mono">
                           {selectedElement.relative_selector}
                         </code>
                       </div>
@@ -688,8 +755,8 @@ export default function ElementLibraryTab() {
                   {/* Web Selector */}
                   {selectedElement.web_selector && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-0.5">网页选择器（扩展执行用）</div>
-                      <code className="block text-xs text-gray-700 bg-gray-50 px-2 py-1.5 rounded break-all font-mono">
+                      <div className="text-[10px] text-faint mb-0.5">网页选择器（扩展执行用）</div>
+                      <code className="block text-xs text-body bg-surface-2 px-2 py-1.5 rounded break-all font-mono">
                         {selectedElement.web_selector}
                       </code>
                     </div>
@@ -698,8 +765,8 @@ export default function ElementLibraryTab() {
                   {/* Drission Selector */}
                   {selectedElement.drission_selector && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-0.5">Drission 选择器（Python 导出用）</div>
-                      <code className="block text-xs text-gray-700 bg-gray-50 px-2 py-1.5 rounded break-all font-mono">
+                      <div className="text-[10px] text-faint mb-0.5">Drission 选择器（Python 导出用）</div>
+                      <code className="block text-xs text-body bg-surface-2 px-2 py-1.5 rounded break-all font-mono">
                         {selectedElement.drission_selector}
                       </code>
                     </div>
@@ -708,12 +775,12 @@ export default function ElementLibraryTab() {
                   {/* 候选方案 */}
                   {selectedElement.css_candidates && selectedElement.css_candidates.length > 0 && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-1">CSS 候选方案 ({selectedElement.css_candidates.length})</div>
+                      <div className="text-[10px] text-faint mb-1">CSS 候选方案 ({selectedElement.css_candidates.length})</div>
                       <div className="space-y-1">
                         {selectedElement.css_candidates.map((cand, idx) => (
-                          <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded">
-                            <span className="text-gray-400 mr-1">#{idx + 1}</span>
-                            <span className="text-gray-600 font-mono">{cand.syntax || cand}</span>
+                          <div key={idx} className="text-xs bg-surface-2 px-2 py-1 rounded">
+                            <span className="text-faint mr-1">#{idx + 1}</span>
+                            <span className="text-muted font-mono">{cand.syntax || cand}</span>
                           </div>
                         ))}
                       </div>
@@ -721,12 +788,12 @@ export default function ElementLibraryTab() {
                   )}
                   {selectedElement.xpath_candidates && selectedElement.xpath_candidates.length > 0 && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-1">XPath 候选方案 ({selectedElement.xpath_candidates.length})</div>
+                      <div className="text-[10px] text-faint mb-1">XPath 候选方案 ({selectedElement.xpath_candidates.length})</div>
                       <div className="space-y-1">
                         {selectedElement.xpath_candidates.map((cand, idx) => (
-                          <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded">
-                            <span className="text-gray-400 mr-1">#{idx + 1}</span>
-                            <span className="text-gray-600 font-mono">{cand.syntax || cand}</span>
+                          <div key={idx} className="text-xs bg-surface-2 px-2 py-1 rounded">
+                            <span className="text-faint mr-1">#{idx + 1}</span>
+                            <span className="text-muted font-mono">{cand.syntax || cand}</span>
                           </div>
                         ))}
                       </div>
@@ -734,12 +801,12 @@ export default function ElementLibraryTab() {
                   )}
                   {selectedElement.drission_candidates && selectedElement.drission_candidates.length > 0 && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-1">Drission 候选方案 ({selectedElement.drission_candidates.length})</div>
+                      <div className="text-[10px] text-faint mb-1">Drission 候选方案 ({selectedElement.drission_candidates.length})</div>
                       <div className="space-y-1">
                         {selectedElement.drission_candidates.map((cand, idx) => (
-                          <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded">
-                            <span className="text-gray-400 mr-1">#{idx + 1}</span>
-                            <span className="text-gray-600 font-mono">{cand.syntax || cand}</span>
+                          <div key={idx} className="text-xs bg-surface-2 px-2 py-1 rounded">
+                            <span className="text-faint mr-1">#{idx + 1}</span>
+                            <span className="text-muted font-mono">{cand.syntax || cand}</span>
                           </div>
                         ))}
                       </div>
@@ -749,10 +816,10 @@ export default function ElementLibraryTab() {
                   {/* DOM Path */}
                   {selectedElement.dom_path && selectedElement.dom_path.length > 0 && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-gray-400 mb-1">DOM 层级 ({selectedElement.dom_path.length})</div>
+                      <div className="text-[10px] text-faint mb-1">DOM 层级 ({selectedElement.dom_path.length})</div>
                       <div className="space-y-0.5">
                         {selectedElement.dom_path.map((node, idx) => (
-                          <div key={idx} className="text-xs bg-gray-50 px-2 py-1 rounded font-mono">
+                          <div key={idx} className="text-xs bg-surface-2 px-2 py-1 rounded font-mono">
                             {'  '.repeat(idx)}&lt;{node.tag || 'div'}{node.id ? ` #${node.id}` : ''}{node.classes?.length ? ` .${node.classes.join('.')}` : ''} /&gt;
                           </div>
                         ))}
@@ -762,7 +829,7 @@ export default function ElementLibraryTab() {
                   </>)}
 
                   {/* 时间 */}
-                  <div className="flex gap-4 text-[10px] text-gray-400 mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex gap-4 text-[10px] text-faint mt-4 pt-3 border-t border-border">
                     {selectedElement.created_at && (
                       <span>创建: {new Date(selectedElement.created_at).toLocaleString('zh-CN')}</span>
                     )}
@@ -772,7 +839,7 @@ export default function ElementLibraryTab() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center text-gray-400 text-sm mt-12">
+                <div className="text-center text-faint text-sm mt-12">
                   选择左侧元素查看详情
                 </div>
               )}
@@ -781,11 +848,11 @@ export default function ElementLibraryTab() {
         )}
         {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && activeTab !== 'params' && activeTab !== 'api' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-              <i className="fas fa-inbox text-gray-400 text-xl"></i>
+            <div className="w-12 h-12 bg-surface-3 rounded-full flex items-center justify-center mb-3">
+              <i className="fas fa-inbox text-faint text-xl"></i>
             </div>
-            <p className="text-gray-500 text-sm">{BOTTOM_TABS.find(t => t.key === activeTab)?.label}</p>
-            <p className="text-gray-400 text-xs mt-1">暂无内容</p>
+            <p className="text-muted text-sm">{BOTTOM_TABS.find(t => t.key === activeTab)?.label}</p>
+            <p className="text-faint text-xs mt-1">暂无内容</p>
           </div>
         )}
 
@@ -806,7 +873,7 @@ export default function ElementLibraryTab() {
       {/* Toast 提示 */}
       {toast && (
         <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded shadow-lg text-xs z-50 transition-opacity ${
-          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'
+          toast.type === 'error' ? 'bg-danger-solid text-inverse' : 'bg-surface-3 text-inverse'
         }`}>
           {toast.msg}
         </div>
@@ -815,21 +882,21 @@ export default function ElementLibraryTab() {
       {/* 重命名弹窗 */}
       {showRenameModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-96" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-medium text-gray-800 mb-4">重命名元素</h3>
+          <div className="bg-surface rounded-lg shadow-xl p-6 w-96" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-medium text-inverse mb-4">重命名元素</h3>
             <input
               autoFocus
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') confirmRename(); if (e.key === 'Escape') cancelRename(); }}
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm outline-none focus:border-blue-400"
+              className="w-full px-3 py-2 border border-border-strong rounded text-sm outline-none focus:border-accent"
               placeholder="输入新名称"
             />
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={cancelRename} className="px-4 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded border border-gray-200">
+              <button onClick={cancelRename} className="px-4 py-1.5 text-xs text-muted hover:bg-surface-3 rounded border border-border">
                 取消
               </button>
-              <button onClick={confirmRename} className="px-4 py-1.5 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded">
+              <button onClick={confirmRename} className="px-4 py-1.5 text-xs text-white bg-accent hover:bg-accent-strong rounded">
                 确认
               </button>
             </div>
@@ -842,6 +909,15 @@ export default function ElementLibraryTab() {
       <CaptureToolModal
         wfId={wfId}
         onClose={() => setCaptureModal(false)}
+        onSaved={loadElements}
+      />
+    )}
+
+    {/* 图像元素上传（截图 → findImage/clickImage 参考图） */}
+    {uploadModal && (
+      <UploadImageModal
+        wfId={wfId}
+        onClose={() => setUploadModal(false)}
         onSaved={loadElements}
       />
     )}

@@ -91,6 +91,27 @@ export const api = {
   deleteWorkflowElement: (wfId, elId) => request(`/api/workflows/${wfId}/elements/${elId}`, {
     method: 'DELETE',
   }),
+  // 上传截图注册为图像元素（findImage/clickImage 参考图；multipart，浏览器自动带 boundary）
+  uploadImageElement: async (wfId, name, file, { similarity = 0.8, scope = 'screen' } = {}) => {
+    const token = getCookie('access_token');
+    const fd = new FormData();
+    fd.append('workflow_id', String(wfId));
+    fd.append('name', name);
+    fd.append('file', file);
+    fd.append('similarity', String(similarity));
+    fd.append('scope', scope);
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch('/api/extension/elements/image', { method: 'POST', body: fd, headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+  // 现场截图：启动系统截图工具（SnippingTool）+ 轮询剪贴板取新截图
+  screenshotStart: () => request('/api/extension/screenshot-tool/start', { method: 'POST' }),
+  screenshotPoll: (baseline) => request(`/api/extension/screenshot-tool/poll?baseline=${encodeURIComponent(baseline || '')}`),
 
   // AI
   invokeAI: (capability, payload) => request('/api/ai/invoke', {

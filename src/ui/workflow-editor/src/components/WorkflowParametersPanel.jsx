@@ -96,33 +96,33 @@ export default function WorkflowParametersPanel({ variant = 'sidebar' }) {
   const isBottom = variant === 'bottom';
   const Tag = isBottom ? 'div' : 'aside';
   const outerClass = isBottom
-    ? 'flex-1 bg-white flex flex-col select-none overflow-hidden min-h-0'
-    : 'w-[520px] bg-white border-l border-[#e8e8e8] flex flex-col shrink-0 select-none overflow-hidden';
+    ? 'flex-1 bg-surface flex flex-col select-none overflow-hidden min-h-0'
+    : 'w-[520px] bg-surface border-l border-border flex flex-col shrink-0 select-none overflow-hidden';
 
-  const inputClass = 'w-full px-1.5 py-1 border border-[#d9d9d9] rounded text-[11px] text-gray-700 outline-none focus:border-[#1677ff]';
-  const selectClass = 'w-full px-1.5 py-1 border border-[#d9d9d9] rounded text-[11px] text-gray-700 outline-none focus:border-[#1677ff] bg-white';
+  const inputClass = 'w-full px-1.5 py-1 border border-border-strong rounded text-[11px] text-body outline-none focus:border-accent';
+  const selectClass = 'w-full px-1.5 py-1 border border-border-strong rounded text-[11px] text-body outline-none focus:border-accent bg-surface';
 
   return (
     <Tag className={outerClass}>
-      <div className="px-3 py-2 border-b border-[#e8e8e8] flex items-center justify-between shrink-0">
+      <div className="px-3 py-2 border-b border-border flex items-center justify-between shrink-0">
         <div>
-          <h2 className="text-sm font-medium text-gray-700">流程参数</h2>
-          <p className="text-[10px] text-gray-500">支持 ${'{name}'} 插值，输出参数运行时自动取值</p>
+          <h2 className="text-sm font-medium text-body">流程参数</h2>
+          <p className="text-[10px] text-muted">支持 ${'{name}'} 插值，输出参数运行时自动取值</p>
         </div>
         <div className="flex items-center gap-2">
           {error && (
-            <span className="text-xs text-red-500 bg-red-50 rounded px-2 py-1">{error}</span>
+            <span className="text-xs text-danger bg-danger-soft rounded px-2 py-1">{error}</span>
           )}
           <button
             onClick={addParam}
-            className="px-2.5 py-1 text-xs text-[#1677ff] border border-dashed border-[#1677ff] rounded hover:bg-blue-50"
+            className="px-2.5 py-1 text-xs text-accent border border-dashed border-accent rounded hover:bg-accent-soft"
           >
             + 添加
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-3 py-1 text-xs text-white bg-[#1677ff] rounded hover:bg-[#4096ff] disabled:opacity-50"
+            className="px-3 py-1 text-xs text-white bg-accent rounded hover:bg-accent-strong disabled:opacity-50"
           >
             {saving ? '保存中...' : '保存'}
           </button>
@@ -131,24 +131,24 @@ export default function WorkflowParametersPanel({ variant = 'sidebar' }) {
 
       <div className="flex-1 overflow-auto">
         {params.length === 0 ? (
-          <div className="text-xs text-gray-400 py-10 text-center">
+          <div className="text-xs text-faint py-10 text-center">
             暂无参数，点击"+ 添加"创建
           </div>
         ) : (
           <table className="w-full text-[11px]">
-            <thead className="sticky top-0 bg-[#fafafa] z-10">
-              <tr className="border-b border-[#e8e8e8]">
-                <th className="text-left px-2 py-1.5 font-medium text-gray-500 w-[80px]">变量名</th>
-                <th className="text-left px-2 py-1.5 font-medium text-gray-500 w-[80px]">显示名</th>
-                <th className="text-left px-2 py-1.5 font-medium text-gray-500 w-[80px]">输入/输出</th>
-                <th className="text-left px-2 py-1.5 font-medium text-gray-500 w-[68px]">类型</th>
-                <th className="text-left px-2 py-1.5 font-medium text-gray-500">默认值</th>
-                <th className="text-center px-2 py-1.5 font-medium text-gray-500 w-[36px]"></th>
+            <thead className="sticky top-0 bg-surface-2 z-10">
+              <tr className="border-b border-border">
+                <th className="text-left px-2 py-1.5 font-medium text-muted w-[80px]">变量名</th>
+                <th className="text-left px-2 py-1.5 font-medium text-muted w-[80px]">显示名</th>
+                <th className="text-left px-2 py-1.5 font-medium text-muted w-[80px]">输入/输出</th>
+                <th className="text-left px-2 py-1.5 font-medium text-muted w-[68px]">类型</th>
+                <th className="text-left px-2 py-1.5 font-medium text-muted">默认值</th>
+                <th className="text-center px-2 py-1.5 font-medium text-muted w-[36px]"></th>
               </tr>
             </thead>
             <tbody>
               {params.map((p, idx) => (
-                <tr key={idx} className="border-b border-[#f0f0f0] hover:bg-[#fafafa]">
+                <tr key={idx} className="hover:bg-surface-2/50 transition-colors">
                   <td className="px-2 py-1">
                     <input
                       value={p.name || ''}
@@ -189,7 +189,7 @@ export default function WorkflowParametersPanel({ variant = 'sidebar' }) {
                   </td>
                   <td className="px-2 py-1">
                     {(p.direction || 'in') === 'out' ? (
-                      <span className="text-[10px] text-gray-300 italic">运行时输出</span>
+                      <span className="text-[10px] text-muted italic">运行时输出</span>
                     ) : p.type === 'bool' ? (
                       <select
                         value={p.default === true ? 'true' : 'false'}
@@ -218,7 +218,7 @@ export default function WorkflowParametersPanel({ variant = 'sidebar' }) {
                   <td className="px-2 py-1 text-center">
                     <button
                       onClick={() => removeParam(idx)}
-                      className="text-red-400 hover:text-red-600 text-xs"
+                      className="text-danger hover:text-danger text-xs"
                       title="删除"
                     >
                       <i className="fas fa-trash-alt"></i>

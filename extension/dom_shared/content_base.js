@@ -15,12 +15,15 @@
   const handlers = {};
   function registerHandler(name, fn) { handlers[name] = fn; }
 
-  // ── Shared calibration: capture viewport→screen offset from any mousemove ──
-  function _ensureCalibrationCapture() {
-    document.addEventListener('mousemove', function _rpaCal(e) {
-      const offX = e.screenX - e.clientX;
-      const offY = e.screenY - e.clientY;
-      try { sessionStorage.setItem('_rpaHoverCal', JSON.stringify({offX, offY})); } catch (_) {}
+  // ── 校准：内存缓存 viewport→screen 物理偏移，来自页面内真实 mousemove ──
+  // off = event.screenX - event.clientX * dpr（物理像素对齐）。
+  // 该差值天然包含标题栏/工具栏/Edge 侧边栏等一切浏览器装饰，无需单独测算。
+  let _rpaCal = null;
+  function _rpaDpr() { return window.devicePixelRatio || 1; }
+  function _captureCalibrationOnce() {
+    window.addEventListener('mousemove', function _rpaCalCb(e) {
+      const dpr = _rpaDpr();
+      _rpaCal = { offX: e.screenX - e.clientX * dpr, offY: e.screenY - e.clientY * dpr };
     }, { once: true });
   }
 
@@ -1252,19 +1255,26 @@ console.log({
   }
 
   // Shared calibration-coordinates result used by click/input/hover handlers.
-  // Lets the runner position the real OS cursor at the element.
+  // 优先用内存校准（event 差值，物理像素）；校准缺失或与 window.screenX 不一致
+  // （窗口被移动/跨屏）时返回实时初值并标记 _needsCalib，由 runner 瞬移鼠标触发
+  // 一次真实 mousemove 完成校准后重算。
   function coordsResult(viewX, viewY) {
-    let cal = null;
-    try { const raw = sessionStorage.getItem('_rpaHoverCal'); if (raw) cal = JSON.parse(raw); } catch (_) {}
-    if (cal) {
-      const dpr = window.devicePixelRatio || 1;
+    const dpr = _rpaDpr();
+    const wx = typeof window.screenX === 'number' ? window.screenX : 0;
+    const wy = typeof window.screenY === 'number' ? window.screenY : 0;
+    const baseX = Math.round((wx + viewX) * dpr);
+    const baseY = Math.round((wy + viewY) * dpr);
+    const fresh = _rpaCal &&
+      Math.abs(_rpaCal.offX - wx * dpr) < 50 &&
+      Math.abs(_rpaCal.offY - wy * dpr) < 50;
+    if (fresh) {
       return {
-        viewX, viewY,
-        screenX: Math.round((cal.offX + viewX) * dpr),
-        screenY: Math.round((cal.offY + viewY) * dpr),
+        viewX, viewY, dpr,
+        screenX: Math.round(_rpaCal.offX + viewX * dpr),
+        screenY: Math.round(_rpaCal.offY + viewY * dpr),
       };
     }
-    return { viewX, viewY, dpr: window.devicePixelRatio || 1, _needsCalib: true };
+    return { viewX, viewY, dpr, screenX: baseX, screenY: baseY, _needsCalib: true };
   }
 
   // ─── Calibration helper ──────────────────────────────────────────
@@ -1272,17 +1282,13 @@ console.log({
   registerHandler('recomputeScreenCoords', function({ extra }) {
     const viewX = extra?.viewX;
     const viewY = extra?.viewY;
-    const dpr = extra?.dpr || 1;
-    try {
-      const raw = sessionStorage.getItem('_rpaHoverCal');
-      if (raw) {
-        const cal = JSON.parse(raw);
-        return {
-          screenX: Math.round((cal.offX + viewX) * dpr),
-          screenY: Math.round((cal.offY + viewY) * dpr),
-        };
-      }
-    } catch (_) {}
+    const dpr = extra?.dpr || _rpaDpr();
+    if (_rpaCal && viewX !== undefined && viewY !== undefined) {
+      return {
+        screenX: Math.round(_rpaCal.offX + viewX * dpr),
+        screenY: Math.round(_rpaCal.offY + viewY * dpr),
+      };
+    }
     return {};
   });
 

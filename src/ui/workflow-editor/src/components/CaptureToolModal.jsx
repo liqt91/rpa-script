@@ -8,8 +8,8 @@ import ImageLightbox from './ImageLightbox';
  * 设计约定: 主色 #1677ff / hover #4096ff / 边框 #d9d9d9 / 输入底 #fafafa,
  *          字号三级 (label=text-xs font-medium, 正文=text-sm, 辅助=text-[11px] 仅非交互)
  */
-const PRIMARY_BTN = 'px-3 py-1.5 text-xs text-white bg-[#1677ff] rounded hover:bg-[#4096ff] disabled:opacity-50 transition-colors flex items-center gap-1.5';
-const SECTION_LABEL = 'text-xs font-medium text-gray-500';
+const PRIMARY_BTN = 'px-3 py-1.5 text-xs text-white bg-accent rounded hover:bg-accent-strong disabled:opacity-50 transition-colors flex items-center gap-1.5';
+const SECTION_LABEL = 'text-xs font-medium text-muted';
 
 export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   const [mode, setMode] = useState(0); // 0=推荐方案 1=手动编辑
@@ -228,11 +228,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-gray-50 rounded-lg shadow-2xl w-[95vw] h-[90vh] max-w-6xl flex flex-col overflow-hidden">
+        <div className="bg-surface-2 rounded-lg shadow-2xl w-[95vw] h-[90vh] max-w-6xl flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-white border-b shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 bg-surface border-b shrink-0">
             <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold text-gray-800">元素捕获工具</h2>
+              <h2 className="text-sm font-semibold text-inverse">元素捕获工具</h2>
               <button
                 onClick={() => startCapture('desktop_mask')}
                 disabled={!!capturingMode}
@@ -244,37 +244,37 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                   : <><i className="fas fa-location-crosshairs"></i>捕获元素</>}
               </button>
               {/* 扩展在线状态（按浏览器细分） */}
-              <div className="flex items-center gap-2 border-l border-gray-200 pl-3 ml-1">
+              <div className="flex items-center gap-2 border-l border-border pl-3 ml-1">
                 {['chrome', 'edge'].map(b => {
                   const online = !!extBrowsers?.[b];
                   const label = b === 'edge' ? 'Edge' : 'Chrome';
                   return (
                     <span
                       key={b}
-                      className="flex items-center gap-1 text-[11px] text-gray-400"
+                      className="flex items-center gap-1 text-[11px] text-faint"
                       title={`${label} 扩展${online ? '在线' : '离线'}`}
                     >
-                      <span className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                      <span className={`w-2 h-2 rounded-full ${online ? 'bg-ok' : 'bg-surface-3'}`}></span>
                       {label} {online ? '在线' : '离线'}
                     </span>
                   );
                 })}
                 {bothOffline && (
-                  <span className="text-[11px] text-amber-500">未检测到浏览器扩展在线</span>
+                  <span className="text-[11px] text-warn">未检测到浏览器扩展在线</span>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setShowHelp(v => !v)}
-                className={`w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 ${showHelp ? 'text-[#1677ff]' : 'text-gray-400 hover:text-gray-600'}`}
+                className={`w-7 h-7 flex items-center justify-center rounded hover:bg-surface-3 ${showHelp ? 'text-accent' : 'text-faint hover:text-muted'}`}
                 title="使用说明"
               >
                 <i className="fas fa-question-circle text-sm"></i>
               </button>
               <button
                 onClick={onClose}
-                className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                className="w-7 h-7 flex items-center justify-center rounded text-faint hover:text-muted hover:bg-surface-3"
                 title="关闭"
               >
                 <i className="fas fa-times text-sm"></i>
@@ -284,13 +284,13 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
 
           {/* 使用说明（可折叠） */}
           {showHelp && (
-            <div className="px-4 py-3 bg-blue-50 border-b text-xs text-blue-700 space-y-2">
+            <div className="px-4 py-3 bg-accent-soft border-b text-xs text-accent space-y-2">
               <p className="font-medium">
                 统一捕获：桌面控件直接框选；网页元素需先打开 Chrome/Edge 并把目标页面放在最前面（扩展在线时鼠标进入页面内容框自动转网页拾取）。
               </p>
               <ol className="list-decimal pl-4 space-y-1">
                 <li>点「捕获元素」→ 全屏遮罩：鼠标移到目标上（高亮框选）→ Alt+点击 确认；落在浏览器页面内容框内自动进入网页 DOM 拾取（页面内高亮）→ Alt+点击 确认；Alt+1/2 切父子级</li>
-                <li>网页捕获前提：打开 Chrome/Edge → chrome://extensions（edge://extensions）→ 开发者模式 → 加载已解压的扩展 → 选择项目目录下 <code className="bg-white border border-blue-100 px-1 rounded">extension/</code> 文件夹</li>
+                <li>网页捕获前提：打开 Chrome/Edge → chrome://extensions（edge://extensions）→ 开发者模式 → 加载已解压的扩展 → 选择项目目录下 <code className="bg-surface border border-blue-100 px-1 rounded">extension/</code> 文件夹</li>
                 <li>捕获后编辑名称/选择器，验证通过后保存，元素自动同步到元素库</li>
               </ol>
             </div>
@@ -300,7 +300,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
           <div className="flex-1 flex flex-col gap-3 p-4 overflow-y-auto">
             {/* 捕获错误（可关闭） */}
             {captureError && (
-              <div className="flex items-center justify-between px-3 py-2 bg-red-50 border border-red-200 rounded text-xs text-red-600 shrink-0">
+              <div className="flex items-center justify-between px-3 py-2 bg-danger-soft border border-danger rounded text-xs text-danger shrink-0">
                 <span><i className="fas fa-exclamation-circle mr-1.5"></i>{captureError}</span>
                 <button onClick={() => setCaptureError('')} className="ml-3 opacity-60 hover:opacity-100">
                   <i className="fas fa-times"></i>
@@ -310,8 +310,8 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
 
             {!cur ? (
               /* 统一引导空态 */
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
-                <i className="fas fa-crosshairs text-3xl text-gray-300"></i>
+              <div className="flex-1 flex flex-col items-center justify-center text-faint gap-3">
+                <i className="fas fa-crosshairs text-3xl text-muted"></i>
                 <p className="text-sm">点击上方「捕获元素」开始</p>
                 <p className="text-[11px]">捕获后可在此编辑选择器、验证并保存到元素库</p>
               </div>
@@ -324,7 +324,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                     value={(cur && cur.name) || ''}
                     onChange={(e) => setCur({ ...cur, name: e.target.value })}
                     placeholder="编辑元素名称"
-                    className="flex-1 px-2 py-1.5 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm text-gray-700 focus:outline-none focus:border-[#1677ff]"
+                    className="flex-1 px-2 py-1.5 bg-surface-2 border border-border-strong rounded text-sm text-body focus:outline-none focus:border-accent"
                   />
                   {cur && cur.screenshot && (
                     <div
@@ -333,8 +333,8 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                       onClick={() => setLightbox({ src: cur.screenshot, alt: cur.name || '捕获截图' })}
                     >
                       <img src={cur.screenshot} alt="截图"
-                           className="h-14 w-auto rounded object-contain border border-[#d9d9d9] bg-white" />
-                      <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                           className="h-14 w-auto rounded object-contain border border-border-strong bg-surface" />
+                      <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-accent-strong/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                         <i className="fas fa-expand text-white text-xs"></i>
                       </div>
                     </div>
@@ -346,44 +346,44 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                   <>
                     {/* UIA 依赖缺失警告（静默降级防护） */}
                     {cur.uia_available === false && (
-                      <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 shrink-0">
+                      <div className="flex items-start gap-2 px-3 py-2 bg-warn-soft border border-warn rounded text-xs text-warn shrink-0">
                         <i className="fas fa-exclamation-triangle mt-0.5"></i>
                         <span>UIA 依赖不可用（缺少 uiautomation），本次仅捕获 Win32 窗口层级。单窗口应用（浏览器/终端等）将无法获取内部控件，请在运行环境中安装 uiautomation。</span>
                       </div>
                     )}
                     {/* 目标提权 + 自身未提权 → UIPI 拦截警告 */}
                     {cur.elevation_blocked && (
-                      <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 shrink-0">
+                      <div className="flex items-start gap-2 px-3 py-2 bg-warn-soft border border-warn rounded text-xs text-warn shrink-0">
                         <i className="fas fa-shield-alt mt-0.5"></i>
                         <span>目标应用以管理员身份运行，而本工具未提权，系统（UIPI）拦截了对其内部控件的读取，本次仅捕获到窗口层级。请退出后以管理员身份运行本工具再捕获。</span>
                       </div>
                     )}
                     {/* 身份卡片（目标层级） */}
-                    <div className="bg-white rounded border border-[#d9d9d9] p-3 shrink-0">
+                    <div className="bg-surface rounded border border-border-strong p-3 shrink-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[11px] ${useUiaChain ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] ${useUiaChain ? 'bg-ok-soft text-ok' : 'bg-purple-50 text-purple-600'}`}>
                           {useUiaChain ? 'UIA 桌面控件' : 'Win32 桌面控件'}
                         </span>
-                        <span className="text-[11px] text-gray-400">定位方式：顶层窗口按标题模糊匹配 → 逐层下钻（按兄弟序号精确匹配）</span>
+                        <span className="text-[11px] text-faint">定位方式：顶层窗口按标题模糊匹配 → 逐层下钻（按兄弟序号精确匹配）</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {useUiaChain ? (
                           <>
                             <div>
-                              <div className="text-[11px] text-gray-400">名称</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.name || '-'}</div>
+                              <div className="text-[11px] text-faint">名称</div>
+                              <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono break-all">{desktopLeaf.name || '-'}</div>
                             </div>
                             <div>
-                              <div className="text-[11px] text-gray-400">控件类型</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono">{desktopLeaf.control_type || '-'}</div>
+                              <div className="text-[11px] text-faint">控件类型</div>
+                              <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono">{desktopLeaf.control_type || '-'}</div>
                             </div>
                             <div>
-                              <div className="text-[11px] text-gray-400">AutomationId</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.automation_id || '(空)'}</div>
+                              <div className="text-[11px] text-faint">AutomationId</div>
+                              <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono break-all">{desktopLeaf.automation_id || '(空)'}</div>
                             </div>
                             <div>
-                              <div className="text-[11px] text-gray-400">类名 · 兄弟序号</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">
+                              <div className="text-[11px] text-faint">类名 · 兄弟序号</div>
+                              <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono break-all">
                                 {desktopLeaf.class_name || '-'}{desktopLeaf.index != null ? ` · #${desktopLeaf.index}` : ''}
                               </div>
                             </div>
@@ -391,22 +391,22 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                         ) : (
                           <>
                             <div>
-                              <div className="text-[11px] text-gray-400">类名</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded font-mono break-all">{desktopLeaf.class_name || '-'}</div>
+                              <div className="text-[11px] text-faint">类名</div>
+                              <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded font-mono break-all">{desktopLeaf.class_name || '-'}</div>
                             </div>
                             <div>
-                              <div className="text-[11px] text-gray-400">标题</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded break-all">{desktopLeaf.title || '(空)'}</div>
+                              <div className="text-[11px] text-faint">标题</div>
+                              <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded break-all">{desktopLeaf.title || '(空)'}</div>
                             </div>
                             <div>
-                              <div className="text-[11px] text-gray-400">兄弟序号 · 尺寸</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded">
+                              <div className="text-[11px] text-faint">兄弟序号 · 尺寸</div>
+                              <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded">
                                 {desktopLeaf.index != null ? `#${desktopLeaf.index} · ` : ''}{desktopLeaf.rect?.width || '?'} × {desktopLeaf.rect?.height || '?'}
                               </div>
                             </div>
                             <div>
-                              <div className="text-[11px] text-gray-400">状态</div>
-                              <div className="text-xs text-gray-700 bg-[#fafafa] px-2 py-1 rounded">
+                              <div className="text-[11px] text-faint">状态</div>
+                              <div className="text-xs text-body bg-surface-2 px-2 py-1 rounded">
                                 {desktopLeaf.enabled === false ? '禁用' : '启用'}{desktopLeaf.visible === false ? ' · 不可见' : ''}
                               </div>
                             </div>
@@ -416,14 +416,14 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                     </div>
 
                     {/* 控件层级路径 */}
-                    <div className="flex-1 bg-white rounded border border-[#d9d9d9] p-3 overflow-y-auto min-h-0">
+                    <div className="flex-1 bg-surface rounded border border-border-strong p-3 overflow-y-auto min-h-0">
                       <div className="flex items-center gap-2 mb-2">
                         <span className={SECTION_LABEL}>控件层级路径（{desktopPath.length} 层）</span>
                         {hasBothChains && (
-                          <div className="flex gap-0.5 ml-auto bg-gray-100 rounded p-0.5">
+                          <div className="flex gap-0.5 ml-auto bg-surface-3 rounded p-0.5">
                             {[['uia', 'UIA'], ['win32', 'Win32']].map(([k, label]) => (
                               <button key={k} onClick={() => setChainKind(k)}
-                                className={`px-2 py-0.5 text-[11px] rounded ${chainKind === k ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                className={`px-2 py-0.5 text-[11px] rounded ${chainKind === k ? 'bg-surface text-inverse shadow-sm' : 'text-muted hover:text-body'}`}>
                                 {label}
                               </button>
                             ))}
@@ -431,7 +431,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                         )}
                       </div>
                       {useUiaChain && (
-                        <div className="text-[11px] text-gray-400 mb-1.5">点击某层设为目标层级（运行时定位到该层）</div>
+                        <div className="text-[11px] text-faint mb-1.5">点击某层设为目标层级（运行时定位到该层）</div>
                       )}
                       <div className="space-y-0.5">
                         {desktopPath.map((node, idx) => {
@@ -441,30 +441,30 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                             <div key={idx}
                               onClick={selectable ? () => setCur({ ...cur, uia_target_index: idx }) : undefined}
                               title={selectable ? '设为目标层级' : undefined}
-                              className={`text-xs px-2 py-1 rounded flex items-center gap-2 ${isTarget ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-[#fafafa]'} ${selectable ? 'cursor-pointer hover:bg-blue-50/60' : ''}`}>
-                              <span className="text-gray-300 w-4 text-right shrink-0">{idx === 0 ? '⊞' : '└'}</span>
-                              <span className={`font-mono text-[11px] ${useUiaChain ? 'text-green-600' : 'text-purple-600'}`}>
+                              className={`text-xs px-2 py-1 rounded flex items-center gap-2 ${isTarget ? 'bg-accent-soft ring-1 ring-blue-200' : 'bg-surface-2'} ${selectable ? 'cursor-pointer hover:bg-accent-soft/60' : ''}`}>
+                              <span className="text-muted w-4 text-right shrink-0">{idx === 0 ? '⊞' : '└'}</span>
+                              <span className={`font-mono text-[11px] ${useUiaChain ? 'text-ok' : 'text-purple-600'}`}>
                                 {useUiaChain ? (node.control_type || node.class_name) : node.class_name}
                               </span>
                               {node.index != null && (
-                                <span className="text-gray-400 text-[10px] font-mono shrink-0">#{node.index}</span>
+                                <span className="text-faint text-[10px] font-mono shrink-0">#{node.index}</span>
                               )}
                               {(useUiaChain ? node.name : node.title) ? (
-                                <span className="text-gray-500 truncate">"{useUiaChain ? node.name : node.title}"</span>
+                                <span className="text-muted truncate">"{useUiaChain ? node.name : node.title}"</span>
                               ) : null}
                               {useUiaChain && node.automation_id && (
-                                <span className="text-gray-400 text-[10px] font-mono truncate shrink" title={node.automation_id}>{node.automation_id}</span>
+                                <span className="text-faint text-[10px] font-mono truncate shrink" title={node.automation_id}>{node.automation_id}</span>
                               )}
                               {node.enabled === false && (
-                                <span className="text-amber-500 text-[10px] shrink-0">禁用</span>
+                                <span className="text-warn text-[10px] shrink-0">禁用</span>
                               )}
-                              {isTarget && <span className="text-[#1677ff] text-[11px] font-medium shrink-0">目标</span>}
-                              <span className="text-gray-300 text-[11px] ml-auto shrink-0">{node.rect?.width}×{node.rect?.height}</span>
+                              {isTarget && <span className="text-accent text-[11px] font-medium shrink-0">目标</span>}
+                              <span className="text-muted text-[11px] ml-auto shrink-0">{node.rect?.width}×{node.rect?.height}</span>
                             </div>
                           );
                         })}
                         {!desktopPath.length && (
-                          <div className="text-[11px] text-gray-400 py-4 text-center">无层级路径数据</div>
+                          <div className="text-[11px] text-faint py-4 text-center">无层级路径数据</div>
                         )}
                       </div>
                     </div>
@@ -473,13 +473,13 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
 
                 {/* Tab（仅网页元素） */}
                 {!isDesktop && (
-                <div className="flex gap-1 shrink-0 border-b border-gray-200">
+                <div className="flex gap-1 shrink-0 border-b border-border">
                   <button onClick={() => setMode(0)}
-                    className={`px-4 py-1.5 text-xs border-b-2 -mb-px ${mode === 0 ? 'text-[#1677ff] border-[#1677ff] font-medium' : 'text-gray-500 border-transparent hover:text-gray-700'}`}>
+                    className={`px-4 py-1.5 text-xs border-b-2 -mb-px ${mode === 0 ? 'text-accent border-accent font-medium' : 'text-muted border-transparent hover:text-body'}`}>
                     推荐方案
                   </button>
                   <button onClick={() => setMode(1)}
-                    className={`px-4 py-1.5 text-xs border-b-2 -mb-px ${mode === 1 ? 'text-[#1677ff] border-[#1677ff] font-medium' : 'text-gray-500 border-transparent hover:text-gray-700'}`}>
+                    className={`px-4 py-1.5 text-xs border-b-2 -mb-px ${mode === 1 ? 'text-accent border-accent font-medium' : 'text-muted border-transparent hover:text-body'}`}>
                     手动编辑
                   </button>
                 </div>
@@ -487,14 +487,14 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
 
                 {/* 推荐方案（仅网页元素） */}
                 {!isDesktop && mode === 0 && (
-                  <div className="flex-1 bg-white rounded border border-[#d9d9d9] overflow-hidden flex flex-col min-h-0">
+                  <div className="flex-1 bg-surface rounded border border-border-strong overflow-hidden flex flex-col min-h-0">
                     <div className="flex-1 overflow-y-auto min-h-0">
                       <table className="w-full text-xs">
-                      <thead className="bg-[#fafafa] sticky top-0">
+                      <thead className="bg-surface-2 sticky top-0">
                         <tr>
-                          <th className="px-3 py-2 text-left font-medium text-gray-500 cursor-pointer hover:text-[#1677ff]" onClick={() => sortCands('syntax')}>选择器</th>
-                          <th className="w-16 px-2 py-2 font-medium text-gray-500 cursor-pointer hover:text-[#1677ff]" onClick={() => sortCands('family')}>类型</th>
-                          <th className="w-14 px-2 py-2 font-medium text-gray-500 cursor-pointer hover:text-[#1677ff]" onClick={() => sortCands('match')}>匹配</th>
+                          <th className="px-3 py-2 text-left font-medium text-muted cursor-pointer hover:text-accent" onClick={() => sortCands('syntax')}>选择器</th>
+                          <th className="w-16 px-2 py-2 font-medium text-muted cursor-pointer hover:text-accent" onClick={() => sortCands('family')}>类型</th>
+                          <th className="w-14 px-2 py-2 font-medium text-muted cursor-pointer hover:text-accent" onClick={() => sortCands('match')}>匹配</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -503,10 +503,10 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                           const isSel = !!selector && syn === selector;
                           return (
                             <tr key={syn} onClick={() => setSelector(syn)}
-                                className={`cursor-pointer border-t border-gray-100 ${isSel ? 'bg-blue-50' : 'hover:bg-[#fafafa]'}`}>
+                                className={`cursor-pointer border-t border-border ${isSel ? 'bg-accent-soft' : 'hover:bg-surface-2'}`}>
                               <td className="px-3 py-2 font-mono break-all">{syn}</td>
                               <td className="px-2 py-2">
-                                <span className={`px-1.5 py-0.5 rounded text-[11px] ${(c.family||'').toLowerCase()==='css' ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
+                                <span className={`px-1.5 py-0.5 rounded text-[11px] ${(c.family||'').toLowerCase()==='css' ? 'bg-orange-50 text-orange-600' : 'bg-ok-soft text-ok'}`}>
                                   {(c.family || '?').toUpperCase()}
                                 </span>
                               </td>
@@ -514,7 +514,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                             </tr>
                           );
                         })}
-                        {!cands.length && <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-400">暂无候选方案</td></tr>}
+                        {!cands.length && <tr><td colSpan={3} className="px-3 py-6 text-center text-faint">暂无候选方案</td></tr>}
                       </tbody>
                     </table>
                     </div>
@@ -525,11 +525,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                 {!isDesktop && mode === 1 && (
                   <div className="flex-1 flex gap-3 min-h-0 overflow-hidden">
                     {/* DOM 层级 */}
-                    <div className="flex-1 bg-white rounded border border-[#d9d9d9] p-3 overflow-y-auto">
+                    <div className="flex-1 bg-surface rounded border border-border-strong p-3 overflow-y-auto">
                       <div className="flex items-center gap-2 mb-2">
-                        <button onClick={selectAll} className="px-2 py-1 text-xs text-[#1677ff] border border-[#1677ff] rounded hover:bg-blue-50">全选</button>
-                        <button onClick={selectNone} className="px-2 py-1 text-xs text-gray-500 border border-[#d9d9d9] rounded hover:bg-[#fafafa]">全不选</button>
-                        <span className="text-[11px] text-gray-400">勾选层级参与选择器生成</span>
+                        <button onClick={selectAll} className="px-2 py-1 text-xs text-accent border border-accent rounded hover:bg-accent-soft">全选</button>
+                        <button onClick={selectNone} className="px-2 py-1 text-xs text-muted border border-border-strong rounded hover:bg-surface-2">全不选</button>
+                        <span className="text-[11px] text-faint">勾选层级参与选择器生成</span>
                       </div>
                       <div className={`${SECTION_LABEL} mb-1`}>页面层级</div>
                       {domPath.map((node, i) => {
@@ -539,14 +539,14 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                         return (
                           <div
                             key={i}
-                            className={`flex items-center gap-1.5 py-1 px-1 cursor-pointer rounded ${isSel ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-[#fafafa]'}`}
+                            className={`flex items-center gap-1.5 py-1 px-1 cursor-pointer rounded ${isSel ? 'bg-accent-soft ring-1 ring-blue-200' : 'hover:bg-surface-2'}`}
                             onClick={() => selectDomLevel(i)}
                           >
-                            <input type="checkbox" checked={domChecked[i]} onChange={(e) => { e.stopPropagation(); toggleDomCheck(i); }} className="accent-[#1677ff]" />
-                            <span className={`font-mono text-xs ${isLeaf ? 'text-[#1677ff] font-semibold' : 'text-gray-700'}`}>
+                            <input type="checkbox" checked={domChecked[i]} onChange={(e) => { e.stopPropagation(); toggleDomCheck(i); }} className="accent-accent" />
+                            <span className={`font-mono text-xs ${isLeaf ? 'text-accent font-semibold' : 'text-body'}`}>
                               &lt;{n.tag || 'div'}&gt;
                             </span>
-                            {n.id && <span className="text-green-600 text-xs">#{n.id}</span>}
+                            {n.id && <span className="text-ok text-xs">#{n.id}</span>}
                             {n.classes?.length > 0 && <span className="text-purple-600 text-xs">.{n.classes.slice(0, 3).join('.')}</span>}
                           </div>
                         );
@@ -554,11 +554,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                     </div>
 
                     {/* 元素属性 */}
-                    <div className="w-96 bg-white rounded border border-[#d9d9d9] p-3 overflow-y-auto shrink-0">
+                    <div className="w-96 bg-surface rounded border border-border-strong p-3 overflow-y-auto shrink-0">
                       <div className={`${SECTION_LABEL} mb-2`}>元素属性</div>
                       {selLevel >= 0 && Object.keys(domAttrs || {}).length > 0 ? (
                         <>
-                          <div className="text-[11px] text-gray-400 mb-2">id/class 已在左侧层级中展示</div>
+                          <div className="text-[11px] text-faint mb-2">id/class 已在左侧层级中展示</div>
                           {Object.entries(domAttrs || {}).filter(([k]) => !['id','class'].includes(k)).map(([k, v]) => {
                             const fragile = domFragile.includes(k);
                             return (
@@ -567,8 +567,8 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                                 <input type="checkbox"
                                   checked={(attrVars[selLevel] || {})[k] || false}
                                   onChange={() => toggleAttr(selLevel, k)}
-                                  className="accent-[#1677ff]" />
-                                <span className={`font-mono text-[11px] break-all ${fragile ? 'text-gray-400' : 'text-purple-700'}`}>
+                                  className="accent-accent" />
+                                <span className={`font-mono text-[11px] break-all ${fragile ? 'text-faint' : 'text-purple-700'}`}>
                                   {fragile ? <i className="fas fa-exclamation-triangle mr-1"></i> : ''}{k}="{v}"
                                 </span>
                               </div>
@@ -576,7 +576,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                           })}
                         </>
                       ) : (
-                        <div className="text-[11px] text-gray-400">点击左侧层级查看属性</div>
+                        <div className="text-[11px] text-faint">点击左侧层级查看属性</div>
                       )}
                     </div>
                   </div>
@@ -591,10 +591,10 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                       value={selector}
                       onChange={(e) => setSelector(e.target.value)}
                       rows={2}
-                      className="flex-1 px-2 py-1.5 bg-[#fafafa] border border-[#d9d9d9] rounded text-sm font-mono text-gray-700 focus:outline-none focus:border-[#1677ff] resize-none"
+                      className="flex-1 px-2 py-1.5 bg-surface-2 border border-border-strong rounded text-sm font-mono text-body focus:outline-none focus:border-accent resize-none"
                     />
                     <button onClick={copySel} title="复制选择器"
-                      className="px-3 py-2 text-xs text-gray-500 bg-white hover:bg-[#fafafa] rounded border border-[#d9d9d9]">
+                      className="px-3 py-2 text-xs text-muted bg-surface hover:bg-surface-2 rounded border border-border-strong">
                       <i className="fas fa-copy"></i>
                     </button>
                   </div>
@@ -603,15 +603,15 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                   {selector && (
                     <div className="mt-2">
                       <button onClick={() => setShowJsCode(v => !v)}
-                        className="text-[11px] text-gray-400 hover:text-[#1677ff]">
+                        className="text-[11px] text-faint hover:text-accent">
                         <i className={`fas fa-chevron-${showJsCode ? 'down' : 'right'} mr-1`}></i>
                         手动验证 (F12 → Console)
                       </button>
                       {showJsCode && (
-                        <div className="mt-1.5 bg-[#fafafa] rounded border border-[#d9d9d9] p-2 font-mono text-[11px] text-gray-700 relative">
+                        <div className="mt-1.5 bg-surface-2 rounded border border-border-strong p-2 font-mono text-[11px] text-body relative">
                           <button
                             onClick={() => { navigator.clipboard.writeText(jsCode); showToast('JS 已复制'); }}
-                            className="absolute top-1.5 right-1.5 text-gray-400 hover:text-[#1677ff] text-[11px] px-1.5 border border-[#d9d9d9] rounded bg-white"
+                            className="absolute top-1.5 right-1.5 text-faint hover:text-accent text-[11px] px-1.5 border border-border-strong rounded bg-surface"
                           >复制</button>
                           <pre className="whitespace-pre-wrap break-all pr-12">{jsCode}</pre>
                         </div>
@@ -623,7 +623,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
 
                 {/* 验证结果（常驻，可关闭；网页/桌面共用） */}
                 {verifyResult && (
-                  <div className={`flex items-center justify-between px-3 py-2 rounded border text-xs shrink-0 ${verifyResult.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
+                  <div className={`flex items-center justify-between px-3 py-2 rounded border text-xs shrink-0 ${verifyResult.ok ? 'bg-ok-soft border-ok text-ok' : 'bg-danger-soft border-danger text-danger'}`}>
                     <span>
                       <i className={`fas ${verifyResult.ok ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-1.5`}></i>
                       {verifyResult.msg}
@@ -637,11 +637,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                 {/* 操作按钮（右对齐，保存为主操作） */}
                 <div className="flex justify-end gap-2 shrink-0">
                   <button onClick={verify} disabled={!cur}
-                    className="px-4 py-1.5 text-xs text-[#1677ff] border border-[#1677ff] rounded hover:bg-blue-50 disabled:opacity-40 flex items-center gap-1.5">
+                    className="px-4 py-1.5 text-xs text-accent border border-accent rounded hover:bg-accent-soft disabled:opacity-40 flex items-center gap-1.5">
                     <i className="fas fa-check-circle"></i>验证
                   </button>
                   <button onClick={save} disabled={!cur}
-                    className="px-4 py-1.5 text-xs text-white bg-[#1677ff] rounded hover:bg-[#4096ff] disabled:opacity-40 flex items-center gap-1.5">
+                    className="px-4 py-1.5 text-xs text-white bg-accent rounded hover:bg-accent-strong disabled:opacity-40 flex items-center gap-1.5">
                     <i className="fas fa-save"></i>保存
                   </button>
                 </div>
@@ -651,7 +651,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
         </div>
       </div>
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 text-white px-5 py-2.5 rounded-lg text-sm z-[9999] transition-opacity duration-200 ${toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-[#1677ff]'}`}>
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 text-white px-5 py-2.5 rounded-lg text-sm z-[9999] transition-opacity duration-200 ${toast.type === 'success' ? 'bg-ok' : toast.type === 'error' ? 'bg-danger-solid' : 'bg-accent'}`}>
           {toast.msg}
         </div>
       )}
