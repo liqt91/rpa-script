@@ -309,10 +309,11 @@ export default function WorkflowList() {
                 const found = Boolean(browserPaths[browser]);
                 const isInstalled = installed.some(i => i.browser === browser);
                 const isOnline = extStatus?.browsers?.some(b => b.browser === browser);
+                const colorCls = !found ? 'text-muted' : isOnline ? 'text-ok' : isInstalled ? 'text-warn' : 'text-danger';
                 return (
                   <span key={browser} className="flex items-center gap-1.5">
-                    <i className={`${icon} text-faint`}></i>
-                    <span className="text-faint">{label}</span>
+                    <i className={`${icon} ${colorCls}`}></i>
+                    <span className={colorCls}>{label}</span>
                     {!found ? (
                       <span className="text-muted">未安装</span>
                     ) : isOnline ? (
