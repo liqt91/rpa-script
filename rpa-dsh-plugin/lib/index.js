@@ -779,7 +779,7 @@ function apply(ctx, config) {
       "- 浏览器扩展连接是单实例：工作流运行中调 rpa_browser_exec 会 409，除非 allow_during_run=true。",
       "- 桌面指令（Win32/UIA）仅 Windows；后端需常驻且扩展已连接，先 rpa_status 确认。",
       "- 流程工作区：一个 RPA 流程 = 一个目录 = 一个 DSH 工作区（会话自动绑定该目录）。开始新流程时先 rpa_project_create（默认用当前会话工作目录），之后该目录下会话会出现「流程」编辑 tab，流程数据存于目录内。",
-      "- 运行流程的快捷链路：先 rpa_project_list 确认流程目录（返回里 current:true 即当前会话所在目录），再 rpa_run_start(project=该目录) → rpa_run_wait(project, run_id)。若 current:true 存在，直接 rpa_run_start() 不带参数即可运行当前会话的流程。不要为运行流程去探测浏览器/翻文件系统/查 API 列表——rpa_project_list 一步给出所有流程路径。",
+      "- 运行流程：直接调 rpa_run_start() 不带参数（当前会话工作目录即流程目录，不跨目录）→ rpa_run_wait(project=当前目录, run_id) 等结果。需要确认流程状态时才调 rpa_project_list。",
     ].join("\n"),
   });
 
@@ -993,7 +993,7 @@ function apply(ctx, config) {
   /* ================= 4. 异步启动运行 ================= */
   ctx.tools.register(defineTool({
     name: "rpa_run_start",
-    description: "运行工作流（浏览器扩展执行），立即返回 run_id 不阻塞；随后调 rpa_run_wait(project, run_id) 等结果。运行流程的快捷方式：若当前会话就在 RPA 流程目录里（rpa_project_list 返回 current:true），直接 rpa_run_start() 不带任何参数即可运行当前流程；否则传 project=<流程目录绝对路径>。支持两种模式：传 project 跑流程目录（推荐，目录为唯一真相）；传 wf_id 跑数据库工作流。",
+    description: "运行当前会话目录下的 RPA 流程（浏览器扩展执行）。直接调用本工具、不带任何参数即可——当前会话的工作目录就是流程目录（一个 RPA 流程 = 一个目录 = 当前会话绑定，不会跨目录）。立即返回 run_id 不阻塞，随后调 rpa_run_wait(project, run_id) 等结果。仅在确需运行其他目录的流程时才传 project=<流程目录绝对路径>（一般不必要）。",
     parameters: {
       wf_id: { type: "integer", description: "工作流 id（rpa_import_workflow 的返回值）；与 project 二选一" },
       project: { type: "string", description: "流程目录绝对路径（RPA 流程工作区）；与 wf_id 二选一，缺省用当前会话工作目录" },
