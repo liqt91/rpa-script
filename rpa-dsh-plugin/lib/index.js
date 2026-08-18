@@ -113,7 +113,7 @@ function spawnAsync(cmd, args, opts) {
  * 首次创建为异步（spawn 后台执行），不阻塞 dsh web 启动；后端待 venv 就绪后拉起。
  */
 async function ensureBundledVenv(pythonDir, log) {
-  const venvPy = join(pythonDir, ".venv", "Scripts", "python.exe");
+  const venvPy = join(pythonDir, "venv", "Scripts", "python.exe");
   if (existsSync(venvPy)) {
     log?.("[rpa-bridge] 复用已有 venv");
     return venvPy;
@@ -127,8 +127,8 @@ async function ensureBundledVenv(pythonDir, log) {
   if (hasCommand("uv")) {
     log?.("[rpa-bridge] 使用 uv 创建 venv（首次安装，异步后台进行）…");
     try {
-      await spawnAsync("uv", ["venv", ".venv", "--python", "3.12"], { cwd: pythonDir, timeout: 120000 });
-      await spawnAsync("uv", ["pip", "install", "-r", "requirements.txt"], { cwd: pythonDir, timeout: 600000 });
+      await spawnAsync("uv", ["venv", "venv", "--python", "3.12"], { cwd: pythonDir, timeout: 120000 });
+      await spawnAsync("uv", ["pip", "install", "-p", "venv", "-r", "requirements.txt"], { cwd: pythonDir, timeout: 600000 });
       return venvPy;
     } catch (e) {
       log?.(`[rpa-bridge] uv 安装失败（${e.message}），回退 pip`);
@@ -139,11 +139,11 @@ async function ensureBundledVenv(pythonDir, log) {
   const py = process.env.RPA_PYTHON || "py";
   log?.("[rpa-bridge] 使用 pip 创建 venv（首次安装，异步后台进行）…");
   try {
-    await spawnAsync(py, ["-3", "-m", "venv", ".venv"], { cwd: pythonDir, timeout: 180000 });
+    await spawnAsync(py, ["-3", "-m", "venv", "venv"], { cwd: pythonDir, timeout: 180000 });
   } catch {
-    await spawnAsync("python", ["-m", "venv", ".venv"], { cwd: pythonDir, timeout: 180000 });
+    await spawnAsync("python", ["-m", "venv", "venv"], { cwd: pythonDir, timeout: 180000 });
   }
-  const pip = join(pythonDir, ".venv", "Scripts", "pip.exe");
+  const pip = join(pythonDir, "venv", "Scripts", "pip.exe");
   try {
     await spawnAsync(pip, ["install", "-r", "requirements.txt"], { cwd: pythonDir, timeout: 600000 });
   } catch {
@@ -320,61 +320,56 @@ function apply(ctx, config) {
       ));
   }, 0);
 
-  /* -------- 后端生命周期：adopt-don't-own（与桌面版共存的关键） --------
-   * 桌面版（desktop/main.js）不 spawn 后端，只探测 :8000 并加载同一个 SPA。
-   * 因此规则必须是"单一所有者 + 先探测再接管"：
-   *   1. 先健康检查：后端已在跑（含桌面版用户手动起的）→ adopt：不 spawn、dispose 不 kill
-   *   2. 未就绪且配置了 autoStartBackend → 由本插件 spawn，标记 owned，dispose 时回收
-   *   3. 端口被非本项目进程占用 → 仅告警，不 spawn（工具会报错并提示手动启动）
+  /* -------- 后端生命周期：adopt-don't-own + 懒启动 --------
+   * 桌面版（desktop/main.js）不 spawn 后端，只探测后端就绪后加载同一个 SPA。
+   * 懒启动：dsh web 激活时**只做快速健康检查**（后端在跑则 adopt，不回收），
+   * 不 spawn —— dsh web 启动不被后端拖慢。真正的启动发生在**首次需要时**：
+   *   - 工具调用（ensureStarted，自动拉起）
+   *   - RPA 抽屉「启动后端」按钮（startBackendProcess）
+   * 端口被非本项目进程占用 → 仅告警，不 spawn。
    */
   let ownedBackend = null;
   let launchErrorShown = false;
+  let backendAdopted = false;
   setTimeout(async () => {
     try {
       await api.get("/health", { auth: false, timeoutMs: 1500 });
+      backendAdopted = true;
       ctx.logger.info("[rpa-bridge] 后端已在运行，接管现有实例（adopt，不回收）");
     } catch (err) {
-      if (!config.autoStartBackend) {
-        if (!launchErrorShown) {
-          ctx.logger.warn(`[rpa-bridge] 后端不可达（${err.message}）。请启动后端，或开启 autoStartBackend 自动拉起。`);
-          launchErrorShown = true;
-        }
-        return;
-      }
-      try {
-        const launch = await resolveBackendLaunch(config, (m) => ctx.logger.info(m));
-        if (!launch) {
-          ctx.logger.warn(
-            `[rpa-bridge] 后端不可达（${err.message}）且无可自举的 Python 后端。` +
-            `本地形态请配置 backendCommand（指向仓库 venv）或手动启动后端；` +
-            `npm 形态请确认插件包含 python/ 目录（重新安装最新版）。`
-          );
-          return;
-        }
-        const env = { ...process.env, ...launch.env };
-        const child = spawn(launch.command, {
-          cwd: launch.cwd || undefined,
-          detached: true,
-          stdio: "ignore",
-          shell: true,
-          env,
-        });
-        child.on("error", (e) => ctx.logger.warn(`[rpa-bridge] 后端启动失败: ${e.message}`));
-        child.unref();
-        ownedBackend = child;
-        ctx.logger.info(`[rpa-bridge] 已托管启动后端（owned，dispose 时回收）${launch.command}`);
-        // 随机端口：轮询端口文件 + health，确认后端就绪（最长 30s）
-        const ready = await waitForBackendReady(config, 30000);
-        if (ready) {
-          ctx.logger.info("[rpa-bridge] 后端就绪（自动发现端口）");
-        } else {
-          ctx.logger.warn("[rpa-bridge] 后端 30s 内未就绪，工具调用可能失败");
-        }
-      } catch (e) {
-        ctx.logger.warn(`[rpa-bridge] 后端启动异常: ${e.message}`);
+      if (!launchErrorShown) {
+        ctx.logger.info(
+          `[rpa-bridge] 后端未运行（懒启动）：首次使用 RPA 工具或打开控制台时自动拉起；` +
+          (config.autoStartBackend ? "" : " 或配置 autoStartBackend 允许自动拉起。")
+        );
+        launchErrorShown = true;
       }
     }
   }, 0);
+
+  /* 懒启动入口：首次调用（工具/抽屉）时探测 → 未运行则 spawn。失败会重置以便下次重试。 */
+  let ensurePromise = null;
+  const ensureStarted = () => {
+    if (!ensurePromise) {
+      ensurePromise = (async () => {
+        let alive = false;
+        try { await api.get("/health", { timeoutMs: 1500 }); alive = true; } catch {}
+        if (alive) return;
+        if (!config.autoStartBackend) {
+          throw new Error("后端未运行。请在 RPA 控制台点「启动后端」，或开启 autoStartBackend 自动拉起。");
+        }
+        const r = await startBackendProcess("start");
+        if (!r.ok) throw new Error(r.error || "后端启动失败");
+      })().catch((e) => { ensurePromise = null; throw e; });
+    }
+    return ensurePromise;
+  };
+  /** 工具 execute 包装：调用前惰性确保后端（失败不阻塞，工具自身会报不可达）。 */
+  const withEnsure = (fn) => async (args, exec) => {
+    try { await ensureStarted(); } catch { /* 留给工具自身的错误路径 */ }
+    return fn(args, exec);
+  };
+
 
   ctx.on("dispose", () => {
     if (!ownedBackend) return;
@@ -499,7 +494,7 @@ function apply(ctx, config) {
     parameters: {},
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
-    async execute(_args, exec) {
+    execute: withEnsure(async (_args, exec) => {
       const [health, ext] = await Promise.allSettled([
         api.get("/health", { auth: false, signal: exec.signal }),
         api.get("/api/extension/status", { auth: false, signal: exec.signal }),
@@ -508,7 +503,7 @@ function apply(ctx, config) {
         backend: health.status === "fulfilled" ? health.value : { ok: false, error: String(health.reason) },
         extension: ext.status === "fulfilled" ? ext.value : { error: String(ext.reason) },
       };
-    },
+    }),
   }));
 
   /* ================= 2. 指令目录（按需拉取，不常驻全量） ================= */
@@ -524,7 +519,7 @@ function apply(ctx, config) {
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
-    async execute(args, exec) {
+    execute: withEnsure(async (args, exec) => {
       const browser = (args.side ?? "editor") === "browser";
       const data = await api.get(browser ? "/api/extension/commands" : "/api/workflows/commands", {
         auth: !browser,
@@ -533,7 +528,7 @@ function apply(ctx, config) {
       // 后端返回 {commands, ...} 对象（browser）或 {categories, commands, containerTypes, branchTypes}（editor）；
       // 兼容裸数组，统一按对象返回，避免 dsh-tools 输出 schema 校验失败。
       return Array.isArray(data) ? { commands: data } : data;
-    },
+    }),
   }));
 
   /* ================= 2b. 元素库（按元素名索引的选择器库，工作流绑定） ================= */
@@ -545,7 +540,7 @@ function apply(ctx, config) {
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
-    async execute(args, exec) {
+    execute: withEnsure(async (args, exec) => {
       const data = await api.get(`/api/extension/elements?workflow_id=${args.workflow_id}`, {
         auth: false,
         signal: exec.signal,
@@ -564,7 +559,7 @@ function apply(ctx, config) {
           pageUrl: el.pageUrl ?? "",
         })),
       };
-    },
+    }),
   }));
 
   /* ================= 3. 文件式工作流导入（一次原子创建） ================= */
@@ -580,7 +575,7 @@ function apply(ctx, config) {
       elements: { type: "array", description: "元素库（见描述）" },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
-    async execute(args, exec) {
+    execute: withEnsure(async (args, exec) => {
       const body = {
         name: args.name,
         description: args.description ?? "",
@@ -591,7 +586,7 @@ function apply(ctx, config) {
       };
       const r = await api.post("/api/workflows/import", { body, signal: exec.signal });
       return { workflow_id: r.workflow_id ?? r.id, ...r };
-    },
+    }),
   }));
 
   /* ================= 4. 异步启动运行 ================= */
@@ -604,14 +599,14 @@ function apply(ctx, config) {
       initial_table_data: { type: "object", additionalProperties: true, description: "{\"columns\": [...], \"rows\": [...]} 预置表格数据" },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
-    async execute(args, exec) {
+    execute: withEnsure(async (args, exec) => {
       // 后端 async 模式：body 带 async:true → 立即返回 run_id；进度走 run/stream 或 log 接口
       const body = { async: true };
       if (args.parameters) body.parameters = args.parameters;
       if (args.initial_table_data) body.initialTableData = args.initial_table_data;
       const r = await api.post(`/api/workflows/${args.wf_id}/run/extension`, { body, signal: exec.signal });
       return { run_id: r.runId ?? r.run_id ?? "", ...r };
-    },
+    }),
   }));
 
   /* ================= 5. 等待运行结束（可中断） ================= */
@@ -625,7 +620,7 @@ function apply(ctx, config) {
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     timeoutMs: 360000,
-    async execute(args, exec) {
+    execute: withEnsure(async (args, exec) => {
       const deadline = Date.now() + (args.timeout_ms ?? 300000);
       const path = `/api/workflows/${args.wf_id}/runs/${args.run_id}/log`;
       for (;;) {
@@ -634,7 +629,7 @@ function apply(ctx, config) {
         if (Date.now() >= deadline) return { ...log, timeout: true };
         await abortableSleep(config.waitPollMs, exec.signal);
       }
-    },
+    }),
   }));
 
   /* ================= 6. 运行状态 / 停止 ================= */
@@ -647,9 +642,9 @@ function apply(ctx, config) {
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
-    async execute(args, exec) {
+    execute: withEnsure(async (args, exec) => {
       return await api.get(`/api/workflows/${args.wf_id}/runs/${args.run_id}/log`, { signal: exec.signal });
-    },
+    }),
   }));
 
   ctx.tools.register(defineTool({
@@ -661,11 +656,11 @@ function apply(ctx, config) {
       action: { type: "string", required: true, enum: ["stop", "pause", "resume"] },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
-    async execute(args, exec) {
+    execute: withEnsure(async (args, exec) => {
       return await api.post(`/api/workflows/${args.wf_id}/run/${args.run_id}/${args.action}`, {
         body: {}, signal: exec.signal,
       });
-    },
+    }),
   }));
 
   /* ================= 7. 浏览器实时指令（单条，免认证） ================= */
@@ -682,9 +677,9 @@ function apply(ctx, config) {
       allow_during_run: { type: "boolean", description: "工作流运行中仍强制执行" },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
-    async execute(args, exec) {
+    execute: withEnsure(async (args, exec) => {
       return await browserExec(api, config, args, exec.signal);
-    },
+    }),
   }));
 
   /* ================= 8. 高频便捷封装 ================= */
@@ -741,9 +736,9 @@ function apply(ctx, config) {
       description: w.description,
       parameters: w.parameters,
       output: { schema: { type: "object", additionalProperties: true }, render: toText },
-      async execute(args, exec) {
+      execute: withEnsure(async (args, exec) => {
         return await browserExec(api, config, w.toArgs(args), exec.signal);
-      },
+      }),
     }));
   }
 

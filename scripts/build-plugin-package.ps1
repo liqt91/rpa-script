@@ -91,7 +91,47 @@ if (-not $SkipFrontend) {
   Write-Host "`n（跳过前端构建）"
 }
 
-# ---------- 3) 清理 + 汇总 ----------
+# ---------- 3) venv 预置（懒启动零等待：npm 包内自带可用 venv）----------
+# 首次构建时创建（1-3 分钟，uv 优先）；已存在则复用（幂等）。
+# 发布后插件在任意机器启动后端无需再装依赖。
+$venvPy = Join-Path $py "venv\Scripts\python.exe"
+if (-not (Test-Path $venvPy)) {
+  Write-Host "`n== 预置 venv（首次构建，1-3 分钟）=="
+  Push-Location $py
+  # PowerShell 5.1 下 native stderr（uv 进度/警告）会抛 NativeCommandError → 临时降级
+  $prevEA = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $c1 = -1; $c2 = -1
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+      uv venv venv --python 3.12; $c1 = $LASTEXITCODE
+      if ($c1 -eq 0) { uv pip install -p venv -r requirements.txt; $c2 = $LASTEXITCODE }
+    } else {
+      python -m venv venv; $c1 = $LASTEXITCODE
+      if ($c1 -eq 0) { .\venv\Scripts\pip install -r requirements.txt; $c2 = $LASTEXITCODE }
+    }
+    if ($c1 -ne 0 -or $c2 -ne 0) {
+      Write-Host "  ⚠ venv 预置失败（uv/pip 退出码 $c1/$c2），npm 包将不含 venv（首次启动仍需在线安装）"
+    } else {
+      Write-Host "  ✅ venv 预置完成"
+    }
+  } finally {
+    Pop-Location
+    $ErrorActionPreference = $prevEA
+  }
+} else {
+  Write-Host "`n== venv 已存在，复用（$(Join-Path $py 'venv')）=="
+}
+
+# 关键：删除 uv 自动生成的 venv/.gitignore（内容为 `*`）。
+# 否则 npm 打包时 ignore-walk 会逐目录应用该 .gitignore，整个 venv 被排除出 tarball。
+$venvGi = Join-Path $py "venv\.gitignore"
+if (Test-Path $venvGi) {
+  Remove-Item $venvGi -Force
+  Write-Host "  已删除 venv/.gitignore（防止 npm 打包排除 venv）"
+}
+
+# ---------- 4) 清理 + 汇总 ----------
 # 删除 __pycache__ 残留（robocopy 排除不彻底时）
 Get-ChildItem $py -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
