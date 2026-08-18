@@ -364,7 +364,6 @@ window.__ModuleLoader__.load({
        */
       var flowTabDisposer = null;
       var flowTabCwd = null;
-      var lastSessionKey = null;
 
       function registerFlowTab(cwd) {
         if (flowTabDisposer) return;
@@ -399,20 +398,26 @@ window.__ModuleLoader__.load({
           .catch(function () { onResult(false); });
       }
       /** 会话切换时同步流程 tab（幂等：重复探测同一会话跳过）。 */
+      var lastProbedCwd = null;
+      var lastProbedResult = null;
       function syncFlowTab() {
         var snap;
         try { snap = ctx.sessions.list.getSnapshot(); } catch (e) { return; }
         var current = snap && snap.current;
         var summary = current === undefined || current === null ? undefined : (snap.byId || {})[current];
         var cwd = summary && summary.cwd;
-        var key = current === undefined || current === null ? "" : String(current);
-        if (key === lastSessionKey) return;
-        lastSessionKey = key;
         if (!cwd) {
+          lastProbedCwd = null;
+          lastProbedResult = null;
           unregisterFlowTab();
           return;
         }
+        // 定时重探：目录可能在会话存活期间被 rpa_project_create 初始化（无需刷新）
+        if (cwd === lastProbedCwd) return;
+        lastProbedCwd = cwd;
         probeProject(cwd, function (isRpa) {
+          if (cwd !== lastProbedCwd) return; // 探测期间会话又切换了
+          lastProbedResult = isRpa;
           if (isRpa) registerFlowTab(cwd);
           else unregisterFlowTab();
         });
@@ -421,8 +426,11 @@ window.__ModuleLoader__.load({
         var unsub = null;
         try { unsub = ctx.sessions.list.subscribe(syncFlowTab); } catch (e) {}
         syncFlowTab();
+        // 每 4s 重探当前会话目录（rpa_project_create / 删除 rpa.json 后自动增删 tab）
+        var timer = setInterval(syncFlowTab, 4000);
         return function () {
           if (unsub) unsub();
+          clearInterval(timer);
           unregisterFlowTab();
         };
       }, "rpa-console: flow tab sync");

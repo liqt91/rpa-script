@@ -19,11 +19,7 @@ const BOTTOM_TABS = [
 export default function ElementLibraryTab() {
   const { elements, loadElements, runLogs, runStatus, wfId, projectDir, buildElementTree, getElementChain } = useWorkflow();
   const [activeTab, setActiveTab] = useState('elements');
-  // 项目模式下 DataTableTab/运行日志不可用：切 tab 时强制回落到 elements
-  const switchTab = (key) => {
-    if (projectDir && key !== 'elements' && key !== 'params') key = 'elements';
-    setActiveTab(key);
-  };
+  const switchTab = (key) => setActiveTab(key);
   const [expanded, setExpanded] = useState(() => {
     try { return localStorage.getItem('wf_editor_bottom_expanded') !== 'false'; }
     catch { return true; }
@@ -365,9 +361,9 @@ export default function ElementLibraryTab() {
 
   return (
     <div ref={panelRef} className="h-[220px] bg-surface border-t border-border flex flex-col shrink-0 select-none">
-      {/* Tab 栏：项目模式只保留 元素库 + 流程参数（数据表格/运行日志/API 设置依赖全局 DB） */}
+      {/* Tab 栏：全部保留；项目模式下 dataTable/logs/api 显示占位说明 */}
       <div className="flex items-center border-b border-border px-2">
-        {BOTTOM_TABS.filter(tab => !projectDir || tab.key === 'elements' || tab.key === 'params').map(tab => (
+        {BOTTOM_TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => switchTab(tab.key)}
@@ -873,7 +869,18 @@ export default function ElementLibraryTab() {
           <WorkflowParametersPanel variant="bottom" />
         )}
 
-        {activeTab === 'api' && (
+        {/* 项目模式占位：数据表格/运行日志/API 设置依赖全局 DB，目录模式后续接入 */}
+        {projectDir && (activeTab === 'api' || activeTab === 'dataTable' || activeTab === 'logs') && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center">
+            <div className="w-12 h-12 bg-surface-3 rounded-full flex items-center justify-center mb-3">
+              <i className="fas fa-box-open text-faint text-xl"></i>
+            </div>
+            <p className="text-muted text-sm">{BOTTOM_TABS.find(t => t.key === activeTab)?.label}</p>
+            <p className="text-faint text-xs mt-1">目录模式暂不支持（数据表格/运行日志/API 设置将随流程目录化接入）</p>
+          </div>
+        )}
+
+        {activeTab === 'api' && !projectDir && (
           <ApiSettingsPanel />
         )}
 
