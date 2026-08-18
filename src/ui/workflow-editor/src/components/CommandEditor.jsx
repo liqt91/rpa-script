@@ -350,8 +350,8 @@ export default function CommandEditor() {
   return (
     <div className="flex-1 flex min-h-0">
       {/* Left panel — list */}
-      <div className="w-56 bg-bg border-r border-gray-700 flex flex-col shrink-0">
-        <div className="px-3 py-3 border-b border-gray-700 flex items-center justify-between">
+      <div className="w-56 bg-bg border-r border-border flex flex-col shrink-0">
+        <div className="px-3 py-3 border-b border-border flex items-center justify-between">
           <span className="text-sm font-medium text-body">指令定义</span>
           <button onClick={createNew} className="text-xs text-accent hover:text-accent-strong">+ 新建</button>
         </div>
@@ -426,7 +426,7 @@ export default function CommandEditor() {
             });
           })()}
         </div>
-        <div className="px-2 py-2 border-t border-gray-700">
+        <div className="px-2 py-2 border-t border-border">
           <button onClick={runBuild}
             className="w-full text-xs px-2 py-1.5 rounded bg-ok/25 text-ok hover:bg-ok/40 transition-colors">
             <i className="fas fa-hammer mr-1"></i>构建生成
@@ -447,7 +447,7 @@ export default function CommandEditor() {
       <div className="flex-1 flex flex-col min-w-0">
         {selected && selected._type === '__type_registry__' ? (
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-bg shrink-0">
+            <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-bg shrink-0">
               <div className="flex items-center gap-2">
                 <i className="fas fa-database text-amber-400 text-sm"></i>
                 <span className="text-sm font-medium text-body">类型注册表</span>
@@ -470,13 +470,13 @@ export default function CommandEditor() {
                 spellCheck={false}
               />
             </div>
-            <div className="px-4 py-2 border-t border-gray-700 bg-bg text-[10px] text-muted">
+            <div className="px-4 py-2 border-t border-border bg-bg text-[10px] text-muted">
               编辑 src/runtime/commands/types/value_types.json：paramTypes（类型系统，含 str-var/any-input）、paramTemplates（参数模板，指令 JSON 用 {"{\"$ref\": \"名称\"}"} 引用）、valueTypes（值形状）。
             </div>
           </div>
         ) : selected && selected._type === '__generic_params__' ? (
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-bg shrink-0">
+            <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-bg shrink-0">
               <div className="flex items-center gap-2">
                 <i className="fas fa-sliders-h text-emerald-400 text-sm"></i>
                 <span className="text-sm font-medium text-body">通用参数</span>
@@ -499,13 +499,13 @@ export default function CommandEditor() {
                 spellCheck={false}
               />
             </div>
-            <div className="px-4 py-2 border-t border-gray-700 bg-bg text-[10px] text-muted">
+            <div className="px-4 py-2 border-t border-border bg-bg text-[10px] text-muted">
               common 对所有执行指令生效，extensionOnly 仅对扩展端（DOM操作）指令生效。修改后重启服务器生效。
             </div>
           </div>
         ) : selected && selected._type === '__categories__' ? (
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-bg shrink-0">
+            <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-bg shrink-0">
               <div className="flex items-center gap-2">
                 <i className="fas fa-tags text-purple-400 text-sm"></i>
                 <span className="text-sm font-medium text-body">分类管理</span>
@@ -528,7 +528,7 @@ export default function CommandEditor() {
                 spellCheck={false}
               />
             </div>
-            <div className="px-4 py-2 border-t border-gray-700 bg-bg text-[10px] text-muted">
+            <div className="px-4 py-2 border-t border-border bg-bg text-[10px] text-muted">
               编辑 src/runtime/commands/types/categories.json。此文件是指令分类的唯一真相源。
             </div>
           </div>
@@ -539,7 +539,7 @@ export default function CommandEditor() {
         ) : (
           <>
             {/* Toolbar */}
-            <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between bg-bg shrink-0">
+            <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-bg shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-body">{form.label || form.cmd}</span>
                 <code className="text-[10px] text-muted bg-gray-800 px-1.5 py-0.5 rounded">{form.cmd}</code>
@@ -557,13 +557,13 @@ export default function CommandEditor() {
             {/* 4-column layout */}
             <div className="flex-1 flex min-h-0">
               {/* Col 1: 指令配置 */}
-              <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-faint bg-bg shrink-0">
+              <div className="flex-1 flex flex-col min-w-0 border-r border-border">
+                <div className="px-3 py-1.5 border-b border-border text-[10px] font-medium text-faint bg-bg shrink-0">
                   指令配置
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-3">
                   {/* Basic info */}
-                  <fieldset className="border border-gray-700 rounded p-2.5">
+                  <fieldset className="border border-border rounded p-2.5">
                     <legend className="text-[10px] font-medium text-faint px-1">基本信息</legend>
                     <div className="space-y-2">
                       <div>
@@ -741,7 +741,7 @@ export default function CommandEditor() {
                   </fieldset>
 
                   {/* Handler info (derived from instruction type) */}
-                  <div className="border border-gray-700 rounded p-2.5 bg-[#0a0f1a]/50">
+                  <div className="border border-border rounded p-2.5 bg-[#0a0f1a]/50">
                     <div className="text-[10px] font-medium text-faint mb-1.5">Handler 文件</div>
                     {isControl ? (
                       <div className="text-[10px] text-muted">无需 handler，由流程引擎直接解释执行</div>
@@ -753,7 +753,7 @@ export default function CommandEditor() {
                   </div>
 
                   {/* Params */}
-                  <fieldset className="border border-gray-700 rounded p-2.5">
+                  <fieldset className="border border-border rounded p-2.5">
                     <legend className="text-[10px] font-medium text-faint px-1 flex items-center gap-2">
                       参数
                       <button onClick={addParam} className="text-[10px] text-accent hover:text-accent-strong">+ 添加</button>
@@ -868,8 +868,8 @@ export default function CommandEditor() {
               </div>
 
               {/* Col 2: JSON 预览 */}
-              <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-faint bg-bg shrink-0">
+              <div className="flex-1 flex flex-col min-w-0 border-r border-border">
+                <div className="px-3 py-1.5 border-b border-border text-[10px] font-medium text-faint bg-bg shrink-0">
                   JSON 预览
                 </div>
                 <pre className="flex-1 overflow-auto p-3 text-[10px] text-muted font-mono bg-[#0a0f1a] whitespace-pre-wrap m-0 leading-relaxed">
@@ -878,12 +878,12 @@ export default function CommandEditor() {
               </div>
 
               {/* Col 3: Python Handler 预览 */}
-              <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-faint bg-bg shrink-0">
+              <div className="flex-1 flex flex-col min-w-0 border-r border-border">
+                <div className="px-3 py-1.5 border-b border-border text-[10px] font-medium text-faint bg-bg shrink-0">
                   Python Handler 预览
                 </div>
                 {!isControl && (
-                  <div className="px-3 py-1.5 border-b border-gray-700/50 bg-[#0a0f1a] shrink-0">
+                  <div className="px-3 py-1.5 border-b border-border/50 bg-[#0a0f1a] shrink-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-faint">操作</span>
                       <div className="flex items-center gap-1.5">
@@ -929,11 +929,11 @@ export default function CommandEditor() {
 
               {/* Col 4: JS Handler 预览 */}
               <div className="flex-1 flex flex-col min-w-0">
-                <div className="px-3 py-1.5 border-b border-gray-700 text-[10px] font-medium text-faint bg-bg shrink-0">
+                <div className="px-3 py-1.5 border-b border-border text-[10px] font-medium text-faint bg-bg shrink-0">
                   JS Handler 预览
                 </div>
                 {isExtension && (
-                  <div className="px-3 py-1 border-b border-gray-700/50 bg-[#0a0f1a] shrink-0">
+                  <div className="px-3 py-1 border-b border-border/50 bg-[#0a0f1a] shrink-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-faint">操作</span>
                       <div className="flex items-center gap-1.5">

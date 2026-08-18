@@ -40,8 +40,8 @@ function SidebarLayout({ children }) {
   return (
     <div className="h-screen bg-bg text-body flex overflow-hidden">
       {/* 侧边栏 */}
-      <div className="w-52 bg-surface-2 border-r border-gray-700 flex flex-col shrink-0">
-        <div className="px-4 py-5 flex items-center gap-2 border-b border-gray-700">
+      <div className="w-52 bg-surface-2 border-r border-border flex flex-col shrink-0">
+        <div className="px-4 py-5 flex items-center gap-2 border-b border-border">
           <i className="fas fa-project-diagram text-accent text-lg"></i>
           <span className="font-semibold text-white">RPA Script</span>
         </div>
@@ -105,7 +105,7 @@ function SidebarLayout({ children }) {
         </nav>
 
         {activeRun && (
-          <div className="px-3 py-3 border-t border-gray-700">
+          <div className="px-3 py-3 border-t border-border">
             <div className="bg-accent/15 border border-accent/30 rounded-lg p-2.5">
               <div className="flex items-center gap-2 text-xs text-accent-strong mb-1.5">
                 <i className="fas fa-circle-notch fa-spin"></i>
@@ -124,7 +124,7 @@ function SidebarLayout({ children }) {
           </div>
         )}
         {!activeRun && runResult && (
-          <div className="px-3 py-3 border-t border-gray-700">
+          <div className="px-3 py-3 border-t border-border">
             <div className={`rounded-lg p-2.5 border ${
               runResult.kind === 'success'
                 ? 'bg-ok/10 border-green-600/30'

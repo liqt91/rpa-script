@@ -300,7 +300,7 @@ export default function WorkflowList() {
         )}
 
         {/* 浏览器与扩展状态检测 */}
-        <div className="mb-4 p-3 bg-surface-2 border border-gray-700 rounded-lg">
+        <div className="mb-4 p-3 bg-surface-2 border border-border rounded-lg">
           <div className="flex items-center gap-4 text-sm">
             <span className="text-faint font-medium"><i className="fas fa-browser mr-1"></i>运行环境:</span>
             {(() => {
@@ -364,7 +364,7 @@ export default function WorkflowList() {
             </div>
           )}
           {showInstallGuide && (
-            <div className="mt-2 text-xs text-faint bg-bg border border-gray-700 rounded p-3 space-y-2">
+            <div className="mt-2 text-xs text-faint bg-bg border border-border rounded p-3 space-y-2">
               <p className="font-medium text-muted">浏览器扩展安装步骤：</p>
               <ol className="list-decimal list-inside space-y-1">
                 <li>打开 Chrome 或 Edge 浏览器，进入扩展管理页面（地址栏输入 <code className="text-accent-strong">chrome://extensions</code> 或 <code className="text-accent-strong">edge://extensions</code>）</li>
@@ -390,10 +390,10 @@ export default function WorkflowList() {
             <p className="text-muted text-sm mt-2">点击右上角"新建工作流"开始</p>
           </div>
         ) : (
-          <div className="bg-surface-2 rounded-xl border border-gray-700 overflow-hidden">
+          <div className="bg-surface-2 rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-700 bg-[#252f47]">
+                <tr className="border-b border-border bg-[#252f47]">
                   <th className="text-left px-4 py-3 font-medium text-faint">名称</th>
                   <th className="text-left px-4 py-3 font-medium text-faint w-40 whitespace-nowrap">更新时间</th>
                   <th className="text-right px-4 py-3 font-medium text-faint w-60 whitespace-nowrap">操作</th>
@@ -403,7 +403,7 @@ export default function WorkflowList() {
                 {workflows.map((wf) => (
                   <tr
                     key={wf.id}
-                    className="border-b border-gray-700/50 hover:bg-[#252f47] transition-colors"
+                    className="border-b border-border/50 hover:bg-[#252f47] transition-colors"
                   >
                     <td className="px-4 py-3">
                       <div className="font-medium text-white">{wf.name}</div>
@@ -482,8 +482,8 @@ export default function WorkflowList() {
       {/* Create Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-2 rounded-xl border border-gray-700 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <div className="bg-surface-2 rounded-xl border border-border w-full max-w-md mx-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h2 className="text-lg font-semibold text-white">新建工作流</h2>
               <button
                 onClick={() => { setShowCreate(false); setForm({ name: '', description: '' }); }}
@@ -552,7 +552,7 @@ export default function WorkflowList() {
       {/* Delete Confirm */}
       {deleteId !== null && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-2 rounded-xl border border-gray-700 w-full max-w-sm mx-4 px-6 py-5">
+          <div className="bg-surface-2 rounded-xl border border-border w-full max-w-sm mx-4 px-6 py-5">
             <div className="flex items-center gap-3 mb-3">
               <i className="fas fa-exclamation-triangle text-danger text-lg"></i>
               <h2 className="text-lg font-semibold text-white">确认删除</h2>

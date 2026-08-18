@@ -64,8 +64,8 @@ export default function AIConfigPage() {
   return (
     <div className="flex h-full max-h-full overflow-hidden">
       {/* Sidebar nav */}
-      <div className="w-52 bg-bg border-r border-gray-700 flex flex-col shrink-0">
-        <div className="px-4 py-3 border-b border-gray-700">
+      <div className="w-52 bg-bg border-r border-border flex flex-col shrink-0">
+        <div className="px-4 py-3 border-b border-border">
           <h2 className="text-sm font-semibold text-white">AI 配置</h2>
         </div>
         <nav className="flex-1 py-1 overflow-y-auto">
@@ -75,7 +75,7 @@ export default function AIConfigPage() {
             <NavItem key={s.id} icon={SCENARIO_META[s.id]?.icon || 'fa-circle'} label={SCENARIO_META[s.id]?.label || s.name} active={nav === s.id} onClick={() => setNav(s.id)} />
           ))}
         </nav>
-        <div className="p-3 border-t border-gray-700">
+        <div className="p-3 border-t border-border">
           <button onClick={handleSave} disabled={saving}
             className="w-full py-1.5 rounded bg-accent text-white text-sm hover:bg-accent disabled:opacity-50">
             {saving ? <i className="fas fa-circle-notch fa-spin mr-1" /> : null}{saving ? '保存中' : '保存'}
@@ -177,7 +177,7 @@ function ScenarioEdit({ scenario, meta, updateScenario }) {
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Top bar */}
-      <div className="px-5 py-2.5 border-b border-gray-700 bg-bg shrink-0 flex items-center gap-3">
+      <div className="px-5 py-2.5 border-b border-border bg-bg shrink-0 flex items-center gap-3">
         <h3 className="text-sm font-medium text-white flex items-center gap-2">
           <i className={`fas ${meta?.icon || 'fa-circle'} text-accent text-xs`} />
           {meta?.label || scenario.name}
@@ -206,7 +206,7 @@ function ScenarioEdit({ scenario, meta, updateScenario }) {
 
           {/* Placeholder docs */}
           {meta?.vars?.length > 0 && (
-            <div className="bg-surface-2 border border-gray-700/50 rounded-lg p-4 shrink-0">
+            <div className="bg-surface-2 border border-border/50 rounded-lg p-4 shrink-0">
               <span className="text-xs font-medium text-faint">占位符说明</span>
               <div className="mt-2.5 space-y-2">
                 {meta.vars.map(v => (
@@ -220,7 +220,7 @@ function ScenarioEdit({ scenario, meta, updateScenario }) {
           )}
 
           {/* Test */}
-          <div className="border-t border-gray-700 pt-4 shrink-0">
+          <div className="border-t border-border pt-4 shrink-0">
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted">测试指令</span>
               <select value={testType} onChange={e => setTestType(e.target.value)}

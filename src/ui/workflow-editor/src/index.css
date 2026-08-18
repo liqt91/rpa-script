@@ -236,11 +236,11 @@ html[data-theme="light"] {
   --color-border: oklch(0.88 0.01 250);
   --color-border-strong: oklch(0.8 0.012 250);
   --color-body: oklch(0.28 0.018 250);
-  --color-muted: oklch(0.46 0.014 250);
-  --color-faint: oklch(0.6 0.012 250);
+  --color-muted: oklch(0.44 0.014 250);
+  --color-faint: oklch(0.52 0.014 250);
   --color-inverse: oklch(0.15 0.02 250);
-  --color-accent: oklch(0.55 0.14 245);
-  --color-accent-strong: oklch(0.45 0.15 250);
+  --color-accent: oklch(0.5 0.15 245);
+  --color-accent-strong: oklch(0.42 0.15 250);
   --color-accent-soft: oklch(0.93 0.035 245);
   --color-accent-line: oklch(0.84 0.06 245);
   --color-ok: oklch(0.5 0.12 155);

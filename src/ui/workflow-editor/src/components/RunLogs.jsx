@@ -181,15 +181,15 @@ export default function RunLogs() {
           <span className="ml-3 text-faint">加载中...</span>
         </div>
       ) : runs.length === 0 ? (
-        <div className="bg-surface-2 rounded-xl border border-gray-700 p-12 text-center">
+        <div className="bg-surface-2 rounded-xl border border-border p-12 text-center">
           <i className="fas fa-file-alt text-muted text-4xl mb-4"></i>
           <p className="text-muted">暂无运行记录</p>
         </div>
       ) : (
-        <div className="bg-surface-2 rounded-xl border border-gray-700 overflow-hidden">
+        <div className="bg-surface-2 rounded-xl border border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-700 bg-[#252f47]">
+              <tr className="border-b border-border bg-[#252f47]">
                 <th className="text-left px-4 py-3 font-medium text-faint">流程</th>
                 <th className="text-left px-4 py-3 font-medium text-faint">开始时间</th>
                 <th className="text-left px-4 py-3 font-medium text-faint">触发方式</th>
@@ -200,7 +200,7 @@ export default function RunLogs() {
             </thead>
             <tbody>
               {runs.map((run) => (
-                <tr key={run.id} className="border-b border-gray-700/50 hover:bg-[#252f47] transition-colors">
+                <tr key={run.id} className="border-b border-border/50 hover:bg-[#252f47] transition-colors">
                   <td className="px-4 py-3">
                     <div className="font-medium text-white">{run.workflowName || `流程 #${run.workflowId}`}</div>
                   </td>
@@ -279,8 +279,8 @@ export default function RunLogs() {
       {/* 详情弹窗 */}
       {detailRun && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-2 rounded-xl border border-gray-700 w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <div className="bg-surface-2 rounded-xl border border-border w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="text-lg font-semibold text-white">
                 {detailRun.type === 'log' ? '运行日志' : '数据表格'} — {detailRun.runId}
               </h3>
