@@ -131,6 +131,17 @@ if (Test-Path $venvGi) {
   Write-Host "  已删除 venv/.gitignore（防止 npm 打包排除 venv）"
 }
 
+# 瘦身：删除测试目录 / 帮助文档 / pythonwin IDE 组件（运行不需要，约省 15MB）
+$venvRoot = Join-Path $py "venv"
+$removed = 0
+Get-ChildItem $venvRoot -Recurse -Directory -Filter "__pycache__" -Force -ErrorAction SilentlyContinue | ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; $removed++ }
+Get-ChildItem $venvRoot -Recurse -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -in @("tests", "test") } | ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; $removed++ }
+foreach ($f in @("Lib\site-packages\PyWin32.chm", "Lib\site-packages\pythonwin")) {
+  $p = Join-Path $venvRoot $f
+  if (Test-Path $p) { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue; $removed++ }
+}
+if ($removed -gt 0) { Write-Host "  venv 瘦身完成（清理 $removed 项缓存/测试/文档）" }
+
 # ---------- 4) 清理 + 汇总 ----------
 # 删除 __pycache__ 残留（robocopy 排除不彻底时）
 Get-ChildItem $py -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
