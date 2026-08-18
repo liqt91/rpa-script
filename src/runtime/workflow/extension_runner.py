@@ -1897,7 +1897,8 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
                                   initial_table_data: dict | None = None,
                                   initial_parameters: dict | None = None,
                                   trigger_type: str = "manual",
-                                  element_map: dict | None = None) -> dict:
+                                  element_map: dict | None = None,
+                                  log_dir: str | None = None) -> dict:
     """
     Convenience entry point.
     If client_id is None, connection is deferred until the first extension
@@ -1905,6 +1906,7 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     initial_table_data: {"columns": [...], "rows": [...]} passed from frontend.
     initial_parameters: {"varName": "value"} overrides workflow parameter defaults.
     trigger_type: manual / scheduled
+    log_dir: 显式日志目录（项目模式传 目录/run_logs/{wf_id}/{run_id}）；缺省全局 DATA_DIR。
     """
     import time
     import json as _json
@@ -1912,9 +1914,10 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
 
     _run_id = run_id or f"run_{int(time.time() * 1000)}"
 
-    # 创建日志目录（RPA_LOG_DIR 可覆盖；默认落统一数据根 DATA_DIR）
-    log_root = os.environ.get("RPA_LOG_DIR") or config.DATA_DIR
-    log_dir = os.path.join(log_root, "run_logs", str(wf.id), _run_id)
+    # 创建日志目录：显式 log_dir（项目模式）优先；否则落统一数据根 DATA_DIR
+    if log_dir is None:
+        log_root = os.environ.get("RPA_LOG_DIR") or config.DATA_DIR
+        log_dir = os.path.join(log_root, "run_logs", str(wf.id), _run_id)
     os.makedirs(log_dir, exist_ok=True)
 
     # 提前注册进度队列，让 SSE 在 runner 启动前就能连上（wait_for_extension 可能耗时数秒）
@@ -2084,14 +2087,20 @@ async def run_workflow_project(project_dir: str,
                                initial_table_data: dict | None = None,
                                initial_parameters: dict | None = None,
                                trigger_type: str = "manual") -> dict:
-    """项目模式运行：从目录加载 workflow.json/elements.json 后复用扩展运行引擎。"""
+    """项目模式运行：从目录加载 workflow.json/elements.json 后复用扩展运行引擎。
+
+    日志写回项目目录 run_logs/{wf_id}/{run_id}/（目录为唯一真相）。
+    """
     wf, nodes, element_map = load_project_workflow(project_dir)
+    _run_id = run_id or f"run_{int(time.time() * 1000)}"
+    project_log_dir = os.path.join(project_dir, "run_logs", str(wf.id), _run_id)
     return await run_workflow_extension(
         wf, nodes,
         client_id=client_id,
-        run_id=run_id,
+        run_id=_run_id,
         initial_table_data=initial_table_data,
         initial_parameters=initial_parameters,
         trigger_type=trigger_type,
         element_map=element_map,
+        log_dir=project_log_dir,
     )
