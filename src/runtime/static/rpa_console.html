@@ -38,18 +38,10 @@ label{display:block;margin:10px 0 4px;font-weight:600;font-size:13px}
 <body>
 <header>
   <h1>🔧 RPA 控制台</h1>
-  <span class="hint">本地工具 · 后端 :8000</span>
+  <span class="hint">本地工具 · 免登录 · 端口自动发现</span>
 </header>
 
-<div id="login-box" class="card">
-  <h2>登录</h2>
-  <label>用户名</label><input id="u" value="admin">
-  <label>密码</label><input id="p" type="password" value="admin123">
-  <button class="btn-primary" onclick="login()" style="margin-top:14px">登录</button>
-  <div id="result"></div>
-</div>
-
-<main id="app" class="hidden">
+<main id="app">
   <div class="grid">
     <div class="card">
       <h2>📋 流程列表</h2>
@@ -77,22 +69,7 @@ label{display:block;margin:10px 0 4px;font-weight:600;font-size:13px}
 </main>
 
 <script>
-let token = localStorage.getItem('rpa_token') || '';
-const api = (path, opt={}) => {
-  opt.headers = Object.assign({'Authorization':'Bearer '+token}, opt.headers||{});
-  return fetch('http://127.0.0.1:8000'+path, opt).then(r=>r.json());
-};
-async function login(){
-  const r = await fetch('http://127.0.0.1:8000/api/auth/login',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})});
-  const j = await r.json();
-  if(j.access_token){ token=j.access_token; localStorage.setItem('rpa_token',token);
-    document.getElementById('login-box').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    loadWorkflows();
-  } else { document.getElementById('result').textContent = '登录失败: '+JSON.stringify(j); }
-}
+const api = (path, opt={}) => fetch(path, opt).then(r=>r.json());
 async function loadWorkflows(){
   const j = await api('/api/workflows');
   const rows = Array.isArray(j)?j:(j.workflows||[]);
@@ -131,13 +108,13 @@ async function registerImage(){
   fd.append('similarity',document.getElementById('reg-sim').value||'0.8');
   fd.append('source',document.getElementById('reg-src').value||'');
   fd.append('file',file);
-  const r = await fetch('http://127.0.0.1:8000/api/extension/elements/image',{method:'POST',body:fd});
+  const r = await fetch('/api/extension/elements/image',{method:'POST',body:fd});
   const j = await r.json();
   document.getElementById('reg-result').textContent = JSON.stringify(j,null,2);
   loadElements();
 }
 function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-if(token){ document.getElementById('login-box').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); loadWorkflows(); }
+loadWorkflows();
 </script>
 </body>
 </html>

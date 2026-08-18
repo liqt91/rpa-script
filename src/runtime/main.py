@@ -6,6 +6,9 @@ FastAPI 入口
 import json
 import logging
 import os
+import re
+import secrets
+import socket
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -14,10 +17,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 
-from .auth import get_current_user_from_cookie, get_db
+from .auth import get_db, get_current_user_from_cookie
 
 from src.repo import runtime_models as models
-from .routers.auth_router import router as auth_router
 from .routers.tasks_router import router as tasks_router
 from .routers.workflows_router import router as workflows_router
 from .routers.extension_router import router as extension_router
@@ -28,9 +30,28 @@ from .routers.other_routers import (
     health_router,
 )
 from .routers.public_router import router as public_router
-from .admin_router import router as admin_router
-from src.config.runtime_config import HOST, PORT
 from src.config import runtime_config as config
+from src.config import runtime_config
+
+
+def _pick_free_port(lo: int = 8100, hi: int = 8199) -> int:
+    """在 [lo, hi] 内找一个空闲端口（避免与其他服务冲突）；全占用则返回 0 由 OS 分配。"""
+    for port in range(lo, hi + 1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    return 0
+
+
+# 监听地址：默认仅回环（本机工具，防局域网暴露）；RPA_HOST 可显式覆盖（如 0.0.0.0 远程访问）。
+RPA_HOST = os.environ.get("RPA_HOST", "127.0.0.1")
+# 端口：RPA_PORT 显式固定优先；否则在 8100-8199 随机选空闲（兼容旧 .env 的 PORT=8000 不生效）。
+_env_port = os.environ.get("RPA_PORT", "")
+PORT = int(_env_port) if _env_port.strip() else _pick_free_port()
 
 
 def _sync_ai_apps_to_db(db):
@@ -118,11 +139,25 @@ def _load_commands_from_db(db):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if not config.SECRET_KEY:
-        raise RuntimeError(
-            "SECRET_KEY environment variable is required. "
-            "Set a strong random secret before starting the server."
-        )
+    # SECRET_KEY 兜底：无配置（缺 .env）时生成随机值并持久化到 data/secret.key，
+    # 避免 JWT 用空/默认密钥签名（.env 模板占位 your-secret-key-change-me 同样视为弱）。
+    if not config.SECRET_KEY or config.SECRET_KEY in ("your-secret-key-change-me", "change-me"):
+        secret_file = os.path.join(config.DATA_DIR, "secret.key")
+        try:
+            with open(secret_file, "r", encoding="utf-8") as f:
+                generated = f.read().strip()
+            if not generated:
+                raise OSError
+        except OSError:
+            generated = secrets.token_hex(32)
+            try:
+                with open(secret_file, "w", encoding="utf-8") as f:
+                    f.write(generated)
+            except OSError:
+                pass
+        config.SECRET_KEY = generated
+        runtime_config.SECRET_KEY = generated
+        os.environ["SECRET_KEY"] = generated
     models.init_db()
     from src.repo.migrations import run_migrations
     run_migrations()
@@ -180,10 +215,25 @@ async def not_found_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
 
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# CORS 收窄：仅允许本机页面（127.0.0.1 / localhost / [::1]，任意端口，含 DSH web），
+# 拒绝外部站点的浏览器跨源读取（防恶意网页打本机 API）。
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$",
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def host_guard(request: Request, call_next):
+    """Host 头白名单校验：仅接受本机主机名（含任意端口），防 DNS rebinding。"""
+    host = request.headers.get("host", "").lower()
+    if not re.match(r"^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$", host):
+        return JSONResponse({"detail": "forbidden host"}, status_code=400)
+    return await call_next(request)
 
 # 注册路由
-app.include_router(auth_router)
 app.include_router(tasks_router)
 app.include_router(workflows_router)
 app.include_router(data_tables_router)
@@ -197,7 +247,6 @@ app.include_router(ai_router)
 app.include_router(system_router)
 app.include_router(health_router)
 app.include_router(admin_api_router)
-app.include_router(admin_router)
 app.include_router(public_router)
 
 # Workflow-editor SPA directory
@@ -281,4 +330,13 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("src.runtime.main:app", host=HOST, port=PORT, reload=False, timeout_graceful_shutdown=2)
+    # 端口落盘：扩展/DSH 插件等客户端通过 data/backend.port 发现实际端口
+    try:
+        port_file = os.path.join(config.DATA_DIR, "backend.port")
+        os.makedirs(config.DATA_DIR, exist_ok=True)
+        with open(port_file, "w", encoding="utf-8") as f:
+            f.write(str(PORT))
+    except OSError:
+        pass
+    print(f"[startup] binding {RPA_HOST}:{PORT} (backend.port written to {config.DATA_DIR})")
+    uvicorn.run("src.runtime.main:app", host=RPA_HOST, port=PORT, reload=False, timeout_graceful_shutdown=2)

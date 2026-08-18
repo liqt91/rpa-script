@@ -1,38 +1,26 @@
 """
-认证：JWT 签发与校验
+认证（已简化）：本机单人工具，密码功能已移除。
+
+- 所有依赖 `get_current_user` 的 API 端点直接以 admin 默认身份放行（免登录）。
+- 不再签发/校验 JWT，不再有登录/改密入口。
+- `hash_password` 保留仅供启动时种子 admin 用户行（历史数据兼容，无安全语义）。
 """
 
-from jose import JWTError, jwt
 import bcrypt
-import os
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from types import SimpleNamespace
+from fastapi import Depends, Request
+from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.config import runtime_config as config
 from src.repo import runtime_models as models
-from src.config.utils import utcnow
 
 
 security = HTTPBearer()
-
-# 本机免认证：单机工具默认无需登录（无凭据时以 admin 身份放行）。
-# 设环境变量 RPA_AUTH_DISABLED=0 恢复原认证行为（对外部署时用）。
-_AUTH_DISABLED = os.environ.get("RPA_AUTH_DISABLED", "1") != "0"
+_optional_security = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
-
-
-def create_access_token(user_id: int, username: str) -> str:
-    expire = utcnow() + config.ACCESS_TOKEN_EXPIRE
-    payload = {"sub": str(user_id), "username": username, "exp": expire}
-    return jwt.encode(payload, config.SECRET_KEY, algorithm=config.ALGORITHM)
 
 
 def get_db():
@@ -44,77 +32,26 @@ def get_db():
         db.close()
 
 
-# ---------- Cookie auth (for admin panel) ----------
-
-def get_current_user_from_cookie(request: Request, db: Session = Depends(get_db)) -> models.User:
-    """从 request cookie 中读取 JWT token 并验证用户。"""
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_302_FOUND,
-            headers={"Location": "/admin/login"},
-        )
+def _default_user(db: Session):
+    """默认身份（admin）：优先取数据库种子行，缺失时返回虚拟对象（兼容 user.id/username 用法）。"""
     try:
-        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
-        user_id = int(payload.get("sub"))
-    except (JWTError, ValueError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_302_FOUND,
-            headers={"Location": "/admin/login"},
-        )
-
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_302_FOUND,
-            headers={"Location": "/admin/login"},
-        )
-    return user
-
-
-# ---------- Header + Cookie auth (unified) ----------
-
-# 允许空 header（用于 cookie fallback）
-_optional_security = HTTPBearer(auto_error=False)
-
-
-def _default_user(db: Session) -> models.User | None:
-    """免认证模式的默认身份：admin（启动时种子必然存在）。"""
-    return db.query(models.User).filter(models.User.username == "admin").first()
+        user = db.query(models.User).filter(models.User.username == "admin").first()
+        if user:
+            return user
+    except Exception:
+        pass
+    return SimpleNamespace(id=1, username="admin")
 
 
 def get_current_user(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_security),
-    db: Session = Depends(get_db)
-) -> models.User:
-    """从 JWT 解析当前用户。支持两种方式：
-    1. Authorization: Bearer <token>（API 客户端）
-    2. Cookie: access_token=<token>（管理后台页面）
+    credentials=None,
+    db: Session = Depends(get_db),
+):
+    """本机免认证：忽略凭据，始终返回 admin 默认身份。"""
+    return _default_user(db)
 
-    本机免认证模式（RPA_AUTH_DISABLED 默认开）：无凭据时返回 admin 默认用户，
-    打开即用；携带凭据时仍严格校验（过期/无效 token 依旧 401）。
-    """
-    token = None
-    if credentials:
-        token = credentials.credentials
-    if not token:
-        token = request.cookies.get("access_token")
 
-    if not token:
-        if _AUTH_DISABLED:
-            user = _default_user(db)
-            if user:
-                return user
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未提供认证令牌")
-
-    try:
-        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
-        user_id = int(payload.get("sub"))
-    except (JWTError, ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的认证令牌")
-
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在")
-    return user
+def get_current_user_from_cookie(request: Request, db: Session = Depends(get_db)):
+    """兼容占位：不再需要 cookie 登录，返回 None（调用方按未登录处理）。"""
+    return None

@@ -8,9 +8,62 @@
 
 const DEFAULT_BACKEND_HOST = 'localhost';
 const DEFAULT_BACKEND_PORT = 8811;
+// 后端随机端口范围（与后端 _pick_free_port 保持一致）：8100-8199
+const PORT_DISCOVER_LO = 8100;
+const PORT_DISCOVER_HI = 8199;
+const PORT_DISCOVER_CHUNK = 25;
 
 function buildWsUrl(host, port) {
   return `ws://${host}:${port}/api/extension/ws`;
+}
+
+async function probeBackendHealth(host, port, timeoutMs = 600) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const r = await fetch(`http://${host}:${port}/health`, { signal: ctrl.signal, cache: 'no-store' });
+    clearTimeout(t);
+    return r.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * 自动发现后端端口：先试 storage 缓存的端口；不通则在 8100-8199 范围
+ * 分块并发探测 /health，命中后写回 storage（后端随机端口自适配）。
+ * @returns {Promise<number|null>}
+ */
+async function discoverBackendPort(host, preferred) {
+  const candidates = [];
+  if (preferred && preferred >= 1024) candidates.push(preferred);
+  for (let p = PORT_DISCOVER_LO; p <= PORT_DISCOVER_HI; p++) candidates.push(p);
+  for (let i = 0; i < candidates.length; i += PORT_DISCOVER_CHUNK) {
+    const chunk = candidates.slice(i, i + PORT_DISCOVER_CHUNK);
+    const results = await Promise.all(chunk.map(p => probeBackendHealth(host, p).then(ok => (ok ? p : 0))));
+    const found = results.find(p => p > 0);
+    if (found) {
+      try {
+        await chrome.storage.local.set({ backendHost: host, backendPort: String(found) });
+      } catch (e) {}
+      console.log('[Agent] backend discovered on port', found);
+      return found;
+    }
+  }
+  return null;
+}
+
+/** 连接地址：缓存端口优先（立即连），失败自动发现新端口。 */
+async function getBackendUrlWithDiscovery() {
+  const cfg = await chrome.storage.local.get(['backendHost', 'backendPort']);
+  const host = cfg.backendHost || DEFAULT_BACKEND_HOST;
+  const preferred = parseInt(cfg.backendPort || '0', 10);
+  if (preferred && (await probeBackendHealth(host, preferred, 400))) {
+    return buildWsUrl(host, preferred);
+  }
+  const port = await discoverBackendPort(host, preferred);
+  if (port) return buildWsUrl(host, port);
+  return buildWsUrl(host, preferred || DEFAULT_BACKEND_PORT);
 }
 
 async function getBackendUrl() {
@@ -109,7 +162,7 @@ class AgentBackground {
       }
     } catch (_) {}
 
-    const wsUrl = await getBackendUrl();
+    const wsUrl = await getBackendUrlWithDiscovery();
     this._connect(wsUrl);
 
     // 点击扩展图标自动打开原生 Side Panel
@@ -171,10 +224,10 @@ class AgentBackground {
     };
 
     this.ws.onclose = () => {
-      console.log('[Agent] WS closed, reconnecting in 3s...');
+      console.log('[Agent] WS closed, reconnecting with port discovery in 3s...');
       this._stopPing();
       this.reconnectTimer = setTimeout(async () => {
-        const url = await getBackendUrl();
+        const url = await getBackendUrlWithDiscovery();
         this._connect(url);
       }, 3000);
     };
@@ -695,14 +748,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // async
   }
 
-  // 0) 选项页面请求立即重连
+  // 0) 选项页面请求立即重连（自动发现端口）
   if (message.action === 'reconnect') {
     (async () => {
       try {
         const host = message.host || DEFAULT_BACKEND_HOST;
-        const port = message.port || DEFAULT_BACKEND_PORT;
-        await chrome.storage.local.set({ backendHost: host, backendPort: String(port) });
-        const wsUrl = buildWsUrl(host, port);
+        const port = message.port ? parseInt(message.port, 10) : 0;
+        await chrome.storage.local.set({ backendHost: host });
+        const wsUrl = port
+          ? buildWsUrl(host, port)
+          : await getBackendUrlWithDiscovery();
+        if (port) await chrome.storage.local.set({ backendPort: String(port) });
         agent._connect(wsUrl);
         await new Promise(r => setTimeout(r, 1000));
         sendResponse({ connected: agent.ws?.readyState === WebSocket.OPEN });
@@ -1086,7 +1142,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     console.log('[Agent] keepAlive alarm');
     if (!agent.ws || agent.ws.readyState !== WebSocket.OPEN) {
       console.log('[Agent] reconnecting from keepAlive alarm');
-      const wsUrl = await getBackendUrl();
+      const wsUrl = await getBackendUrlWithDiscovery();
       agent._connect(wsUrl);
     } else {
       // WS 正常，发送 ping 保持连接活跃

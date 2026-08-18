@@ -711,22 +711,13 @@ export default function Toolbar() {
           </button>
         </div>
 
-        {/* 右侧：用户信息 */}
+        {/* 右侧：用户信息（免登录，仅展示） */}
         <div className="flex items-center gap-3">
           {typeof window !== 'undefined' && window.__USER__ ? (
-            <>
-              <div className="flex items-center gap-1.5 text-xs text-muted">
-                <i className="fas fa-user-circle text-faint"></i>
-                <span className="font-medium">{window.__USER__.username}</span>
-              </div>
-              <a
-                href="/admin/logout"
-                className="text-xs text-faint hover:text-danger transition-colors"
-                title="退出登录"
-              >
-                <i className="fas fa-sign-out-alt"></i>
-              </a>
-            </>
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <i className="fas fa-user-circle text-faint"></i>
+              <span className="font-medium">{window.__USER__.username}</span>
+            </div>
           ) : (
             <span className="text-xs text-faint">workflow-editor</span>
           )}

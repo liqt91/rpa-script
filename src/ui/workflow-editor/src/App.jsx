@@ -5,7 +5,6 @@ import Layout from './components/Layout';
 import WorkflowList from './components/WorkflowList';
 import RunLogs from './components/RunLogs';
 import Schedules from './components/Schedules';
-import AdminPassword from './components/admin/AdminPassword';
 import CommandEditor from './components/CommandEditor';
 import AIConfigPage from './components/AIConfigPage';
 
@@ -80,17 +79,6 @@ function SidebarLayout({ children }) {
           >
             <i className="fas fa-file-alt w-4 text-center"></i>
             运行日志
-          </NavLink>
-          <NavLink
-            to="/admin/password"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
-              }`
-            }
-          >
-            <i className="fas fa-lock w-4 text-center"></i>
-            修改密码
           </NavLink>
           <NavLink
             to="/commands/definitions"
@@ -186,7 +174,6 @@ function App() {
           <Route path="/" element={<SidebarLayout><WorkflowList /></SidebarLayout>} />
           <Route path="/logs" element={<SidebarLayout><RunLogs /></SidebarLayout>} />
           <Route path="/schedules" element={<SidebarLayout><Schedules /></SidebarLayout>} />
-          <Route path="/admin/password" element={<SidebarLayout><AdminPassword /></SidebarLayout>} />
           <Route path="/commands/definitions" element={<SidebarLayout><CommandEditor /></SidebarLayout>} />
           <Route path="/ai-config" element={<SidebarLayout><AIConfigPage /></SidebarLayout>} />
           <Route path="/editor/:id" element={<EditorPage />} />

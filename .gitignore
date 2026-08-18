@@ -36,6 +36,8 @@ build/
 server.log
 
 # Runtime logs, temp deliverables and generated data
+data/backend.port
+data/secret.key
 data/run_logs/
 data/workflows/
 tmp/

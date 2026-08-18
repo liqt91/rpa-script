@@ -3,8 +3,8 @@
 RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建步骤）。
 
 让 DSH 用自然语言**构建 + 运行** RPA 流程：健康检查、按需指令目录、文件式工作流导入、
-异步运行控制、浏览器实时指令。直接 fetch 调后端 REST（**不经 MCP 双跳**），认证机制与
-`src/mcp_server/client.py` 一致（Bearer token + 401 重登一次）。
+异步运行控制、浏览器实时指令。直接 fetch 调后端 REST（**不经 MCP 双跳**），
+后端**免认证**（本机单人工具，登录/密码功能已移除；`RPA_AUTH_DISABLED=0` 可恢复认证）。
 
 ## 工具集（13 个）
 
@@ -28,7 +28,8 @@ RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建�
 |---|---|
 | 后台服务 | **T1**：插件托管 Python 后端（激活时拉起、配置 `autoStartBackend`），用户无感 |
 | 并行 | 先单流程（默认容量 1），并行后置 |
-| 认证 | 保持后端登录，**DSH 代管凭证**（token 或 username+password，401 自动重登） |
+| 认证 | **已移除密码功能**：后端免认证（本机单人工具）；`RPA_AUTH_DISABLED=0` 可恢复（对外部署） |
+| 端口 | **随机 8100-8199**（`RPA_PORT` 可固定），写 `data/backend.port`；插件/扩展自动发现 |
 | 页面 | 独立页面（:8000）+ **DSH 内嵌抽屉**（client 半身，侧边栏 ⚙ 展开 iframe 内嵌 workflow-editor）+ `/rpa` 跳转 |
 | NL 生成 | 模型直接产出节点 JSON，C1–C4 向量匹配不做 |
 | 扩展安装 | 桌面安装器自动注入（External Extensions JSON） |
@@ -108,7 +109,9 @@ npm publish --prefix rpa-dsh-plugin
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `RPA_API_TOKEN` / `RPA_USERNAME` / `RPA_PASSWORD` | admin/admin123 | 后端认证（401 自动重登） |
+| `RPA_API_TOKEN` / `RPA_USERNAME` / `RPA_PASSWORD` | admin/admin123 | **已弃用**（后端免认证，保留兼容） |
+| `RPA_PORT` | 随机 8100-8199 | 固定后端端口（默认随机，写 `data/backend.port`） |
+| `RPA_HOST` | 127.0.0.1 | 监听地址（默认仅回环；远程访问设 0.0.0.0） |
 | `RPA_AUTOSTART_BACKEND` | 开（非 `'0'`） | 激活时自动拉起后端 |
 | `RPA_BACKEND_COMMAND` / `RPA_BACKEND_CWD` | 空（npm 形态自举） | 本地形态指向仓库 venv |
 | `RPA_BROWSER_EXEC_TIMEOUT_MS` / `RPA_WAIT_POLL_MS` | 30000 / 1500 | 超时与轮询 |
@@ -216,4 +219,5 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.dsh\profiles\web\rol
   只留 `rpa-dsh-plugin` 后 `pnpm install`。
 - 扩展连接单实例容量 1：运行中 `rpa_browser_exec` 会 409，`allow_during_run=true` 可强制。
 - 桌面指令（Win32/UIA）仅 Windows。
-- 认证默认种子 `admin/admin123`，首次使用请改。
+- 免认证（本机工具）：默认绑定 127.0.0.1 + 随机端口 + CORS 仅本机 + Host 头校验；
+  对外部署设 `RPA_HOST=0.0.0.0`、`RPA_AUTH_DISABLED=0` 并配置强 `SECRET_KEY`。

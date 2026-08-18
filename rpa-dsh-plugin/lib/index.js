@@ -30,7 +30,7 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import z from "@deepseek-ai/schemastery";
 import { spawn, execFile } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -45,7 +45,9 @@ const name = "rpa-bridge";
 const inject = ["tools", "systemPrompt"];
 
 const Config = z.object({
-  backendUrl: z.string().default("http://127.0.0.1:8000"),
+  // 后端地址：留空自动从端口文件发现（随机端口 8100-8199）；也可显式固定
+  backendUrl: z.string().default(""),
+  // 以下字段保留兼容旧配置，后端已免认证（RPA_AUTH_DISABLED 默认开），不再使用
   token: z.string().default(""),
   username: z.string().default(""),
   password: z.string().default(""),
@@ -164,36 +166,30 @@ async function resolveBackendLaunch(cfg, log) {
 }
 
 /* ------------------------------------------------------------------ */
-/* 迷你 REST 客户端（镜像 src/mcp_server/client.py 的认证逻辑）        */
+/* 迷你 REST 客户端（后端免认证：RPA_AUTH_DISABLED 默认开，无需 JWT）  */
 /* ------------------------------------------------------------------ */
 
-function createApi(cfg) {
-  const base = cfg.backendUrl.replace(/\/+$/, "");
-  let token = cfg.token || "";
-
-  async function ensureToken() {
-    if (token) return token;
-    const { username, password } = cfg;
-    if (!username || !password) {
-      throw new Error("RPA 未配置认证：请设置 token 或 username/password");
-    }
-    const resp = await fetch(`${base}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok || !data.access_token) {
-      throw new Error(`RPA 登录失败 HTTP ${resp.status}: ${JSON.stringify(data).slice(0, 200)}`);
-    }
-    token = data.access_token;
-    return token;
+/** 解析后端 base URL：配置 backendUrl 优先；否则读端口文件（随机端口自动适配）。 */
+function resolveBackendUrl(cfg) {
+  const explicit = (cfg.backendUrl || "").trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const candidates = [];
+  if (process.env.RPA_DATA_DIR) candidates.push(join(process.env.RPA_DATA_DIR, "backend.port"));
+  candidates.push(join(defaultDataDir(), "backend.port")); // ~/.dsh/rpa-data
+  if (cfg.backendCwd) candidates.push(join(cfg.backendCwd, "data", "backend.port"));
+  candidates.push(join(process.cwd(), "data", "backend.port"));
+  for (const f of candidates) {
+    try {
+      const port = readFileSync(f, "utf8").trim();
+      if (/^\d+$/.test(port)) return `http://127.0.0.1:${port}`;
+    } catch {}
   }
+  return "http://127.0.0.1:8000"; // 兜底（旧版固定端口）
+}
 
-  async function request(method, path, { auth = true, body, signal, timeoutMs } = {}) {
+function createApi(cfg) {
+  async function request(method, path, { body, signal, timeoutMs } = {}) {
     const headers = {};
-    if (auth) headers.Authorization = `Bearer ${await ensureToken()}`;
     if (body !== undefined) headers["Content-Type"] = "application/json";
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs ?? 60000);
@@ -201,23 +197,13 @@ function createApi(cfg) {
       signal.addEventListener("abort", () => controller.abort(), { once: true });
     }
     try {
+      const base = resolveBackendUrl(cfg); // 每次请求解析：后端重启换端口自动适配
       let resp = await fetch(`${base}${path}`, {
         method,
         headers,
         signal: controller.signal,
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
-      if (resp.status === 401 && auth && !cfg.token) {
-        // 登录拿到的 token 过期 → 重登一次再试
-        token = "";
-        headers.Authorization = `Bearer ${await ensureToken()}`;
-        resp = await fetch(`${base}${path}`, {
-          method,
-          headers,
-          signal: controller.signal,
-          ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        });
-      }
       const text = await resp.text();
       let data = {};
       if (text) {
@@ -237,6 +223,20 @@ function createApi(cfg) {
     get: (p, o) => request("GET", p, o),
     post: (p, o) => request("POST", p, o),
   };
+}
+
+/** spawn 后端后轮询等待其就绪（随机端口：等端口文件 + health）。 */
+async function waitForBackendReady(cfg, timeoutMs = 30000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const api = createApi(cfg);
+      await api.get("/health", { timeoutMs: 1500 });
+      return true;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return false;
 }
 
 /* ------------------------------------------------------------------ */
@@ -348,6 +348,13 @@ function apply(ctx, config) {
         child.unref();
         ownedBackend = child;
         ctx.logger.info(`[rpa-bridge] 已托管启动后端（owned，dispose 时回收）${launch.command}`);
+        // 随机端口：轮询端口文件 + health，确认后端就绪（最长 30s）
+        const ready = await waitForBackendReady(config, 30000);
+        if (ready) {
+          ctx.logger.info("[rpa-bridge] 后端就绪（自动发现端口）");
+        } else {
+          ctx.logger.warn("[rpa-bridge] 后端 30s 内未就绪，工具调用可能失败");
+        }
       } catch (e) {
         ctx.logger.warn(`[rpa-bridge] 后端启动异常: ${e.message}`);
       }
