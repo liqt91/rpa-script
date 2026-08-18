@@ -385,6 +385,30 @@ function apply(ctx, config) {
   });
 
   /* -------- 启动/重启后端（client 抽屉按钮触发，经 dsh web 同源 HTTP） -------- */
+  /** 通过 netstat 找监听某端口的进程 PID（Windows）。 */
+  const findPortPid = (port) => new Promise((resolve) => {
+    execFile("netstat", ["-ano"], { timeout: 5000 }, (err, stdout) => {
+      if (err) return resolve(null);
+      const lines = String(stdout).split(/\r?\n/);
+      for (const line of lines) {
+        const m = line.trim().match(/TCP\s+[^\s]+:(\d+)\s+\S+\s+LISTENING\s+(\d+)/);
+        if (m && Number(m[1]) === Number(port)) return resolve(Number(m[2]));
+      }
+      resolve(null);
+    });
+  });
+  /** 杀掉监听指定端口的进程（外部托管时接管用）。 */
+  const killPortOwner = async (port) => {
+    const pid = await findPortPid(port);
+    if (!pid) return false;
+    if (process.platform === "win32") {
+      await new Promise((r) => execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => r()));
+    } else {
+      try { process.kill(pid, "SIGTERM"); } catch {}
+    }
+    return true;
+  };
+
   const startBackendProcess = async (action) => {
     const probe = async () => {
       try { await api.get("/health", { timeoutMs: 2000 }); return true; } catch { return false; }
@@ -394,17 +418,31 @@ function apply(ctx, config) {
       return { ok: true, already: true };
     }
     if (alive && action === "restart") {
-      if (!ownedBackend) {
-        return { ok: false, error: "后端由外部托管（非插件启动），请手动重启" };
-      }
+      // 无论是否插件托管，restart 语义 = 接管：先停掉占用当前端口的进程，再拉起。
+      // 外部托管（如 agent/桌面版启动）也会被接管，此后 ownedBackend 归插件，可再次重启。
+      let stopped = false;
       try {
-        const pid = ownedBackend.pid;
-        if (process.platform === "win32") {
-          execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => {});
+        if (ownedBackend) {
+          const pid = ownedBackend.pid;
+          if (process.platform === "win32") {
+            await new Promise((r) => execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => r()));
+          } else {
+            ownedBackend.kill();
+          }
+          ownedBackend = null;
+          stopped = true;
         } else {
-          ownedBackend.kill();
+          // 外部托管：解析端口文件 → 杀端口占用进程
+          const base = resolveBackendUrl(config);
+          const m = base.match(/:(\d+)$/);
+          if (m) {
+            stopped = await killPortOwner(m[1]);
+            ctx.logger.info(`[rpa-bridge] 接管重启：停止外部后端（端口 ${m[1]}）`);
+          }
         }
-        ownedBackend = null;
+        if (!stopped) {
+          return { ok: false, error: "未找到后端进程，可能已停止（尝试直接启动）" };
+        }
         await new Promise((r) => setTimeout(r, 2000));
       } catch (e) {
         return { ok: false, error: `停止后端失败: ${e.message}` };
