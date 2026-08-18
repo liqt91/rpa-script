@@ -1,4 +1,4 @@
-# install-dsh-plugin.ps1 — 一键安装 rpa-dsh-plugin 到 dsh web profile（本地形态）
+﻿# install-dsh-plugin.ps1 — 一键安装 rpa-dsh-plugin 到 dsh web profile（本地形态）
 #
 # 用户在仓库根执行：
 #   powershell -ExecutionPolicy Bypass -File scripts/install-dsh-plugin.ps1
@@ -16,6 +16,20 @@
 #   # 插件激活时自动在包内 python/ 自举 venv（uv 优先）
 
 $ErrorActionPreference = "Stop"
+
+# PowerShell 5.1 下 native 命令 stderr + ErrorActionPreference=Stop 会抛
+# NativeCommandError 中断脚本；捕获外部命令输出前临时降级。
+function Invoke-NativeCapture {
+  param([scriptblock]$Block, [string[]]$ArgsList)
+  $prevEA = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    return & $Block @ArgsList 2>&1 | Out-String
+  } finally {
+    $ErrorActionPreference = $prevEA
+  }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $profileDir = Join-Path $env:USERPROFILE ".dsh\profiles\web"
 $pluginName = "rpa-dsh-plugin"
@@ -26,7 +40,7 @@ Write-Host "== rpa-dsh-plugin 一键安装（dsh web profile）=="
 if (-not (Get-Command dsh -ErrorAction SilentlyContinue)) {
   throw "未找到 dsh 命令。请先安装 DeepSeek Harness (dsh) 并加入 PATH。"
 }
-Write-Host "dsh: $(dsh --version 2>&1)"
+Write-Host "dsh: $((Invoke-NativeCapture { dsh } -ArgsList @('--version')).Trim())"
 
 # ---------- 1) 检查 pnpm ----------
 if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
@@ -34,7 +48,7 @@ if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
   npm install -g pnpm
   if ($LASTEXITCODE -ne 0) { throw "pnpm 安装失败" }
 }
-Write-Host "pnpm: $(pnpm --version 2>&1)"
+Write-Host "pnpm: $((Invoke-NativeCapture { pnpm } -ArgsList @('--version')).Trim())"
 
 # ---------- 2) dsh plugin add（官方方式，自动协调 bundles + 应用 bundle patch）----------
 Write-Host "`n== dsh plugin --profile web add file:./$pluginName =="
@@ -90,7 +104,7 @@ Write-Host "`n已写入 profile 覆盖: backendCommand -> $venvPy"
 
 # ---------- 5) 验证 ----------
 Write-Host "`n== 验证（dsh --dump-config）=="
-$dump = dsh --profile web --dump-config 2>&1
+$dump = Invoke-NativeCapture { dsh } -ArgsList @('--profile', 'web', '--dump-config')
 $match = $dump | Select-String -Pattern "id: rpa" 
 if ($match) {
   Write-Host "✅ rpa 实例已加载"

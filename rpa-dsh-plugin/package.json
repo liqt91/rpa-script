@@ -29,8 +29,8 @@
     }
   },
   "scripts": {
-    "build:backend": "powershell -ExecutionPolicy Bypass -File ../../scripts/build-plugin-package.ps1 -BackendOnly",
-    "prepack": "pwsh -NoProfile -File ../../scripts/build-plugin-package.ps1"
+    "build:backend": "node ../scripts/run-build.cjs -BackendOnly",
+    "prepack": "node ../scripts/run-build.cjs"
   },
   "engines": {
     "node": ">=18"

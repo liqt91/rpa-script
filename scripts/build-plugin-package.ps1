@@ -1,4 +1,4 @@
-# build-plugin-package.ps1 — 构建 rpa-dsh-plugin 的 npm 发布包
+﻿# build-plugin-package.ps1 — 构建 rpa-dsh-plugin 的 npm 发布包
 #
 # 职责：
 #   1. 把后端最小运行集（src 7 个包 + commands/ 指令 JSON + requirements.txt）
@@ -59,8 +59,17 @@ if (-not $SkipFrontend) {
     Write-Host "`n== 构建前端产物 =="
     Push-Location $feDir
     try {
-      $buildOut = npm run build 2>&1 | Out-String
-      if ($LASTEXITCODE -ne 0) {
+      # PowerShell 5.1 下 ErrorActionPreference=Stop 时，native 命令的 stderr
+      # （npm banner/警告）会抛 NativeCommandError 中断脚本；临时降级再取真实退出码。
+      $prevEA = $ErrorActionPreference
+      $ErrorActionPreference = "Continue"
+      try {
+        $buildOut = npm run build 2>&1 | Out-String
+        $buildExit = $LASTEXITCODE
+      } finally {
+        $ErrorActionPreference = $prevEA
+      }
+      if ($buildExit -ne 0) {
         Write-Host "  ⚠ vite build 失败（$($buildOut.Split("`n") | Select-Object -Last 2)）"
         Write-Host "  将回退使用已有产物（若 src/runtime/static/workflow-editor/ 存在）"
       }
