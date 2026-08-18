@@ -733,19 +733,25 @@ function apply(ctx, config) {
   /* -------- workflow-editor 静态托管（页面免后端：dsh web serve 编辑器） -------- */
   try {
     const editorRoot = editorStaticRoot();
+    const EDITOR_PREFIX = "/rpa-editor"; // 无尾斜杠：prefix 匹配用 startsWith(prefix + "/")
     ctx.webServer.register({
       kind: "prefix",
-      path: "/rpa-editor/",
+      path: EDITOR_PREFIX,
       handler: async (req, res) => {
         if (req.method !== "GET" && req.method !== "HEAD") {
           res.writeHead(405, { "Content-Type": "text/plain" });
           res.end("method not allowed");
           return;
         }
-        serveStatic(editorRoot, new URL(req.url ?? "/", "http://x").pathname, res);
+        const pathname = new URL(req.url ?? "/", "http://x").pathname;
+        // 剥掉 /rpa-editor 前缀 → 相对路径（如 /assets/x.js）
+        const rel = pathname.startsWith(EDITOR_PREFIX)
+          ? pathname.slice(EDITOR_PREFIX.length) || "/"
+          : pathname;
+        serveStatic(editorRoot, rel, res);
       },
     }, "rpa-bridge: workflow-editor static");
-    ctx.logger.info(`[rpa-bridge] 已托管 workflow-editor（/rpa-editor/，源 ${editorRoot}）—— 编辑页免后端`);
+    ctx.logger.info(`[rpa-bridge] 已托管 workflow-editor（${EDITOR_PREFIX}/，源 ${editorRoot}）—— 编辑页免后端`);
   } catch (e) {
     ctx.logger.warn(`[rpa-bridge] 注册 workflow-editor 静态托管失败: ${e.message}`);
   }
