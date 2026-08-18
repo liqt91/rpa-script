@@ -226,11 +226,18 @@ if os.path.isdir(_images_root):
 
 
 def _inject_user_to_index(user):
-    """Read index.html and inject window.__USER__ before serving."""
+    """Read index.html and inject window.__USER__ before serving.
+
+    本机工具免登录：user 为 None 时注入 null（前端有占位兜底），
+    已登录（有效 cookie）时注入真实用户信息。
+    """
     index_path = os.path.join(_static_dir, "index.html")
     with open(index_path, "r", encoding="utf-8") as f:
         html = f.read()
-    user_data = json.dumps({"id": user.id, "username": user.username}, ensure_ascii=False)
+    if user is None:
+        user_data = "null"
+    else:
+        user_data = json.dumps({"id": user.id, "username": user.username}, ensure_ascii=False)
     inject = f'<script>window.__USER__={user_data}</script>'
     return html.replace("<head>", f"<head>\n    {inject}")
 
@@ -238,11 +245,16 @@ def _inject_user_to_index(user):
 @app.get("/workflow-editor/")
 @app.get("/workflow-editor/{path:path}")
 def workflow_editor_spa(request: Request, path: str = "", db: Session = Depends(get_db)):
-    """Serve workflow-editor SPA with cookie auth. Inject user info into HTML."""
+    """Serve workflow-editor SPA（本机工具：免登录，不重定向登录页）。
+
+    有效 cookie 则注入用户信息（右上角显示用户名）；无 cookie 直接进入
+    （前端以占位显示）。静态文件与 SPA 入口逻辑不变。
+    """
+    user = None
     try:
         user = get_current_user_from_cookie(request, db)
     except HTTPException:
-        return RedirectResponse(url="/admin/login?next=" + str(request.url))
+        user = None
 
     # If path looks like a static file, serve it directly
     if path and "." in path:

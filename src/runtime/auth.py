@@ -4,6 +4,7 @@
 
 from jose import JWTError, jwt
 import bcrypt
+import os
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -14,6 +15,10 @@ from src.config.utils import utcnow
 
 
 security = HTTPBearer()
+
+# 本机免认证：单机工具默认无需登录（无凭据时以 admin 身份放行）。
+# 设环境变量 RPA_AUTH_DISABLED=0 恢复原认证行为（对外部署时用）。
+_AUTH_DISABLED = os.environ.get("RPA_AUTH_DISABLED", "1") != "0"
 
 
 def hash_password(password: str) -> str:
@@ -73,6 +78,11 @@ def get_current_user_from_cookie(request: Request, db: Session = Depends(get_db)
 _optional_security = HTTPBearer(auto_error=False)
 
 
+def _default_user(db: Session) -> models.User | None:
+    """免认证模式的默认身份：admin（启动时种子必然存在）。"""
+    return db.query(models.User).filter(models.User.username == "admin").first()
+
+
 def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_optional_security),
@@ -81,6 +91,9 @@ def get_current_user(
     """从 JWT 解析当前用户。支持两种方式：
     1. Authorization: Bearer <token>（API 客户端）
     2. Cookie: access_token=<token>（管理后台页面）
+
+    本机免认证模式（RPA_AUTH_DISABLED 默认开）：无凭据时返回 admin 默认用户，
+    打开即用；携带凭据时仍严格校验（过期/无效 token 依旧 401）。
     """
     token = None
     if credentials:
@@ -89,6 +102,10 @@ def get_current_user(
         token = request.cookies.get("access_token")
 
     if not token:
+        if _AUTH_DISABLED:
+            user = _default_user(db)
+            if user:
+                return user
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未提供认证令牌")
 
     try:
