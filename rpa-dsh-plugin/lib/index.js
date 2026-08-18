@@ -844,50 +844,65 @@ function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: "rpa_project_list",
-    description: "列出所有 RPA 流程工作区（含 rpa.json 的 DSH 工作区目录）：名称、绝对路径、是否有 workflow.json、节点数，并标注哪个是当前会话所在目录（current:true）。运行流程前先调本工具：若 current:true 存在，直接 rpa_run_start() 不带参数即可运行当前会话的流程（纯 node 侧，不依赖后端）。",
+    description: "列出所有 RPA 流程工作区（含 rpa.json 的目录）：名称、绝对路径、节点数，并标注哪个是当前会话所在目录（current:true）。运行流程快捷链路：① 调本工具 → ② 若存在 current:true，直接 rpa_run_start() 不带参数运行当前流程；③ 否则用列出的 path 调 rpa_run_start(project=path)。本工具不依赖后端/工作区注册，当前会话目录含 rpa.json 就一定能列出（current:true）。不要为找流程去探测浏览器/翻文件系统/查 API。",
     parameters: {},
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
-    // 不走 withEnsure：纯 node fs + workspaceRegistry
+    // 不走 withEnsure：纯 node fs，零后端/零 registry 依赖
     execute: async (_args, exec) => {
       const sessionCwd = exec?.agent?.session?.header?.cwd;
       const projects = [];
       const seen = new Set();
+
+      // 统一收集一个目录的信息（有 rpa.json 才收）
+      const collect = (dir, { current = false, workspaceId = null } = {}) => {
+        if (!dir || seen.has(dir)) return;
+        seen.add(dir);
+        const marker = join(dir, RPA_MARKER);
+        if (!existsSync(marker)) return;
+        let meta = null;
+        try { meta = JSON.parse(readFileSync(marker, "utf8")); } catch {}
+        let nodeCount = 0;
+        let hasWorkflow = false;
+        try {
+          const wfPath = join(dir, "workflow.json");
+          hasWorkflow = existsSync(wfPath);
+          if (hasWorkflow) {
+            const wf = JSON.parse(readFileSync(wfPath, "utf8"));
+            nodeCount = Array.isArray(wf.nodes) ? wf.nodes.length : 0;
+          }
+        } catch {}
+        projects.push({
+          name: meta?.name || dir.split(/[\\/]/).filter(Boolean).pop() || dir,
+          path: dir,
+          workspaceId,
+          hasWorkflow,
+          nodeCount,
+          current,
+        });
+      };
+
+      // 1) 当前会话目录优先（即使未注册到 workspaceRegistry 也列出）
+      if (sessionCwd) {
+        const cwdNorm = resolve(String(sessionCwd));
+        collect(cwdNorm, { current: true });
+      }
+      // 2) workspaceRegistry 中其余含 rpa.json 的工作区
       try {
         const registry = ctx.workspaceRegistry;
         if (registry && typeof registry.list === "function") {
           for (const ws of registry.list()) {
             const dir = ws?.path;
             if (!dir || seen.has(dir)) continue;
-            seen.add(dir);
-            const marker = join(dir, RPA_MARKER);
-            if (!existsSync(marker)) continue;
-            let meta = null;
-            try { meta = JSON.parse(readFileSync(marker, "utf8")); } catch {}
-            let nodeCount = 0;
-            let hasWorkflow = false;
-            try {
-              const wfPath = join(dir, "workflow.json");
-              hasWorkflow = existsSync(wfPath);
-              if (hasWorkflow) {
-                const wf = JSON.parse(readFileSync(wfPath, "utf8"));
-                nodeCount = Array.isArray(wf.nodes) ? wf.nodes.length : 0;
-              }
-            } catch {}
-            projects.push({
-              name: meta?.name || ws.title || dir.split(/[\\/]/).filter(Boolean).pop() || dir,
-              path: dir,
+            collect(dir, {
               workspaceId: ws.id,
-              hasWorkflow,
-              nodeCount,
-              current: Boolean(sessionCwd) && dir.toLowerCase() === String(sessionCwd).toLowerCase(),
+              current: Boolean(sessionCwd) && resolve(dir).toLowerCase() === resolve(String(sessionCwd)).toLowerCase(),
             });
           }
         }
       } catch (e) {
         ctx.logger.warn(`[rpa-bridge] rpa_project_list 读取工作区失败: ${e.message}`);
       }
-      // 兜底：即使 workspaceRegistry 不可用也尝试按会话目录推断（可选）
       return { ok: true, count: projects.length, projects };
     },
   }));
@@ -978,7 +993,7 @@ function apply(ctx, config) {
   /* ================= 4. 异步启动运行 ================= */
   ctx.tools.register(defineTool({
     name: "rpa_run_start",
-    description: "异步启动工作流（浏览器扩展执行），立即返回 run_id，不阻塞。用 rpa_run_wait 等结果、rpa_run_status 查进度、rpa_run_stop 停止。支持两种模式：传 wf_id 跑数据库工作流；传 project 跑流程目录（RPA 流程工作区）。",
+    description: "运行工作流（浏览器扩展执行），立即返回 run_id 不阻塞；随后调 rpa_run_wait(project, run_id) 等结果。运行流程的快捷方式：若当前会话就在 RPA 流程目录里（rpa_project_list 返回 current:true），直接 rpa_run_start() 不带任何参数即可运行当前流程；否则传 project=<流程目录绝对路径>。支持两种模式：传 project 跑流程目录（推荐，目录为唯一真相）；传 wf_id 跑数据库工作流。",
     parameters: {
       wf_id: { type: "integer", description: "工作流 id（rpa_import_workflow 的返回值）；与 project 二选一" },
       project: { type: "string", description: "流程目录绝对路径（RPA 流程工作区）；与 wf_id 二选一，缺省用当前会话工作目录" },
