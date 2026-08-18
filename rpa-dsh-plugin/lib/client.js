@@ -156,8 +156,8 @@ window.__ModuleLoader__.load({
           .then(function () { setBusy(false); });
       };
 
+      var wide = props.wide;
       var iconStyle = {
-        width: 32,
         height: 32,
         borderRadius: 8,
         border: "none",
@@ -167,11 +167,14 @@ window.__ModuleLoader__.load({
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
+        gap: 5,
+        padding: "0 7px",
         color: "var(--dsw-alias-label-secondary, #6b7280)"
       };
+      if (!wide) iconStyle.width = 32;
       var dotStyle = {
         position: "absolute",
-        right: 3,
+        right: wide ? 6 : 3,
         bottom: 3,
         width: 7,
         height: 7,
@@ -208,6 +211,10 @@ window.__ModuleLoader__.load({
                   jsxRuntime.jsx("path", { d: "M15 13v2" }),
                   jsxRuntime.jsx("path", { d: "M9 13v2" })
                 ]
+              }),
+              wide && jsxRuntime.jsx("span", {
+                style: { fontSize: 12, fontWeight: 600, letterSpacing: "0.02em" },
+                children: "RPA"
               }),
               online !== null && jsxRuntime.jsx("span", { style: dotStyle, title: online ? "后端在线" : "后端离线" })
             ]
