@@ -93,8 +93,24 @@ function hasCommand(cmd) {
 // 动态 require（ESM 下避免静态依赖 child_process 的 spawnSync 影响 tree-shake 无碍）
 
 /**
+ * 异步 spawn 并等待完成（stdio 继承输出）。替代 spawnSync：
+ * 不阻塞 Node 事件循环 —— dsh web 启动不会被 venv 创建/依赖安装卡住。
+ */
+function spawnAsync(cmd, args, opts) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { ...opts, stdio: "inherit" });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${cmd} exited with code ${code}`));
+    });
+  });
+}
+
+/**
  * 确保 python/ 下有可用 venv（uv 优先，pip 兜底），返回 python 可执行文件路径。
  * 幂等：venv 已存在且 requirements 满足则直接复用（快速路径）。
+ * 首次创建为异步（spawn 后台执行），不阻塞 dsh web 启动；后端待 venv 就绪后拉起。
  */
 async function ensureBundledVenv(pythonDir, log) {
   const venvPy = join(pythonDir, ".venv", "Scripts", "python.exe");
@@ -106,34 +122,33 @@ async function ensureBundledVenv(pythonDir, log) {
   if (!existsSync(req)) {
     throw new Error(`[rpa-bridge] python/ 缺少 requirements.txt（${req}）—— 插件包构建不完整`);
   }
-  const { spawnSync } = require_node_child_process();
 
   // 1) uv 优先：uv venv + uv pip install（约快 10x）
   if (hasCommand("uv")) {
-    log?.("[rpa-bridge] 使用 uv 创建 venv（首次安装，耗时约 1-3 分钟）…");
-    const mk = spawnSync("uv", ["venv", ".venv", "--python", "3.12"], { cwd: pythonDir, stdio: "inherit", timeout: 120000 });
-    if (mk.status === 0) {
-      const inst = spawnSync("uv", ["pip", "install", "-r", "requirements.txt"], {
-        cwd: pythonDir, stdio: "inherit", timeout: 600000,
-      });
-      if (inst.status === 0) return venvPy;
-      log?.("[rpa-bridge] uv 安装失败，回退 pip");
-    } else {
-      log?.("[rpa-bridge] uv venv 创建失败，回退 pip");
+    log?.("[rpa-bridge] 使用 uv 创建 venv（首次安装，异步后台进行）…");
+    try {
+      await spawnAsync("uv", ["venv", ".venv", "--python", "3.12"], { cwd: pythonDir, timeout: 120000 });
+      await spawnAsync("uv", ["pip", "install", "-r", "requirements.txt"], { cwd: pythonDir, timeout: 600000 });
+      return venvPy;
+    } catch (e) {
+      log?.(`[rpa-bridge] uv 安装失败（${e.message}），回退 pip`);
     }
   }
 
   // 2) pip 兜底：python -m venv + pip install
   const py = process.env.RPA_PYTHON || "py";
-  log?.("[rpa-bridge] 使用 pip 创建 venv（首次安装，耗时 3-10 分钟）…");
-  const mk2 = spawnSync(py, ["-3", "-m", "venv", ".venv"], { cwd: pythonDir, stdio: "inherit", timeout: 180000 });
-  if (mk2.status !== 0) {
-    const mk3 = spawnSync("python", ["-m", "venv", ".venv"], { cwd: pythonDir, stdio: "inherit", timeout: 180000 });
-    if (mk3.status !== 0) throw new Error("[rpa-bridge] 无法创建 Python venv：请安装 Python 3.12+ 并加入 PATH（或设置 RPA_PYTHON）");
+  log?.("[rpa-bridge] 使用 pip 创建 venv（首次安装，异步后台进行）…");
+  try {
+    await spawnAsync(py, ["-3", "-m", "venv", ".venv"], { cwd: pythonDir, timeout: 180000 });
+  } catch {
+    await spawnAsync("python", ["-m", "venv", ".venv"], { cwd: pythonDir, timeout: 180000 });
   }
   const pip = join(pythonDir, ".venv", "Scripts", "pip.exe");
-  const inst2 = spawnSync(pip, ["install", "-r", "requirements.txt"], { cwd: pythonDir, stdio: "inherit", timeout: 600000 });
-  if (inst2.status !== 0) throw new Error("[rpa-bridge] pip 安装依赖失败，请手动运行：uv pip install -r requirements.txt（在 python/ 目录）");
+  try {
+    await spawnAsync(pip, ["install", "-r", "requirements.txt"], { cwd: pythonDir, timeout: 600000 });
+  } catch {
+    throw new Error("[rpa-bridge] pip 安装依赖失败，请手动运行：uv pip install -r requirements.txt（在 python/ 目录）");
+  }
   return venvPy;
 }
 
@@ -316,7 +331,7 @@ function apply(ctx, config) {
   let launchErrorShown = false;
   setTimeout(async () => {
     try {
-      await api.get("/health", { auth: false, timeoutMs: 3000 });
+      await api.get("/health", { auth: false, timeoutMs: 1500 });
       ctx.logger.info("[rpa-bridge] 后端已在运行，接管现有实例（adopt，不回收）");
     } catch (err) {
       if (!config.autoStartBackend) {
