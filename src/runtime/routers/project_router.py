@@ -145,13 +145,19 @@ def get_project_run_log(
 ):
     """读取项目模式运行的进度日志（目录 run_logs/{wf_id}/{run_id}/run.log）。"""
     import hashlib
+    import time as _t
 
     root = Path(path).expanduser().resolve()
     wf_id = int(hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:8], 16)
     log_dir = root / "run_logs" / str(wf_id) / run_id
     log_path = log_dir / "run.log"
     if not log_path.is_file():
-        # 尚未生成（runner 启动中）→ 视为运行中
+        # 尚未生成（runner 启动中）→ 视为运行中；但启动超 2 分钟仍无日志 → 判失败
+        if (root / "run_logs" / str(wf_id) / run_id).exists():
+            age = _t.time() - (root / "run_logs" / str(wf_id) / run_id).stat().st_mtime
+            if age > 120:
+                return {"events": [], "running": False, "error": "run.log 未生成（运行启动超时）",
+                        "runId": run_id, "workflowId": wf_id}
         return {"events": [], "running": True, "runId": run_id, "workflowId": wf_id}
     lines = []
     with open(log_path, "r", encoding="utf-8") as f:
@@ -162,10 +168,16 @@ def get_project_run_log(
             events.append(json.loads(line))
         except Exception:
             events.append({"raw": line})
-    # 目录模式无 Result 行：以 run.log 中的 done/失败事件判断是否结束
+    # 结束判定：done/error/failed 事件，或日志文件超过 2 分钟未更新（runner 异常退出兜底）
     running = True
     for ev in reversed(events):
         if isinstance(ev, dict) and ev.get("type") in ("done", "error", "failed"):
             running = False
             break
+    if running:
+        age = _t.time() - log_path.stat().st_mtime
+        if age > 120:
+            running = False
+            events.append({"type": "done", "success": False,
+                           "error": "运行超时（runner 可能因扩展断开异常退出）"})
     return {"events": events, "running": running, "runId": run_id, "workflowId": wf_id}
