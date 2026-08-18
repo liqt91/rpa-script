@@ -759,6 +759,209 @@ def _deepest_uia_element(x, y, uia, max_depth=8, max_nodes=400):
     return best_dict, path
 
 
+# ---------------------------------------------------------------------------
+# UIA 无障碍树网页拾取（tdSelector 同款机制，不依赖扩展/后端/CDP 端口）
+#
+# Edge/Chrome 把网页 DOM 暴露为 UIA 无障碍树：渲染根 Chrome_RenderWidgetHostHWND
+# （Name='Chrome Legacy Window'）之下的节点即网页元素（role=EditControl 的输入框、
+# class=DOM 类名的容器等）。用 UIA 深搜"含光标的最深有价值节点"即可拾取网页元素，
+# 生成与 tdSelector 同款特征链（aaRole/ClassName/Text/AutomationId/兄弟序号）。
+# ---------------------------------------------------------------------------
+
+# 网页 DOM 节点在 UIA 树中的角色集合（Chromium 无障碍树典型值）
+_WEB_DOM_ROLES = {
+    "EditControl", "ButtonControl", "HyperlinkControl", "TextControl",
+    "ComboBoxControl", "CheckBoxControl", "RadioButtonControl", "ListItemControl",
+    "TreeItemControl", "ImageControl", "GroupControl", "CustomControl",
+    "SliderControl", "ProgressBarControl", "TabItemControl", "SplitButtonControl",
+}
+# 浏览器 UI 骨架类名（非 DOM，跳过避免把工具栏当网页元素）
+_BROWSER_UI_CLASSES = (
+    "BrowserRootView", "NonClientView", "EdgeBrowserFrameViewWin", "BrowserView",
+    "MainBackgroundRegionView", "TopContainerView", "EdgeToolbarView", "LocationBarView",
+    "OmniboxViewViews", "EdgeTabContainerImpl", "TabStrip", "BrowserCaptionButtonContainer",
+    "EdgeWindowsCaptionButton", "WorkspacesButton", "SpaceworkButton", "SidePaneRootContainer",
+    "EdgeContentsContainerBorder", "InkDropContainerView", "EdgeExtensionsToolbarContainer",
+    "PinnedToolbarActionsContainer", "CollaboratorsPhotosContainer",
+)
+
+
+def _is_web_dom_node(node, uia) -> bool:
+    """节点是否像网页 DOM 元素（排除浏览器 UI 骨架 + 捕获 Chromium 原生窗口外壳）。"""
+    try:
+        cls = node.ClassName or ""
+    except Exception:
+        cls = ""
+    if any(b in cls for b in _BROWSER_UI_CLASSES):
+        return False
+    try:
+        role = node.ControlTypeName or ""
+    except Exception:
+        role = ""
+    if role == "WindowControl":
+        return False  # 顶层/渲染外壳窗口不算 DOM 元素
+    return True
+
+
+def _uia_web_dom_at(x, y, uia, max_depth=40, max_nodes=1500):
+    """UIA 无障碍树深搜：找含光标 (x,y) 的最深、最有价值的网页 DOM 节点。
+
+    返回 (leaf_dict, path[根→叶]) 或 (None, None)：
+      - leaf_dict：目标节点特征（name/class_name/control_type/automation_id/rect/index）
+      - path：完整祖先链（根=渲染根，叶=目标），与 tdSelector 输出同构
+    从 ElementFromPoint 得到的节点向上爬到渲染根，再从渲染根向下做
+    "含光标优先 DFS" —— 沿含点链直达最深 DOM 节点（O(深度×兄弟数)），
+    同时保留不含点分支兜底（预算内），避免错过大树中的有效元素。
+    """
+    try:
+        start = uia.ControlFromPoint(x, y)
+    except Exception:
+        return None, None
+    if not start:
+        return None, None
+    # 1) 向上爬到渲染根（Chrome_RenderWidgetHostHWND / 网页 DOM 链顶）
+    root = start
+    keep = [start]
+    guard = 0
+    while guard < 30:
+        try:
+            p = root.GetParentControl()
+        except Exception:
+            p = None
+        if not p or p.ControlTypeName == "DesktopControl":
+            break
+        keep.append(p)
+        root = p
+        guard += 1
+
+    # 2) 从渲染根做含光标优先 DFS（复用 _deepest_uia_element 的策略，但节点语义为 DOM）
+    candidates = []
+    parents = {}
+    stack = [root]
+    seen = set()
+    nodes = 0
+    while stack and nodes < max_nodes:
+        node = stack.pop()
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
+        keep.append(node)
+        nodes += 1
+        try:
+            br = node.BoundingRectangle
+        except Exception:
+            br = None
+        contains = bool(br) and br.width() > 0 and br.height() > 0 \
+            and (br.left <= x <= br.right and br.top <= y <= br.bottom)
+        if contains and _is_web_dom_node(node, uia):
+            candidates.append((node, _uia_node_dict(node)))
+        try:
+            kids = node.GetChildren()
+        except Exception:
+            kids = []
+        containing, others = [], []
+        for k in kids:
+            keep.append(k)
+            if id(k) not in seen:
+                parents[id(k)] = node
+            if contains:
+                try:
+                    kbr = k.BoundingRectangle
+                except Exception:
+                    kbr = None
+                if kbr and kbr.width() > 0 and kbr.height() > 0 \
+                        and (kbr.left <= x <= kbr.right and kbr.top <= y <= kbr.bottom):
+                    containing.append(k)
+                    continue
+            others.append(k)
+        stack.extend(others)
+        stack.extend(reversed(containing))
+
+    if not candidates:
+        return None, None
+    # 选最深（path 最长）而非分数最高：网页 DOM 里叶子通常是用户真正点中的元素，
+    # 且 Chromium 无障碍树角色有限，打分区分度低。取"含点 + DOM 节点"中最深者。
+    best_node, best_dict = max(candidates, key=lambda c: len(
+        _uia_parent_chain(c[0], parents)))
+    # 组装根→叶路径
+    rev = []
+    cur = best_node
+    g2 = 0
+    while cur is not None and g2 < 40:
+        rev.append(cur)
+        cur = parents.get(id(cur))
+        g2 += 1
+    rev.reverse()
+    path = []
+    for pos, c in enumerate(rev):
+        d = _uia_node_dict(c)
+        if pos > 0:
+            parent = rev[pos - 1]
+            try:
+                rid = c.GetRuntimeId()
+                for i, s in enumerate(parent.GetChildren()):
+                    if s.GetRuntimeId() == rid:
+                        d["index"] = i
+                        break
+            except Exception:
+                pass
+        path.append(d)
+    return best_dict, path
+
+
+def _uia_parent_chain(node, parents) -> list:
+    chain = []
+    cur = node
+    g = 0
+    while cur is not None and g < 40:
+        chain.append(id(cur))
+        cur = parents.get(id(cur))
+        g += 1
+    return chain
+
+
+def _uia_web_capture(x, y) -> dict | None:
+    """浏览器内容区 UIA 网页拾取入口（限时工作线程执行）。
+
+    返回捕获 dict（与扩展捕获结果同构，供 _build_element_info 消费）：
+      {found, name, class_name, control_type, automation_id, rect, path, target_index,
+       element_type:"web", candidates:[...], dom_path, page_url?}
+    非浏览器区域 / 无 DOM 命中 → None（调用方回退扩展或桌面通道）。
+    """
+    result = {"done": False, "value": None}
+
+    def _run():
+        try:
+            import uiautomation as uia
+            with uia.UIAutomationInitializerInThread():
+                leaf, path = _uia_web_dom_at(x, y, uia)
+                if leaf and path and len(path) >= 2:  # 至少 渲染根 + 一个 DOM 节点
+                    r = leaf.get("rect") or {}
+                    if r.get("width", 0) > 0 and r.get("height", 0) > 0:
+                        result["value"] = {
+                            "found": True,
+                            "element_type": "web",
+                            "name": leaf.get("name", ""),
+                            "class_name": leaf.get("class_name", ""),
+                            "control_type": leaf.get("control_type", ""),
+                            "automation_id": leaf.get("automation_id", ""),
+                            "rect": r,
+                            "path": path,
+                            "target_index": len(path) - 1,
+                            "dom_path": path,
+                            "candidates": [],
+                        }
+        except Exception:
+            pass
+        finally:
+            result["done"] = True
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(_UIA_QUERY_TIMEOUT)
+    return result["value"] if result["done"] else None
+
+
 _UIA_QUERY_TIMEOUT = 8.0  # 秒；深搜兜底在 XAML 应用（Windows Terminal/PowerShell）上可达 1-5s，
                           # 3s 会把正常深搜杀掉 → 捕获降级成整窗。正常捕获优先复用 hover worker
                           # 结果，此超时只是 worker 结果缺失时的兜底。
@@ -2090,6 +2293,28 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
             info.screenshot = _grab_region_screenshot(best_rect)
             return info
         # 点在图标间隙 → 回退整窗 FolderView
+    # 浏览器内容区优先走 UIA 无障碍树网页拾取（tdSelector 同款，零扩展/零后端）：
+    # 鼠标落在 Chromium 渲染根内且深搜到 DOM 节点 → 产出 web 元素（含 DOM 特征链）。
+    if in_browser and not _is_skip_uia(hwnd):
+        web = _uia_web_capture(x, y)
+        if web and web.get("found"):
+            info.element_type = "web"
+            info.name = web.get("name") or info.name
+            info.control_type = web.get("control_type", "")
+            info.automation_id = web.get("automation_id", "")
+            info.css_selector = ""          # UIA 拿不到 CSS/XPath（无障碍树无语义选择器），
+            info.xpath = ""                 # 由前端基于 DOM 特征链提示用图像/层级定位
+            info.uia_path = web.get("path", [])
+            info.uia_target_index = web.get("target_index", len(info.uia_path) - 1)
+            info.dom_path = web.get("dom_path", [])
+            web_rect = web.get("rect") or {}
+            if web_rect.get("width", 0) > 0:
+                info.region = web_rect
+                info.rect = web_rect
+            info.screen_size = _screen_size()
+            info.screenshot = _grab_region_screenshot(info.region)
+            return info
+        # UIA 网页拾取未命中（浏览器 UI 骨架/整窗）→ 继续走通用 UIA 逻辑
     uia = None
     if not _is_skip_uia(hwnd):
         # 优先复用 hover worker 已算好的结果（显示什么捕获什么，且不触发超时重查）；
