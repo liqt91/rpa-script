@@ -160,8 +160,11 @@ async function ensureBundledVenv(pythonDir, log) {
  */
 async function resolveBackendLaunch(cfg, log) {
   if (cfg.backendCommand) {
+    // 兼容字符串命令（走 shell）；同时拆分 argv 供无窗口启动
+    const cmd = cfg.backendCommand.trim();
     return {
-      command: cfg.backendCommand,
+      command: cmd,
+      argv: parseCommandLine(cmd),
       cwd: cfg.backendCwd || undefined,
       env: {},
     };
@@ -175,9 +178,32 @@ async function resolveBackendLaunch(cfg, log) {
   mkdirSync(dataDir, { recursive: true });
   return {
     command: `"${venvPy}" -m src.runtime.main`,
+    argv: [venvPy, "-m", "src.runtime.main"],
     cwd: pythonDir,
     env: { RPA_DATA_DIR: dataDir, RPA_REPO_ROOT: pythonDir },
   };
+}
+
+/**
+ * 简单命令行解析（支持双引号路径），用于无 shell 启动。
+ * 仅处理本项目的命令形态：`"C:\path with space\python.exe" -m src.runtime.main`。
+ */
+function parseCommandLine(cmdline) {
+  const argv = [];
+  let cur = "";
+  let inQuote = false;
+  for (let i = 0; i < cmdline.length; i++) {
+    const ch = cmdline[i];
+    if (ch === '"') {
+      inQuote = !inQuote;
+    } else if (ch === " " && !inQuote) {
+      if (cur) { argv.push(cur); cur = ""; }
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur) argv.push(cur);
+  return argv;
 }
 
 /* ------------------------------------------------------------------ */
@@ -453,13 +479,24 @@ function apply(ctx, config) {
       return { ok: false, error: "无可用的后端启动方式（本地形态请配置 backendCommand 指向仓库 venv）" };
     }
     const env = { ...process.env, ...launch.env };
-    const child = spawn(launch.command, {
-      cwd: launch.cwd || undefined,
-      detached: true,
-      stdio: "ignore",
-      shell: true,
-      env,
-    });
+    // 优先无 shell 启动（argv 直连可执行文件，彻底隐藏 cmd 窗口）；
+    // argv 不可用（命令含 shell 语法）才回退 shell + windowsHide。
+    const child = launch.argv
+      ? spawn(launch.argv[0], launch.argv.slice(1), {
+          cwd: launch.cwd || undefined,
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+          env,
+        })
+      : spawn(launch.command, {
+          cwd: launch.cwd || undefined,
+          detached: true,
+          stdio: "ignore",
+          shell: true,
+          windowsHide: true,
+          env,
+        });
     child.on("error", (e) => ctx.logger.warn(`[rpa-bridge] 后端启动失败: ${e.message}`));
     child.unref();
     ownedBackend = child;

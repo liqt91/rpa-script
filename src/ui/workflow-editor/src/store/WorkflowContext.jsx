@@ -564,17 +564,17 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
 
   const STORAGE_KEY = (id) => `workflow_editor_nodes_${id}`;
 
-  // 辅助：立即保存当前 state 到 localStorage
+  // 辅助：立即保存当前 state 到 localStorage（key 区分 DB 模式 wfId / 项目模式 projectDir）
   const persistToLocal = useCallback(() => {
-    const { wfId, isDirty, nodes } = stateRef.current;
-    console.log(`[WorkflowContext] persistToLocal called: wfId=${wfId}, isDirty=${isDirty}, nodes=${nodes.length}`);
-    if (!wfId) {
-      console.log('[WorkflowContext] persistToLocal skipped: no wfId');
+    const { wfId, projectDir, isDirty, nodes } = stateRef.current;
+    const key = projectDir ? STORAGE_KEY(`project:${projectDir}`) : wfId ? STORAGE_KEY(wfId) : null;
+    console.log(`[WorkflowContext] persistToLocal called: wfId=${wfId}, projectDir=${projectDir || ''}, isDirty=${isDirty}, nodes=${nodes.length}`);
+    if (!key) {
+      console.log('[WorkflowContext] persistToLocal skipped: no wfId/projectDir');
       return;
     }
     if (isDirty && nodes.length > 0) {
       try {
-        const key = STORAGE_KEY(wfId);
         const serialized = JSON.stringify(nodes);
         localStorage.setItem(key, serialized);
         console.log(`[WorkflowContext] ✅ persistToLocal saved ${nodes.length} nodes (key=${key})`);
@@ -582,7 +582,7 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
         console.error(`[WorkflowContext] ❌ persistToLocal failed: ${e.message}`);
       }
     } else if (!isDirty) {
-      localStorage.removeItem(STORAGE_KEY(wfId));
+      localStorage.removeItem(key);
       console.log('[WorkflowContext] persistToLocal: cleared localStorage (not dirty)');
     }
   }, []);
@@ -670,7 +670,8 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
   // ─── Local node operations ──────────────────────────────────────
 
   const saveNode = useCallback((payload, insertIndex) => {
-    if (!stateRef.current.wfId) return;
+    // 项目模式（目录为唯一真相）：无 wfId，允许本地创建节点（commit 时写回目录）
+    if (!stateRef.current.wfId && !stateRef.current.projectDir) return;
     const tempId = crypto.randomUUID();
     const node = { ...payload, id: tempId, order: payload.order || (stateRef.current.nodes.length + 1), _insertIndex: insertIndex };
     console.log(`[WorkflowContext] saveNode tempId=${tempId} type=${node.cmd} insertIndex=${insertIndex ?? 'end'}`);
