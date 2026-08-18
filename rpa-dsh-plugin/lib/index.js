@@ -107,9 +107,10 @@ const MIME = {
 /** 静态文件响应：路径穿越防护 + SPA fallback 到 index.html。 */
 function serveStatic(root, pathname, res) {
   let rel = decodeURIComponent(pathname.split("?")[0]);
-  // 路径穿越防护：仅允许包内相对路径
+  // 路径穿越防护：root 规范化（resolve 统一分隔符）后比较；根路径解析到 root 放行
   const safe = resolve(root, "." + rel);
-  if (!safe.startsWith(root + sep)) {
+  const rootNorm = resolve(root);
+  if (safe !== rootNorm && !safe.startsWith(rootNorm + sep)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
     res.end("forbidden");
     return;
