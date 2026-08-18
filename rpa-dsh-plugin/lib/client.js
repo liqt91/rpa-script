@@ -295,10 +295,10 @@ window.__ModuleLoader__.load({
       ctx.effect(function () {
         ctx.locale.register(NS, { zh: zh, en: en });
       }, "rpa-console: dictionaries");
-      // 会话头部右上角操作区（与关闭/操作按钮同区域）；kind: list 可多 entry 共存
-      ctx.slots.inject("conversation.session.header.actions", function () {
+      // 会话头部右上角工具区（与关闭/操作按钮同区域）；kind: list 可多 entry 共存
+      ctx.slots.inject("conversation.session.header.utilities", function () {
         return ctx.slots.register({
-          name: "conversation.session.header.actions",
+          name: "conversation.session.header.utilities",
           id: "rpa-console",
           locale: NS,
           inject: function () { return {}; }
