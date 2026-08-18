@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { api } from '../api';
 
 const DEFAULT_COLUMNS = [
   { name: 'A', type: 'text' },
@@ -92,7 +93,7 @@ function copyCellsAsTSV(rows, columns, selected) {
   }
 }
 
-export default function DataTableTab({ wfId }) {
+export default function DataTableTab({ wfId, projectDir }) {
   const [table, setTable] = useState(null);
   const [toast, setToast] = useState(null);
   const [selectedCells, setSelectedCells] = useState(new Set());
@@ -104,7 +105,7 @@ export default function DataTableTab({ wfId }) {
   const fileInputRef = useRef(null);
   const gridRef = useRef(null);
 
-  const STORAGE_KEY = `workflow_table_${wfId}`;
+  const STORAGE_KEY = projectDir ? `workflow_table_project_${projectDir}` : `workflow_table_${wfId}`;
 
   // Auto-scroll to bottom when rows grow
   useEffect(() => {
@@ -116,8 +117,21 @@ export default function DataTableTab({ wfId }) {
     }
   }, [table?.rows?.length]);
 
-  // Load from localStorage
+  // Load: 项目模式读目录 data.json；DB 模式读 localStorage
   useEffect(() => {
+    if (projectDir) {
+      api.readProjectFile(projectDir, 'data.json')
+        .then((res) => {
+          const d = res?.data;
+          if (d && Array.isArray(d.columns)) {
+            setTable(padTable({ name: d.name || 'default', columns: d.columns, rows: d.rows || [] }));
+          } else {
+            setTable(padTable({ name: 'default', columns: [...DEFAULT_COLUMNS], rows: [] }));
+          }
+        })
+        .catch(() => setTable(padTable({ name: 'default', columns: [...DEFAULT_COLUMNS], rows: [] })));
+      return;
+    }
     if (!wfId) return;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -129,11 +143,11 @@ export default function DataTableTab({ wfId }) {
     } catch {
       setTable(padTable({ name: 'default', columns: [...DEFAULT_COLUMNS], rows: [] }));
     }
-  }, [wfId]);
+  }, [wfId, projectDir, STORAGE_KEY]);
 
   // Listen for runtime table updates
   useEffect(() => {
-    if (!wfId) return;
+    if (!wfId || projectDir) return;
     const handler = (e) => {
       if (e.detail?.wfId === wfId && e.detail?.tableData) {
         skipNextSaveRef.current = true;
@@ -142,27 +156,34 @@ export default function DataTableTab({ wfId }) {
     };
     window.addEventListener('runtime-table-update', handler);
     return () => window.removeEventListener('runtime-table-update', handler);
-  }, [wfId]);
+  }, [wfId, projectDir]);
 
-  // Save to localStorage (debounced)
+  // Save (debounced): 项目模式写目录 data.json；DB 模式写 localStorage
   useEffect(() => {
-    if (!table || !wfId) return;
+    if (!table) return;
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false;
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    const payload = {
+      name: table.name,
+      columns: table.columns,
+      rows: (table.rows || []).filter(r => Object.keys(r).length > 0),
+    };
     debounceRef.current = setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        name: table.name,
-        columns: table.columns,
-        rows: (table.rows || []).filter(r => Object.keys(r).length > 0),
-      }));
+      if (projectDir) {
+        api.writeProjectFile(projectDir, 'data.json', payload).catch((e) => {
+          console.warn('[DataTableTab] 写入 data.json 失败:', e.message);
+        });
+      } else if (wfId) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      }
     }, 500);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [table, wfId]);
+  }, [table, wfId, projectDir, STORAGE_KEY]);
 
   // Global keyboard: Ctrl+C, Escape
   useEffect(() => {

@@ -1,5 +1,18 @@
 const API_BASE = '';
 
+// dsh 内嵌模式：client.js 在 iframe URL 传 dshBase=<dsh web origin>，
+// 项目文件读写指向 dsh 插件 node 侧（/rpa-bridge/*，编辑免后端）。
+// 独立打开/桌面模式无 dshBase → 回退后端 /api/projects/*。
+const DSHS_BASE = (() => {
+  try { return new URLSearchParams(window.location.search).get('dshBase') || ''; } catch { return ''; }
+})();
+const projectApi = (action, path, file) => {
+  const q = `path=${encodeURIComponent(path)}&file=${encodeURIComponent(file)}`;
+  return DSHS_BASE
+    ? `${DSHS_BASE}/rpa-bridge/project/${action}?${q}`
+    : `/api/projects/${action}?${q}`;
+};
+
 function getCookie(name) {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
   return match ? decodeURIComponent(match[2]) : null;
@@ -212,9 +225,9 @@ export const api = {
   // Extension (浏览器扩展通信)
   getExtensionStatus: () => request('/api/extension/status'),
 
-  // Project（RPA 流程工作区目录；目录为唯一真相）
-  readProjectFile: (path, file) => request(`/api/projects/read?path=${encodeURIComponent(path)}&file=${encodeURIComponent(file)}`),
-  writeProjectFile: (path, file, data) => request(`/api/projects/write?path=${encodeURIComponent(path)}&file=${encodeURIComponent(file)}`, {
+  // Project（RPA 流程工作区目录；dsh 内嵌走插件 node 侧免后端，独立模式回退后端）
+  readProjectFile: (path, file) => request(projectApi('read', path, file)),
+  writeProjectFile: (path, file, data) => request(projectApi('write', path, file), {
     method: 'PUT',
     body: JSON.stringify(data),
   }),

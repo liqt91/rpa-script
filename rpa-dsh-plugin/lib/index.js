@@ -30,7 +30,7 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import z from "@deepseek-ai/schemastery";
 import { spawn, execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -580,6 +580,98 @@ function apply(ctx, config) {
     ctx.logger.info("[rpa-bridge] 已注册 /rpa-bridge/project-check（RPA 流程工作区探测）");
   } catch (e) {
     ctx.logger.warn(`[rpa-bridge] 注册 project-check 路由失败: ${e.message}`);
+  }
+
+  /* -------- RPA 流程工作区文件读写（编辑免后端：node 侧 fs 代理） --------
+   * workflow-editor 在 :8100（后端）加载，但编辑持久化经 dsh web（:3080）同源 HTTP，
+   * 跨源 → 响应必须带 CORS 头 + 处理 OPTIONS 预检。
+   * 白名单与 project_router.py 一致；写要求目录含 rpa.json（防任意目录写入）。
+   */
+  const PROJECT_READABLE = ["rpa.json", "workflow.json", "elements.json", "data.json"];
+  const PROJECT_WRITABLE = ["workflow.json", "elements.json", "data.json"];
+  const CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+  /** 统一 CORS 响应（跨源：dsh web :3080 被 :8100 iframe 调用）。 */
+  const corsSend = (res, obj, status = 200) => {
+    res.writeHead(status, { ...CORS_HEADERS, "Content-Type": "application/json" });
+    res.end(JSON.stringify(obj));
+  };
+  const projectRoot = (path) => resolve(path || "");
+
+  try {
+    // 读：GET /rpa-bridge/project/read?path=<dir>&file=<白名单>
+    ctx.webServer.register({
+      kind: "exact",
+      path: "/rpa-bridge/project/read",
+      handler: async (req, res) => {
+        if (req.method === "OPTIONS") return corsSend(res, {}, 204);
+        if (req.method !== "GET") return corsSend(res, { ok: false, error: "method not allowed" }, 405);
+        let path = "", file = "";
+        try {
+          const u = new URL(req.url, "http://localhost");
+          path = u.searchParams.get("path") ?? "";
+          file = u.searchParams.get("file") ?? "";
+        } catch {}
+        if (!path || !file) return corsSend(res, { ok: false, error: "missing path/file" }, 400);
+        if (!PROJECT_READABLE.includes(file)) {
+          return corsSend(res, { ok: false, error: `file 必须在白名单内: ${PROJECT_READABLE.join("/")}` }, 400);
+        }
+        const root = projectRoot(path);
+        try {
+          const target = join(root, file);
+          const isRpa = existsSync(join(root, RPA_MARKER));
+          if (!existsSync(target)) {
+            return corsSend(res, { ok: true, path: root, file, exists: false, isRpa, data: null });
+          }
+          let data = null;
+          try { data = JSON.parse(readFileSync(target, "utf8")); } catch { data = null; }
+          corsSend(res, { ok: true, path: root, file, exists: true, isRpa, data });
+        } catch (e) {
+          corsSend(res, { ok: false, error: e.message }, 500);
+        }
+      },
+    }, "rpa-bridge: project read route");
+
+    // 写：PUT /rpa-bridge/project/write?path=<dir>&file=<白名单>（body=JSON）
+    ctx.webServer.register({
+      kind: "exact",
+      path: "/rpa-bridge/project/write",
+      handler: async (req, res) => {
+        if (req.method === "OPTIONS") return corsSend(res, {}, 204);
+        if (req.method !== "PUT") return corsSend(res, { ok: false, error: "method not allowed" }, 405);
+        let path = "", file = "";
+        try {
+          const u = new URL(req.url, "http://localhost");
+          path = u.searchParams.get("path") ?? "";
+          file = u.searchParams.get("file") ?? "";
+        } catch {}
+        if (!path || !file) return corsSend(res, { ok: false, error: "missing path/file" }, 400);
+        if (!PROJECT_WRITABLE.includes(file)) {
+          return corsSend(res, { ok: false, error: `file 必须在白名单内: ${PROJECT_WRITABLE.join("/")}` }, 400);
+        }
+        const root = projectRoot(path);
+        try {
+          if (!existsSync(join(root, RPA_MARKER))) {
+            return corsSend(res, { ok: false, error: "该目录不是 RPA 流程工作区（缺少 rpa.json），拒绝写入" }, 403);
+          }
+          const body = await readRequestBody(req);
+          const raw = JSON.stringify(body, null, 2);
+          const target = join(root, file);
+          const tmp = target + ".tmp";
+          writeFileSync(tmp, raw, "utf8");
+          renameSync(tmp, target); // 原子写
+          corsSend(res, { ok: true, path: root, file, written: true });
+        } catch (e) {
+          corsSend(res, { ok: false, error: e.message }, 500);
+        }
+      },
+    }, "rpa-bridge: project write route");
+    ctx.logger.info("[rpa-bridge] 已注册 /rpa-bridge/project/read|write（流程编辑免后端）");
+  } catch (e) {
+    ctx.logger.warn(`[rpa-bridge] 注册 project 读写路由失败: ${e.message}`);
   }
 
 

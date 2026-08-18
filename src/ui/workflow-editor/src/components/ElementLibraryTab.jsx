@@ -6,14 +6,12 @@ import CaptureToolModal from './CaptureToolModal';
 import UploadImageModal from './UploadImageModal';
 import ImageLightbox from './ImageLightbox';
 import WorkflowParametersPanel from './WorkflowParametersPanel';
-import ApiSettingsPanel from './ApiSettingsPanel';
 
 const BOTTOM_TABS = [
   { key: 'elements', label: '元素库', icon: 'fa-crosshairs' },
   { key: 'dataTable', label: '数据表格', icon: 'fa-table' },
   { key: 'logs', label: '运行日志', icon: 'fa-terminal' },
   { key: 'params', label: '流程参数', icon: 'fa-sliders-h' },
-  { key: 'api', label: 'API 设置', icon: 'fa-plug' },
 ];
 
 export default function ElementLibraryTab() {
@@ -855,7 +853,7 @@ export default function ElementLibraryTab() {
             </div>
           </>
         )}
-        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && activeTab !== 'params' && activeTab !== 'api' && (
+        {activeTab !== 'logs' && activeTab !== 'elements' && activeTab !== 'dataTable' && activeTab !== 'params' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 bg-surface-3 rounded-full flex items-center justify-center mb-3">
               <i className="fas fa-inbox text-faint text-xl"></i>
@@ -869,27 +867,21 @@ export default function ElementLibraryTab() {
           <WorkflowParametersPanel variant="bottom" />
         )}
 
-        {/* 项目模式占位：数据表格/运行日志/API 设置依赖全局 DB，目录模式后续接入 */}
-        {projectDir && (activeTab === 'api' || activeTab === 'dataTable' || activeTab === 'logs') && (
+        {/* 项目模式占位：运行日志依赖全局 DB */}
+        {projectDir && activeTab === 'logs' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 bg-surface-3 rounded-full flex items-center justify-center mb-3">
               <i className="fas fa-box-open text-faint text-xl"></i>
             </div>
             <p className="text-muted text-sm">{BOTTOM_TABS.find(t => t.key === activeTab)?.label}</p>
-            <p className="text-faint text-xs mt-1">目录模式暂不支持（数据表格/运行日志/API 设置将随流程目录化接入）</p>
+            <p className="text-faint text-xs mt-1">目录模式暂不支持（运行日志将随流程目录化接入）</p>
           </div>
         )}
 
-        {activeTab === 'api' && !projectDir && (
-          <ApiSettingsPanel />
-        )}
-
-        {/* DataTableTab 始终挂载，通过 hidden 控制显隐，确保运行时事件不丢失（项目模式不可用） */}
-        {!projectDir && (
-          <div className={`flex-1 flex flex-col ${activeTab === 'dataTable' ? '' : 'hidden'}`}>
-            <DataTableTab wfId={wfId} />
-          </div>
-        )}
+        {/* DataTableTab：DB 模式 wfId / 项目模式 projectDir（数据存目录 data.json） */}
+        <div className={`flex-1 flex flex-col ${activeTab === 'dataTable' ? '' : 'hidden'}`}>
+          <DataTableTab wfId={projectDir ? undefined : wfId} projectDir={projectDir || undefined} />
+        </div>
       </div>
 
       {/* Toast 提示 */}

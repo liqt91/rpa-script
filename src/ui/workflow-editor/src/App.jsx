@@ -7,7 +7,6 @@ import WorkflowList from './components/WorkflowList';
 import RunLogs from './components/RunLogs';
 import Schedules from './components/Schedules';
 import CommandEditor from './components/CommandEditor';
-import AIConfigPage from './components/AIConfigPage';
 
 function EditorPage() {
   const { id } = useParams();
@@ -111,17 +110,6 @@ function SidebarLayout({ children }) {
             <i className="fas fa-file-code w-4 text-center"></i>
             指令定义
           </NavLink>
-          <NavLink
-            to="/ai-config"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-surface-3/50'
-              }`
-            }
-          >
-            <i className="fas fa-brain w-4 text-center"></i>
-            AI 配置
-          </NavLink>
         </nav>
 
         {activeRun && (
@@ -195,7 +183,6 @@ function App() {
           <Route path="/logs" element={<SidebarLayout><RunLogs /></SidebarLayout>} />
           <Route path="/schedules" element={<SidebarLayout><Schedules /></SidebarLayout>} />
           <Route path="/commands/definitions" element={<SidebarLayout><CommandEditor /></SidebarLayout>} />
-          <Route path="/ai-config" element={<SidebarLayout><AIConfigPage /></SidebarLayout>} />
           <Route path="/editor/:id" element={<EditorPage />} />
           <Route path="/project" element={<ProjectEditorPage />} />
         </Routes>
