@@ -8,7 +8,7 @@ import { api } from '../api';
  *   2. Ctrl+V 直接粘贴 — Win+Shift+S 截到剪贴板后，在弹窗内粘贴即可
  *   3. 选择文件 — 已保存的截图兜底
  */
-export default function UploadImageModal({ wfId, onClose, onSaved }) {
+export default function UploadImageModal({ wfId, projectDir, onClose, onSaved }) {
   const [name, setName] = useState('');
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState('');
@@ -114,7 +114,11 @@ export default function UploadImageModal({ wfId, onClose, onSaved }) {
     setError('');
     setUploading(true);
     try {
-      await api.uploadImageElement(wfId, trimmed, file, { similarity, scope });
+      if (projectDir) {
+        await api.projectUploadImage(projectDir, trimmed, file, { similarity, scope });
+      } else {
+        await api.uploadImageElement(wfId, trimmed, file, { similarity, scope });
+      }
       if (onSaved) onSaved();
       onCloseRef.current();
     } catch (e) {

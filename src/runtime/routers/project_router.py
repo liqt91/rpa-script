@@ -14,7 +14,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
 logger = logging.getLogger(__name__)
 
@@ -181,3 +181,134 @@ def get_project_run_log(
             events.append({"type": "done", "success": False,
                            "error": "运行超时（runner 可能因扩展断开异常退出）"})
     return {"events": events, "running": running, "runId": run_id, "workflowId": wf_id}
+
+
+# ---------------------------------------------------------------------------
+# 项目模式元素库（捕获/截图 → 目录为唯一真相）
+# ---------------------------------------------------------------------------
+
+def _load_workflow_data(root: Path) -> dict:
+    """读目录 workflow.json（不存在返回空结构）。"""
+    wf_path = root / "workflow.json"
+    if wf_path.is_file():
+        try:
+            return json.loads(wf_path.read_text(encoding="utf-8-sig"))
+        except Exception as e:
+            logger.warning("[projects] 解析 workflow.json 失败: %s", e)
+    return {"name": "", "description": "", "url": "", "parameters": [], "nodes": [], "elements": []}
+
+
+def _save_workflow_data(root: Path, data: dict) -> None:
+    """原子写回 workflow.json（含 elements）。"""
+    target = root / "workflow.json"
+    raw = json.dumps(data, ensure_ascii=False, indent=2)
+    tmp = target.with_suffix(".tmp")
+    tmp.write_text(raw, encoding="utf-8")
+    tmp.replace(target)
+
+
+def _project_root(path: str) -> Path:
+    root = Path(path).expanduser().resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"目录不存在: {root}")
+    if not (root / "rpa.json").is_file():
+        raise HTTPException(status_code=403, detail="该目录不是 RPA 流程工作区（缺少 rpa.json）")
+    return root
+
+
+@router.post("/elements/save")
+def project_save_element(path: str = Query(...), payload: dict = Body(...)):
+    """保存捕获元素到目录元素库（web/桌面统一；复用 normalize_element_capture）。"""
+    from src.service.elements_service import normalize_element_capture
+
+    root = _project_root(path)
+    data = _load_workflow_data(root)
+    elements = data.setdefault("elements", [])
+
+    # 规范化捕获 payload（纯函数，输出 web/win32/uia 规范化字段）
+    norm = normalize_element_capture(payload.get("attributes") or payload)
+    name = (payload.get("name") or payload.get("attributes", {}).get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="元素名不能为空")
+
+    # 同名替换
+    idx = next((i for i, e in enumerate(elements) if e.get("name") == name), None)
+    entry = {
+        "name": name,
+        "element_type": norm.get("element_type", "web"),
+        "element_kind": norm.get("element_kind", "plain"),
+        "web_selector": norm.get("web_selector", ""),
+        "css_candidates": norm.get("css_candidates", []),
+        "xpath_candidates": norm.get("xpath_candidates", []),
+        "drission_candidates": norm.get("drission_candidates", []),
+        "dom_path": norm.get("dom_path", []),
+        "attributes": norm.get("attributes", {}),
+        "page_url": norm.get("page_url", ""),
+        "screenshot": norm.get("screenshot"),
+        "anchor_element_name": payload.get("anchorElementName") or payload.get("anchor_element_name"),
+        "relative_selector": payload.get("relativeSelector") or payload.get("relative_selector", ""),
+    }
+    if idx is not None:
+        elements[idx] = entry
+    else:
+        elements.append(entry)
+    _save_workflow_data(root, data)
+    return {"ok": True, "name": name, "count": len(elements)}
+
+
+@router.post("/elements/image")
+async def project_register_image(
+    path: str = Query(...),
+    name: str = Form(...),
+    similarity: float = Form(0.8),
+    scope: str = Form("screen"),
+    file: UploadFile = File(...),
+):
+    """上传截图注册为图像元素：参考图存 目录/images/<name>.png，元素写入目录元素库。"""
+    root = _project_root(path)
+    name = (name or "").strip()[:128]
+    if not name:
+        raise HTTPException(status_code=400, detail="元素名不能为空")
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="参考图内容为空")
+
+    # 参考图落盘（同名校验：已有同名非图像元素拒绝）
+    data = _load_workflow_data(root)
+    elements = data.setdefault("elements", [])
+    existing = next((e for e in elements if e.get("name") == name), None)
+    if existing and existing.get("element_type") != "image":
+        raise HTTPException(status_code=400, detail=f"元素名 '{name}' 已被非图像元素占用")
+
+    safe_name = "".join(c for c in name if c.isalnum() or c in ("_", "-")) or "image"
+    images_dir = root / "images"
+    images_dir.mkdir(exist_ok=True)
+    rel_path = f"images/{safe_name}.png"
+    (root / rel_path).write_bytes(file_bytes)
+
+    entry = {
+        "name": name,
+        "element_type": "image",
+        "element_kind": "plain",
+        "web_selector": "",
+        "css_candidates": [],
+        "xpath_candidates": [],
+        "drission_candidates": [],
+        "dom_path": [],
+        "attributes": {
+            "imagePath": rel_path,
+            "similarity": similarity,
+            "scope": scope,
+            "source": "project-upload",
+        },
+        "page_url": "",
+        "screenshot": None,
+        "anchor_element_name": None,
+        "relative_selector": "",
+    }
+    if existing:
+        elements[elements.index(existing)] = entry
+    else:
+        elements.append(entry)
+    _save_workflow_data(root, data)
+    return {"ok": True, "name": name, "imagePath": rel_path, "count": len(elements)}

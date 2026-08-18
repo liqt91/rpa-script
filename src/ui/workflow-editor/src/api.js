@@ -134,6 +134,27 @@ export const api = {
   screenshotStart: () => request('/api/extension/screenshot-tool/start', { method: 'POST' }),
   screenshotPoll: (baseline) => request(`/api/extension/screenshot-tool/poll?baseline=${encodeURIComponent(baseline || '')}`),
 
+  // Project 元素库（目录为唯一真相；走后端 /api/projects/*，dsh 托管时经 backendBase 转发）
+  projectSaveElement: (project, payload) => request(apiUrl(`/api/projects/elements/save?path=${encodeURIComponent(project)}`), {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  projectUploadImage: async (project, name, file, { similarity = 0.8, scope = 'screen' } = {}) => {
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('file', file);
+    fd.append('similarity', String(similarity));
+    fd.append('scope', scope);
+    const res = await fetch(apiUrl(`/api/projects/elements/image?path=${encodeURIComponent(project)}`), {
+      method: 'POST', body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+
   // AI
   invokeAI: (capability, payload) => request('/api/ai/invoke', {
     method: 'POST',

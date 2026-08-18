@@ -642,8 +642,17 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
   }, []);
 
   const loadElements = useCallback(async () => {
-    // 项目模式：元素随 workflow.json 一起加载（loadWorkflow 已 SET_ELEMENTS）
-    if (stateRef.current.projectDir) return;
+    // 项目模式：元素存于目录 workflow.json（捕获/上传后重读刷新）
+    if (stateRef.current.projectDir) {
+      try {
+        const res = await api.readProjectFile(stateRef.current.projectDir, 'workflow.json');
+        const els = Array.isArray(res?.data?.elements) ? res.data.elements : [];
+        dispatch({ type: 'SET_ELEMENTS', payload: els });
+      } catch (e) {
+        // silent
+      }
+      return;
+    }
     if (!stateRef.current.wfId) return;
     try {
       const els = await api.getWorkflowElements(stateRef.current.wfId);

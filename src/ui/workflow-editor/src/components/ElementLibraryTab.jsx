@@ -454,26 +454,22 @@ export default function ElementLibraryTab() {
                   );
                 })}
               </div>
-              {!projectDir && (
-                <button
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-vision hover:bg-vision text-white"
-                  onClick={() => setUploadModal(true)}
-                  title="上传截图作为图像元素（供「图像查找 / 图像点击」指令使用）"
-                >
-                  <i className="fas fa-upload text-[10px]"></i>
-                  <span>上传图像</span>
-                </button>
-              )}
-              {!projectDir && (
-                <button
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-accent hover:bg-accent-strong text-white"
-                  onClick={handleCaptureTool}
-                  title="捕获元素（统一捕获网页/桌面/UIA 元素）"
-                >
-                  <i className="fas fa-tools text-[10px]"></i>
-                  <span>捕获元素</span>
-                </button>
-              )}
+              <button
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-vision hover:bg-vision text-white"
+                onClick={() => setUploadModal(true)}
+                title="上传截图作为图像元素（供「图像查找 / 图像点击」指令使用）"
+              >
+                <i className="fas fa-upload text-[10px]"></i>
+                <span>上传图像</span>
+              </button>
+              <button
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-accent hover:bg-accent-strong text-white"
+                onClick={handleCaptureTool}
+                title="捕获元素（统一捕获网页/桌面/UIA 元素）"
+              >
+                <i className="fas fa-tools text-[10px]"></i>
+                <span>捕获元素</span>
+              </button>
               </div>
               {selectedElement ? (
                 <div className="max-w-2xl">
@@ -922,6 +918,7 @@ export default function ElementLibraryTab() {
     {captureModal && (
       <CaptureToolModal
         wfId={wfId}
+        projectDir={projectDir || undefined}
         onClose={() => setCaptureModal(false)}
         onSaved={loadElements}
       />
@@ -931,6 +928,7 @@ export default function ElementLibraryTab() {
     {uploadModal && (
       <UploadImageModal
         wfId={wfId}
+        projectDir={projectDir || undefined}
         onClose={() => setUploadModal(false)}
         onSaved={loadElements}
       />

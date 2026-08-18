@@ -11,7 +11,7 @@ import ImageLightbox from './ImageLightbox';
 const PRIMARY_BTN = 'px-3 py-1.5 text-xs text-white bg-accent rounded hover:bg-accent-strong disabled:opacity-50 transition-colors flex items-center gap-1.5';
 const SECTION_LABEL = 'text-xs font-medium text-muted';
 
-export default function CaptureToolModal({ wfId, onClose, onSaved }) {
+export default function CaptureToolModal({ wfId, projectDir, onClose, onSaved }) {
   const [mode, setMode] = useState(0); // 0=推荐方案 1=手动编辑
   const [capturingMode, setCapturingMode] = useState(null); // 'desktop' | 'web' | null
   const [captureError, setCaptureError] = useState('');
@@ -177,7 +177,11 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
     try {
       const payload = { ...cur, css_selector: selector, name: cur.name || '捕获元素' };
       const name = String(cur.name || '捕获元素').substring(0, 128) || '捕获元素';
-      if (savedId) {
+      if (projectDir) {
+        // 项目模式：保存到目录元素库（workflow.json elements）
+        await api.projectSaveElement(projectDir, payload);
+        setSavedId(name); // 目录模式无 DB id，用名称标记已保存
+      } else if (savedId) {
         await api.updateWorkflowElement(wfId, savedId, { name, attributes: payload });
       } else {
         const created = await api.createWorkflowElement(wfId, { name, attributes: payload });
