@@ -94,9 +94,6 @@ export const api = {
   pauseRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/pause`, { method: 'POST' }),
   resumeRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/resume`, { method: 'POST' }),
   stopRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/stop`, { method: 'POST' }),
-  getCommands: () => (DSHS_BASE
-    ? fetch('./commands.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    : request('/api/workflows/commands')),
   getNewCommands: () => (DSHS_BASE
     ? fetch('./commands-new.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     : request('/api/workflows/commands-new')),

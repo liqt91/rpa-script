@@ -53,12 +53,8 @@ const CATEGORY_COLORS = {
 
 export default function CommandPanel() {
   const {
-    commands,
-    commandsLoading,
     newCommands,
     newCommandsLoading,
-    NODE_TYPES,
-    CATEGORIES,
     NEW_NODE_TYPES,
     NEW_CATEGORIES,
     NEW_NODE_TYPE_MAP,
@@ -67,12 +63,9 @@ export default function CommandPanel() {
     NODE_TYPE_MAP,
   } = useWorkflow();
 
-  // Unified lookup maps (old + new) for drag images and parent derivation
-  const unifiedTypeMap = { ...NODE_TYPE_MAP, ...NEW_NODE_TYPE_MAP };
-  const allCommandsByCat = {
-    ...(commands?.commands || {}),
-    ...(newCommands?.commands || {}),
-  };
+  // 指令类型查找表（全部来自新指令体系 commands-new）
+  const unifiedTypeMap = NODE_TYPE_MAP;
+  const allCommandsByCat = newCommands?.commands || {};
 
   // 阻止浏览器默认 drop 行为，避免拖拽到非画布区域时打开页面
   useEffect(() => {
@@ -98,9 +91,8 @@ export default function CommandPanel() {
 
   const [search, setSearch] = useState('');
   const [expandedCats, setExpandedCats] = useState(() =>
-    Object.fromEntries(CATEGORIES.map(c => [c, true]))
+    Object.fromEntries(NEW_CATEGORIES.map(c => [c, true]))
   );
-  const [newExpanded, setNewExpanded] = useState(true);
 
   const toggleCategory = (cat) => {
     setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }));
@@ -133,16 +125,11 @@ export default function CommandPanel() {
     }
   };
 
-  const newTypeSet = new Set(NEW_NODE_TYPES.map(n => n.type));
-  const filteredOldTypes = (search
-    ? NODE_TYPES.filter(n => (n.label || '').includes(search) || (n.type || '').includes(search))
-    : NODE_TYPES
-  ).filter(n => !newTypeSet.has(n.type));
   const filteredNewTypes = search
     ? NEW_NODE_TYPES.filter(n => (n.label || '').includes(search) || (n.type || '').includes(search))
     : NEW_NODE_TYPES;
 
-  if (commandsLoading) {
+  if (newCommandsLoading) {
     return (
       <aside className="w-[250px] bg-surface border-r border-border flex flex-col shrink-0 select-none items-center justify-center text-faint text-xs">
         加载指令库...
@@ -150,7 +137,7 @@ export default function CommandPanel() {
     );
   }
 
-  if (!commands) {
+  if (!newCommands) {
     return (
       <aside className="w-[250px] bg-surface border-r border-border flex flex-col shrink-0 select-none items-center justify-center text-danger text-xs px-4 text-center">
         指令库加载失败
@@ -161,7 +148,7 @@ export default function CommandPanel() {
   const renderCommandItem = (cmd) => (
     <div
       key={cmd.cmd}
-      className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-3 cursor-grab text-xs text-muted draggable-item ${cmd.isNew ? 'border-l-2 border-l-blue-400' : ''}`}
+      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-3 cursor-grab text-xs text-muted draggable-item"
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', JSON.stringify({ cmd: cmd.cmd, category: cmd.category }));
@@ -179,11 +166,6 @@ export default function CommandPanel() {
     >
       <i className="fas fa-grip-vertical text-muted text-[10px] mr-1"></i>
       <span className="truncate flex-1">{cmd.label}</span>
-      {cmd.isNew && (
-        <span className="shrink-0 text-[10px] px-1 py-0 rounded bg-accent-soft text-accent" title="JSON 定义的新指令">
-          新
-        </span>
-      )}
       {cmd.hasRuntime && (
         <span
           className={`shrink-0 text-[10px] px-1 py-0 rounded ${cmd.local ? 'bg-surface-3 text-muted' : 'bg-accent-soft text-accent'}`}
@@ -244,48 +226,20 @@ export default function CommandPanel() {
         </div>
       </div>
 
-      {/* 指令分类列表 */}
+      {/* 指令分类列表（全部来自新指令体系 commands-new） */}
       <div className="flex-1 overflow-y-auto px-1 pb-2">
-        {/* 新指令区 */}
         {newCommands && (search ? filteredNewTypes.length > 0 : NEW_CATEGORIES.length > 0) && (
-          <div className="mb-2">
-            {!search && (
-              <div
-                className="category-item flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer bg-accent-soft/50"
-                onClick={() => setNewExpanded(v => !v)}
-              >
-                <i className={`fas fa-chevron-right text-accent text-[10px] w-3 transition-transform ${newExpanded ? 'rotate-90' : ''}`}></i>
-                <i className="fas fa-bolt text-accent text-xs w-4 text-center"></i>
-                <span className="text-xs font-medium text-accent flex-1 truncate">新指令</span>
-                <span className="text-[10px] px-1 py-0 rounded bg-accent-soft text-accent">JSON</span>
-              </div>
-            )}
-            {(search || newExpanded) && (
-              <div className="ml-4 space-y-0.5 mt-0.5">
-                {search
-                  ? filteredNewTypes.map(renderCommandItem)
-                  : NEW_CATEGORIES.map(cat => renderCategory(cat, filteredNewTypes, false))}
-              </div>
-            )}
+          <div>
+            {search
+              ? filteredNewTypes.map(renderCommandItem)
+              : NEW_CATEGORIES.map(cat => renderCategory(cat, filteredNewTypes, false))}
           </div>
         )}
         {newCommandsLoading && (
           <div className="px-3 py-2 text-[10px] text-faint">
-            <i className="fas fa-circle-notch fa-spin mr-1"></i>加载新指令...
+            <i className="fas fa-circle-notch fa-spin mr-1"></i>加载指令库...
           </div>
         )}
-
-        {/* 老指令区 */}
-        <div className="border-t border-border pt-1">
-          {!search && (
-            <div className="px-2 py-1 text-[10px] text-faint font-medium">
-              现有指令
-            </div>
-          )}
-          {search
-            ? filteredOldTypes.map(renderCommandItem)
-            : CATEGORIES.map(cat => renderCategory(cat, filteredOldTypes, false))}
-        </div>
       </div>
     </aside>
   );

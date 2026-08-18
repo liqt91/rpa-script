@@ -14,8 +14,8 @@ const initialState = {
   elements: [],
   elementHosts: [],
   saving: false,
-  commands: null,
-  commandsLoading: true,
+  commands: null, // 旧指令体系已移除；为兼容保留字段，派生层统一用 newCommands
+  commandsLoading: false,
   newCommands: null,
   newCommandsLoading: true,
   isDirty: false,
@@ -212,9 +212,6 @@ function reducer(state, action) {
       return { ...state, elementHosts: action.payload };
     case 'SET_SAVING':
       return { ...state, saving: action.payload };
-    case 'SET_COMMANDS':
-      console.log(`[reducer] SET_COMMANDS categories=${action.payload?.categories?.length || 0}`);
-      return { ...state, commands: action.payload, commandsLoading: false };
     case 'SET_NEW_COMMANDS':
       console.log(`[reducer] SET_NEW_COMMANDS categories=${action.payload?.categories?.length || 0}`);
       return { ...state, newCommands: action.payload, newCommandsLoading: false };
@@ -537,16 +534,6 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
     stateRef.current = state;
   });
 
-  const loadCommands = useCallback(async () => {
-    try {
-      const data = await api.getCommands();
-      dispatch({ type: 'SET_COMMANDS', payload: data });
-    } catch (e) {
-      dispatch({ type: 'SET_ERROR', payload: e.message });
-      dispatch({ type: 'SET_COMMANDS', payload: null });
-    }
-  }, []);
-
   const loadNewCommands = useCallback(async () => {
     try {
       const data = await api.getNewCommands();
@@ -558,9 +545,8 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
   }, []);
 
   useEffect(() => {
-    loadCommands();
     loadNewCommands();
-  }, [loadCommands, loadNewCommands]);
+  }, [loadNewCommands]);
 
   const STORAGE_KEY = (id) => `workflow_editor_nodes_${id}`;
 
@@ -1001,17 +987,17 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
     }
   }, []);
 
-  // Derived values
-  const NODE_TYPES = getNodeTypes(state.commands);
-  const CATEGORIES = getCategories(state.commands);
-  const NEW_NODE_TYPES = getNodeTypes(state.newCommands);
-  const NEW_CATEGORIES = getCategories(state.newCommands);
-  const NODE_TYPE_MAP = { ...getNodeTypeMap(NODE_TYPES), ...getNodeTypeMap(NEW_NODE_TYPES) };
-  const NEW_NODE_TYPE_MAP = getNodeTypeMap(NEW_NODE_TYPES);
+  // Derived values（旧指令体系已移除：NODE_TYPES/CATEGORIES/NODE_TYPE_MAP 全部来自 newCommands）
+  const NODE_TYPES = getNodeTypes(state.newCommands);
+  const CATEGORIES = getCategories(state.newCommands);
+  const NEW_NODE_TYPES = NODE_TYPES;
+  const NEW_CATEGORIES = CATEGORIES;
+  const NODE_TYPE_MAP = getNodeTypeMap(NODE_TYPES);
+  const NEW_NODE_TYPE_MAP = NODE_TYPE_MAP;
   const selectedNode = state.nodes.find(n => n.id === state.selectedNodeId) || null;
-  const containerTypes = [...getContainerTypes(state.commands), ...getContainerTypes(state.newCommands)];
+  const containerTypes = getContainerTypes(state.newCommands);
   const containerNodes = state.nodes.filter(n => containerTypes.includes(n.cmd));
-  const newContainerTypes = getContainerTypes(state.newCommands);
+  const newContainerTypes = containerTypes;
 
   const value = {
     ...state,
