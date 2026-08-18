@@ -7,6 +7,10 @@ import RunParametersDialog from './RunParametersDialog';
 export default function WorkflowList() {
   const navigate = useNavigate();
   const { activeRun, isBusy, loading: activeRunLoading, notifyRunStarted, notifyRunFinished } = useActiveRun();
+  // 项目模式：URL ?project=<目录>（DSH 流程 tab 内嵌时传入）→ 展示该目录的流程文件状态
+  const [projectDir] = useState(() => new URLSearchParams(window.location.search).get('project') || '');
+  const [projectInfo, setProjectInfo] = useState(null); // {isRpa, meta, workflowExists, workflowMeta}
+  const [projectLoading, setProjectLoading] = useState(Boolean(projectDir));
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,6 +34,7 @@ export default function WorkflowList() {
     loadWorkflows();
     loadBrowserPaths();
     loadExtensionStatus();
+    if (projectDir) loadProjectInfo();
 
     // 同步恢复运行状态（避免切换页面后闪烁）
     const savedId = sessionStorage.getItem('wf_running_id');
@@ -224,6 +229,29 @@ export default function WorkflowList() {
     }
   }
 
+  async function loadProjectInfo() {
+    try {
+      const meta = await api.readProjectFile(projectDir, 'rpa.json');
+      const wf = await api.readProjectFile(projectDir, 'workflow.json');
+      setProjectInfo({
+        isRpa: Boolean(meta.isRpa),
+        meta: meta.data || null,
+        workflowExists: wf.exists,
+        workflowMeta: wf.exists && wf.data ? {
+          name: wf.data.name || '',
+          nodeCount: Array.isArray(wf.data.nodes) ? wf.data.nodes.length : 0,
+          elementCount: Array.isArray(wf.data.elements) ? wf.data.elements.length : 0,
+          updatedAt: wf.data.updated_at || '',
+        } : null,
+      });
+    } catch (e) {
+      console.warn('读取项目信息失败:', e.message);
+      setProjectInfo({ isRpa: false, meta: null, workflowExists: false, workflowMeta: null });
+    } finally {
+      setProjectLoading(false);
+    }
+  }
+
   async function loadWorkflows(silent = false) {
     if (!silent) setLoading(true);
     try {
@@ -291,6 +319,39 @@ export default function WorkflowList() {
           新建工作流
         </button>
       </div>
+
+      {/* 项目模式横幅：DSH 流程 tab 内嵌（?project=<目录>）时展示该目录的流程文件状态 */}
+      {projectDir && (
+        <div className="mb-4 p-4 bg-surface-2 border border-border rounded-lg">
+          {projectLoading ? (
+            <div className="flex items-center gap-2 text-sm text-faint">
+              <i className="fas fa-circle-notch fa-spin"></i> 读取项目信息...
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+              <span className="font-medium text-body">
+                <i className="fas fa-folder-open text-accent mr-1.5"></i>
+                {projectDir.split(/[\\/]/).filter(Boolean).pop()}
+              </span>
+              <span className="text-muted font-mono text-xs">{projectDir}</span>
+              {projectInfo?.isRpa ? (
+                <span className="text-ok text-xs"><i className="fas fa-circle text-[6px] align-middle mr-1"></i>RPA 流程工作区</span>
+              ) : (
+                <span className="text-warn text-xs"><i className="fas fa-exclamation-triangle mr-1"></i>缺少 rpa.json（可在对话中用 rpa_project_create 初始化）</span>
+              )}
+              {projectInfo?.workflowMeta ? (
+                <span className="text-muted text-xs">
+                  流程：{projectInfo.workflowMeta.name || '(未命名)'} · {projectInfo.workflowMeta.nodeCount} 节点 · {projectInfo.workflowMeta.elementCount} 元素
+                </span>
+              ) : (
+                projectInfo && !projectInfo.workflowExists && (
+                  <span className="text-muted text-xs">暂无 workflow.json（流程保存在此目录）</span>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      )}
         {error && (
           <div className="mb-4 p-3 bg-danger/25 border border-danger rounded-lg text-danger text-sm">
             <i className="fas fa-exclamation-circle mr-2"></i>

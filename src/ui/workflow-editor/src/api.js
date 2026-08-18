@@ -211,6 +211,9 @@ export const api = {
 
   // Extension (浏览器扩展通信)
   getExtensionStatus: () => request('/api/extension/status'),
+
+  // Project（RPA 流程工作区目录；最小原型：只读白名单文件）
+  readProjectFile: (path, file) => request(`/api/projects/read?path=${encodeURIComponent(path)}&file=${encodeURIComponent(file)}`),
   sendExtensionCommand: (action, payload, browserType) => {
     let url = `/api/extension/command?action=${encodeURIComponent(action)}`;
     if (browserType) url += `&browser_type=${encodeURIComponent(browserType)}`;

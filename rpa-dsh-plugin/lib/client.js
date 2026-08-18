@@ -60,14 +60,18 @@ window.__ModuleLoader__.load({
       "action.tooltip": "打开 RPA 工作流编辑器",
       "panel.hint": "内嵌 RPA 工作流编辑器；若加载失败请确认后端已启动，或点右上角新窗口打开。",
       "panel.openExternal": "新窗口打开",
-      "panel.close": "关闭"
+      "panel.close": "关闭",
+      "flowTab.label": "流程",
+      "flowTab.notRpa": "当前目录不是 RPA 流程工作区（缺少 rpa.json）。在对话中用 rpa_project_create 初始化后，此页会自动出现。"
     };
     var en = {
       "action.title": "RPA Console",
       "action.tooltip": "Open RPA workflow editor",
       "panel.hint": "Embedded RPA workflow editor; if it fails to load, make sure the backend is running or open it in a new tab.",
       "panel.openExternal": "Open in new tab",
-      "panel.close": "Close"
+      "panel.close": "Close",
+      "flowTab.label": "Workflow",
+      "flowTab.notRpa": "This directory is not an RPA workflow workspace (rpa.json missing). Initialize it with rpa_project_create in the conversation and this tab will appear."
     };
 
     function RpaPanel(props) {
@@ -298,10 +302,50 @@ window.__ModuleLoader__.load({
       });
     }
 
+    /** 流程编辑 tab 内容：内嵌 workflow-editor，URL 带 project=当前目录。 */
+    function FlowView(props) {
+      var projectDir = props.projectDir || "";
+      var themeState = React.useState(readDshTheme());
+      var theme = themeState[0];
+      var setTheme = themeState[1];
+      var baseState = React.useState("");
+      var base = baseState[0];
+      var setBase = baseState[1];
+
+      React.useEffect(function () {
+        var alive = true;
+        discoverBackendBase().then(function (b) { if (alive && b) setBase(b); });
+        return function () { alive = false; };
+      }, []);
+
+      // 主题联动（与抽屉一致）
+      React.useEffect(function () {
+        if (typeof MutationObserver === "undefined") return;
+        var mo = new MutationObserver(function () { setTheme(readDshTheme()); });
+        if (document.body) mo.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme"] });
+        return function () { mo.disconnect(); };
+      }, []);
+
+      var src = base
+        ? base + "/workflow-editor/?theme=" + theme + "&project=" + encodeURIComponent(projectDir)
+        : "";
+
+      return jsxRuntime.jsx("div", {
+        style: { position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column" },
+        children: jsxRuntime.jsx("iframe", {
+          src: src,
+          title: "RPA workflow editor",
+          style: { flex: 1, width: "100%", border: "none", background: "var(--dsw-alias-bg-base, #ffffff)" }
+        })
+      });
+    }
+
     function apply(ctx) {
+      var t = ctx.locale.bind(NS);
       ctx.effect(function () {
         ctx.locale.register(NS, { zh: zh, en: en });
       }, "rpa-console: dictionaries");
+
       // 会话头部右上角工具区（与关闭/操作按钮同区域）；kind: list 可多 entry 共存
       ctx.slots.inject("conversation.session.header.utilities", function () {
         return ctx.slots.register({
@@ -311,10 +355,81 @@ window.__ModuleLoader__.load({
           inject: function () { return {}; }
         }, RpaPanel);
       });
+
+      /* -------- RPA 流程编辑 tab（conversation.view，仅 RPA 工作区会话动态注册） --------
+       * tab 栏（ui-conversation）把 conversation.view 的所有 entry 全列出、无过滤，
+       * 因此"普通工作区不出现流程 tab"靠动态注册实现：监听当前会话，
+       * 目录含 rpa.json（经 node 侧 /rpa-bridge/project-check 探测）才注册 entry，
+       * 否则注销。切换会话时自动增删，tab 栏经 useSyncExternalStore 即时刷新。
+       */
+      var flowTabDisposer = null;
+      var flowTabCwd = null;
+      var lastSessionKey = null;
+
+      function registerFlowTab(cwd) {
+        if (flowTabDisposer) return;
+        flowTabCwd = cwd;
+        flowTabDisposer = ctx.slots.inject("conversation.view", function () {
+          return ctx.slots.register({
+            name: "conversation.view",
+            id: "rpa-flow",
+            order: 20,
+            locale: NS,
+            label: function () { return t("flowTab.label"); },
+            inject: function (sessionId) {
+              return { projectDir: flowTabCwd };
+            }
+          }, FlowView);
+        });
+      }
+      function unregisterFlowTab() {
+        if (flowTabDisposer) {
+          flowTabDisposer();
+          flowTabDisposer = null;
+          flowTabCwd = null;
+        }
+      }
+      /** 异步探测目录是否为 RPA 流程工作区（node 侧同源 HTTP）。 */
+      function probeProject(cwd, onResult) {
+        fetch("/rpa-bridge/project-check?path=" + encodeURIComponent(cwd), {
+          signal: AbortSignal.timeout(4000)
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (d) { onResult(Boolean(d && d.ok && d.isRpa)); })
+          .catch(function () { onResult(false); });
+      }
+      /** 会话切换时同步流程 tab（幂等：重复探测同一会话跳过）。 */
+      function syncFlowTab() {
+        var snap;
+        try { snap = ctx.sessions.list.getSnapshot(); } catch (e) { return; }
+        var current = snap && snap.current;
+        var summary = current === undefined || current === null ? undefined : (snap.byId || {})[current];
+        var cwd = summary && summary.cwd;
+        var key = current === undefined || current === null ? "" : String(current);
+        if (key === lastSessionKey) return;
+        lastSessionKey = key;
+        if (!cwd) {
+          unregisterFlowTab();
+          return;
+        }
+        probeProject(cwd, function (isRpa) {
+          if (isRpa) registerFlowTab(cwd);
+          else unregisterFlowTab();
+        });
+      }
+      ctx.effect(function () {
+        var unsub = null;
+        try { unsub = ctx.sessions.list.subscribe(syncFlowTab); } catch (e) {}
+        syncFlowTab();
+        return function () {
+          if (unsub) unsub();
+          unregisterFlowTab();
+        };
+      }, "rpa-console: flow tab sync");
     }
 
     exports.apply = apply;
-    exports.inject = ["slots", "locale"];
+    exports.inject = ["slots", "locale", "sessions"];
     return module.exports;
   }
 });

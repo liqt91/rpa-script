@@ -30,6 +30,7 @@ from .routers.other_routers import (
     health_router,
 )
 from .routers.public_router import router as public_router
+from .routers.project_router import router as project_router
 from src.config import runtime_config as config
 from src.config import runtime_config
 
@@ -248,6 +249,7 @@ app.include_router(system_router)
 app.include_router(health_router)
 app.include_router(admin_api_router)
 app.include_router(public_router)
+app.include_router(project_router)
 
 # Workflow-editor SPA directory
 _static_dir = os.path.join(os.path.dirname(__file__), "static", "workflow-editor")

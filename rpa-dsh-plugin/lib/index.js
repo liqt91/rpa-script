@@ -30,7 +30,7 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import z from "@deepseek-ai/schemastery";
 import { spawn, execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -471,6 +471,42 @@ function apply(ctx, config) {
     ctx.logger.warn(`[rpa-bridge] 注册 start-backend 路由失败: ${e.message}`);
   }
 
+  /* -------- RPA 流程工作区探测（client 判断普通/流程会话，经 dsh web 同源 HTTP） -------- */
+  const RPA_MARKER = "rpa.json"; // 目录内存在该文件 = RPA 流程工作区（与 client.js 约定一致）
+  try {
+    ctx.webServer.register({
+      kind: "exact",
+      path: "/rpa-bridge/project-check",
+      handler: async (req, res) => {
+        const send = (obj, status = 200) => {
+          res.writeHead(status, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(obj));
+        };
+        if (req.method !== "GET") return send({ ok: false, error: "method not allowed" }, 405);
+        let path = "";
+        try {
+          const u = new URL(req.url, "http://localhost");
+          path = u.searchParams.get("path") ?? "";
+        } catch {}
+        if (!path) return send({ ok: false, error: "missing path" }, 400);
+        try {
+          const marker = join(path, RPA_MARKER);
+          const isRpa = existsSync(marker);
+          let meta = null;
+          if (isRpa) {
+            try { meta = JSON.parse(readFileSync(marker, "utf8")); } catch { meta = {}; }
+          }
+          send({ ok: true, path, isRpa, meta });
+        } catch (e) {
+          send({ ok: false, error: e.message }, 500);
+        }
+      },
+    }, "rpa-bridge: project-check route");
+    ctx.logger.info("[rpa-bridge] 已注册 /rpa-bridge/project-check（RPA 流程工作区探测）");
+  } catch (e) {
+    ctx.logger.warn(`[rpa-bridge] 注册 project-check 路由失败: ${e.message}`);
+  }
+
 
   /* -------- 系统提示段：教模型正确使用 RPA 工具 -------- */
   ctx.systemPrompt.section({
@@ -484,6 +520,7 @@ function apply(ctx, config) {
       "- 标准验证模式（每个操作后必须补验证节点）：导航后 → 用 waitForElement / ifUrlContains 核对落地页；点击后 → 若触发导航/加载/面板，紧跟 waitForElement（目标或结果元素，timeout 5~15s）；输入后 → getText 回读目标元素并与期望比对（ifTextContains / ifVarEquals）；验证失败 → 用 if 条件分支或 onError=continue 兜底，不要静默继续。",
       "- 浏览器扩展连接是单实例：工作流运行中调 rpa_browser_exec 会 409，除非 allow_during_run=true。",
       "- 桌面指令（Win32/UIA）仅 Windows；后端需常驻且扩展已连接，先 rpa_status 确认。",
+      "- 流程工作区：一个 RPA 流程 = 一个目录 = 一个 DSH 工作区（会话自动绑定该目录）。开始新流程时先 rpa_project_create（默认用当前会话工作目录），之后该目录下会话会出现「流程」编辑 tab，流程数据存于目录内。",
     ].join("\n"),
   });
 
@@ -503,6 +540,45 @@ function apply(ctx, config) {
         backend: health.status === "fulfilled" ? health.value : { ok: false, error: String(health.reason) },
         extension: ext.status === "fulfilled" ? ext.value : { error: String(ext.reason) },
       };
+    }),
+  }));
+
+  /* ================= 1b. RPA 流程工作区（会话 = 目录 = workspace） ================= */
+  ctx.tools.register(defineTool({
+    name: "rpa_project_create",
+    description: "创建一个 RPA 流程工作区：在指定目录（默认当前会话工作目录）下初始化 RPA 标记文件 rpa.json，并把该目录注册为 DSH 工作区。之后该目录下的会话会自动出现「流程」编辑 tab，RPA 流程数据（workflow.json/elements/表格）将存放于此目录。重复调用对同一目录幂等。",
+    parameters: {
+      path: { type: "string", description: "流程目录绝对路径；缺省用当前会话的工作目录" },
+      name: { type: "string", description: "流程显示名；缺省用目录名" },
+    },
+    output: { schema: { type: "object", additionalProperties: true }, render: toText },
+    isConcurrencySafe: () => true,
+    execute: withEnsure(async (args, exec) => {
+      const cwd = exec?.agent?.session?.header?.cwd;
+      const dir = (args.path || "").trim() || cwd;
+      if (!dir) throw new Error("无法确定流程目录：未提供 path 且当前会话没有工作目录");
+      mkdirSync(dir, { recursive: true });
+      const name = (args.name || "").trim() || dir.split(/[\\/]/).filter(Boolean).pop() || "RPA 流程";
+      const marker = join(dir, RPA_MARKER);
+      if (!existsSync(marker)) {
+        writeFileSync(marker, JSON.stringify({
+          name,
+          version: 1,
+          created_at: new Date().toISOString(),
+        }, null, 2), "utf8");
+      }
+      // 注册为 DSH 工作区（服务就绪时；失败不阻断 —— 目录与标记已就位）
+      let workspaceId = null;
+      try {
+        const registry = ctx.workspaceRegistry;
+        if (registry && typeof registry.create === "function") {
+          const ws = await registry.create(dir, name);
+          workspaceId = ws?.id ?? null;
+        }
+      } catch (e) {
+        ctx.logger.warn(`[rpa-bridge] 注册工作区失败（目录本身已就绪）: ${e.message}`);
+      }
+      return { ok: true, path: dir, name, isRpa: true, workspaceId };
     }),
   }));
 
