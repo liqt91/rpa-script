@@ -1,8 +1,8 @@
 /**
  * rpa-dsh-plugin — DSH web client 半身（bundle）。
  *
- * 在 dsh web 侧边栏底部注册 “RPA 控制台” 入口：点击展开右侧抽屉，
- * 内嵌现有 workflow-editor SPA（http://127.0.0.1:8000/workflow-editor/）。
+ * 在 dsh web 侧边栏底部注册 "RPA 控制台" 入口：点击展开右侧抽屉，
+ * 内嵌现有 workflow-editor SPA（随机端口自动发现，主题与 dsh web 联动）。
  *
  * 本文件由浏览器直接执行（经 /plugins/rpa-dsh-plugin/client.js 提供），
  * 保持 ES5 + var 风格，不要引入需要转译的语法。
@@ -47,6 +47,14 @@ window.__ModuleLoader__.load({
       });
     }
 
+    /** 读 dsh web 当前主题（dark/light）：body 上的 data-ds-dark-theme 属性。 */
+    function readDshTheme() {
+      try {
+        if (document.body && document.body.hasAttribute("data-ds-dark-theme")) return "dark";
+      } catch (e) {}
+      return "light";
+    }
+
     var zh = {
       "action.title": "RPA 控制台",
       "action.tooltip": "打开 RPA 工作流编辑器",
@@ -69,19 +77,51 @@ window.__ModuleLoader__.load({
       var editorState = React.useState("");
       var editorBase = editorState[0];
       var setEditorBase = editorState[1];
+      var themeState = React.useState(readDshTheme());
+      var theme = themeState[0];
+      var setTheme = themeState[1];
+      var healthState = React.useState(null); // null=未知 true=在线 false=离线
+      var online = healthState[0];
+      var setOnline = healthState[1];
       var t = props.t;
 
-      // 打开抽屉时探测后端端口（自动适配随机端口）
+      // 打开抽屉时探测后端端口 + 读当前主题
       React.useEffect(function () {
         if (!open) return;
         var alive = true;
+        setTheme(readDshTheme());
         if (!editorBase) {
           discoverBackendBase().then(function (base) { if (alive) setEditorBase(base); });
         }
         return function () { alive = false; };
       }, [open]);
 
-      var editorUrl = editorBase ? editorBase + "/workflow-editor/" : "";
+      // 主题联动：dsh 切换浅/深色时实时同步（MutationObserver on body）
+      React.useEffect(function () {
+        if (!open || typeof MutationObserver === "undefined") return;
+        var mo = new MutationObserver(function () { setTheme(readDshTheme()); });
+        if (document.body) mo.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme"] });
+        return function () { mo.disconnect(); };
+      }, [open]);
+
+      // 健康轮询：入口状态点（30s）
+      React.useEffect(function () {
+        if (!editorBase) return;
+        var alive = true;
+        var timer = null;
+        var check = function () {
+          fetch(editorBase + "/health", { mode: "cors", signal: AbortSignal.timeout(4000) })
+            .then(function (r) { if (alive) setOnline(r.ok); })
+            .catch(function () { if (alive) setOnline(false); });
+        };
+        check();
+        timer = setInterval(check, 30000);
+        return function () { alive = false; if (timer) clearInterval(timer); };
+      }, [editorBase]);
+
+      var editorUrl = editorBase
+        ? editorBase + "/workflow-editor/?theme=" + theme
+        : "";
 
       var iconStyle = {
         width: 32,
@@ -90,21 +130,54 @@ window.__ModuleLoader__.load({
         border: "none",
         background: "transparent",
         cursor: "pointer",
-        fontSize: 17,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
+        position: "relative",
         color: "var(--dsw-alias-label-secondary, #6b7280)"
+      };
+      var dotStyle = {
+        position: "absolute",
+        right: 3,
+        bottom: 3,
+        width: 7,
+        height: 7,
+        borderRadius: "50%",
+        background: online === false
+          ? "var(--dsw-alias-state-danger, #e5484d)"
+          : "var(--dsw-alias-state-success, #30a46c)",
+        boxShadow: "0 0 0 1.5px var(--dsw-alias-bg-module-platform, #fff)",
+        opacity: online === null ? 0 : 1
       };
 
       return jsxRuntime.jsxs(React.Fragment, {
         children: [
-          jsxRuntime.jsx("button", {
+          jsxRuntime.jsxs("button", {
             type: "button",
             title: t ? t("action.tooltip") : "打开 RPA 工作流编辑器",
             onClick: function () { setOpen(!open); },
             style: iconStyle,
-            children: "\u2699"
+            children: [
+              jsxRuntime.jsx("svg", {
+                width: 17,
+                height: 17,
+                viewBox: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                strokeWidth: 2,
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+                children: [
+                  jsxRuntime.jsx("path", { d: "M12 8V4H8" }),
+                  jsxRuntime.jsx("rect", { width: 16, height: 12, x: 4, y: 8, rx: 2 }),
+                  jsxRuntime.jsx("path", { d: "M2 14h2" }),
+                  jsxRuntime.jsx("path", { d: "M20 14h2" }),
+                  jsxRuntime.jsx("path", { d: "M15 13v2" }),
+                  jsxRuntime.jsx("path", { d: "M9 13v2" })
+                ]
+              }),
+              online !== null && jsxRuntime.jsx("span", { style: dotStyle, title: online ? "后端在线" : "后端离线" })
+            ]
           }),
           open && jsxRuntime.jsxs("div", {
             style: {
@@ -117,7 +190,7 @@ window.__ModuleLoader__.load({
               zIndex: 2147483000,
               display: "flex",
               flexDirection: "column",
-              boxShadow: "-10px 0 40px rgba(0, 0, 0, 0.2)",
+              boxShadow: "var(--dsw-shadow-overlay, -10px 0 40px rgba(0, 0, 0, 0.2))",
               borderLeft: "1px solid var(--dsw-alias-border-subtle, #e5e7eb)"
             },
             children: [
@@ -132,7 +205,7 @@ window.__ModuleLoader__.load({
                   flex: "none"
                 },
                 children: [
-                  jsxRuntime.jsx("span", { style: { fontWeight: 600, fontSize: 14 }, children: t ? t("action.title") : "RPA 控制台" }),
+                  jsxRuntime.jsx("span", { style: { fontWeight: 600, fontSize: 14, color: "var(--dsw-alias-label-primary, #1f2329)" }, children: t ? t("action.title") : "RPA 控制台" }),
                   jsxRuntime.jsx("span", { style: { fontSize: 12, color: "var(--dsw-alias-label-tertiary, #9ca3af)" }, children: t ? t("panel.hint") : "内嵌 RPA 工作流编辑器；若加载失败请确认后端已启动，或点右上角新窗口打开。" }),
                   jsxRuntime.jsx("span", { style: { flex: 1 } }),
                   jsxRuntime.jsx("a", {
