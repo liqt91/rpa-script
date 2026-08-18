@@ -42,7 +42,7 @@ function require_node_child_process() {
 }
 
 const name = "rpa-bridge";
-const inject = ["tools", "systemPrompt"];
+const inject = ["tools", "systemPrompt", "webServer"];
 
 const Config = z.object({
   // 后端地址：留空自动从端口文件发现（随机端口 8100-8199）；也可显式固定
@@ -373,6 +373,94 @@ function apply(ctx, config) {
       }
     } catch { /* ignore */ }
   });
+
+  /* -------- 启动/重启后端（client 抽屉按钮触发，经 dsh web 同源 HTTP） -------- */
+  const startBackendProcess = async (action) => {
+    const probe = async () => {
+      try { await api.get("/health", { timeoutMs: 2000 }); return true; } catch { return false; }
+    };
+    const alive = await probe();
+    if (alive && action !== "restart") {
+      return { ok: true, already: true };
+    }
+    if (alive && action === "restart") {
+      if (!ownedBackend) {
+        return { ok: false, error: "后端由外部托管（非插件启动），请手动重启" };
+      }
+      try {
+        const pid = ownedBackend.pid;
+        if (process.platform === "win32") {
+          execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => {});
+        } else {
+          ownedBackend.kill();
+        }
+        ownedBackend = null;
+        await new Promise((r) => setTimeout(r, 2000));
+      } catch (e) {
+        return { ok: false, error: `停止后端失败: ${e.message}` };
+      }
+    }
+    const launch = await resolveBackendLaunch(config, (m) => ctx.logger.info(m));
+    if (!launch) {
+      return { ok: false, error: "无可用的后端启动方式（本地形态请配置 backendCommand 指向仓库 venv）" };
+    }
+    const env = { ...process.env, ...launch.env };
+    const child = spawn(launch.command, {
+      cwd: launch.cwd || undefined,
+      detached: true,
+      stdio: "ignore",
+      shell: true,
+      env,
+    });
+    child.on("error", (e) => ctx.logger.warn(`[rpa-bridge] 后端启动失败: ${e.message}`));
+    child.unref();
+    ownedBackend = child;
+    ctx.logger.info(`[rpa-bridge] 已托管启动后端 ${launch.command}`);
+    const ready = await waitForBackendReady(config, 30000);
+    if (!ready) return { ok: false, error: "后端 30s 内未就绪" };
+    // 读端口文件返回实际端口
+    let port;
+    try {
+      const base = resolveBackendUrl(config);
+      const m = base.match(/:(\d+)$/);
+      if (m) port = m[1];
+    } catch {}
+    return { ok: true, port };
+  };
+
+  const readRequestBody = (req) => new Promise((resolve) => {
+    let body = "";
+    req.on("data", (c) => { body += c; if (body.length > 1e5) req.destroy(); });
+    req.on("end", () => {
+      try { resolve(body ? JSON.parse(body) : {}); } catch { resolve({}); }
+    });
+    req.on("error", () => resolve({}));
+  });
+
+  try {
+    ctx.webServer.register({
+      kind: "exact",
+      path: "/rpa-bridge/start-backend",
+      handler: async (req, res) => {
+        const send = (obj, status = 200) => {
+          res.writeHead(status, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(obj));
+        };
+        if (req.method !== "POST") return send({ ok: false, error: "method not allowed" }, 405);
+        let action = "start";
+        try { action = (await readRequestBody(req)).action || "start"; } catch {}
+        try {
+          send(await startBackendProcess(action));
+        } catch (e) {
+          send({ ok: false, error: e.message });
+        }
+      },
+    }, "rpa-bridge: start-backend route");
+    ctx.logger.info("[rpa-bridge] 已注册 /rpa-bridge/start-backend（RPA 控制台可一键启动/重启后端）");
+  } catch (e) {
+    ctx.logger.warn(`[rpa-bridge] 注册 start-backend 路由失败: ${e.message}`);
+  }
+
 
   /* -------- 系统提示段：教模型正确使用 RPA 工具 -------- */
   ctx.systemPrompt.section({

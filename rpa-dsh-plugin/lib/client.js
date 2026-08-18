@@ -83,6 +83,12 @@ window.__ModuleLoader__.load({
       var healthState = React.useState(null); // null=未知 true=在线 false=离线
       var online = healthState[0];
       var setOnline = healthState[1];
+      var busyState = React.useState(false);
+      var busy = busyState[0];
+      var setBusy = busyState[1];
+      var tipState = React.useState("");
+      var tip = tipState[0];
+      var setTip = tipState[1];
       var t = props.t;
 
       // 打开抽屉时探测后端端口 + 读当前主题
@@ -122,6 +128,33 @@ window.__ModuleLoader__.load({
       var editorUrl = editorBase
         ? editorBase + "/workflow-editor/?theme=" + theme
         : "";
+
+      // 启动/重启后端：经 dsh web 同源 HTTP 触发插件 node 侧 spawn
+      var onStartBackend = function (action) {
+        if (busy) return;
+        setBusy(true);
+        setTip("");
+        fetch("/rpa-bridge/start-backend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: action || "start" })
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (d) {
+            if (d && d.ok) {
+              setTip(d.already ? "后端已在运行" : "后端已启动" + (d.port ? "（端口 " + d.port + "）" : ""));
+              if (!d.already) {
+                // 端口可能变化 → 重新发现并刷新 iframe
+                discoverBackendBase().then(function (base) { if (base) setEditorBase(base); });
+              }
+              setOnline(true);
+            } else {
+              setTip("失败: " + ((d && d.error) || "未知错误"));
+            }
+          })
+          .catch(function (e) { setTip("请求失败: " + e.message); })
+          .then(function () { setBusy(false); });
+      };
 
       var iconStyle = {
         width: 32,
@@ -208,6 +241,25 @@ window.__ModuleLoader__.load({
                   jsxRuntime.jsx("span", { style: { fontWeight: 600, fontSize: 14, color: "var(--dsw-alias-label-primary, #1f2329)" }, children: t ? t("action.title") : "RPA 控制台" }),
                   jsxRuntime.jsx("span", { style: { fontSize: 12, color: "var(--dsw-alias-label-tertiary, #9ca3af)" }, children: t ? t("panel.hint") : "内嵌 RPA 工作流编辑器；若加载失败请确认后端已启动，或点右上角新窗口打开。" }),
                   jsxRuntime.jsx("span", { style: { flex: 1 } }),
+                  jsxRuntime.jsx("span", { style: { fontSize: 11, color: "var(--dsw-alias-label-tertiary, #9ca3af)" }, children: tip }),
+                  jsxRuntime.jsx("button", {
+                    type: "button",
+                    onClick: function () { onStartBackend(online ? "restart" : "start"); },
+                    disabled: busy,
+                    title: online ? "重启后端" : "启动后端",
+                    style: {
+                      border: "1px solid var(--dsw-alias-border-subtle, #e5e7eb)",
+                      background: "var(--dsw-alias-bg-module-platform, #fafafa)",
+                      cursor: busy ? "wait" : "pointer",
+                      borderRadius: 6,
+                      padding: "3px 10px",
+                      fontSize: 12,
+                      color: "var(--dsw-alias-label-secondary, #6b7280)"
+                    },
+                    children: busy
+                      ? "\u23F3 启动中..."
+                      : (online ? "\u21BB 重启" : "\u25B6 启动")
+                  }),
                   jsxRuntime.jsx("a", {
                     href: editorUrl || "http://127.0.0.1:8000/workflow-editor/",
                     target: "_blank",
