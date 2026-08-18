@@ -779,7 +779,7 @@ function apply(ctx, config) {
       "- 浏览器扩展连接是单实例：工作流运行中调 rpa_browser_exec 会 409，除非 allow_during_run=true。",
       "- 桌面指令（Win32/UIA）仅 Windows；后端需常驻且扩展已连接，先 rpa_status 确认。",
       "- 流程工作区：一个 RPA 流程 = 一个目录 = 一个 DSH 工作区（会话自动绑定该目录）。开始新流程时先 rpa_project_create（默认用当前会话工作目录），之后该目录下会话会出现「流程」编辑 tab，流程数据存于目录内。",
-      "- 运行流程的快捷链路：先 rpa_project_list 确认流程目录，再 rpa_run_start(project=该目录) → rpa_run_wait(project, run_id)。不要为运行流程去探测浏览器/翻文件系统/查 API 列表——rpa_project_list 一步给出所有流程路径。",
+      "- 运行流程的快捷链路：先 rpa_project_list 确认流程目录（返回里 current:true 即当前会话所在目录），再 rpa_run_start(project=该目录) → rpa_run_wait(project, run_id)。若 current:true 存在，直接 rpa_run_start() 不带参数即可运行当前会话的流程。不要为运行流程去探测浏览器/翻文件系统/查 API 列表——rpa_project_list 一步给出所有流程路径。",
     ].join("\n"),
   });
 
@@ -844,12 +844,13 @@ function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: "rpa_project_list",
-    description: "列出所有 RPA 流程工作区（含 rpa.json 的 DSH 工作区目录）：名称、绝对路径、是否有 workflow.json、节点数。运行流程前先调本工具确认项目路径（纯 node 侧，不依赖后端）。",
+    description: "列出所有 RPA 流程工作区（含 rpa.json 的 DSH 工作区目录）：名称、绝对路径、是否有 workflow.json、节点数，并标注哪个是当前会话所在目录（current:true）。运行流程前先调本工具：若 current:true 存在，直接 rpa_run_start() 不带参数即可运行当前会话的流程（纯 node 侧，不依赖后端）。",
     parameters: {},
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
     // 不走 withEnsure：纯 node fs + workspaceRegistry
-    execute: async () => {
+    execute: async (_args, exec) => {
+      const sessionCwd = exec?.agent?.session?.header?.cwd;
       const projects = [];
       const seen = new Set();
       try {
@@ -879,6 +880,7 @@ function apply(ctx, config) {
               workspaceId: ws.id,
               hasWorkflow,
               nodeCount,
+              current: Boolean(sessionCwd) && dir.toLowerCase() === String(sessionCwd).toLowerCase(),
             });
           }
         }
