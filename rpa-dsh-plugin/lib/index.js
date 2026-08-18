@@ -85,6 +85,11 @@ function editorStaticRoot() {
   return inPkg;
 }
 
+/** 编辑器静态文件是否就绪（缺失时注册日志明确告警，避免静默 404）。 */
+function editorStaticReady() {
+  return existsSync(join(editorStaticRoot(), "index.html"));
+}
+
 /** 静态文件 MIME 表（workflow-editor 构建产物用到的类型）。 */
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -734,6 +739,9 @@ function apply(ctx, config) {
   /* -------- workflow-editor 静态托管（页面免后端：dsh web serve 编辑器） -------- */
   try {
     const editorRoot = editorStaticRoot();
+    if (!editorStaticReady()) {
+      ctx.logger.warn(`[rpa-bridge] workflow-editor 静态文件缺失（${editorRoot}）—— 流程 tab 将 404。请同步前端产物到插件包 python/static/workflow-editor`);
+    }
     const EDITOR_PREFIX = "/rpa-editor"; // 无尾斜杠：prefix 匹配用 startsWith(prefix + "/")
     ctx.webServer.register({
       kind: "prefix",
