@@ -335,7 +335,7 @@ export default function CaptureToolModal({ wfId, onClose, onSaved }) {
                       <img src={cur.screenshot} alt="截图"
                            className="h-14 w-auto rounded object-contain border border-border-strong bg-surface" />
                       <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-accent-strong/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                        <i className="fas fa-expand text-white text-xs"></i>
+                        <i className="fas fa-expand text-body text-xs"></i>
                       </div>
                     </div>
                   )}

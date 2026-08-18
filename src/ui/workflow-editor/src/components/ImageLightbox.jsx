@@ -37,7 +37,7 @@ export default function ImageLightbox({ src, alt, onClose }) {
       <button
         onClick={handleClose}
         title="关闭 (Esc)"
-        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-surface/10 hover:bg-surface/20 text-white transition-colors"
+        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-surface/10 hover:bg-surface/20 text-body transition-colors"
       >
         <i className="fas fa-times"></i>
       </button>

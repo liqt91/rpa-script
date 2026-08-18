@@ -280,7 +280,7 @@ export default function WorkflowList() {
     <div className="flex-1 min-h-0 overflow-y-auto p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-white">流程列表</h1>
+          <h1 className="text-xl font-semibold text-body">流程列表</h1>
           <p className="text-muted text-sm mt-1">管理工作流，配置执行浏览器，手动触发运行</p>
         </div>
         <button
@@ -325,7 +325,7 @@ export default function WorkflowList() {
                         <span className="text-danger">扩展未安装</span>
                         <button
                           onClick={() => handleOpenExtPage(browser)}
-                          className="ml-1 px-2 py-0.5 bg-blue-700/60 hover:bg-blue-700 text-blue-100 rounded text-[10px] transition-colors"
+                          className="ml-1 px-2 py-0.5 bg-accent/70 hover:bg-blue-700 text-inverse rounded text-[10px] transition-colors"
                           title={`打开 ${label} 并加载扩展`}
                         >
                           打开浏览器
@@ -393,7 +393,7 @@ export default function WorkflowList() {
           <div className="bg-surface-2 rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border bg-[#252f47]">
+                <tr className="border-b border-border bg-surface-3">
                   <th className="text-left px-4 py-3 font-medium text-faint">名称</th>
                   <th className="text-left px-4 py-3 font-medium text-faint w-40 whitespace-nowrap">更新时间</th>
                   <th className="text-right px-4 py-3 font-medium text-faint w-60 whitespace-nowrap">操作</th>
@@ -403,10 +403,10 @@ export default function WorkflowList() {
                 {workflows.map((wf) => (
                   <tr
                     key={wf.id}
-                    className="border-b border-border/50 hover:bg-[#252f47] transition-colors"
+                    className="border-b border-border/50 hover:bg-surface-3 transition-colors"
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium text-white">{wf.name}</div>
+                      <div className="font-medium text-body">{wf.name}</div>
                       {wf.description && (
                         <div className="text-muted text-xs mt-0.5">{wf.description}</div>
                       )}
@@ -484,10 +484,10 @@ export default function WorkflowList() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-surface-2 rounded-xl border border-border w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-semibold text-white">新建工作流</h2>
+              <h2 className="text-lg font-semibold text-body">新建工作流</h2>
               <button
                 onClick={() => { setShowCreate(false); setForm({ name: '', description: '' }); }}
-                className="text-faint hover:text-white transition-colors"
+                className="text-faint hover:text-body transition-colors"
               >
                 <i className="fas fa-times"></i>
               </button>
@@ -500,7 +500,7 @@ export default function WorkflowList() {
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="例如：小红书评论采集"
-                  className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-body text-sm focus:outline-none focus:border-blue-500"
                   autoFocus
                 />
               </div>
@@ -511,14 +511,14 @@ export default function WorkflowList() {
                   value={form.description}
                   onChange={e => setForm({ ...form, description: e.target.value })}
                   placeholder="简短描述这个工作流的用途"
-                  className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-bg border border-border-strong rounded-lg text-body text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 text-faint hover:text-white text-sm transition-colors"
+                  className="px-4 py-2 text-faint hover:text-body text-sm transition-colors"
                 >
                   取消
                 </button>
@@ -555,13 +555,13 @@ export default function WorkflowList() {
           <div className="bg-surface-2 rounded-xl border border-border w-full max-w-sm mx-4 px-6 py-5">
             <div className="flex items-center gap-3 mb-3">
               <i className="fas fa-exclamation-triangle text-danger text-lg"></i>
-              <h2 className="text-lg font-semibold text-white">确认删除</h2>
+              <h2 className="text-lg font-semibold text-body">确认删除</h2>
             </div>
             <p className="text-faint text-sm mb-5">删除后无法恢复，是否继续？</p>
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => setDeleteId(null)}
-                className="px-4 py-2 text-faint hover:text-white text-sm transition-colors"
+                className="px-4 py-2 text-faint hover:text-body text-sm transition-colors"
               >
                 取消
               </button>

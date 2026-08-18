@@ -66,7 +66,7 @@ export default function AIConfigPage() {
       {/* Sidebar nav */}
       <div className="w-52 bg-bg border-r border-border flex flex-col shrink-0">
         <div className="px-4 py-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-white">AI 配置</h2>
+          <h2 className="text-sm font-semibold text-body">AI 配置</h2>
         </div>
         <nav className="flex-1 py-1 overflow-y-auto">
           <NavItem icon="fa-cog" label="模型配置" active={nav === 'model'} onClick={() => setNav('model')} />
@@ -99,7 +99,7 @@ export default function AIConfigPage() {
 function NavItem({ icon, label, active, onClick }) {
   return (
     <button onClick={onClick}
-      className={`w-full text-left px-4 py-2 flex items-center gap-2.5 text-sm transition-colors ${active ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'}`}>
+      className={`w-full text-left px-4 py-2 flex items-center gap-2.5 text-sm transition-colors ${active ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-surface-3/50'}`}>
       <i className={`fas ${icon} w-4 text-center text-xs`} />
       <span className="truncate text-xs">{label}</span>
     </button>
@@ -110,14 +110,14 @@ function ModelConfig({ config, setConfig }) {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-xl">
-        <h3 className="text-base font-medium text-white mb-5">模型配置</h3>
+        <h3 className="text-base font-medium text-body mb-5">模型配置</h3>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-muted mb-1.5">服务商</label>
               <select value={config.provider}
                 onChange={e => setConfig(prev => ({ ...prev, provider: e.target.value, model: PROVIDER_MODELS[e.target.value]?.[0] || prev.model }))}
-                className="w-full px-3 py-2 bg-surface-2 border border-border-strong rounded text-sm text-white outline-none focus:border-blue-500">
+                className="w-full px-3 py-2 bg-surface-2 border border-border-strong rounded text-sm text-body outline-none focus:border-blue-500">
                 <option value="deepseek">DeepSeek</option>
               </select>
             </div>
@@ -125,7 +125,7 @@ function ModelConfig({ config, setConfig }) {
               <label className="block text-xs text-muted mb-1.5">模型</label>
               <select value={config.model}
                 onChange={e => setConfig(prev => ({ ...prev, model: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-2 border border-border-strong rounded text-sm text-white outline-none focus:border-blue-500">
+                className="w-full px-3 py-2 bg-surface-2 border border-border-strong rounded text-sm text-body outline-none focus:border-blue-500">
                 {PROVIDER_MODELS[config.provider]?.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
@@ -134,7 +134,7 @@ function ModelConfig({ config, setConfig }) {
             <label className="block text-xs text-muted mb-1.5">API Key</label>
             <input type="password" value={config.apiKey}
               onChange={e => setConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-              placeholder="sk-..." className="w-full max-w-md px-3 py-2 bg-surface-2 border border-border-strong rounded text-sm text-white outline-none focus:border-blue-500" />
+              placeholder="sk-..." className="w-full max-w-md px-3 py-2 bg-surface-2 border border-border-strong rounded text-sm text-body outline-none focus:border-blue-500" />
           </div>
           <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
             <input type="checkbox" checked={config.enabled}
@@ -178,7 +178,7 @@ function ScenarioEdit({ scenario, meta, updateScenario }) {
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Top bar */}
       <div className="px-5 py-2.5 border-b border-border bg-bg shrink-0 flex items-center gap-3">
-        <h3 className="text-sm font-medium text-white flex items-center gap-2">
+        <h3 className="text-sm font-medium text-body flex items-center gap-2">
           <i className={`fas ${meta?.icon || 'fa-circle'} text-accent text-xs`} />
           {meta?.label || scenario.name}
         </h3>
@@ -224,7 +224,7 @@ function ScenarioEdit({ scenario, meta, updateScenario }) {
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted">测试指令</span>
               <select value={testType} onChange={e => setTestType(e.target.value)}
-                className="w-48 px-2.5 py-1.5 bg-surface-2 border border-border-strong rounded text-xs text-white outline-none focus:border-blue-500">
+                className="w-48 px-2.5 py-1.5 bg-surface-2 border border-border-strong rounded text-xs text-body outline-none focus:border-blue-500">
                 {defs.map(d => <option key={d.type} value={d.type}>{d.type} ({d.label})</option>)}
               </select>
               <button onClick={handleTest} disabled={testing || !scenario.enabled}

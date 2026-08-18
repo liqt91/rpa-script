@@ -417,7 +417,7 @@ export default function DataTableTab({ wfId }) {
               <tr>
                 <th className="w-10 h-9 bg-slate-700 text-faint font-medium text-center border-r border-slate-600 text-[11px]">#</th>
                 {columns.map((col, ci) => (
-                  <th key={ci} className="bg-slate-700 text-white font-medium border-r border-slate-600 min-w-[88px] relative group last:border-r-0">
+                  <th key={ci} className="bg-slate-700 text-body font-medium border-r border-slate-600 min-w-[88px] relative group last:border-r-0">
                     <div className="flex items-center">
                       <input
                         className="w-full px-3 py-2 bg-transparent text-center outline-none font-medium text-[11px] placeholder-slate-400"
@@ -435,7 +435,7 @@ export default function DataTableTab({ wfId }) {
                   </th>
                 ))}
                 <th className="w-8 bg-slate-700 border-l border-slate-600">
-                  <button onClick={addColumn} className="w-full h-full flex items-center justify-center text-faint hover:text-white hover:bg-slate-600 transition-colors" title="添加列">
+                  <button onClick={addColumn} className="w-full h-full flex items-center justify-center text-faint hover:text-body hover:bg-slate-600 transition-colors" title="添加列">
                     <i className="fas fa-plus text-[10px]"></i>
                   </button>
                 </th>

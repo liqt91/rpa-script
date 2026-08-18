@@ -2,7 +2,7 @@ export default function Schedules() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-6">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-white">计划任务</h1>
+        <h1 className="text-xl font-semibold text-body">计划任务</h1>
         <p className="text-muted text-sm mt-1">定时执行工作流，设置触发时间和频率</p>
       </div>
       <div className="bg-surface-2 rounded-xl border border-border p-12 text-center">

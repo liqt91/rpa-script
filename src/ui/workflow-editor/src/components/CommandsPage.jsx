@@ -93,23 +93,23 @@ export default function CommandsPage() {
 
   return(<div className="p-6">
     <div className="mb-6 flex items-center justify-between">
-      <div><h1 className="text-xl font-semibold text-white">指令管理</h1><p className="text-muted text-sm mt-1">共 {categories.length} 个分类，{Object.values(allCommands).reduce((s,a)=>s+a.length,0)} 个指令，{containerTypes.length} 种容器</p></div>
+      <div><h1 className="text-xl font-semibold text-body">指令管理</h1><p className="text-muted text-sm mt-1">共 {categories.length} 个分类，{Object.values(allCommands).reduce((s,a)=>s+a.length,0)} 个指令，{containerTypes.length} 种容器</p></div>
       <div className="flex items-center gap-2">
-        <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索类型/标签/说明..." className="px-3 py-1.5 bg-surface-2 border border-border-strong rounded text-sm text-white placeholder-gray-500 outline-none focus:border-blue-500 w-56"/>
-        <button onClick={loadCommands} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm flex items-center gap-2 transition-colors"><i className="fas fa-sync-alt"></i>刷新</button>
+        <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索类型/标签/说明..." className="px-3 py-1.5 bg-surface-2 border border-border-strong rounded text-sm text-body placeholder-gray-500 outline-none focus:border-blue-500 w-56"/>
+        <button onClick={loadCommands} className="px-3 py-1.5 bg-accent hover:bg-accent-strong text-body rounded text-sm flex items-center gap-2 transition-colors"><i className="fas fa-sync-alt"></i>刷新</button>
       </div>
     </div>
     {error&&<div className="mb-4 p-3 bg-danger/25 border border-danger rounded-lg text-danger text-sm"><i className="fas fa-exclamation-circle mr-2"></i>{error}</div>}
     {filtered.length===0?(<div className="text-center py-12 text-muted">无匹配指令</div>):(<div className="space-y-3">
       {filtered.map(({cat,cmds})=>(<div key={cat} className="bg-surface-2 rounded-xl border border-border overflow-hidden">
-        <div className="px-4 py-2.5 bg-[#252f47] border-b border-border flex items-center gap-3"><span className="text-sm font-medium text-muted">{cat}</span><span className="text-xs text-muted">{cmds.length} 个</span></div>
+        <div className="px-4 py-2.5 bg-surface-3 border-b border-border flex items-center gap-3"><span className="text-sm font-medium text-muted">{cat}</span><span className="text-xs text-muted">{cmds.length} 个</span></div>
         <div className="overflow-x-auto"><table className="w-full text-xs table-fixed">
           <colgroup><col style={{width:'120px'}}/><col style={{width:'100px'}}/><col style={{width:'56px'}}/><col style={{width:'80px'}}/><col style={{width:'100px'}}/><col style={{width:'60px'}}/><col style={{width:'150px'}}/><col/></colgroup>
           <thead><tr className="border-b border-border/50"><th className="text-left px-3 py-2 font-medium text-muted">类型</th><th className="text-left px-3 py-2 font-medium text-muted">标签</th><th className="text-center px-3 py-2 font-medium text-muted">状态</th><th className="text-center px-3 py-2 font-medium text-muted">类别</th><th className="text-center px-3 py-2 font-medium text-muted">控制身份</th><th className="text-center px-3 py-2 font-medium text-muted">参数</th><th className="text-left px-3 py-2 font-medium text-muted">运行时</th><th className="text-left px-3 py-2 font-medium text-muted">说明</th></tr></thead>
           <tbody>{cmds.map(cmd=>{
             const ctrl=controlLabel(cmd);
             const isControl=!!ctrl;
-            return(<tr key={cmd.cmd} className="border-b border-border/30 hover:bg-[#252f47] cursor-pointer" onClick={()=>setEditCmd({...type,fields:JSON.parse(JSON.stringify(cmd.fields||[]))})}>
+            return(<tr key={cmd.cmd} className="border-b border-border/30 hover:bg-surface-3 cursor-pointer" onClick={()=>setEditCmd({...type,fields:JSON.parse(JSON.stringify(cmd.fields||[]))})}>
             <td className="px-3 py-2 font-mono text-accent-strong truncate">{cmd.cmd}</td>
             <td className="px-3 py-2 text-muted truncate">{cmd.label||'-'}</td>
             <td className="px-3 py-2 text-center">{cmd.enabled!==false?<span className="px-1.5 py-0.5 bg-green-900/40 text-ok rounded text-[10px]">启用</span>:<span className="px-1.5 py-0.5 bg-gray-700/50 text-faint rounded text-[10px]">禁用</span>}</td>
@@ -129,11 +129,11 @@ export default function CommandsPage() {
       <div className="bg-surface-2 rounded-xl border border-border w-[740px] max-w-[95vw] max-h-[90vh] flex flex-col" onClick={e=>e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <h3 className="text-base font-semibold text-white font-mono">{editCmd.cmd}</h3>
+            <h3 className="text-base font-semibold text-body font-mono">{editCmd.cmd}</h3>
             <span className="text-xs text-faint">{editCmd.label}</span>
             <span className={`px-1.5 py-0.5 rounded text-[10px] ${isControl?'bg-warn/30 text-warn':'bg-accent/25 text-accent-strong'}`}>{isControl?'控制指令':'操作指令'}</span>
           </div>
-          <button onClick={()=>setEditCmd(null)} className="text-faint hover:text-white"><i className="fas fa-times"></i></button>
+          <button onClick={()=>setEditCmd(null)} className="text-faint hover:text-body"><i className="fas fa-times"></i></button>
         </div>
 
         <div className="flex-1 overflow-auto p-5 space-y-4">
@@ -176,14 +176,14 @@ export default function CommandsPage() {
               <div className="border border-border/50 rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 bg-bg/80 border-b border-border/50">
                   <span className="text-[10px] text-faint font-mono">{viewSource.cmd} source</span>
-                  <button onClick={() => setViewSource(null)} className="text-faint hover:text-white"><i className="fas fa-times"></i></button>
+                  <button onClick={() => setViewSource(null)} className="text-faint hover:text-body"><i className="fas fa-times"></i></button>
                 </div>
                 {viewSource.loading ? (
                   <div className="px-4 py-8 text-center text-muted text-xs"><i className="fas fa-circle-notch fa-spin mr-2"></i>加载中...</div>
                 ) : viewSource.error ? (
                   <div className="px-4 py-4 text-danger text-xs">{viewSource.error}</div>
                 ) : viewSource.source ? (
-                  <pre className="p-4 text-[11px] font-mono text-muted bg-[#0a0e14] overflow-auto max-h-64 leading-relaxed">{viewSource.source}</pre>
+                  <pre className="p-4 text-[11px] font-mono text-muted bg-surface-3 overflow-auto max-h-64 leading-relaxed">{viewSource.source}</pre>
                 ) : (
                   <div className="px-4 py-4 text-muted text-xs">无法获取源码（可能是 emitter 或旧指令）</div>
                 )}
@@ -217,12 +217,12 @@ export default function CommandsPage() {
             <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-muted bg-bg/50 rounded-t"><span className="w-[74px] shrink-0">变量名</span><span className="w-[64px] shrink-0">显示名</span><span className="w-[74px] shrink-0">类型 <button type="button" onClick={e=>{e.stopPropagation();setShowTypeHelp(!showTypeHelp);}} className="inline text-muted hover:text-muted ml-0.5" title="字段类型说明">?</button></span><span className="w-[58px] shrink-0">分组</span><span className="w-[28px] shrink-0 text-center">必填</span><span className="flex-1">默认值</span></div>
             <div className="space-y-1 max-h-48 overflow-y-auto">{editCmd.fields.map((f,i)=>(<Fragment key={i}>
               <div className="flex items-center gap-1.5 bg-bg rounded px-2 py-1">
-              <div className="w-[74px] flex items-center gap-0.5"><span className="text-[10px] text-muted shrink-0">🔒</span><input value={f.name||''} disabled className="flex-1 px-1.5 py-1 bg-gray-800/50 border border-border rounded text-faint text-[10px] font-mono" placeholder="url"/></div>
-              <input value={f.label||''} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],label:e.target.value};setEditCmd({...editCmd,fields:fs});}} placeholder="显示名" className="w-[65px] px-1.5 py-1 bg-transparent border border-border-strong rounded text-white text-[10px] outline-none focus:border-blue-500"/>
-              <div className="w-[74px] px-1 py-1 bg-gray-800/50 border border-border rounded text-faint text-[10px] flex items-center gap-0.5"><span className="text-[10px] text-muted">🔒</span><span className="truncate">{(FIELD_TYPES.find(t=>t.v===f.type)||{}).l||f.type||'text'}</span></div>
-              <select value={f.group||'主属性'} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],group:e.target.value};setEditCmd({...editCmd,fields:fs});}} className="w-[58px] px-1 py-1 bg-surface-2 border border-gray-500 rounded text-white text-[10px] outline-none focus:border-blue-500">{FIELD_GROUPS.map(g=><option key={g.v} value={g.v}>{g.l}</option>)}</select>
+              <div className="w-[74px] flex items-center gap-0.5"><span className="text-[10px] text-muted shrink-0">🔒</span><input value={f.name||''} disabled className="flex-1 px-1.5 py-1 bg-surface-3/50 border border-border rounded text-faint text-[10px] font-mono" placeholder="url"/></div>
+              <input value={f.label||''} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],label:e.target.value};setEditCmd({...editCmd,fields:fs});}} placeholder="显示名" className="w-[65px] px-1.5 py-1 bg-transparent border border-border-strong rounded text-body text-[10px] outline-none focus:border-blue-500"/>
+              <div className="w-[74px] px-1 py-1 bg-surface-3/50 border border-border rounded text-faint text-[10px] flex items-center gap-0.5"><span className="text-[10px] text-muted">🔒</span><span className="truncate">{(FIELD_TYPES.find(t=>t.v===f.type)||{}).l||f.type||'text'}</span></div>
+              <select value={f.group||'主属性'} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],group:e.target.value};setEditCmd({...editCmd,fields:fs});}} className="w-[58px] px-1 py-1 bg-surface-2 border border-gray-500 rounded text-body text-[10px] outline-none focus:border-blue-500">{FIELD_GROUPS.map(g=><option key={g.v} value={g.v}>{g.l}</option>)}</select>
               <label className="flex justify-center w-[28px] shrink-0"><input type="checkbox" checked={!!f.required} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],required:e.target.checked};setEditCmd({...editCmd,fields:fs});}} className="accent-accent"/></label>
-              {f.default!==undefined&&f.default!==null?<input value={String(f.default)} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],default:e.target.value};setEditCmd({...editCmd,fields:fs});}} placeholder="默认值" className="flex-1 px-1.5 py-1 bg-transparent border border-border-strong rounded text-white text-[10px] outline-none focus:border-blue-500"/>
+              {f.default!==undefined&&f.default!==null?<input value={String(f.default)} onChange={e=>{const fs=[...editCmd.fields];fs[i]={...fs[i],default:e.target.value};setEditCmd({...editCmd,fields:fs});}} placeholder="默认值" className="flex-1 px-1.5 py-1 bg-transparent border border-border-strong rounded text-body text-[10px] outline-none focus:border-blue-500"/>
               :<button onClick={()=>{const fs=[...editCmd.fields];fs[i]={...fs[i],default:''};setEditCmd({...editCmd,fields:fs});}} className="text-[10px] text-muted hover:text-muted flex-1">+默认</button>}
               <button onClick={()=>{const fs=editCmd.fields.filter((_,j)=>j!==i);setEditCmd({...editCmd,fields:fs});}} className="text-danger hover:text-danger text-[10px] shrink-0"><i className="fas fa-trash-alt"></i></button>
             </div>
@@ -238,10 +238,10 @@ export default function CommandsPage() {
             {/* Type help popover */}
             {showTypeHelp && (
               <div className="relative">
-                <div className="absolute z-30 top-0 left-[170px] w-[380px] bg-[#1a2236] border border-border-strong rounded-lg shadow-2xl p-4 text-xs">
+                <div className="absolute z-30 top-0 left-[170px] w-[380px] bg-surface-2 border border-border-strong rounded-lg shadow-2xl p-4 text-xs">
                   <div className="flex items-center justify-between mb-3">
                     <span className="font-medium text-body">字段类型说明</span>
-                    <button onClick={() => setShowTypeHelp(false)} className="text-faint hover:text-white"><i className="fas fa-times"></i></button>
+                    <button onClick={() => setShowTypeHelp(false)} className="text-faint hover:text-body"><i className="fas fa-times"></i></button>
                   </div>
                   <table className="w-full text-[10px]">
                     <thead>
@@ -276,10 +276,10 @@ export default function CommandsPage() {
           <div>
             <div className="flex items-center gap-2 mb-3"><span className={`w-5 h-5 rounded-full ${isControl?'bg-ok':'bg-accent'} text-white text-[10px] font-bold flex items-center justify-center shrink-0`}>{isControl?'③':'④'}</span><span className="text-xs font-medium text-muted">基本信息</span><span className="text-[10px] text-muted">— 可修改</span></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-[10px] text-muted mb-1">类型标识（唯一ID，不可改）</label><input value={editCmd.cmd} disabled className="w-full px-2 py-1.5 bg-gray-800 border border-border rounded text-faint text-xs font-mono"/></div>
-              <div><label className="block text-[10px] text-muted mb-1">中文显示名</label><input value={editCmd.label||''} onChange={e=>setEditCmd({...editCmd,label:e.target.value})} className="w-full px-2 py-1.5 bg-bg border border-border-strong rounded text-white text-xs outline-none focus:border-blue-500"/></div>
-              <div><label className="block text-[10px] text-muted mb-1">分类</label><select value={editCmd.category||''} onChange={e=>setEditCmd({...editCmd,category:e.target.value})} className="w-full px-2 py-1.5 bg-bg border border-border-strong rounded text-white text-xs outline-none focus:border-blue-500">{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-              <div><label className="block text-[10px] text-muted mb-1">说明（悬停提示）</label><textarea value={editCmd.description||''} onChange={e=>setEditCmd({...editCmd,description:e.target.value})} rows={2} className="w-full px-2 py-1.5 bg-bg border border-border-strong rounded text-white text-xs outline-none focus:border-blue-500 resize-none" placeholder="描述该指令的功能和使用场景"/></div>
+              <div><label className="block text-[10px] text-muted mb-1">类型标识（唯一ID，不可改）</label><input value={editCmd.cmd} disabled className="w-full px-2 py-1.5 bg-surface-2 border border-border rounded text-faint text-xs font-mono"/></div>
+              <div><label className="block text-[10px] text-muted mb-1">中文显示名</label><input value={editCmd.label||''} onChange={e=>setEditCmd({...editCmd,label:e.target.value})} className="w-full px-2 py-1.5 bg-bg border border-border-strong rounded text-body text-xs outline-none focus:border-blue-500"/></div>
+              <div><label className="block text-[10px] text-muted mb-1">分类</label><select value={editCmd.category||''} onChange={e=>setEditCmd({...editCmd,category:e.target.value})} className="w-full px-2 py-1.5 bg-bg border border-border-strong rounded text-body text-xs outline-none focus:border-blue-500">{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+              <div><label className="block text-[10px] text-muted mb-1">说明（悬停提示）</label><textarea value={editCmd.description||''} onChange={e=>setEditCmd({...editCmd,description:e.target.value})} rows={2} className="w-full px-2 py-1.5 bg-bg border border-border-strong rounded text-body text-xs outline-none focus:border-blue-500 resize-none" placeholder="描述该指令的功能和使用场景"/></div>
             </div>
           </div>
         </div>

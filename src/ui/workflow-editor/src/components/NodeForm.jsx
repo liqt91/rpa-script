@@ -740,7 +740,7 @@ function VarInput({ value, onChange, placeholder, className, vars, multiline = f
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#333]">
               <span className="text-sm font-medium text-[#cccccc]">代码编辑器</span>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={saveFullscreen} className="text-xs px-3 py-1.5 bg-[#0e639c] text-white rounded hover:bg-[#1177bb]">保存</button>
+                <button type="button" onClick={saveFullscreen} className="text-xs px-3 py-1.5 bg-[#0e639c] text-body rounded hover:bg-[#1177bb]">保存</button>
                 <button type="button" onClick={() => setFullscreen(false)} className="text-xs px-3 py-1.5 border border-[#555] text-[#cccccc] rounded hover:bg-[#333]">取消</button>
                 <button type="button" onClick={() => setFullscreen(false)} className="ml-1 w-6 h-6 flex items-center justify-center text-[#858585] hover:text-[#cccccc]" title="关闭">
                   <i className="fas fa-times"></i>

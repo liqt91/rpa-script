@@ -13,7 +13,7 @@ function EditorPage() {
   const wfId = parseInt(id, 10);
   if (isNaN(wfId)) {
     return (
-      <div className="h-screen flex items-center justify-center bg-bg text-white">
+      <div className="h-screen flex items-center justify-center bg-bg text-body">
         <div className="text-center">
           <p className="text-faint mb-4">无效的工作流 ID</p>
         </div>
@@ -43,7 +43,7 @@ function SidebarLayout({ children }) {
       <div className="w-52 bg-surface-2 border-r border-border flex flex-col shrink-0">
         <div className="px-4 py-5 flex items-center gap-2 border-b border-border">
           <i className="fas fa-project-diagram text-accent text-lg"></i>
-          <span className="font-semibold text-white">RPA Script</span>
+          <span className="font-semibold text-body">RPA Script</span>
         </div>
         <nav className="flex-1 py-3 space-y-1">
           <NavLink
@@ -51,7 +51,7 @@ function SidebarLayout({ children }) {
             end
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-surface-3/50'
               }`
             }
           >
@@ -62,7 +62,7 @@ function SidebarLayout({ children }) {
             to="/schedules"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-surface-3/50'
               }`
             }
           >
@@ -73,7 +73,7 @@ function SidebarLayout({ children }) {
             to="/logs"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-surface-3/50'
               }`
             }
           >
@@ -84,7 +84,7 @@ function SidebarLayout({ children }) {
             to="/commands/definitions"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-surface-3/50'
               }`
             }
           >
@@ -95,7 +95,7 @@ function SidebarLayout({ children }) {
             to="/ai-config"
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-gray-800/50'
+                isActive ? 'bg-accent/20 text-accent-strong border-r-2 border-accent' : 'text-faint hover:text-body hover:bg-surface-3/50'
               }`
             }
           >

@@ -548,7 +548,7 @@ export default function Toolbar() {
         {/* 左侧：标题 */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 brand-mark rounded-md flex items-center justify-center text-white text-xs font-bold">
+            <div className="w-6 h-6 brand-mark rounded-md flex items-center justify-center text-body text-xs font-bold">
               <i className="fas fa-project-diagram text-[10px]"></i>
             </div>
             {editingName ? (

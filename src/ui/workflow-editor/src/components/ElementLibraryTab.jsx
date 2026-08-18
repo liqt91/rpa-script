@@ -546,7 +546,7 @@ export default function ElementLibraryTab() {
                                 className="max-h-40 border border-border rounded bg-surface"
                               />
                               <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-accent-strong/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                                <i className="fas fa-expand text-white text-xs"></i>
+                                <i className="fas fa-expand text-body text-xs"></i>
                               </div>
                             </div>
                           </div>
@@ -644,7 +644,7 @@ export default function ElementLibraryTab() {
                                 className="max-h-48 border border-border rounded bg-surface"
                               />
                               <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-accent-strong/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                                <i className="fas fa-expand text-white text-xs"></i>
+                                <i className="fas fa-expand text-body text-xs"></i>
                               </div>
                             </div>
                           ) : (
@@ -692,7 +692,7 @@ export default function ElementLibraryTab() {
                           className="max-h-48 border border-border rounded bg-surface"
                         />
                         <div className="absolute inset-0 rounded bg-black/0 group-hover:bg-accent-strong/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                          <i className="fas fa-expand text-white text-xs"></i>
+                          <i className="fas fa-expand text-body text-xs"></i>
                         </div>
                       </div>
                     </div>

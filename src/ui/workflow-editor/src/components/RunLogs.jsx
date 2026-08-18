@@ -147,21 +147,21 @@ export default function RunLogs() {
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-white">运行日志</h1>
+          <h1 className="text-xl font-semibold text-body">运行日志</h1>
           <p className="text-muted text-sm mt-1">查看所有工作流的执行历史和结果</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={exportRunsToCSV}
             disabled={runs.length === 0}
-            className="px-3 py-1.5 bg-ok/40 hover:bg-green-700 disabled:bg-gray-800 disabled:text-muted text-white rounded text-sm flex items-center gap-2 transition-colors"
+            className="px-3 py-1.5 bg-ok/40 hover:bg-green-700 disabled:bg-surface-2 disabled:text-muted text-white rounded text-sm flex items-center gap-2 transition-colors"
           >
             <i className="fas fa-file-export"></i>
             导出
           </button>
           <button
             onClick={loadRuns}
-            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm flex items-center gap-2 transition-colors"
+            className="px-3 py-1.5 bg-accent hover:bg-accent-strong text-body rounded text-sm flex items-center gap-2 transition-colors"
           >
             <i className="fas fa-sync-alt"></i>
             刷新
@@ -189,7 +189,7 @@ export default function RunLogs() {
         <div className="bg-surface-2 rounded-xl border border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-[#252f47]">
+              <tr className="border-b border-border bg-surface-3">
                 <th className="text-left px-4 py-3 font-medium text-faint">流程</th>
                 <th className="text-left px-4 py-3 font-medium text-faint">开始时间</th>
                 <th className="text-left px-4 py-3 font-medium text-faint">触发方式</th>
@@ -200,9 +200,9 @@ export default function RunLogs() {
             </thead>
             <tbody>
               {runs.map((run) => (
-                <tr key={run.id} className="border-b border-border/50 hover:bg-[#252f47] transition-colors">
+                <tr key={run.id} className="border-b border-border/50 hover:bg-surface-3 transition-colors">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-white">{run.workflowName || `流程 #${run.workflowId}`}</div>
+                    <div className="font-medium text-body">{run.workflowName || `流程 #${run.workflowId}`}</div>
                   </td>
                   <td className="px-4 py-3 text-faint">{formatDate(run.startedAt)}</td>
                   <td className="px-4 py-3">
@@ -236,7 +236,7 @@ export default function RunLogs() {
                       {run.outputs && Object.keys(run.outputs).length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {Object.entries(run.outputs).map(([key, value]) => (
-                            <span key={key} className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-muted font-mono">
+                            <span key={key} className="px-1.5 py-0.5 bg-surface-2 rounded text-[10px] text-muted font-mono">
                               {key}: {typeof value === 'object' ? JSON.stringify(value).slice(0, 40) : String(value ?? '-')}
                             </span>
                           ))}
@@ -281,12 +281,12 @@ export default function RunLogs() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-surface-2 rounded-xl border border-border w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-body">
                 {detailRun.type === 'log' ? '运行日志' : '数据表格'} — {detailRun.runId}
               </h3>
               <button
                 onClick={() => { setDetailRun(null); setDetailData(null); }}
-                className="text-faint hover:text-white"
+                className="text-faint hover:text-body"
               >
                 <i className="fas fa-times"></i>
               </button>
@@ -346,7 +346,7 @@ export default function RunLogs() {
                           <thead>
                             <tr>
                               {inferredCols.map((col, ci) => (
-                                <th key={ci} className="border border-border-strong bg-gray-800 px-2 py-1 text-muted">{col.name}</th>
+                                <th key={ci} className="border border-border-strong bg-surface-2 px-2 py-1 text-muted">{col.name}</th>
                               ))}
                             </tr>
                           </thead>
