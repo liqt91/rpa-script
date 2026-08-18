@@ -18,8 +18,34 @@ window.__ModuleLoader__.load({
     var jsxRuntime = require("react/jsx-runtime");
 
     var NS = "rpa-console";
-    var BACKEND_URL = "http://127.0.0.1:8000";
-    var EDITOR_URL = BACKEND_URL + "/workflow-editor/";
+    // 后端端口已随机（8100-8199，写 data/backend.port）。浏览器端无法读文件，
+    // 打开抽屉时探测 /health 发现实际端口（与扩展 discovery 同法）。
+    var DISCOVER_LO = 8100;
+    var DISCOVER_HI = 8199;
+
+    function discoverBackendBase() {
+      return new Promise(function (resolve) {
+        var tries = [];
+        for (var p = DISCOVER_LO; p <= DISCOVER_HI; p++) tries.push(p);
+        var idx = 0;
+        var CHUNK = 25;
+        function nextChunk() {
+          if (idx >= tries.length) return resolve("");
+          var chunk = tries.slice(idx, idx + CHUNK);
+          idx += CHUNK;
+          Promise.all(chunk.map(function (port) {
+            return fetch("http://127.0.0.1:" + port + "/health", { mode: "cors", signal: AbortSignal.timeout(800) })
+              .then(function (r) { return r.ok ? port : 0; })
+              .catch(function () { return 0; });
+          })).then(function (results) {
+            var found = results.find(function (v) { return v > 0; });
+            if (found) return resolve("http://127.0.0.1:" + found);
+            nextChunk();
+          });
+        }
+        nextChunk();
+      });
+    }
 
     var zh = {
       "action.title": "RPA 控制台",
@@ -40,7 +66,22 @@ window.__ModuleLoader__.load({
       var openState = React.useState(false);
       var open = openState[0];
       var setOpen = openState[1];
+      var editorState = React.useState("");
+      var editorBase = editorState[0];
+      var setEditorBase = editorState[1];
       var t = props.t;
+
+      // 打开抽屉时探测后端端口（自动适配随机端口）
+      React.useEffect(function () {
+        if (!open) return;
+        var alive = true;
+        if (!editorBase) {
+          discoverBackendBase().then(function (base) { if (alive) setEditorBase(base); });
+        }
+        return function () { alive = false; };
+      }, [open]);
+
+      var editorUrl = editorBase ? editorBase + "/workflow-editor/" : "";
 
       var iconStyle = {
         width: 32,
@@ -95,7 +136,7 @@ window.__ModuleLoader__.load({
                   jsxRuntime.jsx("span", { style: { fontSize: 12, color: "var(--dsw-alias-label-tertiary, #9ca3af)" }, children: t ? t("panel.hint") : "内嵌 RPA 工作流编辑器；若加载失败请确认后端已启动，或点右上角新窗口打开。" }),
                   jsxRuntime.jsx("span", { style: { flex: 1 } }),
                   jsxRuntime.jsx("a", {
-                    href: EDITOR_URL,
+                    href: editorUrl || "http://127.0.0.1:8000/workflow-editor/",
                     target: "_blank",
                     rel: "noreferrer",
                     style: { fontSize: 12, color: "var(--dsw-alias-state-business-primary, #2563eb)", textDecoration: "none" },
@@ -110,7 +151,7 @@ window.__ModuleLoader__.load({
                 ]
               }),
               jsxRuntime.jsx("iframe", {
-                src: EDITOR_URL,
+                src: editorUrl,
                 style: { flex: 1, width: "100%", border: "none" },
                 title: "RPA workflow editor"
               })

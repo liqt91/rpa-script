@@ -367,10 +367,10 @@ class AgentBackground {
           if (!tab || tab.id == null || tab.discarded) continue;  // discarded = 内容已卸载，跳过
           candidates.push(tab);
         }
-        // 3. 过滤编辑器/扩展/chrome 内部页
+        // 3. 过滤编辑器/扩展/chrome 内部页（编辑器 SPA 按路径识别，端口已随机）
         candidates = candidates.filter(t =>
           t.url && /^https?:/i.test(t.url) &&
-          !/127\.0\.0\.1:8000|localhost:8000/i.test(t.url) &&
+          !/workflow-editor\//i.test(t.url) &&
           !/chrome-extension:|chrome:|edge:|devtools:/i.test(t.url)
         );
         if (!candidates.length) {

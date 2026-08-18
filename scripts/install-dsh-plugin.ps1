@@ -89,7 +89,7 @@ $overrides = @(
   "- id: rpa",
   "  name: $pluginName",
   "  config:",
-  "    backendUrl: http://127.0.0.1:8000",
+  "    backendUrl: !!js process.env.RPA_BACKEND_URL || ''",
   "    token: !!js process.env.RPA_API_TOKEN || ''",
   "    username: !!js process.env.RPA_USERNAME || 'admin'",
   "    password: !!js process.env.RPA_PASSWORD || 'admin123'",

@@ -12,6 +12,7 @@ if _project_root not in sys.path:
 
 from scripts.capture_gui.overlay import ElementInfo, run_capture, flash_element
 from scripts.capture_gui.store import ElementStore
+from scripts.capture_gui.backend_addr import backend_base
 
 DEFAULT_STORE_PATH = os.path.join(_project_root, "data", "captured_elements.json")
 TYPE_LABELS = {"win32": "窗口", "uia": "UIA", "web": "网页"}
@@ -36,7 +37,8 @@ class CaptureGUI:
 
     # ── Toolbar ──
     def _build_toolbar(self):
-        tb = ttk.Frame(self.root, padding=(8, 6)); tb.pack(fill=tk.X)
+        tb = ttk.Frame(self.root, padding=(8, 6))
+        tb.pack(fill=tk.X)
         ttk.Button(tb, text="🔍 捕获元素", command=self._on_capture).pack(side=tk.LEFT, padx=(0, 12))
         ttk.Button(tb, text="🗑 删除选中", command=self._on_delete).pack(side=tk.LEFT, padx=4)
         ttk.Button(tb, text="📂 保存", command=self._on_save_all).pack(side=tk.LEFT, padx=4)
@@ -169,8 +171,9 @@ class CaptureGUI:
             import urllib.request
             import uuid
             data = json.dumps({"selector": t, "requestId": str(uuid.uuid4())[:8]}).encode()
-            req = urllib.request.Request("http://127.0.0.1:8000/api/extension/verify-selector",
-                                          data=data, headers={"Content-Type": "application/json"}, method="POST")
+            req = urllib.request.Request(
+                backend_base() + "/api/extension/verify-selector",
+                data=data, headers={"Content-Type": "application/json"}, method="POST")
             with urllib.request.urlopen(req, timeout=8) as resp:
                 r = json.loads(resp.read().decode())
             self.set_status(f"✅ 匹配 {r.get('count',1)} 个" if r.get("found") else f"❌ {r.get('error','未找到')}")

@@ -1795,9 +1795,10 @@ def _extension_online(browser: str | None = None) -> bool:
     if now - _ext_online_ts > 2.0:
         _ext_online_ts = now
         try:
+            from scripts.capture_gui.backend_addr import backend_base as _backend_base
             import json
             import urllib.request
-            with urllib.request.urlopen("http://127.0.0.1:8000/api/extension/status", timeout=2) as r:
+            with urllib.request.urlopen(_backend_base() + "/api/extension/status", timeout=2) as r:
                 data = json.loads(r.read().decode())
                 _ext_online = bool(data.get("online"))
                 _ext_browsers = {b.get("browser") for b in (data.get("browsers") or [])}

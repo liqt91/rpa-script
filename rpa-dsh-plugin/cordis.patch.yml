@@ -4,7 +4,8 @@
     - id: rpa
       name: rpa-dsh-plugin
       config:
-        backendUrl: http://127.0.0.1:8000
+        # 后端地址：留空自动从端口文件发现（随机端口 8100-8199，data/backend.port）
+        backendUrl: !!js process.env.RPA_BACKEND_URL || ''
         token: !!js process.env.RPA_API_TOKEN || ''
         username: !!js process.env.RPA_USERNAME || 'admin'
         password: !!js process.env.RPA_PASSWORD || 'admin123'

@@ -8,8 +8,11 @@ import json
 import urllib.request
 import uuid
 
-API_URL = "http://127.0.0.1:8000/api/extension/gui-browser-capture"
-CANCEL_URL = "http://127.0.0.1:8000/api/extension/gui-browser-cancel"
+from scripts.capture_gui.backend_addr import backend_base
+
+_BASE = backend_base()
+API_URL = _BASE + "/api/extension/gui-browser-capture"
+CANCEL_URL = _BASE + "/api/extension/gui-browser-cancel"
 
 
 def launch_browser_capture(x: int, y: int, timeout: float = 20.0, request_id: str | None = None,

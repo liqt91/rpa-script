@@ -30,13 +30,13 @@ RPA Script 的 DSH 原生工具插件（Cordis v4 格式，纯 ESM，无构建�
 | 并行 | 先单流程（默认容量 1），并行后置 |
 | 认证 | **已移除密码功能**：后端免认证（本机单人工具）；`RPA_AUTH_DISABLED=0` 可恢复（对外部署） |
 | 端口 | **随机 8100-8199**（`RPA_PORT` 可固定），写 `data/backend.port`；插件/扩展自动发现 |
-| 页面 | 独立页面（:8000）+ **DSH 内嵌抽屉**（client 半身，侧边栏 ⚙ 展开 iframe 内嵌 workflow-editor）+ `/rpa` 跳转 |
+| 页面 | 独立页面（随机端口）+ **DSH 内嵌抽屉**（client 半身，侧边栏 ⚙ 展开 iframe 内嵌 workflow-editor，端口自动发现）+ `/rpa` 跳转 |
 | NL 生成 | 模型直接产出节点 JSON，C1–C4 向量匹配不做 |
 | 扩展安装 | 桌面安装器自动注入（External Extensions JSON） |
 
 ## 与现有桌面版（Electron）共存
 
-桌面版（`desktop/main.js`）不 spawn 后端，只探测 :8000 就绪后加载同一个
+桌面版（`desktop/main.js`）不 spawn 后端，只探测后端就绪后加载同一个
 `/workflow-editor/` SPA。因此本插件采用 **adopt-don't-own** 生命周期策略：
 
 - 后端已在跑（含桌面版用户手动起的）→ 接管（adopt），**不 spawn、dispose 不回收**
@@ -163,7 +163,7 @@ npm publish --prefix rpa-dsh-plugin
 ## DSH Web UI 集成（client 半身）
 
 插件带 **client 半身**（`lib/client.js`）：在 dsh web 侧边栏底部注册"RPA 控制台"入口，
-点击展开右侧抽屉，**iframe 内嵌现有 workflow-editor SPA**（`http://127.0.0.1:8000/workflow-editor/`），
+点击展开右侧抽屉，**iframe 内嵌现有 workflow-editor SPA**（打开时探测 8100-8199 自动发现端口），
 不重新写前端。头部提供"新窗口打开"兜底。
 
 机制（DSH client-module 系统）：
