@@ -628,7 +628,8 @@ function apply(ctx, config) {
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
-    execute: withEnsure(async (args, exec) => {
+    // 注意：不走 withEnsure —— 初始化工作区是纯 node fs + workspaceRegistry，不依赖 Python 后端
+    execute: async (args, exec) => {
       const cwd = exec?.agent?.session?.header?.cwd;
       const dir = (args.path || "").trim() || cwd;
       if (!dir) throw new Error("无法确定流程目录：未提供 path 且当前会话没有工作目录");
@@ -654,7 +655,7 @@ function apply(ctx, config) {
         ctx.logger.warn(`[rpa-bridge] 注册工作区失败（目录本身已就绪）: ${e.message}`);
       }
       return { ok: true, path: dir, name, isRpa: true, workspaceId };
-    }),
+    },
   }));
 
   /* ================= 2. 指令目录（按需拉取，不常驻全量） ================= */
