@@ -8,7 +8,9 @@ export default defineConfig({
     outDir: path.resolve(__dirname, '../../runtime/static/workflow-editor'),
     emptyOutDir: true,
   },
-  base: '/workflow-editor/',
+  // 相对 base：页面可由多位置托管（后端 /workflow-editor/、dsh web /rpa-editor/），
+  // 资源路径随页面 URL 解析，两处都能用
+  base: './',
   server: {
     port: 5173,
     proxy: {
