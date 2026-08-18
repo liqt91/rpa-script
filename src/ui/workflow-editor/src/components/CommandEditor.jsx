@@ -466,7 +466,7 @@ export default function CommandEditor() {
               <textarea
                 value={typeRegistryJson}
                 onChange={e => setTypeRegistryJson(e.target.value)}
-                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
+                className="w-full h-full p-3 text-[11px] font-mono bg-surface-2 border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
                 spellCheck={false}
               />
             </div>
@@ -495,7 +495,7 @@ export default function CommandEditor() {
               <textarea
                 value={genericParamsJson}
                 onChange={e => setGenericParamsJson(e.target.value)}
-                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
+                className="w-full h-full p-3 text-[11px] font-mono bg-surface-2 border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
                 spellCheck={false}
               />
             </div>
@@ -524,7 +524,7 @@ export default function CommandEditor() {
               <textarea
                 value={categoriesJson}
                 onChange={e => setCategoriesJson(e.target.value)}
-                className="w-full h-full p-3 text-[11px] font-mono bg-[#0a0f1a] border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
+                className="w-full h-full p-3 text-[11px] font-mono bg-surface-2 border border-border-strong rounded text-muted outline-none resize-none focus:border-blue-500"
                 spellCheck={false}
               />
             </div>
@@ -741,7 +741,7 @@ export default function CommandEditor() {
                   </fieldset>
 
                   {/* Handler info (derived from instruction type) */}
-                  <div className="border border-border rounded p-2.5 bg-[#0a0f1a]/50">
+                  <div className="border border-border rounded p-2.5 bg-surface-2/50">
                     <div className="text-[10px] font-medium text-faint mb-1.5">Handler 文件</div>
                     {isControl ? (
                       <div className="text-[10px] text-muted">无需 handler，由流程引擎直接解释执行</div>
@@ -760,7 +760,7 @@ export default function CommandEditor() {
                     </legend>
                     <div className="space-y-2">
                       {(form.params || []).map((p, i) => (
-                        <div key={i} className="bg-[#0a0f1a] rounded p-2">
+                        <div key={i} className="bg-surface-2 rounded p-2">
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-[10px] text-muted">#{i + 1}</span>
                             <button onClick={() => removeParam(i)} className="text-danger hover:text-danger text-[10px]" title="删除">
@@ -883,7 +883,7 @@ export default function CommandEditor() {
                   Python Handler 预览
                 </div>
                 {!isControl && (
-                  <div className="px-3 py-1.5 border-b border-border/50 bg-[#0a0f1a] shrink-0">
+                  <div className="px-3 py-1.5 border-b border-border/50 bg-surface-2 shrink-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-faint">操作</span>
                       <div className="flex items-center gap-1.5">
@@ -921,7 +921,7 @@ export default function CommandEditor() {
                   value={pythonCode}
                   onChange={e => setPythonCode(e.target.value)}
                   disabled={isControl}
-                  className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-muted outline-none resize-none disabled:opacity-50"
+                  className="flex-1 p-3 text-[11px] font-mono bg-surface-2 text-muted outline-none resize-none disabled:opacity-50"
                   spellCheck={false}
                   placeholder={isControl ? '控制指令无需 Python handler' : '# Python handler 代码 — 使用 CLI agent 编写'}
                 />
@@ -933,7 +933,7 @@ export default function CommandEditor() {
                   JS Handler 预览
                 </div>
                 {isExtension && (
-                  <div className="px-3 py-1 border-b border-border/50 bg-[#0a0f1a] shrink-0">
+                  <div className="px-3 py-1 border-b border-border/50 bg-surface-2 shrink-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-faint">操作</span>
                       <div className="flex items-center gap-1.5">
@@ -964,7 +964,7 @@ export default function CommandEditor() {
                   value={jsCode}
                   onChange={e => setJsCode(e.target.value)}
                   disabled={!isExtension}
-                  className="flex-1 p-3 text-[11px] font-mono bg-[#0a0f1a] text-muted outline-none resize-none disabled:opacity-50"
+                  className="flex-1 p-3 text-[11px] font-mono bg-surface-2 text-muted outline-none resize-none disabled:opacity-50"
                   spellCheck={false}
                   placeholder={isControl ? '控制指令无需 JS handler' : isExtension ? '// JS handler 代码' : '仅扩展端执行指令支持 JS handler'}
                 />

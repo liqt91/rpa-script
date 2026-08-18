@@ -154,14 +154,14 @@ export default function RunLogs() {
           <button
             onClick={exportRunsToCSV}
             disabled={runs.length === 0}
-            className="px-3 py-1.5 bg-ok/40 hover:bg-green-700 disabled:bg-surface-2 disabled:text-muted text-white rounded text-sm flex items-center gap-2 transition-colors"
+            className="px-3 py-1.5 bg-ok-soft hover:bg-ok/30 disabled:bg-surface-2 disabled:text-muted text-ok rounded text-sm flex items-center gap-2 transition-colors"
           >
             <i className="fas fa-file-export"></i>
             导出
           </button>
           <button
             onClick={loadRuns}
-            className="px-3 py-1.5 bg-accent hover:bg-accent-strong text-body rounded text-sm flex items-center gap-2 transition-colors"
+            className="px-3 py-1.5 bg-accent hover:bg-accent-strong text-inverse rounded text-sm flex items-center gap-2 transition-colors"
           >
             <i className="fas fa-sync-alt"></i>
             刷新
@@ -190,12 +190,12 @@ export default function RunLogs() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-3">
-                <th className="text-left px-4 py-3 font-medium text-faint">流程</th>
-                <th className="text-left px-4 py-3 font-medium text-faint">开始时间</th>
-                <th className="text-left px-4 py-3 font-medium text-faint">触发方式</th>
-                <th className="text-left px-4 py-3 font-medium text-faint">耗时</th>
-                <th className="text-left px-4 py-3 font-medium text-faint">运行结果</th>
-                <th className="text-right px-4 py-3 font-medium text-faint">操作</th>
+                <th className="text-left px-4 py-3 font-medium text-faint whitespace-nowrap">流程</th>
+                <th className="text-left px-4 py-3 font-medium text-faint whitespace-nowrap">开始时间</th>
+                <th className="text-left px-4 py-3 font-medium text-faint whitespace-nowrap">触发方式</th>
+                <th className="text-left px-4 py-3 font-medium text-faint whitespace-nowrap">耗时</th>
+                <th className="text-left px-4 py-3 font-medium text-faint whitespace-nowrap">运行结果</th>
+                <th className="text-right px-4 py-3 font-medium text-faint whitespace-nowrap w-52">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -206,12 +206,12 @@ export default function RunLogs() {
                   </td>
                   <td className="px-4 py-3 text-faint">{formatDate(run.startedAt)}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs ${
+                    <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${
                       run.triggerType === 'scheduled'
-                        ? 'bg-purple-900/40 text-purple-300'
+                        ? 'bg-purple-50 text-purple-600'
                         : run.triggerType === 'api'
-                          ? 'bg-green-900/40 text-ok'
-                          : 'bg-accent/25 text-accent-strong'
+                          ? 'bg-ok-soft text-ok'
+                          : 'bg-accent-soft text-accent'
                     }`}>
                       {run.triggerType === 'scheduled' ? '计划执行' : run.triggerType === 'api' ? 'API 调用' : '手动运行'}
                     </span>
@@ -245,24 +245,24 @@ export default function RunLogs() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                       <button
                         onClick={() => viewLog(run)}
-                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-muted rounded text-xs transition-colors"
+                        className="px-3 py-1.5 bg-surface-3 hover:bg-surface-3 text-muted rounded text-xs transition-colors whitespace-nowrap"
                         title="查看日志"
                       >
                         <i className="fas fa-file-alt mr-1"></i>日志
                       </button>
                       <button
                         onClick={() => viewTable(run)}
-                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-muted rounded text-xs transition-colors"
+                        className="px-3 py-1.5 bg-surface-3 hover:bg-surface-3 text-muted rounded text-xs transition-colors whitespace-nowrap"
                         title="查看数据表格"
                       >
                         <i className="fas fa-table mr-1"></i>表格
                       </button>
                       <button
                         onClick={() => openFolder(run)}
-                        className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-muted rounded text-xs transition-colors"
+                        className="px-3 py-1.5 bg-surface-3 hover:bg-surface-3 text-muted rounded text-xs transition-colors whitespace-nowrap"
                         title="打开日志文件夹"
                       >
                         <i className="fas fa-folder-open mr-1"></i>文件夹
