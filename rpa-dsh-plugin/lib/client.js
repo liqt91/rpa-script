@@ -156,19 +156,24 @@ window.__ModuleLoader__.load({
           .then(function () { setBusy(false); });
       };
 
+      var hoverState = React.useState(false);
+      var hovered = hoverState[0];
+      var setHovered = hoverState[1];
+
       var iconStyle = {
-        height: 30,
-        borderRadius: 7,
+        height: 28,
+        borderRadius: 6,
         border: "none",
-        background: "transparent",
+        background: hovered ? "var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06))" : "transparent",
         cursor: "pointer",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
-        gap: 5,
-        padding: "0 8px",
-        color: "var(--dsw-alias-label-secondary, #6b7280)"
+        gap: 6,
+        padding: "0 10px",
+        color: "var(--dsw-alias-label-secondary, #6b7280)",
+        transition: "background 0.15s"
       };
       var dotStyle = {
         position: "absolute",
@@ -190,6 +195,8 @@ window.__ModuleLoader__.load({
             type: "button",
             title: t ? t("action.tooltip") : "打开 RPA 工作流编辑器",
             onClick: function () { setOpen(!open); },
+            onMouseEnter: function () { setHovered(true); },
+            onMouseLeave: function () { setHovered(false); },
             style: iconStyle,
             children: [
               jsxRuntime.jsx("svg", {
