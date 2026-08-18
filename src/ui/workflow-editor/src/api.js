@@ -94,8 +94,12 @@ export const api = {
   pauseRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/pause`, { method: 'POST' }),
   resumeRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/resume`, { method: 'POST' }),
   stopRun: (wfId, runId) => request(`/api/workflows/${wfId}/run/${encodeURIComponent(runId)}/stop`, { method: 'POST' }),
-  getCommands: () => request('/api/workflows/commands'),
-  getNewCommands: () => request('/api/workflows/commands-new'),
+  getCommands: () => (DSHS_BASE
+    ? fetch('./commands.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    : request('/api/workflows/commands')),
+  getNewCommands: () => (DSHS_BASE
+    ? fetch('./commands-new.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    : request('/api/workflows/commands-new')),
 
   // Workflow Elements (per-workflow element library)
   getWorkflowElements: (wfId) => request(`/api/workflows/${wfId}/elements`),
