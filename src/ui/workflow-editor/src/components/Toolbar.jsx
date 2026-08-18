@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../store/WorkflowContext';
 import { useActiveRun } from '../context/ActiveRunContext';
-import { api } from '../api';
+import { api, apiUrl } from '../api';
 import RunParametersDialog from './RunParametersDialog';
 
 function formatResult(result) {
@@ -365,7 +365,7 @@ export default function Toolbar() {
     setCurrentRunId(runId);
 
     // Open SSE stream before POST so we don't miss early events
-    es = new EventSource(`/api/workflows/${wfId}/run/stream?run_id=${runId}`);
+    es = new EventSource(apiUrl(`/api/workflows/${wfId}/run/stream?run_id=${runId}`));
     es.onmessage = (e) => {
         try {
           const evt = JSON.parse(e.data);

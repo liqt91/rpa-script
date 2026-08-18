@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, apiUrl } from '../api';
 import { useActiveRun } from '../context/ActiveRunContext';
 import RunParametersDialog from './RunParametersDialog';
 
@@ -127,7 +127,7 @@ export default function WorkflowList() {
 
   function connectRunSSE(wfId, runId) {
     if (sseRef.current) { sseRef.current.close(); }
-    const source = new EventSource(`/api/workflows/${wfId}/run/stream?run_id=${encodeURIComponent(runId)}`);
+    const source = new EventSource(apiUrl(`/api/workflows/${wfId}/run/stream?run_id=${encodeURIComponent(runId)}`));
     sseRef.current = source;
 
     source.onmessage = (e) => {

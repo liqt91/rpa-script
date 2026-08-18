@@ -1,10 +1,14 @@
 const API_BASE = '';
 
-// dsh 内嵌模式：client.js 在 iframe URL 传 dshBase=<dsh web origin>，
-// 项目文件读写指向 dsh 插件 node 侧（/rpa-bridge/*，编辑免后端）。
-// 独立打开/桌面模式无 dshBase → 回退后端 /api/projects/*。
+// dsh 内嵌模式（页面由 dsh web /rpa-editor/ 托管）：
+// - dshBase    = dsh web origin → 项目文件读写走 /rpa-bridge/*（编辑免后端）
+// - backendBase= RPA 后端 base → 运行/指令目录等 API 指向后端（编辑不需要）
+// 独立打开/桌面模式（页面由后端 :8100 托管）→ 两者为空，全走当前 origin /api/*。
 const DSHS_BASE = (() => {
   try { return new URLSearchParams(window.location.search).get('dshBase') || ''; } catch { return ''; }
+})();
+const BACKEND_BASE = (() => {
+  try { return new URLSearchParams(window.location.search).get('backendBase') || ''; } catch { return ''; }
 })();
 const projectApi = (action, path, file) => {
   const q = `path=${encodeURIComponent(path)}&file=${encodeURIComponent(file)}`;
@@ -12,6 +16,8 @@ const projectApi = (action, path, file) => {
     ? `${DSHS_BASE}/rpa-bridge/project/${action}?${q}`
     : `/api/projects/${action}?${q}`;
 };
+// 非项目 API：dsh 托管模式下补后端 base（相对路径会打到 dsh web 导致 404）
+export const apiUrl = (path) => (BACKEND_BASE ? `${BACKEND_BASE}${path}` : path);
 
 function getCookie(name) {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
@@ -27,22 +33,23 @@ function authHeaders() {
 
 async function request(url, options = {}) {
   const method = options.method || 'GET';
-  console.log(`[api] ${method} ${url}`, options.body ? JSON.parse(options.body) : '');
+  const target = /^https?:\/\//.test(url) || url.startsWith('/rpa-bridge/') ? url : apiUrl(url);
+  console.log(`[api] ${method} ${target}`, options.body ? JSON.parse(options.body) : '');
   const start = performance.now();
-  const res = await fetch(url, {
+  const res = await fetch(target, {
     ...options,
     headers: { ...authHeaders(), ...(options.headers || {}) },
   });
   const elapsed = (performance.now() - start).toFixed(1);
-  console.log(`[api] ${method} ${url} -> ${res.status} (${elapsed}ms)`);
+  console.log(`[api] ${method} ${target} -> ${res.status} (${elapsed}ms)`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    console.error(`[api] ${method} ${url} error:`, err.detail || `HTTP ${res.status}`);
+    console.error(`[api] ${method} ${target} error:`, err.detail || `HTTP ${res.status}`);
     throw new Error(err.detail || `HTTP ${res.status}`);
   }
   if (res.status === 204) return null;
   const data = await res.json();
-  console.log(`[api] ${method} ${url} response:`, data);
+  console.log(`[api] ${method} ${target} response:`, data);
   return data;
 }
 
@@ -115,7 +122,7 @@ export const api = {
     fd.append('scope', scope);
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch('/api/extension/elements/image', { method: 'POST', body: fd, headers });
+    const res = await fetch(apiUrl('/api/extension/elements/image'), { method: 'POST', body: fd, headers });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || `HTTP ${res.status}`);
@@ -143,7 +150,7 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ csv: csvText }),
   }),
-  exportDataTable: (wfId) => fetch(`/api/workflows/${wfId}/data-table/export`, {
+  exportDataTable: (wfId) => fetch(apiUrl(`/api/workflows/${wfId}/data-table/export`), {
     headers: authHeaders(),
   }),
   clearDataTable: (wfId) => request(`/api/workflows/${wfId}/data-table/clear`, { method: 'POST' }),

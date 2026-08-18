@@ -302,19 +302,20 @@ window.__ModuleLoader__.load({
       });
     }
 
-    /** 流程编辑 tab 内容：内嵌 workflow-editor，URL 带 project=当前目录。 */
+    /** 流程编辑 tab 内容：内嵌 workflow-editor（dsh web 托管，免后端），URL 带 project=当前目录。 */
     function FlowView(props) {
       var projectDir = props.projectDir || "";
       var themeState = React.useState(readDshTheme());
       var theme = themeState[0];
       var setTheme = themeState[1];
-      var baseState = React.useState("");
-      var base = baseState[0];
-      var setBase = baseState[1];
+      // 后端 base：仅用于运行/捕获等需后端的 API；编辑本身走 /rpa-bridge/*（免后端）
+      var backendState = React.useState("");
+      var backendBase = backendState[0];
+      var setBackendBase = backendState[1];
 
       React.useEffect(function () {
         var alive = true;
-        discoverBackendBase().then(function (b) { if (alive && b) setBase(b); });
+        discoverBackendBase().then(function (b) { if (alive && b) setBackendBase(b); });
         return function () { alive = false; };
       }, []);
 
@@ -326,12 +327,12 @@ window.__ModuleLoader__.load({
         return function () { mo.disconnect(); };
       }, []);
 
-      var src = base
-        ? base + "/workflow-editor/?theme=" + theme
-          + "&dshBase=" + encodeURIComponent(window.location.origin)
-          + "&project=" + encodeURIComponent(projectDir)
-          + "#/project"
-        : "";
+      // 页面由 dsh web 托管（/rpa-editor/），不依赖后端在线
+      var src = window.location.origin + "/rpa-editor/?theme=" + theme
+        + "&dshBase=" + encodeURIComponent(window.location.origin)
+        + "&backendBase=" + encodeURIComponent(backendBase || "")
+        + "&project=" + encodeURIComponent(projectDir)
+        + "#/project";
 
       return jsxRuntime.jsx("div", {
         style: { position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column" },

@@ -30,9 +30,9 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import z from "@deepseek-ai/schemastery";
 import { spawn, execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { createRequire } from "node:module";
 
@@ -73,6 +73,62 @@ function packageRoot() {
 /** 包内 python/ 后端目录（npm 形态）。 */
 function bundledPythonDir() {
   return join(packageRoot(), "python");
+}
+
+/** workflow-editor 静态文件根：优先包内（npm 形态），本地形态回退仓库源码产物。 */
+function editorStaticRoot() {
+  const inPkg = join(packageRoot(), "python", "static", "workflow-editor");
+  if (existsSync(join(inPkg, "index.html"))) return inPkg;
+  // 本地 file: 形态（仓库）：../python/static/workflow-editor 未打包时读仓库源码产物
+  const repo = join(packageRoot(), "..", "src", "runtime", "static", "workflow-editor");
+  if (existsSync(join(repo, "index.html"))) return resolve(repo);
+  return inPkg;
+}
+
+/** 静态文件 MIME 表（workflow-editor 构建产物用到的类型）。 */
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".map": "application/json; charset=utf-8",
+};
+
+/** 静态文件响应：路径穿越防护 + SPA fallback 到 index.html。 */
+function serveStatic(root, pathname, res) {
+  let rel = decodeURIComponent(pathname.split("?")[0]);
+  // 路径穿越防护：仅允许包内相对路径
+  const safe = resolve(root, "." + rel);
+  if (!safe.startsWith(root + sep)) {
+    res.writeHead(403, { "Content-Type": "text/plain" });
+    res.end("forbidden");
+    return;
+  }
+  let target = safe;
+  try {
+    if (!statSync(target).isFile()) target = join(root, "index.html");
+  } catch {
+    target = join(root, "index.html");
+  }
+  try {
+    const data = readFileSync(target);
+    const type = MIME[extname(target).toLowerCase()] ?? "application/octet-stream";
+    res.writeHead(200, { "Content-Type": type, "Cache-Control": "no-cache" });
+    res.end(data);
+  } catch (e) {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("not found");
+  }
 }
 
 /** 数据目录：npm 形态落到用户 .dsh 下（不污染 node_modules）。 */
@@ -672,6 +728,26 @@ function apply(ctx, config) {
     ctx.logger.info("[rpa-bridge] 已注册 /rpa-bridge/project/read|write（流程编辑免后端）");
   } catch (e) {
     ctx.logger.warn(`[rpa-bridge] 注册 project 读写路由失败: ${e.message}`);
+  }
+
+  /* -------- workflow-editor 静态托管（页面免后端：dsh web serve 编辑器） -------- */
+  try {
+    const editorRoot = editorStaticRoot();
+    ctx.webServer.register({
+      kind: "prefix",
+      path: "/rpa-editor/",
+      handler: async (req, res) => {
+        if (req.method !== "GET" && req.method !== "HEAD") {
+          res.writeHead(405, { "Content-Type": "text/plain" });
+          res.end("method not allowed");
+          return;
+        }
+        serveStatic(editorRoot, new URL(req.url ?? "/", "http://x").pathname, res);
+      },
+    }, "rpa-bridge: workflow-editor static");
+    ctx.logger.info(`[rpa-bridge] 已托管 workflow-editor（/rpa-editor/，源 ${editorRoot}）—— 编辑页免后端`);
+  } catch (e) {
+    ctx.logger.warn(`[rpa-bridge] 注册 workflow-editor 静态托管失败: ${e.message}`);
   }
 
 
