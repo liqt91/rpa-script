@@ -156,10 +156,9 @@ window.__ModuleLoader__.load({
           .then(function () { setBusy(false); });
       };
 
-      var wide = props.wide;
       var iconStyle = {
-        height: 32,
-        borderRadius: 8,
+        height: 30,
+        borderRadius: 7,
         border: "none",
         background: "transparent",
         cursor: "pointer",
@@ -168,13 +167,12 @@ window.__ModuleLoader__.load({
         justifyContent: "center",
         position: "relative",
         gap: 5,
-        padding: "0 7px",
+        padding: "0 8px",
         color: "var(--dsw-alias-label-secondary, #6b7280)"
       };
-      if (!wide) iconStyle.width = 32;
       var dotStyle = {
         position: "absolute",
-        right: wide ? 6 : 3,
+        right: 7,
         bottom: 3,
         width: 7,
         height: 7,
@@ -212,7 +210,7 @@ window.__ModuleLoader__.load({
                   jsxRuntime.jsx("path", { d: "M9 13v2" })
                 ]
               }),
-              wide && jsxRuntime.jsx("span", {
+              jsxRuntime.jsx("span", {
                 style: { fontSize: 12, fontWeight: 600, letterSpacing: "0.02em" },
                 children: "RPA"
               }),
@@ -297,9 +295,10 @@ window.__ModuleLoader__.load({
       ctx.effect(function () {
         ctx.locale.register(NS, { zh: zh, en: en });
       }, "rpa-console: dictionaries");
-      ctx.slots.inject("sidebar.footer.action", function () {
+      // 会话头部右上角操作区（与关闭/操作按钮同区域）；kind: list 可多 entry 共存
+      ctx.slots.inject("conversation.session.header.actions", function () {
         return ctx.slots.register({
-          name: "sidebar.footer.action",
+          name: "conversation.session.header.actions",
           id: "rpa-console",
           locale: NS,
           inject: function () { return {}; }
