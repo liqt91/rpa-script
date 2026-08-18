@@ -530,8 +530,8 @@ function areNodesEquivalent(a, b) {
   return true;
 }
 
-export function WorkflowProvider({ children, wfId }) {
-  const [state, dispatch] = useReducer(reducer, { ...initialState, wfId });
+export function WorkflowProvider({ children, wfId, projectDir }) {
+  const [state, dispatch] = useReducer(reducer, { ...initialState, wfId, projectDir });
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
@@ -588,6 +588,33 @@ export function WorkflowProvider({ children, wfId }) {
   }, []);
 
   const loadWorkflow = useCallback(async () => {
+    // 项目模式（目录为唯一真相）：读目录 workflow.json（含 name/nodes/elements/parameters）
+    if (stateRef.current.projectDir) {
+      const projectDir = stateRef.current.projectDir;
+      console.log(`[WorkflowContext] loading project workflow from ${projectDir}`);
+      dispatch({ type: 'SET_LOADING', payload: true });
+      try {
+        const res = await api.readProjectFile(projectDir, 'workflow.json');
+        const data = res.data || {};
+        const wf = {
+          id: `project:${projectDir}`,
+          name: data.name || '未命名流程',
+          description: data.description || '',
+          url: data.url || '',
+          parameters: data.parameters || [],
+          updated_at: data.updated_at || '',
+        };
+        dispatch({ type: 'SET_WORKFLOW', payload: wf });
+        dispatch({ type: 'SET_NODES', payload: Array.isArray(data.nodes) ? data.nodes : [], isDirty: false });
+        if (Array.isArray(data.elements)) dispatch({ type: 'SET_ELEMENTS', payload: data.elements });
+      } catch (e) {
+        console.error(`[WorkflowContext] loadWorkflow(project) failed: ${e.message}`);
+        dispatch({ type: 'SET_ERROR', payload: e.message });
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+      return;
+    }
     if (!stateRef.current.wfId) return;
     console.log(`[WorkflowContext] loading workflow id=${stateRef.current.wfId}`);
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -629,6 +656,8 @@ export function WorkflowProvider({ children, wfId }) {
   }, []);
 
   const loadElements = useCallback(async () => {
+    // 项目模式：元素随 workflow.json 一起加载（loadWorkflow 已 SET_ELEMENTS）
+    if (stateRef.current.projectDir) return;
     if (!stateRef.current.wfId) return;
     try {
       const els = await api.getWorkflowElements(stateRef.current.wfId);
@@ -659,6 +688,12 @@ export function WorkflowProvider({ children, wfId }) {
   const deleteNode = useCallback(async (nodeId) => {
     console.log(`[WorkflowContext] deleteNode id=${nodeId}`);
     const currentWfId = stateRef.current.wfId;
+    // 项目模式：本地删除，commit 时统一写回目录
+    if (stateRef.current.projectDir) {
+      dispatch({ type: 'REMOVE_NODE', payload: nodeId });
+      setTimeout(() => persistToLocal(), 0);
+      return;
+    }
     if (currentWfId && !isTempId(nodeId)) {
       try {
         await api.deleteNode(currentWfId, nodeId);
@@ -674,6 +709,12 @@ export function WorkflowProvider({ children, wfId }) {
   const deleteNodes = useCallback(async (nodeIds) => {
     console.log(`[WorkflowContext] deleteNodes count=${nodeIds.length}`);
     const currentWfId = stateRef.current.wfId;
+    // 项目模式：本地删除，commit 时统一写回目录
+    if (stateRef.current.projectDir) {
+      dispatch({ type: 'REMOVE_NODES', payload: nodeIds });
+      setTimeout(() => persistToLocal(), 0);
+      return;
+    }
     if (currentWfId) {
       const toDelete = nodeIds.filter(id => !isTempId(id));
       await Promise.all(toDelete.map(id =>
@@ -830,6 +871,44 @@ export function WorkflowProvider({ children, wfId }) {
 
   const commit = useCallback(async () => {
     const current = stateRef.current;
+    // 项目模式（目录为唯一真相）：整个 workflow.json 写回目录
+    if (current.projectDir) {
+      if (!current.isDirty) return;
+      console.log(`[WorkflowContext] project commit saving ${current.nodes.length} nodes -> ${current.projectDir}`);
+      dispatch({ type: 'SET_SAVING', payload: true });
+      try {
+        // 规范化节点：order 连续、去掉内部字段；id 保留（目录模式不依赖 DB 自增）
+        const nodes = current.nodes.map((n, idx) => {
+          const node = { ...n, order: idx + 1 };
+          delete node._insertIndex;
+          if (node.extra && typeof node.extra !== 'object') {
+            try { node.extra = JSON.parse(node.extra); } catch { node.extra = {}; }
+          }
+          return node;
+        });
+        const payload = {
+          name: current.workflow?.name || '未命名流程',
+          description: current.workflow?.description || '',
+          url: current.workflow?.url || '',
+          parameters: current.workflow?.parameters || [],
+          nodes,
+          elements: current.elements || [],
+          updated_at: new Date().toISOString(),
+        };
+        await api.writeProjectFile(current.projectDir, 'workflow.json', payload);
+        dispatch({ type: 'SET_NODES', payload: nodes });
+        dispatch({ type: 'SET_DIRTY', payload: false });
+        setTimeout(() => persistToLocal(), 0);
+        console.log('[WorkflowContext] ✅ project commit saved to directory');
+      } catch (e) {
+        console.error(`[WorkflowContext] project commit failed: ${e.message}`);
+        dispatch({ type: 'SET_ERROR', payload: e.message });
+        throw e;
+      } finally {
+        dispatch({ type: 'SET_SAVING', payload: false });
+      }
+      return;
+    }
     if (!current.wfId || !current.isDirty) return;
     console.log(`[WorkflowContext] commit saving ${current.nodes.length} nodes`);
     dispatch({ type: 'SET_SAVING', payload: true });
@@ -879,6 +958,17 @@ export function WorkflowProvider({ children, wfId }) {
 
   const reorderNodes = useCallback(async (orders) => {
     const current = stateRef.current;
+    // 项目模式：本地重排 + 标记 dirty，commit 时写回目录
+    if (current.projectDir) {
+      const next = current.nodes.map(n => ({
+        ...n,
+        order: orders[n.id] !== undefined ? orders[n.id] : n.order,
+      }));
+      dispatch({ type: 'REPLACE_NODES', payload: next });
+      dispatch({ type: 'SET_DIRTY', payload: true });
+      setTimeout(() => persistToLocal(), 0);
+      return;
+    }
     if (!current.wfId) return;
     try {
       await request(`/api/workflows/${current.wfId}/nodes/reorder`, {
@@ -893,6 +983,12 @@ export function WorkflowProvider({ children, wfId }) {
 
   const updateWorkflowParameters = useCallback(async (parameters) => {
     const current = stateRef.current;
+    // 项目模式：本地更新 workflow + 标记 dirty，commit 时写回目录
+    if (current.projectDir) {
+      dispatch({ type: 'SET_WORKFLOW', payload: { ...(current.workflow || {}), parameters } });
+      dispatch({ type: 'SET_DIRTY', payload: true });
+      return;
+    }
     if (!current.wfId || !current.workflow) return;
     try {
       const updated = await api.updateWorkflow(current.wfId, { parameters });

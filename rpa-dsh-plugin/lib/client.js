@@ -327,7 +327,7 @@ window.__ModuleLoader__.load({
       }, []);
 
       var src = base
-        ? base + "/workflow-editor/?theme=" + theme + "&project=" + encodeURIComponent(projectDir)
+        ? base + "/workflow-editor/?theme=" + theme + "&project=" + encodeURIComponent(projectDir) + "#/project"
         : "";
 
       return jsxRuntime.jsx("div", {

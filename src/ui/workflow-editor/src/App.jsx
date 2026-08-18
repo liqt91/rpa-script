@@ -1,4 +1,5 @@
 import { HashRouter, Routes, Route, useParams, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { WorkflowProvider } from './store/WorkflowContext';
 import { ActiveRunProvider, useActiveRun } from './context/ActiveRunContext';
 import Layout from './components/Layout';
@@ -22,6 +23,25 @@ function EditorPage() {
   }
   return (
     <WorkflowProvider key={wfId} wfId={wfId}>
+      <Layout />
+    </WorkflowProvider>
+  );
+}
+
+/** 项目编辑页：?project=<目录> 模式下直接编辑目录内 workflow.json（目录为唯一真相）。 */
+function ProjectEditorPage() {
+  const [projectDir] = useState(() => new URLSearchParams(window.location.search).get('project') || '');
+  if (!projectDir) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-bg text-body">
+        <div className="text-center">
+          <p className="text-faint mb-4">缺少 project 参数（?project=目录）</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <WorkflowProvider key={`project:${projectDir}`} projectDir={projectDir}>
       <Layout />
     </WorkflowProvider>
   );
@@ -177,6 +197,7 @@ function App() {
           <Route path="/commands/definitions" element={<SidebarLayout><CommandEditor /></SidebarLayout>} />
           <Route path="/ai-config" element={<SidebarLayout><AIConfigPage /></SidebarLayout>} />
           <Route path="/editor/:id" element={<EditorPage />} />
+          <Route path="/project" element={<ProjectEditorPage />} />
         </Routes>
       </ActiveRunProvider>
     </HashRouter>

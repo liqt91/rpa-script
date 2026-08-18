@@ -37,7 +37,7 @@ function formatResult(result) {
 export default function Toolbar() {
   const navigate = useNavigate();
   const { activeRun, isBusy } = useActiveRun();
-  const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch, elements, updateWorkflowParameters } = useWorkflow();
+  const { workflow, saving, wfId, isDirty, commit, nodes, NODE_TYPE_MAP, dispatch, elements, updateWorkflowParameters, projectDir } = useWorkflow();
   const [running, setRunning] = useState(false);
   const [paused, setPaused] = useState(false);
   const [currentRunId, setCurrentRunId] = useState(null);
@@ -307,8 +307,14 @@ export default function Toolbar() {
       return;
     }
     try {
-      await api.updateWorkflow(wfId, { name: newName });
-      dispatch({ type: 'SET_WORKFLOW', payload: { ...workflow, name: newName } });
+      if (projectDir) {
+        // 项目模式：本地改名 + 标记 dirty，保存按钮统一写回目录
+        dispatch({ type: 'SET_WORKFLOW', payload: { ...workflow, name: newName } });
+        dispatch({ type: 'SET_DIRTY', payload: true });
+      } else {
+        await api.updateWorkflow(wfId, { name: newName });
+        dispatch({ type: 'SET_WORKFLOW', payload: { ...workflow, name: newName } });
+      }
       setEditingName(false);
     } catch (e) {
       alert('重命名失败: ' + e.message);
@@ -593,19 +599,21 @@ export default function Toolbar() {
             }`}
             onClick={handleSave}
             disabled={!isDirty || saving}
-            title="保存到服务器"
+            title={projectDir ? '保存到项目目录' : '保存到服务器'}
           >
             <i className="fas fa-save text-[10px]"></i>
             <span>保存</span>
           </button>
           <div className="w-px h-5 bg-surface-3 mx-1"></div>
-          <button
-            className="h-7 px-3 flex items-center gap-1.5 rounded border border-border-strong hover:border-accent hover:text-accent text-xs text-muted transition-colors"
-            onClick={handleExport}
-          >
-            <i className="fas fa-code text-[10px]"></i>
-            <span>导出 Python</span>
-          </button>
+          {!projectDir && (
+            <button
+              className="h-7 px-3 flex items-center gap-1.5 rounded border border-border-strong hover:border-accent hover:text-accent text-xs text-muted transition-colors"
+              onClick={handleExport}
+            >
+              <i className="fas fa-code text-[10px]"></i>
+              <span>导出 Python</span>
+            </button>
+          )}
           <button
             className="h-7 px-3 flex items-center gap-1.5 rounded border border-border-strong hover:border-accent hover:text-accent text-xs text-muted transition-colors"
             onClick={handleExportJSON}
@@ -630,16 +638,18 @@ export default function Toolbar() {
           <div className="w-px h-5 bg-surface-3 mx-1"></div>
 
           {/* Extension connection indicator */}
-          <div
-            className="flex items-center gap-1.5 px-2 h-7 rounded border border-border-strong text-xs text-muted"
-            title={extStatus?.online ? `扩展在线 (${extStatus.count})` : '扩展未连接'}
-          >
-            <span className={`w-2 h-2 rounded-full ${extDotColor}`}></span>
-            <span>{extStatus?.online ? '扩展在线' : '扩展未连接'}</span>
-          </div>
+          {!projectDir && (
+            <div
+              className="flex items-center gap-1.5 px-2 h-7 rounded border border-border-strong text-xs text-muted"
+              title={extStatus?.online ? `扩展在线 (${extStatus.count})` : '扩展未连接'}
+            >
+              <span className={`w-2 h-2 rounded-full ${extDotColor}`}></span>
+              <span>{extStatus?.online ? '扩展在线' : '扩展未连接'}</span>
+            </div>
+          )}
 
           {/* Run capacity indicator */}
-          {runStatus && (
+          {!projectDir && runStatus && (
             <div
               className={`flex items-center gap-1.5 px-2 h-7 rounded border text-xs ${
                 runStatus.availableSlots === 0
@@ -654,7 +664,7 @@ export default function Toolbar() {
           )}
 
           {/* Run controls */}
-          {!running ? (
+          {!projectDir && (!running ? (
             <button
               className={`h-7 px-3 flex items-center gap-1.5 rounded text-xs transition-colors ${
                 runStatus?.availableSlots === 0 || isBusy
@@ -695,7 +705,7 @@ export default function Toolbar() {
                 <span>停止</span>
               </button>
             </div>
-          )}
+          ))}
           <button
             onClick={handleBack}
             disabled={running}
@@ -704,7 +714,7 @@ export default function Toolbar() {
                 ? 'border-border bg-surface-3 text-faint cursor-not-allowed'
                 : 'border-border-strong hover:border-accent hover:text-accent text-muted'
             }`}
-            title={running ? '工作流正在运行，请先停止' : '返回工作流列表'}
+            title={running ? '工作流正在运行，请先停止' : projectDir ? '返回项目列表' : '返回工作流列表'}
           >
             <i className="fas fa-arrow-left text-[10px]"></i>
             <span>返回</span>

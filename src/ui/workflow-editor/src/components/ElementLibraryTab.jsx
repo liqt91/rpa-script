@@ -17,8 +17,13 @@ const BOTTOM_TABS = [
 ];
 
 export default function ElementLibraryTab() {
-  const { elements, loadElements, runLogs, runStatus, wfId, buildElementTree, getElementChain } = useWorkflow();
+  const { elements, loadElements, runLogs, runStatus, wfId, projectDir, buildElementTree, getElementChain } = useWorkflow();
   const [activeTab, setActiveTab] = useState('elements');
+  // 项目模式下 DataTableTab/运行日志不可用：切 tab 时强制回落到 elements
+  const switchTab = (key) => {
+    if (projectDir && key !== 'elements' && key !== 'params') key = 'elements';
+    setActiveTab(key);
+  };
   const [expanded, setExpanded] = useState(() => {
     try { return localStorage.getItem('wf_editor_bottom_expanded') !== 'false'; }
     catch { return true; }
@@ -89,7 +94,7 @@ export default function ElementLibraryTab() {
   // 列表接口不返回 base64 截图：选中元素时按需拉详情取 screenshot（带缓存）
   const [shotCache, setShotCache] = useState({});
   useEffect(() => {
-    if (!selectedElement || selectedElement.screenshot || shotCache[selectedElement.id]) return;
+    if (projectDir || !selectedElement || selectedElement.screenshot || shotCache[selectedElement.id]) return;
     let cancelled = false;
     api.getWorkflowElementByName(wfId, selectedElement.name)
       .then((d) => {
@@ -316,7 +321,7 @@ export default function ElementLibraryTab() {
           {isOrphan && (
             <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" title="父元素不存在" />
           )}
-          {renamingId !== node.id && (
+          {renamingId !== node.id && !projectDir && (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <button
                 onClick={(e) => { e.stopPropagation(); startRename(node); }}
@@ -360,12 +365,12 @@ export default function ElementLibraryTab() {
 
   return (
     <div ref={panelRef} className="h-[220px] bg-surface border-t border-border flex flex-col shrink-0 select-none">
-      {/* Tab 栏 */}
+      {/* Tab 栏：项目模式只保留 元素库 + 流程参数（数据表格/运行日志/API 设置依赖全局 DB） */}
       <div className="flex items-center border-b border-border px-2">
-        {BOTTOM_TABS.map(tab => (
+        {BOTTOM_TABS.filter(tab => !projectDir || tab.key === 'elements' || tab.key === 'params').map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => switchTab(tab.key)}
             className={`px-3 py-2 text-xs ${activeTab === tab.key ? 'tab-active' : 'text-muted hover:text-body'}`}
           >
             <i className={`fas ${tab.icon} mr-1`}></i>
@@ -455,22 +460,26 @@ export default function ElementLibraryTab() {
                   );
                 })}
               </div>
-              <button
-                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-vision hover:bg-vision text-white"
-                onClick={() => setUploadModal(true)}
-                title="上传截图作为图像元素（供「图像查找 / 图像点击」指令使用）"
-              >
-                <i className="fas fa-upload text-[10px]"></i>
-                <span>上传图像</span>
-              </button>
-              <button
-                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-accent hover:bg-accent-strong text-white"
-                onClick={handleCaptureTool}
-                title="捕获元素（统一捕获网页/桌面/UIA 元素）"
-              >
-                <i className="fas fa-tools text-[10px]"></i>
-                <span>捕获元素</span>
-              </button>
+              {!projectDir && (
+                <button
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-vision hover:bg-vision text-white"
+                  onClick={() => setUploadModal(true)}
+                  title="上传截图作为图像元素（供「图像查找 / 图像点击」指令使用）"
+                >
+                  <i className="fas fa-upload text-[10px]"></i>
+                  <span>上传图像</span>
+                </button>
+              )}
+              {!projectDir && (
+                <button
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs transition-colors bg-accent hover:bg-accent-strong text-white"
+                  onClick={handleCaptureTool}
+                  title="捕获元素（统一捕获网页/桌面/UIA 元素）"
+                >
+                  <i className="fas fa-tools text-[10px]"></i>
+                  <span>捕获元素</span>
+                </button>
+              )}
               </div>
               {selectedElement ? (
                 <div className="max-w-2xl">
@@ -492,20 +501,24 @@ export default function ElementLibraryTab() {
                       </span>
                     )}
                     <div className="ml-auto flex items-center gap-1">
-                      <button
-                        onClick={() => startRename(selectedElement)}
-                        className="text-faint hover:text-accent px-1.5 py-0.5 rounded hover:bg-surface-3"
-                        title="重命名"
-                      >
-                        <i className="fas fa-pen text-xs"></i>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(selectedElement.id, selectedElement.name)}
-                        className="text-faint hover:text-danger px-1.5 py-0.5 rounded hover:bg-surface-3"
-                        title="删除"
-                      >
-                        <i className="fas fa-trash text-xs"></i>
-                      </button>
+                      {!projectDir && (
+                        <button
+                          onClick={() => startRename(selectedElement)}
+                          className="text-faint hover:text-accent px-1.5 py-0.5 rounded hover:bg-surface-3"
+                          title="重命名"
+                        >
+                          <i className="fas fa-pen text-xs"></i>
+                        </button>
+                      )}
+                      {!projectDir && (
+                        <button
+                          onClick={() => handleDelete(selectedElement.id, selectedElement.name)}
+                          className="text-faint hover:text-danger px-1.5 py-0.5 rounded hover:bg-surface-3"
+                          title="删除"
+                        >
+                          <i className="fas fa-trash text-xs"></i>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -864,10 +877,12 @@ export default function ElementLibraryTab() {
           <ApiSettingsPanel />
         )}
 
-        {/* DataTableTab 始终挂载，通过 hidden 控制显隐，确保运行时事件不丢失 */}
-        <div className={`flex-1 flex flex-col ${activeTab === 'dataTable' ? '' : 'hidden'}`}>
-          <DataTableTab wfId={wfId} />
-        </div>
+        {/* DataTableTab 始终挂载，通过 hidden 控制显隐，确保运行时事件不丢失（项目模式不可用） */}
+        {!projectDir && (
+          <div className={`flex-1 flex flex-col ${activeTab === 'dataTable' ? '' : 'hidden'}`}>
+            <DataTableTab wfId={wfId} />
+          </div>
+        )}
       </div>
 
       {/* Toast 提示 */}

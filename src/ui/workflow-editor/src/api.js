@@ -212,8 +212,12 @@ export const api = {
   // Extension (浏览器扩展通信)
   getExtensionStatus: () => request('/api/extension/status'),
 
-  // Project（RPA 流程工作区目录；最小原型：只读白名单文件）
+  // Project（RPA 流程工作区目录；目录为唯一真相）
   readProjectFile: (path, file) => request(`/api/projects/read?path=${encodeURIComponent(path)}&file=${encodeURIComponent(file)}`),
+  writeProjectFile: (path, file, data) => request(`/api/projects/write?path=${encodeURIComponent(path)}&file=${encodeURIComponent(file)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
   sendExtensionCommand: (action, payload, browserType) => {
     let url = `/api/extension/command?action=${encodeURIComponent(action)}`;
     if (browserType) url += `&browser_type=${encodeURIComponent(browserType)}`;
