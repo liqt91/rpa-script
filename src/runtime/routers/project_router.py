@@ -11,6 +11,7 @@ elements.json / data.json）存放在项目目录内，本 router 提供读写�
 
 import json
 import logging
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Body, HTTPException, Query
@@ -84,3 +85,87 @@ def project_write(
         logger.error("[projects] 写入 %s 失败: %s", target, e)
         raise HTTPException(status_code=500, detail=f"写入失败: {e}")
     return {"ok": True, "path": str(root), "file": file, "written": True}
+
+
+@router.post("/run/extension")
+async def run_project_extension(
+    path: str = Query(..., description="项目目录绝对路径（RPA 流程工作区）"),
+    run_id: str = Query(default=""),
+    payload: dict = Body(default={}),
+):
+    """项目模式运行：从目录 workflow.json/elements.json 加载后走浏览器扩展执行。
+
+    Body: {"initialTableData": {...}, "parameters": {...}, "async": true}
+    async 模式立即返回 {runId, status:"started"}，后台执行；
+    进度经 GET /api/workflows/{wf_id}/runs/{run_id}/log 查询（wf_id 为目录伪 id）。
+    """
+    import asyncio
+    import time as _t
+
+    root = Path(path).expanduser().resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"目录不存在: {root}")
+    if not (root / "rpa.json").is_file():
+        raise HTTPException(status_code=403, detail="该目录不是 RPA 流程工作区（缺少 rpa.json）")
+    if not (root / "workflow.json").is_file():
+        raise HTTPException(status_code=404, detail=f"目录缺少 workflow.json: {root}")
+
+    # 目录伪 id（与 extension_runner.load_project_workflow 一致，供 log 查询定位）
+    import hashlib
+    wf_id = int(hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:8], 16)
+    initial_table_data = payload.get("initialTableData")
+    parameters = payload.get("parameters") or {}
+    trigger_type = payload.get("triggerType", "manual")
+
+    _run_id = run_id or f"run_{int(_t.time() * 1000)}"
+    log_dir = str(root / "run_logs" / str(wf_id) / _run_id)  # 2.3：日志写回目录
+    os.makedirs(log_dir, exist_ok=True)
+
+    async def _bg():
+        try:
+            from src.runtime.workflow.extension_runner import run_workflow_project as _rwp
+            await _rwp(
+                str(root),
+                run_id=_run_id,
+                initial_table_data=initial_table_data,
+                initial_parameters=parameters,
+                trigger_type=trigger_type,
+            )
+        except Exception:  # noqa: BLE001 —— 后台任务必须兜底
+            logger.exception("[project run] path=%s run=%s failed", root, _run_id)
+
+    asyncio.create_task(_bg())
+    return {"runId": _run_id, "status": "started", "workflowId": wf_id, "logDir": log_dir}
+
+
+@router.get("/run/log")
+def get_project_run_log(
+    path: str = Query(..., description="项目目录绝对路径"),
+    run_id: str = Query(..., description="运行 id"),
+):
+    """读取项目模式运行的进度日志（目录 run_logs/{wf_id}/{run_id}/run.log）。"""
+    import hashlib
+
+    root = Path(path).expanduser().resolve()
+    wf_id = int(hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:8], 16)
+    log_dir = root / "run_logs" / str(wf_id) / run_id
+    log_path = log_dir / "run.log"
+    if not log_path.is_file():
+        # 尚未生成（runner 启动中）→ 视为运行中
+        return {"events": [], "running": True, "runId": run_id, "workflowId": wf_id}
+    lines = []
+    with open(log_path, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    events = []
+    for line in lines:
+        try:
+            events.append(json.loads(line))
+        except Exception:
+            events.append({"raw": line})
+    # 目录模式无 Result 行：以 run.log 中的 done/失败事件判断是否结束
+    running = True
+    for ev in reversed(events):
+        if isinstance(ev, dict) and ev.get("type") in ("done", "error", "failed"):
+            running = False
+            break
+    return {"events": events, "running": running, "runId": run_id, "workflowId": wf_id}

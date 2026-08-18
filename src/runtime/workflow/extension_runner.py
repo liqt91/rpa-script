@@ -816,20 +816,23 @@ class ExtensionRunner:
             remaining = deadline - loop.time()
             await asyncio.sleep(min(0.2, remaining))
 
-    async def run(self, wf: models.Workflow, nodes: list[models.WorkflowNode]) -> dict:
+    async def run(self, wf: models.Workflow, nodes: list[models.WorkflowNode],
+                  element_map: dict | None = None) -> dict:
         """Run workflow nodes through the extension. Returns execution report."""
         await run_progress.register(self.run_id, self.queue)
-        # Load workflow elements and build element_map for selector resolution
-        db = SessionLocal()
-        try:
-            elements = (
-                db.query(models.WorkflowElement)
-                .filter(models.WorkflowElement.workflow_id == wf.id)
-                .all()
-            )
-            element_map = {el.name: el for el in elements}
-        finally:
-            db.close()
+        # Load workflow elements and build element_map for selector resolution.
+        # 目录模式（run_workflow_project）传入预构建的 element_map，跳过 DB 查询。
+        if element_map is None:
+            db = SessionLocal()
+            try:
+                elements = (
+                    db.query(models.WorkflowElement)
+                    .filter(models.WorkflowElement.workflow_id == wf.id)
+                    .all()
+                )
+                element_map = {el.name: el for el in elements}
+            finally:
+                db.close()
 
         instructions = build_instructions(nodes, element_map=element_map)
         logger.info(
@@ -1893,7 +1896,8 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
                                   run_id: str | None = None,
                                   initial_table_data: dict | None = None,
                                   initial_parameters: dict | None = None,
-                                  trigger_type: str = "manual") -> dict:
+                                  trigger_type: str = "manual",
+                                  element_map: dict | None = None) -> dict:
     """
     Convenience entry point.
     If client_id is None, connection is deferred until the first extension
@@ -1952,7 +1956,7 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     result: dict = {}
     stopped = False
     try:
-        result = await runner.run(wf, nodes)
+        result = await runner.run(wf, nodes, element_map=element_map)
     except asyncio.CancelledError:
         stopped = True
         result = {
@@ -1994,3 +1998,100 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
     result["tableColumns"] = runner._table_data.get("columns", [])
     result["logDir"] = log_dir
     return result
+
+
+# ---------------------------------------------------------------------------
+# 项目模式运行（2.1：目录数据源）—— 一个 RPA 流程 = 一个目录
+#
+# 从目录 workflow.json / elements.json 加载运行，绕过 SQLite。
+# build_instructions / ExtensionRunner 全部通过属性访问节点与元素字段，
+# 因此用 SimpleNamespace 包装 JSON dict 即可复用同一套运行引擎。
+# ---------------------------------------------------------------------------
+
+def load_project_workflow(project_dir: str) -> tuple[Any, list[Any], dict[str, Any]]:
+    """从项目目录加载 workflow.json，返回 (轻量 wf, 轻量 nodes, element_map)。
+
+    - workflow.json 结构：{name, description, url, parameters, nodes:[...], elements:[...]}
+    - node 字段：id / parent_id / order / cmd / action / element_name / extra / enabled
+    - element 字段：name / web_selector / element_kind（emitter 用到的最小集）
+    """
+    import hashlib
+    from types import SimpleNamespace as NS
+
+    root = os.path.abspath(project_dir)
+    wf_path = os.path.join(root, "workflow.json")
+    if not os.path.isfile(wf_path):
+        raise FileNotFoundError(f"项目目录缺少 workflow.json: {wf_path}")
+    with open(wf_path, encoding="utf-8-sig") as f:
+        data = json.load(f)
+
+    nodes_raw = data.get("nodes") or []
+    elements_raw = data.get("elements") or []
+
+    def _norm_extra(extra):
+        if extra is None:
+            return {}
+        if isinstance(extra, str):
+            try:
+                return json.loads(extra)
+            except Exception:
+                return {}
+        return extra
+
+    nodes = []
+    for i, n in enumerate(nodes_raw):
+        nid = n.get("id")
+        if nid is None:
+            nid = f"n{i + 1}"  # 缺 id 时按序补
+        nodes.append(NS(
+            id=nid,
+            parent_id=n.get("parent_id"),
+            order=n.get("order", i + 1),
+            cmd=n.get("cmd", ""),
+            action=n.get("action", ""),
+            element_name=n.get("element_name"),
+            extra=_norm_extra(n.get("extra")),
+            enabled=n.get("enabled", 1),
+        ))
+
+    element_map = {}
+    for el in elements_raw:
+        name = el.get("name")
+        if not name:
+            continue
+        element_map[name] = NS(
+            name=name,
+            web_selector=el.get("web_selector") or el.get("selector") or "",
+            element_kind=el.get("element_kind", "plain"),
+        )
+
+    # 目录项目 id：稳定伪 id（目录路径 hash），供 runner/log_dir/缓存 key 使用
+    wf_id = int(hashlib.sha1(root.encode("utf-8")).hexdigest()[:8], 16)
+    parameters = data.get("parameters") or []
+    wf = NS(
+        id=wf_id,
+        name=data.get("name", os.path.basename(root)),
+        description=data.get("description", ""),
+        url=data.get("url", ""),
+        parameters=json.dumps(parameters, ensure_ascii=False),  # 与 DB 字段同构（JSON 字符串）
+    )
+    return wf, nodes, element_map
+
+
+async def run_workflow_project(project_dir: str,
+                               client_id: str | None = None,
+                               run_id: str | None = None,
+                               initial_table_data: dict | None = None,
+                               initial_parameters: dict | None = None,
+                               trigger_type: str = "manual") -> dict:
+    """项目模式运行：从目录加载 workflow.json/elements.json 后复用扩展运行引擎。"""
+    wf, nodes, element_map = load_project_workflow(project_dir)
+    return await run_workflow_extension(
+        wf, nodes,
+        client_id=client_id,
+        run_id=run_id,
+        initial_table_data=initial_table_data,
+        initial_parameters=initial_parameters,
+        trigger_type=trigger_type,
+        element_map=element_map,
+    )

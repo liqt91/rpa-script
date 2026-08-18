@@ -927,9 +927,10 @@ function apply(ctx, config) {
   /* ================= 4. 异步启动运行 ================= */
   ctx.tools.register(defineTool({
     name: "rpa_run_start",
-    description: "异步启动工作流（浏览器扩展执行），立即返回 run_id，不阻塞。用 rpa_run_wait 等结果、rpa_run_status 查进度、rpa_run_stop 停止。",
+    description: "异步启动工作流（浏览器扩展执行），立即返回 run_id，不阻塞。用 rpa_run_wait 等结果、rpa_run_status 查进度、rpa_run_stop 停止。支持两种模式：传 wf_id 跑数据库工作流；传 project 跑流程目录（RPA 流程工作区）。",
     parameters: {
-      wf_id: { type: "integer", required: true, description: "工作流 id（rpa_import_workflow 的返回值）" },
+      wf_id: { type: "integer", description: "工作流 id（rpa_import_workflow 的返回值）；与 project 二选一" },
+      project: { type: "string", description: "流程目录绝对路径（RPA 流程工作区）；与 wf_id 二选一，缺省用当前会话工作目录" },
       parameters: { type: "object", additionalProperties: true, description: "{\"变量名\": \"值\"} 覆盖流程参数默认值" },
       initial_table_data: { type: "object", additionalProperties: true, description: "{\"columns\": [...], \"rows\": [...]} 预置表格数据" },
     },
@@ -939,6 +940,15 @@ function apply(ctx, config) {
       const body = { async: true };
       if (args.parameters) body.parameters = args.parameters;
       if (args.initial_table_data) body.initialTableData = args.initial_table_data;
+      if (args.project || (!args.wf_id && exec?.agent?.session?.header?.cwd)) {
+        // 项目模式：按流程目录运行（目录为唯一真相）
+        const project = (args.project || "").trim() || exec?.agent?.session?.header?.cwd;
+        const r = await api.post(`/api/projects/run/extension?path=${encodeURIComponent(project)}`, {
+          body, signal: exec.signal,
+        });
+        return { run_id: r.runId ?? r.run_id ?? "", project, ...r };
+      }
+      if (!args.wf_id) throw new Error("需提供 wf_id 或 project（流程目录）");
       const r = await api.post(`/api/workflows/${args.wf_id}/run/extension`, { body, signal: exec.signal });
       return { run_id: r.runId ?? r.run_id ?? "", ...r };
     }),
@@ -949,7 +959,8 @@ function apply(ctx, config) {
     name: "rpa_run_wait",
     description: "轮询等待一次运行结束（可被用户中断）。返回最终结果（success/error/outputs/步骤统计）或超时时的最新进度。",
     parameters: {
-      wf_id: { type: "integer", required: true },
+      wf_id: { type: "integer", description: "工作流 id（数据库模式）" },
+      project: { type: "string", description: "流程目录绝对路径（项目模式；与 wf_id 二选一）" },
       run_id: { type: "string", required: true },
       timeout_ms: { type: "integer", description: "最长等待毫秒数，默认 300000" },
     },
@@ -957,7 +968,10 @@ function apply(ctx, config) {
     timeoutMs: 360000,
     execute: withEnsure(async (args, exec) => {
       const deadline = Date.now() + (args.timeout_ms ?? 300000);
-      const path = `/api/workflows/${args.wf_id}/runs/${args.run_id}/log`;
+      const project = (args.project || "").trim();
+      const path = project
+        ? `/api/projects/run/log?path=${encodeURIComponent(project)}&run_id=${encodeURIComponent(args.run_id)}`
+        : `/api/workflows/${args.wf_id}/runs/${args.run_id}/log`;
       for (;;) {
         const log = await api.get(path, { signal: exec.signal });
         if (isTerminal(log)) return { ...log, finished: true };
@@ -972,13 +986,18 @@ function apply(ctx, config) {
     name: "rpa_run_status",
     description: "查询一次运行的状态与进度（不等待）。",
     parameters: {
-      wf_id: { type: "integer", required: true },
+      wf_id: { type: "integer", description: "工作流 id（数据库模式）" },
+      project: { type: "string", description: "流程目录绝对路径（项目模式；与 wf_id 二选一）" },
       run_id: { type: "string", required: true },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     isConcurrencySafe: () => true,
     execute: withEnsure(async (args, exec) => {
-      return await api.get(`/api/workflows/${args.wf_id}/runs/${args.run_id}/log`, { signal: exec.signal });
+      const project = (args.project || "").trim();
+      const path = project
+        ? `/api/projects/run/log?path=${encodeURIComponent(project)}&run_id=${encodeURIComponent(args.run_id)}`
+        : `/api/workflows/${args.wf_id}/runs/${args.run_id}/log`;
+      return await api.get(path, { signal: exec.signal });
     }),
   }));
 
@@ -986,13 +1005,15 @@ function apply(ctx, config) {
     name: "rpa_run_stop",
     description: "停止 / 暂停 / 恢复一次运行。",
     parameters: {
-      wf_id: { type: "integer", required: true },
+      wf_id: { type: "integer", description: "工作流 id（数据库模式；项目模式可省略）" },
+      project: { type: "string", description: "流程目录绝对路径（项目模式）" },
       run_id: { type: "string", required: true },
       action: { type: "string", required: true, enum: ["stop", "pause", "resume"] },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
     execute: withEnsure(async (args, exec) => {
-      return await api.post(`/api/workflows/${args.wf_id}/run/${args.run_id}/${args.action}`, {
+      // 停止/暂停/恢复按 run_id 定位全局活跃 runner，与 wf_id/project 无关
+      return await api.post(`/api/workflows/0/run/${args.run_id}/${args.action}`, {
         body: {}, signal: exec.signal,
       });
     }),
