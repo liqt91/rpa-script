@@ -877,6 +877,69 @@ function apply(ctx, config) {
     },
   }));
 
+  // 捕获解释器：优先 repo venv（带 uiautomation），否则退回系统 python
+  const capturePython = () => {
+    try {
+      const base = config.backendCwd || process.cwd();
+      const venv = join(base, ".venv", "Scripts", "python.exe");
+      if (existsSync(venv)) return venv;
+    } catch {}
+    return "python";
+  };
+
+  ctx.tools.register(defineTool({
+    name: "rpa_capture",
+    description: "捕获界面元素（全屏遮罩 + Alt+点击，网页/桌面/UIA 统一；网页元素会生成 CSS/XPath 推荐方案）。用户要求“捕获/拾取某元素/某个控件”时调用：调起后弹全屏半透明遮罩，用户把鼠标移到目标上（hover 高亮）再 Alt+点击，捕获结果自动就地写入当前流程工作区的 workflow.json 元素库（含截图到 images/）。返回值含 element（捕获数据）与 writeback（写回结果）。",
+    parameters: {
+      workspace: { type: "string", description: "流程工作区目录（须含 rpa.json）；缺省用当前会话工作目录" },
+      name: { type: "string", description: "元素命名；缺省自动生成" },
+      mode: { type: "string", description: "web | desktop_mask（默认 desktop_mask，统一捕获）" },
+      timeout: { type: "number", description: "等待捕获的超时秒数，默认 300" },
+    },
+    output: { schema: { type: "object", additionalProperties: true }, render: toText },
+    isConcurrencySafe: () => false, // 捕获独占屏幕交互
+    execute: async (args, exec) => {
+      const cwd = exec?.agent?.session?.header?.cwd;
+      const workspace = (args.workspace || "").trim() || cwd;
+      if (!workspace) throw new Error("无法确定工作区：未提供 workspace 且当前会话没有工作目录");
+      const mode = (args.mode || "desktop_mask");
+      const timeoutMs = (args.timeout || 300) * 1000;
+      const repoRoot = config.backendCwd || process.cwd();
+      const script = join(repoRoot, "scripts", "capture_gui", "capture_once.py");
+      const py = capturePython();
+      const argv = [script, mode, "--workspace", workspace];
+      if (args.name) argv.push("--name", String(args.name));
+      return await new Promise((resolve, reject) => {
+        const child = spawn(py, argv, {
+          cwd: repoRoot,
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        });
+        let stdout = "", stderr = "";
+        const timer = setTimeout(() => {
+          try { child.kill(); } catch {}
+          reject(new Error("捕获超时"));
+        }, timeoutMs);
+        child.stdout.on("data", (d) => { stdout += d; });
+        child.stderr.on("data", (d) => { stderr += d; });
+        child.on("error", (e) => { clearTimeout(timer); reject(new Error("捕获进程启动失败: " + e.message)); });
+        child.on("close", (code) => {
+          clearTimeout(timer);
+          try {
+            const t = stdout.trim();
+            if (!t) return resolve({ ok: false, error: stderr.trim() || `捕获退出(code=${code})` });
+            const parsed = JSON.parse(t);
+            if (parsed?.cancelled) return resolve({ ok: false, cancelled: true, msg: "已取消" });
+            if (parsed?.error) return resolve({ ok: false, error: parsed.error });
+            return resolve({ ok: true, ...parsed });
+          } catch (e) {
+            return resolve({ ok: false, error: "无法解析捕获输出: " + e.message });
+          }
+        });
+      });
+    },
+  }));
+
   ctx.tools.register(defineTool({
     name: "rpa_project_list",
     description: "列出所有 RPA 流程工作区（含 rpa.json 的目录）：名称、绝对路径、节点数，并标注哪个是当前会话所在目录（current:true）。运行流程快捷链路：① 调本工具 → ② 若存在 current:true，直接 rpa_run_start() 不带参数运行当前流程；③ 否则用列出的 path 调 rpa_run_start(project=path)。本工具不依赖后端/工作区注册，当前会话目录含 rpa.json 就一定能列出（current:true）。不要为找流程去探测浏览器/翻文件系统/查 API。",

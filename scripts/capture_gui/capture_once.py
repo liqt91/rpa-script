@@ -1,9 +1,15 @@
 """一次性捕获入口 — 子进程调用，输出 JSON。
 
-供 FastAPI 端点 /api/commands/gui-picker 使用：
-    1. web → overlay.run_capture("web")（委托扩展 DOM 拾取）
-    2. 其余 → overlay_mask.run_capture_mask("desktop")（全屏遮罩桌面捕获，含浏览器内容区自动转网页）
+供两处使用：
+  - FastAPI 端点 /api/commands/gui-picker（后端调起）
+  - DSH 插件 rpa_capture 工具（spawn 并透传 --workspace 就地写回）
+
+用法：
+  python capture_once.py [mode] [--workspace <工作区目录>]
+  mode: web | desktop_mask（默认 desktop_mask，统一遮罩捕获，含浏览器内容区自动转网页）
+  --workspace: 捕获成功后把元素就地写进该工作区 workflow.json + images/
 """
+import argparse
 import json
 import os
 import sys
@@ -23,11 +29,18 @@ _sink = _io.StringIO()
 with contextlib.redirect_stderr(_sink):
     from scripts.capture_gui.overlay import run_capture
     from scripts.capture_gui.overlay_mask import run_capture_mask
-    from scripts.capture_gui.store import _info_to_dict
+    from scripts.capture_gui.store import _info_to_dict, save_element_to_workspace
 
 
 def main():
-    mode = sys.argv[1] if len(sys.argv) > 1 else "desktop_mask"  # web | desktop_mask
+    parser = argparse.ArgumentParser(description="统一元素捕获（遮罩 Alt+点击）")
+    parser.add_argument("mode", nargs="?", default="desktop_mask",
+                        help="web | desktop_mask（默认 desktop_mask）")
+    parser.add_argument("--workspace", default=None,
+                        help="捕获成功后就地写回的工作区目录（须含 rpa.json）")
+    parser.add_argument("--name", default=None, help="元素命名（默认自动生成）")
+    args = parser.parse_args()
+    mode = args.mode
     try:
         with contextlib.redirect_stderr(_io.StringIO()):  # 压制 libpng 警告
             if mode == "web":
@@ -37,7 +50,17 @@ def main():
         if not info:
             print(json.dumps({"cancelled": True}))
             return
-        print(json.dumps(_info_to_dict(info, keep_screenshot=True), ensure_ascii=False))
+        d = _info_to_dict(info, keep_screenshot=True)
+        # 就地写回工作区（可选）；保持 d 的字段在顶层（前端 /gui-picker 读顶层
+        # candidates/dom_path 等），额外加 writeback 字段不破坏现有调用方。
+        writeback = None
+        if args.workspace:
+            try:
+                writeback = save_element_to_workspace(args.workspace, d, name=args.name)
+            except Exception as e:
+                writeback = {"ok": False, "error": str(e)}
+        d["writeback"] = writeback
+        print(json.dumps(d, ensure_ascii=False))
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
