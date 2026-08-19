@@ -6,6 +6,7 @@
 """
 import ctypes
 import ctypes.wintypes as wintypes
+import json
 import os
 import threading
 import time
@@ -637,8 +638,39 @@ def _best_uia_item(chain):
     return chain[idx], idx
 
 
-def _uia_node_dict(node) -> dict:
-    """把 UIA 控件转为可序列化字典（name/class/type/automation_id/rect/enabled/offscreen）。"""
+_ARIA_ROLE_PROP = 30101
+_ARIA_PROPS_PROP = 30102
+
+
+def _uia_aria(node) -> tuple[str, dict]:
+    """读 UIA 节点的 AriaRole / AriaProperties（网页 DOM 元素才有语义）。
+
+    AriaProperties 是 JSON 风格字符串（如 {"label":"提交","checked":"true"}），
+    解析为 dict；解析失败退回空 dict。任何异常都安全返回缺省。
+    """
+    role = ""
+    props = {}
+    try:
+        role = node.GetPropertyValue(_ARIA_ROLE_PROP) or ""
+    except Exception:
+        role = ""
+    try:
+        raw = node.GetPropertyValue(_ARIA_PROPS_PROP) or ""
+        if raw:
+            props = json.loads(raw)
+            if not isinstance(props, dict):
+                props = {}
+    except Exception:
+        props = {}
+    return role, props
+
+
+def _uia_node_dict(node, read_aria: bool = True) -> dict:
+    """把 UIA 控件转为可序列化字典（name/class/type/automation_id/rect/enabled/offscreen）。
+
+    read_aria 时额外读 AriaRole/AriaProperties（供网页元素转 CSS/XPath 选择器用）；
+    hover 高频路径若走这里可传 False 跳过。
+    """
     try:
         br = node.BoundingRectangle
     except Exception:
@@ -652,6 +684,12 @@ def _uia_node_dict(node) -> dict:
         "control_type": node.ControlTypeName or "", "automation_id": node.AutomationId or "",
         "rect": rect,
     }
+    if read_aria:
+        role, props = _uia_aria(node)
+        if role:
+            d["aria_role"] = role
+        if props:
+            d["aria_props"] = props
     try:
         d["enabled"] = bool(node.IsEnabled)
     except Exception:
@@ -925,7 +963,7 @@ def _uia_web_capture(x, y) -> dict | None:
 
     返回捕获 dict（与扩展捕获结果同构，供 _build_element_info 消费）：
       {found, name, class_name, control_type, automation_id, rect, path, target_index,
-       element_type:"web", candidates:[...], dom_path, page_url?}
+       element_type:"web", css_selector, xpath, candidates:[...], dom_path, page_url?}
     非浏览器区域 / 无 DOM 命中 → None（调用方回退扩展或桌面通道）。
     """
     result = {"done": False, "value": None}
@@ -938,6 +976,23 @@ def _uia_web_capture(x, y) -> dict | None:
                 if leaf and path and len(path) >= 2:  # 至少 渲染根 + 一个 DOM 节点
                     r = leaf.get("rect") or {}
                     if r.get("width", 0) > 0 and r.get("height", 0) > 0:
+                        # UIA → CSS/XPath 选择器生成（本地捕获脱离扩展的关键）
+                        try:
+                            from scripts.capture_gui.web_selector import generate_selectors
+                            cands = generate_selectors(leaf)
+                        except Exception:
+                            cands = []
+                        css = next((c["syntax"] for c in cands
+                                    if c["family"] == "css" and c.get("syntax")), "")
+                        xpath = next((c["syntax"] for c in cands
+                                      if c["family"] == "xpath" and c.get("syntax")), "")
+                        attrs = {
+                            "tag": (leaf.get("aria_role") or leaf.get("control_type") or ""),
+                            "role": leaf.get("aria_role", ""),
+                            "class": leaf.get("class_name", ""),
+                            "id": leaf.get("automation_id", ""),
+                            "name": leaf.get("name", ""),
+                        }
                         result["value"] = {
                             "found": True,
                             "element_type": "web",
@@ -949,7 +1004,10 @@ def _uia_web_capture(x, y) -> dict | None:
                             "path": path,
                             "target_index": len(path) - 1,
                             "dom_path": path,
-                            "candidates": [],
+                            "css_selector": css,
+                            "xpath": xpath,
+                            "candidates": cands,
+                            "elem_attrs": attrs,
                         }
         except Exception:
             pass
@@ -2302,8 +2360,11 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
             info.name = web.get("name") or info.name
             info.control_type = web.get("control_type", "")
             info.automation_id = web.get("automation_id", "")
-            info.css_selector = ""          # UIA 拿不到 CSS/XPath（无障碍树无语义选择器），
-            info.xpath = ""                 # 由前端基于 DOM 特征链提示用图像/层级定位
+            # UIA → CSS/XPath 由 _uia_web_capture 里的生成器产出（非空时可直接定位）
+            info.css_selector = web.get("css_selector", "")
+            info.xpath = web.get("xpath", "")
+            info.candidates = web.get("candidates", []) or []
+            info.elem_attrs = web.get("elem_attrs", {}) or {}
             info.uia_path = web.get("path", [])
             info.uia_target_index = web.get("target_index", len(info.uia_path) - 1)
             info.dom_path = web.get("dom_path", [])
