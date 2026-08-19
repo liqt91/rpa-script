@@ -73,7 +73,7 @@ export default function CaptureToolModal({ wfId, projectDir, onClose, onSaved })
       setCur(data);
       const cs = data.candidates || [];
       setCands(cs.filter(c => ['css', 'xpath'].includes((c.family || c.type || '').toLowerCase())));
-      const path = data.dom_path || data.path || [];
+      const path = data.dom_editor_path || data.dom_path || data.path || [];
       setDomPath(path);
       setDomChecked(path.map(() => true));
       setAttrVars({});

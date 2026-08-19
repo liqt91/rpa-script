@@ -1004,12 +1004,17 @@ def _uia_web_capture(x, y) -> dict | None:
                         xpath = next((c["syntax"] for c in cands
                                       if c["family"] == "xpath" and c.get("syntax")), "")
                         attrs = {
-                            "tag": (leaf.get("aria_role") or leaf.get("control_type") or ""),
+                            "tag": (leaf.get("aria_role") or leaf.get("control_type") or "").strip(),
                             "role": leaf.get("aria_role", ""),
                             "class": leaf.get("class_name", ""),
                             "id": leaf.get("automation_id", ""),
                             "name": leaf.get("name", ""),
                         }
+                        # 前端手动编辑 DOM 层级期望的节点形态：{tag,id,classes[],attrs{}}。
+                        # UIA 的 dom_path（role/class/…）转成该形态，让"手动编辑"tab 也能用。
+                        dom_editor = _uia_dom_for_editor(path)
+                        editor_attrs = dict(attrs)
+                        editor_attrs.setdefault("tag", _uia_tag_of(leaf))
                         result["value"] = {
                             "found": True,
                             "element_type": "web",
@@ -1020,11 +1025,13 @@ def _uia_web_capture(x, y) -> dict | None:
                             "rect": r,
                             "path": path,
                             "target_index": len(path) - 1,
-                            "dom_path": path,
+                            "dom_path": path,              # 原始 UIA 链（供 normalize）
+                            "dom_editor_path": dom_editor,  # 前端手动编辑形态
                             "css_selector": css,
                             "xpath": xpath,
                             "candidates": cands,
                             "elem_attrs": attrs,
+                            "attrs": editor_attrs,          # 前端 setDomAttrs(data.attrs) 用
                         }
         except Exception:
             pass
@@ -1040,6 +1047,61 @@ def _uia_web_capture(x, y) -> dict | None:
 _UIA_QUERY_TIMEOUT = 8.0  # 秒；深搜兜底在 XAML 应用（Windows Terminal/PowerShell）上可达 1-5s，
                           # 3s 会把正常深搜杀掉 → 捕获降级成整窗。正常捕获优先复用 hover worker
                           # 结果，此超时只是 worker 结果缺失时的兜底。
+
+
+# 前端手动编辑 tab 的展示标签：role → 常见 HTML 标签（仅用于层级树展示与选择器拼接）
+_ROLE_TO_TAG = {
+    "button": "button", "link": "a", "textbox": "input", "searchbox": "input",
+    "checkbox": "input", "radio": "input", "img": "img", "tab": "a",
+    "treeitem": "li", "option": "option", "slider": "input", "combobox": "input",
+    "listbox": "select", "menuitem": "li",
+}
+
+
+def _uia_tag_of(node: dict) -> str:
+    """UIA 特征 → HTML 标签（粗映射，供前端手动编辑 DOM 层级展示用）。"""
+    role = (node.get("aria_role") or "").strip().lower()
+    if role in _ROLE_TO_TAG:
+        return _ROLE_TO_TAG[role]
+    try:
+        from scripts.capture_gui.web_selector import _CONTROL_TYPE_TAG
+        tag = _CONTROL_TYPE_TAG.get((node.get("control_type") or ""), "div")
+    except Exception:
+        return "div"
+    # _CONTROL_TYPE_TAG 可能返回 [role=x] 形式 → 转纯标签
+    return tag.lstrip("[]").split("=")[0] if tag.startswith("[") else tag
+
+
+def _uia_dom_for_editor(path: list) -> list:
+    """把 UIA 的 dom_path（原始链）转成前端"手动编辑"tab 期望的节点形态。
+
+    前端 updateDomSel 逐节点用 n.tag / n.id / n.classes[] / n.attrs{} 拼选择器。
+    UIA 节点是 {control_type, class_name, automation_id, name, rect, aria_role...}，
+    这里做同构映射，让本地捕获的网页元素在"手动编辑"tab 也能正常渲染与编辑。
+    """
+    out = []
+    for node in path or []:
+        if not isinstance(node, dict):
+            out.append(node)
+            continue
+        cls = (node.get("class_name") or "").split()
+        node_attrs = {}
+        if node.get("automation_id"):
+            node_attrs["id"] = node["automation_id"]
+        role = node.get("aria_role")
+        if role:
+            node_attrs["role"] = role
+        if node.get("name"):
+            node_attrs["aria-label"] = node["name"]
+        out.append({
+            "tag": _uia_tag_of(node),
+            "id": node.get("automation_id") or "",
+            "classes": cls,
+            "attrs": node_attrs,
+            "name": node.get("name", ""),
+            "control_type": node.get("control_type", ""),
+        })
+    return out
 
 
 def _web_display_name(web: dict) -> str:
