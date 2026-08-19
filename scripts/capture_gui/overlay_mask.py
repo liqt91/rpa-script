@@ -8,13 +8,37 @@ layered 全屏遮罩窗**（参考 tdSelector 的 Qt 全屏无边框 + WA_Transp
 - hover 高亮复用 overlay 的 worker UIA 查询 + 桌面图标 Win32 命中（含双屏/DPI 修复）
 - Alt+点击 捕获（复用 overlay._build_element_info），Esc/右键 取消
 - 不用任何额外悬浮提示框（按需求仅遮罩 + 高亮）
+
+调试：设置环境变量 RPA_MASK_DEBUG=1 时，主循环每帧把 target/rect/锁状态写入
+data/mask-debug.log（诊断"第二轮捕获无高亮"等状态残留问题）。
 """
 import ctypes
 import ctypes.wintypes as wintypes
+import os
 import time
 
 from scripts.capture_gui import overlay as ov
 from scripts.capture_gui.overlay import ElementInfo
+
+_MASK_DEBUG = os.environ.get("RPA_MASK_DEBUG") == "1"
+_mask_dbg_file = None
+
+
+def _dbg(msg):
+    """调试日志：环境变量 RPA_MASK_DEBUG=1 时写 data/mask-debug.log。"""
+    global _mask_dbg_file
+    if not _MASK_DEBUG:
+        return
+    try:
+        if _mask_dbg_file is None:
+            p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))), "data", "mask-debug.log")
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            _mask_dbg_file = open(p, "a", encoding="utf-8")
+        _mask_dbg_file.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+        _mask_dbg_file.flush()
+    except Exception:
+        pass
 
 _user32 = ctypes.windll.user32
 _gdi32 = ctypes.windll.gdi32
@@ -340,6 +364,9 @@ def run_capture_mask(mode: str = "desktop") -> ElementInfo | None:
         # 点击按钮时粘连，会让 GetAsyncKeyState 恒为按下 → 首次循环即 break）。
         # 改为"armed"逻辑：只有进入后松开再按下的 Esc 才触发取消。
         esc_armed = not bool(ov._GetAsyncKeyState(ov.VK_ESCAPE) & 0x8000)
+        last_dbg_frame = -9999
+        _dbg(f"=== run_capture_mask 开始 mode={mode} worker_inst={ov._hover_worker_inst is not None} "
+             f"last_submit={ov._last_submit_xy[0]} uia_module={ov._uia_module is not None}")
 
         session_holder = {"browser": None}  # 当前网页会话的浏览器顶层窗口（退出监视比对用）
 
@@ -478,6 +505,13 @@ def run_capture_mask(mode: str = "desktop") -> ElementInfo | None:
                             ov._uia_draw_lock.release()
                 if show_rect:
                     last_hwnd = target
+                if _MASK_DEBUG and last_dbg_frame != pt.x // 8 + pt.y // 8:
+                    last_dbg_frame = pt.x // 8 + pt.y // 8
+                    _dbg(f"pt=({pt.x},{pt.y}) target={target and ov._get_class_name(target)} "
+                         f"cls={ov._get_class_name(target) if target else '-'} "
+                         f"rect={'w%d h%d' % (show_rect['width'], show_rect['height']) if show_rect else 'None'} "
+                         f"worker={'alive' if (ov._hover_worker_inst and ov._hover_worker_inst._thread.is_alive()) else 'dead'} "
+                         f"last_submit={ov._last_submit_xy[0]}")
             elif not target:
                 if mask.needs_update(None, (pt.x, pt.y)):
                     if ov._uia_draw_lock.acquire(timeout=0.05):
@@ -488,6 +522,7 @@ def run_capture_mask(mode: str = "desktop") -> ElementInfo | None:
 
             time.sleep(0.03)
     finally:
+        _dbg("=== run_capture_mask 结束 ===")
         mask.destroy()
         ov._uninstall_mouse_swallow_hook()  # 恢复鼠标点击透传给应用
         ov._stop_hover_worker()
