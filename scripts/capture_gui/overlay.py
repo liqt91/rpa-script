@@ -1354,13 +1354,17 @@ def _hover_worker() -> _HoverWorker | None:
 
 
 def _stop_hover_worker():
-    global _hover_worker_inst
+    global _hover_worker_inst, _last_submit_xy
     if _hover_worker_inst is not None:
         try:
             _hover_worker_inst.stop()
         except Exception:
             pass
         _hover_worker_inst = None
+    # 重置 submit 坐标：否则下次重建 worker 时若鼠标坐标与上次相同，
+    # `(x,y) != _last_submit_xy[0]` 恒 False → 新 worker 收不到首个坐标 → hover 无高亮
+    # （多轮捕获：第一轮 Alt+点击后光标几乎没动就进第二轮，必踩此坑）。
+    _last_submit_xy[0] = None
 
 
 def _rect_contains(r, x, y, tol=2):
