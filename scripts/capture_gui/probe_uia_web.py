@@ -42,19 +42,64 @@ def _print_info(info, seq: int):
     print(f"[{seq}] control_type : {info.control_type}")
     if info.automation_id:
         print(f"[{seq}] automation_id: {info.automation_id}")
-    if info.uia_path:
-        print(f"[{seq}] uia_path     : {len(info.uia_path)} 层")
+
+    # ── 完整层级打印（排查用）──
+    # dom_editor_path：前端手动编辑 tab 的形态（tag/id/classes/attrs）
+    editor_path = getattr(info, "dom_editor_path", None) or []
+    if editor_path:
+        print(f"[{seq}] == dom_editor_path（前端手动编辑形态，{len(editor_path)} 层，含叶子） ===")
+        _print_path_min(editor_path, seq)
+    # uia_path：原始 UIA 链（control_type/class/automation_id/name/aria）
+    uia_path = getattr(info, "uia_path", None) or (info.dom_path or [])
+    if uia_path:
+        print(f"[{seq}] == uia_path（原始 UIA 链，{len(uia_path)} 层） ===")
+        _print_path_raw(uia_path, seq)
+
     if info.candidates:
         print(f"[{seq}] candidates:")
         for c in info.candidates[:8]:
             print(f"  [{c.get('score', 0):>3}] {c.get('family', ''):<6} {c.get('syntax', '')}")
     else:
         print(f"[{seq}] !! 无 candidates —— 该元素无可派生定位线索（纯视觉 div），需图像/父级兜底")
-    # 验证命令：浏览器 DevTools 里执行确认选择器可命中
     if info.css_selector:
         print(f"[{seq}] 验证（浏览器 DevTools Console 执行）:")
         print(f"      document.querySelector({info.css_selector!r})   // 应返回刚捕获的元素")
     print()
+
+
+def _print_path_min(path, seq):
+    """打印 dom_editor_path：tag#id.class classes attrs"""
+    for i, nd in enumerate(path):
+        if not isinstance(nd, dict):
+            print(f"  [{i}] {nd!r}")
+            continue
+        tag = nd.get("tag") or "?"
+        pid = nd.get("id") or ""
+        cls = nd.get("classes") or []
+        attrs = nd.get("attrs") or {}
+        # attrs 只打印非空且非 id/class 的（id/class 已单列）
+        extra = {k: v for k, v in attrs.items() if v not in (None, "")}
+        sel = tag
+        if pid:
+            sel += f"#{pid}"
+        if cls:
+            sel += "." + ".".join(cls[:3])
+        name = nd.get("name") or nd.get("control_type") or ""
+        print(f"  [{i:>2}] <{sel}> name={name!r} attrs={extra!r}")
+
+
+def _print_path_raw(path, seq):
+    """打印 uia_path：control_type | class_name | automation_id | name | aria_role"""
+    for i, nd in enumerate(path):
+        if not isinstance(nd, dict):
+            print(f"  [{i}] {nd!r}")
+            continue
+        ct = nd.get("control_type") or ""
+        cls = nd.get("class_name") or ""
+        aid = nd.get("automation_id") or ""
+        nm = (nd.get("name") or "")[:30]
+        role = nd.get("aria_role") or ""
+        print(f"  [{i:>2}] {ct:<22} class={cls!r} id={aid!r} role={role!r} name={nm!r}")
 
 
 def main():
