@@ -9,9 +9,11 @@ elements.json / data.json）存放在项目目录内，本 router 提供读写�
 的 RPA 流程工作区（含 rpa.json）才允许写入，防止对任意目录写入。
 """
 
+import base64
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
@@ -207,6 +209,39 @@ def _save_workflow_data(root: Path, data: dict) -> None:
     tmp.replace(target)
 
 
+def _persist_element_screenshot(root: Path, name: str, screenshot) -> str | None:
+    """把捕获 payload 的截图（base64 dataURL 或裸 base64）落盘到 目录/images/<safe>.png。
+
+    返回相对路径（形如 "images/x.png"）或 None（无截图/非图像数据）。元素库"含 image"
+    的目录化要求：截图随元素存入流程目录，而非只嵌在 workflow.json 的 base64 里。
+    """
+    if not screenshot or not isinstance(screenshot, str):
+        return None
+    s = screenshot.strip()
+    if s.startswith("data:"):
+        # data:image/png;base64,xxxx → 取逗号后 base64
+        m = re.match(r"^data:[^;]+;base64,(.*)$", s, re.S)
+        if not m:
+            return None
+        raw = m.group(1)
+    else:
+        raw = s
+    try:
+        file_bytes = base64.b64decode(raw, validate=False) if "," not in raw else None
+        if file_bytes is None:
+            return None
+    except Exception:
+        return None
+    if not file_bytes or not file_bytes.startswith(b"\x89PNG") and not file_bytes.startswith(b"\xff\xd8"):
+        return None  # 非 PNG/JPEG 数据，丢弃
+    safe = "".join(c for c in name if c.isalnum() or c in ("_", "-")) or "element"
+    images_dir = root / "images"
+    images_dir.mkdir(exist_ok=True)
+    rel = f"images/{safe}.png"
+    (root / rel).write_bytes(file_bytes)
+    return rel
+
+
 def _project_root(path: str) -> Path:
     root = Path(path).expanduser().resolve()
     if not root.is_dir():
@@ -233,6 +268,11 @@ def project_save_element(path: str = Query(...), payload: dict = Body(...)):
 
     # 同名替换
     idx = next((i for i, e in enumerate(elements) if e.get("name") == name), None)
+    # 截图落盘到 目录/images/<name>.png（元素库"含 image"的目录化要求）
+    img_rel = _persist_element_screenshot(root, name, payload.get("screenshot"))
+    attrs = dict(norm.get("attributes", {}) or {})
+    if img_rel:
+        attrs["imagePath"] = img_rel
     entry = {
         "name": name,
         "element_type": norm.get("element_type", "web"),
@@ -242,9 +282,10 @@ def project_save_element(path: str = Query(...), payload: dict = Body(...)):
         "xpath_candidates": norm.get("xpath_candidates", []),
         "drission_candidates": norm.get("drission_candidates", []),
         "dom_path": norm.get("dom_path", []),
-        "attributes": norm.get("attributes", {}),
+        "attributes": attrs,
         "page_url": norm.get("page_url", ""),
-        "screenshot": norm.get("screenshot"),
+        "image": img_rel,                       # 目录内相对路径（含 image）
+        "screenshot": norm.get("screenshot"),   # base64 供编辑器即时预览（可选）
         "anchor_element_name": payload.get("anchorElementName") or payload.get("anchor_element_name"),
         "relative_selector": payload.get("relativeSelector") or payload.get("relative_selector", ""),
     }
