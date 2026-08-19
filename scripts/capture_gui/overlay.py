@@ -813,6 +813,12 @@ _WEB_DOM_ROLES = {
     "TreeItemControl", "ImageControl", "GroupControl", "CustomControl",
     "SliderControl", "ProgressBarControl", "TabItemControl", "SplitButtonControl",
 }
+# 网页交互型控件：同为"含点候选"时优先选它们（textarea/按钮/链接 优于容器 div/section）
+_WEB_INTERACTIVE_TYPES = {
+    "EditControl", "ButtonControl", "SplitButtonControl", "HyperlinkControl",
+    "ComboBoxControl", "CheckBoxControl", "RadioButtonControl", "TreeItemControl",
+    "ListItemControl", "TabItemControl", "MenuItemControl", "SliderControl",
+}
 # 浏览器 UI 骨架类名（非 DOM，跳过避免把工具栏当网页元素）
 _BROWSER_UI_CLASSES = (
     "BrowserRootView", "NonClientView", "EdgeBrowserFrameViewWin", "BrowserView",
@@ -917,10 +923,21 @@ def _uia_web_dom_at(x, y, uia, max_depth=40, max_nodes=1500):
 
     if not candidates:
         return None, None
-    # 选最深（path 最长）而非分数最高：网页 DOM 里叶子通常是用户真正点中的元素，
-    # 且 Chromium 无障碍树角色有限，打分区分度低。取"含点 + DOM 节点"中最深者。
-    best_node, best_dict = max(candidates, key=lambda c: len(
-        _uia_parent_chain(c[0], parents)))
+    # 选目标节点：网页 DOM 里叶子通常是用户真正点中的元素，且 Chromium 无障碍树角色有限，
+    # 打分区分度低。取"含点 + DOM 节点"中最深者；深度相近（≤2 层）时优先交互控件
+    # （textarea/按钮/链接 等），避免误选包住它们的纯容器（section/div）。
+    max_dep = max(len(_uia_parent_chain(c[0], parents)) for c in candidates)
+
+    def _leaf_key(c):
+        node, d = c
+        chain_len = len(_uia_parent_chain(node, parents))
+        interactive = int((d.get("control_type") or "") in _WEB_INTERACTIVE_TYPES)
+        # 深度权重为主；在离最深 ≤2 层内，交互控件排前
+        if chain_len >= max_dep - 2:
+            return (chain_len, interactive, 0)
+        return (chain_len - 5, interactive, 0)
+
+    best_node, best_dict = max(candidates, key=_leaf_key)
     # 组装根→叶路径
     rev = []
     cur = best_node
@@ -1023,6 +1040,26 @@ def _uia_web_capture(x, y) -> dict | None:
 _UIA_QUERY_TIMEOUT = 8.0  # 秒；深搜兜底在 XAML 应用（Windows Terminal/PowerShell）上可达 1-5s，
                           # 3s 会把正常深搜杀掉 → 捕获降级成整窗。正常捕获优先复用 hover worker
                           # 结果，此超时只是 worker 结果缺失时的兜底。
+
+
+def _web_display_name(web: dict) -> str:
+    """网页元素的显示名：叶子无可访问名时，用 class / id / 控件类型生成可读名。
+
+    不可用窗口标题（浏览器顶层 "Chrome Legacy Window"）——那是窗口名不是元素名。
+    """
+    leaf = (web.get("dom_path") or [{}])[-1] if web.get("dom_path") else {}
+    if not isinstance(leaf, dict):
+        leaf = {}
+    aid = (leaf.get("automation_id") or web.get("automation_id") or "").strip()
+    if aid:
+        return f"#{aid}"
+    cls = (leaf.get("class_name") or web.get("class_name") or "").strip()
+    if cls:
+        return ".".join(cls.split()[:2])
+    ct = (leaf.get("control_type") or web.get("control_type") or "").strip()
+    if ct:
+        return ct[:-len("Control")] if ct.endswith("Control") else ct
+    return "网页元素"
 
 
 def _try_uia_capture(x, y) -> dict | None:
@@ -2357,7 +2394,12 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
         web = _uia_web_capture(x, y)
         if web and web.get("found"):
             info.element_type = "web"
-            info.name = web.get("name") or info.name
+            # 显示名：优先叶子可访问名（placeholder/文本/aria-label），否则用 class/id
+            # 生成人类可读名 —— 不能用窗口标题（"Chrome Legacy Window"）当元素名。
+            leaf_name = (web.get("name") or "").strip()
+            if not leaf_name:
+                leaf_name = _web_display_name(web)
+            info.name = leaf_name or info.name
             info.control_type = web.get("control_type", "")
             info.automation_id = web.get("automation_id", "")
             # UIA → CSS/XPath 由 _uia_web_capture 里的生成器产出（非空时可直接定位）
