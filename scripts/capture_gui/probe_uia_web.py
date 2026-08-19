@@ -1,18 +1,22 @@
-"""勘测脚本：验证 UIA 网页元素 → CSS/XPath 选择器可行性（不依赖扩展/后端）。
+"""勘测脚本：连续捕获多个网页元素，验证 UIA→CSS/XPath 可行性（不依赖扩展/后端）。
 
 复用现有全屏遮罩捕获（overlay_mask.run_capture_mask）——半透明遮罩 + 鼠标穿透 +
 hover 蓝框 + Alt+点击。并把 `_extension_online` 临时钉死为 False，**强制走本地
-UIA 网页拾取**（不管浏览器扩展是否在线），验证"网页捕获脱离扩展"这一决策点。
+UIA 网页拾取**，验证"网页捕获脱离扩展"。
 
 用法：
     python scripts/capture_gui/probe_uia_web.py
 
-交互：
-    1. 半透明遮罩覆盖全屏，能透过它看到下方网页；
-    2. 把鼠标移到目标网页元素上 → hover 蓝框实时高亮（走本地 UIA DOM 深搜）；
-    3. Alt+点击 捕获该元素 → 遮罩消失；
-    4. 结果打印并写入 data/probe-uia-web.json（UIA 特征链 + 生成的 css/xpath 候选）。
-    Esc 取消。
+交互（循环）：
+    1. 半透明遮罩覆盖全屏，透过它能看到网页；
+    2. 移动鼠标到目标网页元素上 → hover 蓝框实时高亮（本地 UIA DOM 深搜）；
+    3. Alt+点击 捕获该元素 → 遮罩消失，结果打印并写入
+       data/probe-uia-web-序号.json；
+    4. 按 Enter 继续捕获下一个元素；直接 Ctrl+C / Esc 退出。
+
+每次捕获后还会打印一条 `document.querySelector(...)` 验证命令：把它贴到浏览器
+DevTools Console 执行，返回的元素若就是刚捕获的那个（或唯一/可见），即证明该
+选择器可用。
 """
 import json
 import os
@@ -29,36 +33,53 @@ from capture_gui import overlay_mask  # noqa: E402
 from capture_gui.store import _info_to_dict  # noqa: E402
 
 
-def main():
-    # 强制本地 UIA 路径：扩展在线与否都不影响验证（扩展路径验证的是扩展，不是 UIA）
-    ov._extension_online = lambda *a, **k: False
-    info = overlay_mask.run_capture_mask("desktop")
-    if info is None:
-        print("已取消或未捕获到元素")
-        return
-    d = _info_to_dict(info, keep_screenshot=False)
-    out_path = os.path.join(_HERE, "..", "..", "data", "probe-uia-web.json")
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(d, f, ensure_ascii=False, indent=2)
-
+def _print_info(info, seq: int):
     print("=" * 60)
-    print(f"element_type : {info.element_type}")
-    print(f"name         : {info.name}")
-    print(f"css_selector : {info.css_selector!r}")
-    print(f"xpath        : {info.xpath!r}")
-    print(f"control_type : {info.control_type}")
+    print(f"[{seq}] element_type : {info.element_type}")
+    print(f"[{seq}] name         : {info.name}")
+    print(f"[{seq}] css_selector : {info.css_selector!r}")
+    print(f"[{seq}] xpath        : {info.xpath!r}")
+    print(f"[{seq}] control_type : {info.control_type}")
     if info.automation_id:
-        print(f"automation_id: {info.automation_id}")
+        print(f"[{seq}] automation_id: {info.automation_id}")
     if info.uia_path:
-        print(f"uia_path     : {len(info.uia_path)} 层")
+        print(f"[{seq}] uia_path     : {len(info.uia_path)} 层")
     if info.candidates:
-        print("candidates:")
-        for c in info.candidates[:12]:
+        print(f"[{seq}] candidates:")
+        for c in info.candidates[:8]:
             print(f"  [{c.get('score', 0):>3}] {c.get('family', ''):<6} {c.get('syntax', '')}")
-    elif info.element_type == "web":
-        print("!! 无 candidates —— 该元素无可派生定位线索（纯视觉 div），需图像/父级兜底")
-    print(f"\n已写入 {out_path}")
+    else:
+        print(f"[{seq}] !! 无 candidates —— 该元素无可派生定位线索（纯视觉 div），需图像/父级兜底")
+    # 验证命令：浏览器 DevTools 里执行确认选择器可命中
+    if info.css_selector:
+        print(f"[{seq}] 验证（浏览器 DevTools Console 执行）:")
+        print(f"      document.querySelector({info.css_selector!r})   // 应返回刚捕获的元素")
+    print()
+
+
+def main():
+    ov._extension_online = lambda *a, **k: False  # 强制本地 UIA 路径
+    out_dir = os.path.join(_ROOT, "data")
+    os.makedirs(out_dir, exist_ok=True)
+    seq = 0
+    while True:
+        seq += 1
+        print(f">>> 第 {seq} 次捕获：把鼠标移到目标网页元素上，Alt+点击（Enter=继续，Ctrl+C=退出）")
+        info = overlay_mask.run_capture_mask("desktop")
+        if info is None:
+            print("（取消本轮）")
+        else:
+            _print_info(info, seq)
+            out_path = os.path.join(out_dir, f"probe-uia-web-{seq}.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(_info_to_dict(info, keep_screenshot=False), f,
+                          ensure_ascii=False, indent=2)
+            print(f"已写入 {out_path}")
+        try:
+            input("按 Enter 捕获下一个元素（Ctrl+C 退出）...")
+        except (KeyboardInterrupt, EOFError):
+            print("\n退出")
+            break
 
 
 if __name__ == "__main__":
