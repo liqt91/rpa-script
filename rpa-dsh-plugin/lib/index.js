@@ -887,6 +887,38 @@ function apply(ctx, config) {
     return "python";
   };
 
+  // 共享捕获执行：spawn capture_once.py --workspace，等 JSON 输出。
+  // 供 rpa_capture 工具与 /rpa_capture 斜杠命令共用（结果落工作区）。
+  const runCaptureOnce = ({ workspace, name = "", mode = "desktop_mask", timeout = 300 } = {}) => {
+    const repoRoot = config.backendCwd || process.cwd();
+    const script = join(repoRoot, "scripts", "capture_gui", "capture_once.py");
+    const py = capturePython();
+    const argv = [script, mode, "--workspace", workspace];
+    if (name) { argv.push("--name", String(name)); }
+    const timeoutMs = timeout * 1000;
+    return new Promise((resolve, reject) => {
+      const child = spawn(py, argv, { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      let stdout = "", stderr = "";
+      const timer = setTimeout(() => { try { child.kill(); } catch {} reject(new Error("捕获超时")); }, timeoutMs);
+      child.stdout.on("data", (d) => { stdout += d; });
+      child.stderr.on("data", (d) => { stderr += d; });
+      child.on("error", (e) => { clearTimeout(timer); reject(new Error("捕获进程启动失败: " + e.message)); });
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        try {
+          const t = stdout.trim();
+          if (!t) return resolve({ ok: false, error: stderr.trim() || `捕获退出(code=${code})` });
+          const parsed = JSON.parse(t);
+          if (parsed?.cancelled) return resolve({ ok: false, cancelled: true, msg: "已取消" });
+          if (parsed?.error) return resolve({ ok: false, error: parsed.error });
+          return resolve({ ok: true, ...parsed });
+        } catch (e) {
+          return resolve({ ok: false, error: "无法解析捕获输出: " + e.message });
+        }
+      });
+    });
+  };
+
   ctx.tools.register(defineTool({
     name: "rpa_capture",
     description: "捕获界面元素（全屏遮罩 + Alt+点击，网页/桌面/UIA 统一；网页元素会生成 CSS/XPath 推荐方案）。用户要求“捕获/拾取某元素/某个控件”时调用：调起后弹全屏半透明遮罩，用户把鼠标移到目标上（hover 高亮）再 Alt+点击，捕获结果自动就地写入当前流程工作区的 workflow.json 元素库（含截图到 images/）。返回值含 element（捕获数据）与 writeback（写回结果）。",
@@ -902,40 +934,11 @@ function apply(ctx, config) {
       const cwd = exec?.agent?.session?.header?.cwd;
       const workspace = (args.workspace || "").trim() || cwd;
       if (!workspace) throw new Error("无法确定工作区：未提供 workspace 且当前会话没有工作目录");
-      const mode = (args.mode || "desktop_mask");
-      const timeoutMs = (args.timeout || 300) * 1000;
-      const repoRoot = config.backendCwd || process.cwd();
-      const script = join(repoRoot, "scripts", "capture_gui", "capture_once.py");
-      const py = capturePython();
-      const argv = [script, mode, "--workspace", workspace];
-      if (args.name) argv.push("--name", String(args.name));
-      return await new Promise((resolve, reject) => {
-        const child = spawn(py, argv, {
-          cwd: repoRoot,
-          stdio: ["ignore", "pipe", "pipe"],
-          windowsHide: true,
-        });
-        let stdout = "", stderr = "";
-        const timer = setTimeout(() => {
-          try { child.kill(); } catch {}
-          reject(new Error("捕获超时"));
-        }, timeoutMs);
-        child.stdout.on("data", (d) => { stdout += d; });
-        child.stderr.on("data", (d) => { stderr += d; });
-        child.on("error", (e) => { clearTimeout(timer); reject(new Error("捕获进程启动失败: " + e.message)); });
-        child.on("close", (code) => {
-          clearTimeout(timer);
-          try {
-            const t = stdout.trim();
-            if (!t) return resolve({ ok: false, error: stderr.trim() || `捕获退出(code=${code})` });
-            const parsed = JSON.parse(t);
-            if (parsed?.cancelled) return resolve({ ok: false, cancelled: true, msg: "已取消" });
-            if (parsed?.error) return resolve({ ok: false, error: parsed.error });
-            return resolve({ ok: true, ...parsed });
-          } catch (e) {
-            return resolve({ ok: false, error: "无法解析捕获输出: " + e.message });
-          }
-        });
+      return await runCaptureOnce({
+        workspace,
+        name: args.name || "",
+        mode: args.mode || "desktop_mask",
+        timeout: args.timeout ?? 300,
       });
     },
   }));
@@ -1326,6 +1329,33 @@ function apply(ctx, config) {
           } catch (e) { return apiErr(e); }
         }
         return { kind: "error", text: "用法：/rpa [open|list|run <名称|id>]" };
+      },
+    });
+
+    commandCtx.commands.register({
+      name: "rpa_capture",
+      description: "捕获当前工作区的界面元素：弹全屏遮罩，鼠标移到目标上 Alt+点击，捕获结果自动写入当前流程工作区 workflow.json 元素库（含截图）。等价于直接跟模型说“捕获这个元素”，但不经模型、结果只进 UI。",
+      input: { hint: "[可选:元素名]" },
+      async handler({ agent, rawInput }) {
+        const cwd = agent?.session?.header?.cwd;
+        if (!cwd) return { kind: "error", text: "当前会话没有工作目录，无法确定捕获写入位置" };
+        const name = rawInput.trim();
+        try {
+          const r = await runCaptureOnce({ workspace: cwd, name, mode: "desktop_mask", timeout: 300 });
+          if (!r.ok) return { kind: "error", text: r.error || (r.cancelled ? "已取消捕获" : "捕获失败") };
+          const wb = r.writeback;
+          const ok = wb?.ok;
+          const nm = (r.name || wb?.name || "").trim();
+          return {
+            kind: ok ? "success" : "error",
+            text: ok
+              ? `已捕获元素「${nm || "无名称"}」并写入 ${cwd} 的 workflow.json 元素库` +
+                (r.css_selector ? `（选择器 ${r.css_selector}）` : "")
+              : `已捕获但写入失败：${wb?.error || "未知错误"}（可在对话中让模型调 rpa_capture 重试）`,
+          };
+        } catch (e) {
+          return { kind: "error", text: `捕获失败：${e.message}` };
+        }
       },
     });
   });
