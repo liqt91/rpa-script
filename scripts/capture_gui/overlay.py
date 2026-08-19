@@ -832,6 +832,32 @@ _BROWSER_UI_CLASSES = (
 )
 
 
+def _safe_cls(node) -> str:
+    try:
+        return node.ClassName or ""
+    except Exception:
+        return ""
+
+
+def _is_root_web_area(node) -> bool:
+    """是否网页内容根（可访问性树的文档根，Chromium 以 DocumentControl + AutomationId='RootWebArea' 暴露）。"""
+    try:
+        ct = node.ControlTypeName or ""
+        aid = node.AutomationId or ""
+    except Exception:
+        return False
+    if "RootWebArea" in aid:
+        return True
+    # 兜底：Document/Pane 且 Name='RootWebArea'（旧版 Chromium）
+    if "DocumentControl" in ct or "PaneControl" in ct:
+        try:
+            if "RootWebArea" in (node.Name or ""):
+                return True
+        except Exception:
+            pass
+    return False
+
+
 def _is_web_dom_node(node, uia) -> bool:
     """节点是否像网页 DOM 元素（排除浏览器 UI 骨架 + 捕获 Chromium 原生窗口外壳）。"""
     try:
@@ -865,7 +891,10 @@ def _uia_web_dom_at(x, y, uia, max_depth=40, max_nodes=1500):
         return None, None
     if not start:
         return None, None
-    # 1) 向上爬到渲染根（Chrome_RenderWidgetHostHWND / 网页 DOM 链顶）
+    # 1) 向上爬，停在"网页内容根"（RootWebArea，AutomationId 通常为 'RootWebArea'）；
+    #    若探测不到则退一级停在渲染根（Chrome_RenderWidgetHostHWND）。这样 DOM 层级从
+    #    网页内容开始，剔除浏览器 UI 外壳（Chrome_WidgetWin_1 / BrowserRootView /
+    #    NonClientView / EdgeBrowserFrameViewWin 等）。
     root = start
     keep = [start]
     guard = 0
@@ -879,6 +908,11 @@ def _uia_web_dom_at(x, y, uia, max_depth=40, max_nodes=1500):
         keep.append(p)
         root = p
         guard += 1
+        if _is_root_web_area(root):
+            break
+        # 兜底：到达渲染根（Chrome_RenderWidgetHostHWND）即认为网页链顶已到，不再向上
+        if "Chrome_RenderWidgetHostHWND" in _safe_cls(root):
+            break
 
     # 2) 从渲染根做含光标优先 DFS（复用 _deepest_uia_element 的策略，但节点语义为 DOM）
     candidates = []
