@@ -272,6 +272,8 @@ class ElementInfo:
     screenshot: str = ""  # base64
     dom_path: list = field(default_factory=list)  # DOM层级路径
     elem_attrs: dict = field(default_factory=dict)  # 元素属性
+    dom_editor_path: list = field(default_factory=list)  # 前端手动编辑 DOM 形态（tag/id/classes/attrs）
+    attrs: dict = field(default_factory=dict)  # 元素属性别名（前端 setDomAttrs 用）
     list_info: dict = field(default_factory=dict)  # 列表检测信息
     page_url: str = ""  # 页面 URL（web 元素）
     region: dict = field(default_factory=dict)  # 元素屏幕区域（图像兜底）
@@ -2487,6 +2489,11 @@ def _build_element_info(hwnd, x, y) -> ElementInfo:
             info.uia_path = web.get("path", [])
             info.uia_target_index = web.get("target_index", len(info.uia_path) - 1)
             info.dom_path = web.get("dom_path", [])
+            # 前端手动编辑 tab 需要：DOM 层级（tag/id/classes）+ 每层属性。
+            # _uia_web_capture 已产出 dom_editor_path（编辑器形态）与 attrs（别名），
+            # 必须透传到 ElementInfo，否则 _info_to_dict 会把它们丢掉 → 前端层级/属性丢失。
+            info.dom_editor_path = web.get("dom_editor_path", []) or []
+            info.attrs = web.get("attrs", {}) or {}
             web_rect = web.get("rect") or {}
             if web_rect.get("width", 0) > 0:
                 info.region = web_rect

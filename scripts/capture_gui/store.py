@@ -59,6 +59,8 @@ def _dict_to_info(d: dict) -> ElementInfo:
         screenshot=d.get("screenshot", ""),
         dom_path=d.get("dom_path", []),
         elem_attrs=d.get("elem_attrs", {}),
+        dom_editor_path=d.get("dom_editor_path", []),
+        attrs=d.get("attrs", {}),
         list_info=d.get("list_info", {}),
         page_url=d.get("page_url", ""),
         region=d.get("region", {}),
