@@ -507,10 +507,13 @@ def run_capture_mask(mode: str = "desktop") -> ElementInfo | None:
                     last_hwnd = target
                 if _MASK_DEBUG and last_dbg_frame != pt.x // 8 + pt.y // 8:
                     last_dbg_frame = pt.x // 8 + pt.y // 8
+                    wk = (ov._hover_worker_inst and
+                          ov._hover_worker_inst._thread.is_alive())
+                    r = (f"w{show_rect['width']}h{show_rect['height']}"
+                         if show_rect else "None")
                     _dbg(f"pt=({pt.x},{pt.y}) target={target and ov._get_class_name(target)} "
-                         f"cls={ov._get_class_name(target) if target else '-'} "
-                         f"rect={'w%d h%d' % (show_rect['width'], show_rect['height']) if show_rect else 'None'} "
-                         f"worker={'alive' if (ov._hover_worker_inst and ov._hover_worker_inst._thread.is_alive()) else 'dead'} "
+                         f"cls={ov._get_class_name(target) if target else '-'} rect={r} "
+                         f"worker={'alive' if wk else 'dead'} "
                          f"last_submit={ov._last_submit_xy[0]}")
             elif not target:
                 if mask.needs_update(None, (pt.x, pt.y)):
