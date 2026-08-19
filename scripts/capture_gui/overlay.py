@@ -1648,9 +1648,15 @@ def _install_mouse_swallow_hook() -> bool:
     状态供 _mouse_down 判断模态态）。钩子把捕获手势转发给捕获循环（通过模块级状态），
     因为低级钩子拦下的点击**不会**反映到 GetAsyncKeyState —— 捕获循环读它必然错过
     （实测：鼠标事件被钩子吞掉后 GetAsyncKeyState 恒 0）。"""
-    global _mouse_hook_handle, _mouse_hook_proc, _hook_thread
+    global _mouse_hook_handle, _mouse_hook_proc, _hook_thread, _mouse_hook_click, _mouse_hook_down
     if _mouse_hook_handle:
         return True
+    # 重置按键状态：本轮捕获前可能残留上一轮的"按住"状态（第一轮 Alt+点击向下
+    # 被钩子记 down=True，但 up 发生在卸载钩子之后没被看到 → _mouse_hook_down 恒 True
+    # → 下一轮 ov._mouse_down() 恒 True → hover worker 被暂停 → 无高亮。必须清零。）
+    with _mouse_hook_lock:
+        _mouse_hook_click = None
+        _mouse_hook_down = False
     swallowed_ups = set()  # 已吞 down 对应的 up 消息码（吞 down 后 up 也吞，防孤立 up 落到应用）
 
     def _cb(code, wparam, lparam):
@@ -1708,6 +1714,7 @@ def _install_mouse_swallow_hook() -> bool:
 def _uninstall_mouse_swallow_hook():
     """卸载吞点击钩子（幂等），并唤醒泵线程退出。"""
     global _mouse_hook_handle, _mouse_hook_proc, _hook_thread, _hook_thread_tid
+    global _mouse_hook_click, _mouse_hook_down
     if _mouse_hook_handle:
         _UnhookWindowsHookEx(_mouse_hook_handle)
         _mouse_hook_handle = None
@@ -1720,6 +1727,10 @@ def _uninstall_mouse_swallow_hook():
             pass
     _hook_thread = None
     _mouse_hook_proc = None
+    # 清理按键状态：防 up 事件在卸载后到达 → 下轮残留"按住"（见 _install 注释）
+    with _mouse_hook_lock:
+        _mouse_hook_click = None
+        _mouse_hook_down = False
 
 
 def _consume_mouse_click() -> str | None:
