@@ -19,7 +19,10 @@ import os
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(_HERE))  # scripts/
+_SCRIPTS = os.path.dirname(_HERE)          # scripts/
+_ROOT = os.path.dirname(_SCRIPTS)          # 仓库根（overlay_mask 用 scripts.xxx 绝对导入）
+sys.path.insert(0, _SCRIPTS)
+sys.path.insert(0, _ROOT)
 
 from capture_gui import overlay as ov  # noqa: E402
 from capture_gui import overlay_mask  # noqa: E402
