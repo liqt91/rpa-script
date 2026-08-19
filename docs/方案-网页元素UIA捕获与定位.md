@@ -150,8 +150,55 @@ if hwnd and _is_browserish_hwnd(hwnd):
 4. 网页元素的 CSS/XPath `candidates` 在元素库面板可查看/可编辑选择。
 
 ---
+**状态更新（2026-08-19）：A 已完成 + 路线 B 决策落地**
+
+## 实测验证（UIA→CSS/XPath 可行性已确认）
+
+`probe_uia_web.py` 在 Edge 上连续捕获多类控件，覆盖矩阵：
+
+| 控件 | control_type | 生成选择器 | 质量 |
+|---|---|---|---|
+| 搜索输入框 | EditControl | `#search-input` / `//*[@id='search-input']` | 🟢 id+role/class/aria 多候选 |
+| 筛选容器 | GroupControl | `section.filter.active` | 🟢 双 class 精确 |
+| 顶部容器 | GroupControl | `section.ai-header-container.compact.with-side-bar-collapse` | 🟢 多 class |
+| 导航按钮「主页」 | ButtonControl | `#view_1004` | 🟢 id |
+| 纯视觉 div | GroupControl | 空 | 🔴 无定位线索 → 图像/父级兜底 |
+
+结论：交互控件（input/button/link）都能转出高可用选择器；纯视觉容器无语义 → 预期边界，与 tdSelector 一致。
+**网页捕获可以不依赖扩展。**
+
+## 路线决策：元素编辑做在「流程编辑器」（路线 B）
+
+评估两条路后选 B（用户确认）：
+- 路线 A（改造 GUI 对齐 tdSelector）代价大：tkinter 做层级树/属性勾选吃力，且元素库两套并存割裂。
+- 路线 B（流程编辑器内嵌编辑）：捕获产物选择器生成已在 overlay 层，前端直接消费 `candidates`；项目模式写目录 + 运行时读目录已闭环；React 做推荐方案 UI 优于 tkinter；GUI 保留为独立工具。
+
+**关键发现：前端骨架（CaptureToolModal）早已存在**——`desktop_mask` 一直走本地遮罩，
+overlay 的选择器生成恰好补上它消费的 `candidates`。三块（前端 UI + overlay 生成 + 后端 normalize）已互相对齐。
+
+## 闭环数据契约（已验证）
+
+`capture_once(desktop_mask) → normalize_element_capture → 目录 workflow.json`：
+
+```
+web_selector      : '#search-input'（非空 —— 原"写入解析问题"根因已解决）
+css_candidates    : [css:#search-input(100), css:[role=textbox].textarea(61)]
+xpath_candidates  : [xpath://*[@id='search-input'], ...]
+element_type      : web
+```
+
+前端 bundle（`index-CFdxP9DV.js`）已含推荐方案/desktop_mask/projectSaveElement，
+profile 插件 static 的 index.html 与其一致；dsh web `/rpa-editor/` 服务即最新版。
+
+## 待办（需用户实测闭环）
+
+流程编辑器实际走一遍：捕获网页元素 → 推荐方案选选 → 保存 → 元素库可见 → 流程运行按选择器定位。
+
+---
 
 ## 关联
-- 代码：`scripts/capture_gui/overlay.py`（_build_element_info / _uia_hit_rect / _uia_web_dom_at）
-- 存储：`scripts/capture_gui/store.py`；`src/service/elements_service.py::normalize_element_capture`
+- 代码：`scripts/capture_gui/overlay.py`（_build_element_info / _uia_web_dom_at / _uia_web_capture）、`scripts/capture_gui/web_selector.py`（选择器生成）
+- 存储：`scripts/capture_gui/store.py`；`src/service/elements_service.py::normalize_element_capture`；`src/runtime/routers/project_router.py`
+- 前端：`src/ui/workflow-editor/src/components/CaptureToolModal.jsx`（推荐方案/手动编辑/保存）
 - 参照实现：`tdSelector_1.2.7/`（uiautomationExt + 内置 Playwright 驱动）
+
