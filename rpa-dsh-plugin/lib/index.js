@@ -30,7 +30,7 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import z from "@deepseek-ai/schemastery";
 import { spawn, execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
@@ -328,16 +328,26 @@ function createApi(cfg) {
   };
 }
 
-/** spawn 后端后轮询等待其就绪（随机端口：等端口文件 + health）。 */
-async function waitForBackendReady(cfg, timeoutMs = 30000) {
+/** spawn 后端后轮询等待其就绪（随机端口：等端口文件 + health）。
+ * `getChild` 返回当前托管后端子进程（用于检测提前退出，避免 30s 空等）；
+ * `log` 可选日志回调。 */
+async function waitForBackendReady(cfg, timeoutMs = 60000, getChild = null, log = null) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     try {
       const api = createApi(cfg);
       await api.get("/health", { timeoutMs: 1500 });
       return true;
-    } catch {}
+    } catch (e) {
+      if (log) log(`等待后端就绪中… ${e.message}`);
+    }
     await new Promise((r) => setTimeout(r, 1000));
+    // 若后端子进程已提前退出，不再空等 —— 直接判定失败（端口文件/日志可查）。
+    const child = typeof getChild === "function" ? getChild() : null;
+    if (child && child.exitCode !== null) {
+      if (log) log(`后端子进程提前退出（exitCode=${child.exitCode}），取消等待`);
+      return false;
+    }
   }
   return false;
 }
@@ -541,20 +551,29 @@ function apply(ctx, config) {
       return { ok: false, error: "无可用的后端启动方式（本地形态请配置 backendCommand 指向仓库 venv）" };
     }
     const env = { ...process.env, ...launch.env };
+    // 后端日志落盘：stdio ignore 会吞掉启动失败原因，导致 30s 后只能报"未就绪"而无法排查。
+    // 写入后端工作目录 data/backend-run.log，就绪失败时把日志尾行带进错误信息。
+    let runLog = null;
+    try {
+      const logDir = join((config.backendCwd || process.cwd()), "data");
+      mkdirSync(logDir, { recursive: true });
+      runLog = createWriteStream(join(logDir, "backend-run.log"), { flags: "a" });
+    } catch { runLog = null; }
+    const stdio = runLog ? ["ignore", runLog, runLog] : "ignore";
     // 优先无 shell 启动（argv 直连可执行文件，彻底隐藏 cmd 窗口）；
     // argv 不可用（命令含 shell 语法）才回退 shell + windowsHide。
     const child = launch.argv
       ? spawn(launch.argv[0], launch.argv.slice(1), {
           cwd: launch.cwd || undefined,
           detached: true,
-          stdio: "ignore",
+          stdio,
           windowsHide: true,
           env,
         })
       : spawn(launch.command, {
           cwd: launch.cwd || undefined,
           detached: true,
-          stdio: "ignore",
+          stdio,
           shell: true,
           windowsHide: true,
           env,
@@ -563,8 +582,12 @@ function apply(ctx, config) {
     child.unref();
     ownedBackend = child;
     ctx.logger.info(`[rpa-bridge] 已托管启动后端 ${launch.command}`);
-    const ready = await waitForBackendReady(config, 30000);
-    if (!ready) return { ok: false, error: "后端 30s 内未就绪" };
+    const ready = await waitForBackendReady(config, 60000, () => ownedBackend,
+      (m) => ctx.logger.info(`[rpa-bridge] ${m}`));
+    if (!ready) {
+      const detail = readBackendRunLogTail((config.backendCwd || process.cwd()));
+      return { ok: false, error: `后端 60s 内未就绪${detail ? `（最新启动日志：${detail}）` : ""}` };
+    }
     // 读端口文件返回实际端口
     let port;
     try {
@@ -573,6 +596,18 @@ function apply(ctx, config) {
       if (m) port = m[1];
     } catch {}
     return { ok: true, port };
+  };
+
+  /** 读后端运行日志尾部（最近 ~400 字符），用于就绪失败时给出具体原因。 */
+  const readBackendRunLogTail = (cwd) => {
+    try {
+      const p = join(cwd, "data", "backend-run.log");
+      if (!existsSync(p)) return "";
+      const all = readFileSync(p, "utf8");
+      const lines = all.split(/\r?\n/).filter((l) => l.trim());
+      const tail = lines.slice(-3).join(" ⏎ ").trim();
+      return tail ? tail.slice(-400) : "";
+    } catch { return ""; }
   };
 
   const readRequestBody = (req) => new Promise((resolve) => {
