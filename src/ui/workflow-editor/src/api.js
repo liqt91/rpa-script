@@ -139,6 +139,13 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
+  projectUpdateElement: (project, payload) => request(apiUrl(`/api/projects/elements/update?path=${encodeURIComponent(project)}`), {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  projectDeleteElement: (project, name) => request(apiUrl(`/api/projects/elements/delete?path=${encodeURIComponent(project)}&name=${encodeURIComponent(name)}`), {
+    method: 'DELETE',
+  }),
   projectUploadImage: async (project, name, file, { similarity = 0.8, scope = 'screen' } = {}) => {
     const fd = new FormData();
     fd.append('name', name);

@@ -105,3 +105,72 @@ class TestLoadProjectWorkflowMerge:
         }), encoding="utf-8")
         _, _, element_map = load_project_workflow(str(workspace))
         assert element_map["x"].web_selector == "#x"
+
+
+class TestProjectElementCrudEndpoints:
+    """project_router /elements/update + /elements/delete 按 name 定位写回 elements.json。"""
+
+    @pytest.fixture()
+    def client(self, app):
+        from fastapi.testclient import TestClient
+        # host_guard 中间件只放行本机 host（127.0.0.1/localhost/[::1]）；TestClient
+        # 默认 base host=testserver 会被拒。用 localhost 作为 base host 等价通过。
+        return TestClient(app, base_url="http://localhost")
+
+    @pytest.fixture()
+    def proj(self, workspace):
+        save_element_to_workspace(str(workspace), {
+            "name": "搜索框", "element_type": "web",
+            "css_selector": "#search", "candidates": [{"family": "css", "syntax": "#search"}],
+            "elem_attrs": {}, "dom_path": [], "page_url": "", "screenshot": None,
+        })
+        save_element_to_workspace(str(workspace), {
+            "name": "按钮", "element_type": "web",
+            "css_selector": "#btn", "candidates": [{"family": "css", "syntax": "#btn"}],
+            "elem_attrs": {}, "dom_path": [], "page_url": "", "screenshot": None,
+        })
+        return workspace
+
+    def _get_names(self, proj):
+        return [e["name"] for e in _load_project_elements(proj)]
+
+    def test_update_selector(self, client, proj):
+        r = client.put(f"/api/projects/elements/update?path={proj}",
+                       json={"name": "搜索框", "updates": {"web_selector": "#search2"}})
+        assert r.status_code == 200
+        els = _load_project_elements(proj)
+        by = {e["name"]: e["web_selector"] for e in els}
+        assert by["搜索框"] == "#search2"
+        assert len(els) == 2
+
+    def test_rename(self, client, proj):
+        r = client.put(f"/api/projects/elements/update?path={proj}",
+                       json={"name": "搜索框", "updates": {"name": "搜索输入框"}})
+        assert r.status_code == 200
+        names = self._get_names(proj)
+        assert "搜索框" not in names and "搜索输入框" in names
+        assert len(names) == 2
+
+    def test_rename_collides_merges_by_name(self, client, proj):
+        # 重命名为已存在的名字 → 合并到那个元素（去重）
+        r = client.put(f"/api/projects/elements/update?path={proj}",
+                       json={"name": "搜索框", "updates": {"name": "按钮", "web_selector": "#merged"}})
+        assert r.status_code == 200
+        els = _load_project_elements(proj)
+        assert len(els) == 1
+        assert els[0]["name"] == "按钮" and els[0]["web_selector"] == "#merged"
+
+    def test_delete(self, client, proj):
+        r = client.delete(f"/api/projects/elements/delete?path={proj}&name=按钮")
+        assert r.status_code == 200
+        names = self._get_names(proj)
+        assert "按钮" not in names and "搜索框" in names
+
+    def test_update_missing(self, client, proj):
+        r = client.put(f"/api/projects/elements/update?path={proj}",
+                       json={"name": "不存在", "updates": {"web_selector": "#x"}})
+        assert r.status_code == 404
+
+    def test_delete_missing(self, client, proj):
+        r = client.delete(f"/api/projects/elements/delete?path={proj}&name=不存在")
+        assert r.status_code == 404

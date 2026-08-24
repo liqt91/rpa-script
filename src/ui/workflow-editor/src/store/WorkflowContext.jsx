@@ -575,6 +575,7 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
 
   // 项目模式元素合并：elements.json 优先（捕获唯一落点）+ workflow.json 遗留
   // elements[] 按名补齐（向后兼容，不强制迁移）。同名以 elements.json 为准。
+  // 每个元素补一个稳定 id（el:<name>）供选中高亮/CRUD 定位；写盘前应剥离（见 commit）。
   const readProjectElements = useCallback(async (projectDir, wfData = null) => {
     let primary = [];
     try {
@@ -583,9 +584,13 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
       primary = Array.isArray(d?.elements) ? d.elements : (Array.isArray(d) ? d : []);
     } catch { /* elements.json 缺失/损坏时回退遗留 */ }
     const legacy = Array.isArray(wfData?.elements) ? wfData.elements : [];
-    if (!legacy.length) return primary;
-    const seen = new Set(primary.map(e => e && e.name).filter(Boolean));
-    return [...primary, ...legacy.filter(e => e && e.name && !seen.has(e.name))];
+    const merged = legacy.length
+      ? (() => {
+          const seen = new Set(primary.map(e => e && e.name).filter(Boolean));
+          return [...primary, ...legacy.filter(e => e && e.name && !seen.has(e.name))];
+        })()
+      : primary;
+    return merged.map(e => ({ ...e, id: e.id ?? `el:${e.name ?? ''}` }));
   }, []);
 
   const loadWorkflow = useCallback(async () => {
@@ -909,13 +914,15 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
           updated_at: new Date().toISOString(),
         };
         // 元素库先落盘（读最新盘合并编辑器内存 → 原子写 elements.json），
-        // 再写 workflow.json——若中途失败，workflow.json 里的遗留元素仍在，可重试
+        // 再写 workflow.json——若中途失败，workflow.json 里的遗留元素仍在，可重试。
+        // 写盘前剥掉前端补的 id（el:<name>），只落业务字段。
         const diskEls = await readProjectElements(current.projectDir, null);
         const diskNames = new Set(diskEls.map(e => e && e.name).filter(Boolean));
-        const merged = [...diskEls, ...(current.elements || []).filter(e => e && e.name && !diskNames.has(e.name))];
+        const merged = [...diskEls, ...(current.elements || []).filter(e => e && e.name && !diskNames.has(e.name))]
+          .map(({ id, ...rest }) => rest);
         await api.writeProjectFile(current.projectDir, 'elements.json', { version: 1, elements: merged });
         await api.writeProjectFile(current.projectDir, 'workflow.json', payload);
-        dispatch({ type: 'SET_ELEMENTS', payload: merged });
+        dispatch({ type: 'SET_ELEMENTS', payload: merged.map(e => ({ ...e, id: e.id ?? `el:${e.name ?? ''}` })) });
         dispatch({ type: 'SET_NODES', payload: nodes });
         dispatch({ type: 'SET_DIRTY', payload: false });
         setTimeout(() => persistToLocal(), 0);

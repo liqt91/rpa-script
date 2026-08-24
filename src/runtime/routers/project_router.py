@@ -397,3 +397,53 @@ async def project_register_image(
         elements.append(entry)
     _save_project_elements(root, elements)
     return {"ok": True, "name": name, "imagePath": rel_path, "count": len(elements)}
+
+
+@router.put("/elements/update")
+def project_update_element(path: str = Query(...), payload: dict = Body(...)):
+    """按 name 更新元素库某个元素（重命名 / 改选择器 / 改锚点等），写回 elements.json。
+
+    payload: {name: 原元素名, updates: {要合并的字段...}}；重命名传 updates.name=新名。
+    不填 name 冲突校验——新名若与既有元素重名则合并到那个元素（同名即去重）。
+    """
+    root = _project_root(path)
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="缺少元素 name")
+    updates = payload.get("updates") or {}
+    if not isinstance(updates, dict):
+        raise HTTPException(status_code=400, detail="updates 必须是对象")
+    elements = _load_project_elements(root)
+    idx = next((i for i, e in enumerate(elements) if e.get("name") == name), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail=f"元素不存在: {name}")
+    merged = dict(elements[idx])
+    merged.update(updates)
+    merged["name"] = (updates.get("name") or name).strip()
+    # 重命名目标换名后再按名去重：新名已存在则覆盖它，否则原位替换
+    new_name = merged["name"]
+    dup = next((i for i, e in enumerate(elements)
+                if i != idx and e.get("name") == new_name), None)
+    if dup is not None:
+        elements[dup] = merged
+        elements.pop(idx)
+    else:
+        elements[idx] = merged
+    _save_project_elements(root, elements)
+    return {"ok": True, "name": new_name, "count": len(elements)}
+
+
+@router.delete("/elements/delete")
+def project_delete_element(path: str = Query(...), name: str = Query(...)):
+    """按 name 删除元素库元素，写回 elements.json。"""
+    root = _project_root(path)
+    name = (name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="缺少元素 name")
+    elements = _load_project_elements(root)
+    idx = next((i for i, e in enumerate(elements) if e.get("name") == name), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail=f"元素不存在: {name}")
+    elements.pop(idx)
+    _save_project_elements(root, elements)
+    return {"ok": True, "name": name, "count": len(elements)}

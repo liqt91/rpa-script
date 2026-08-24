@@ -34,6 +34,9 @@ export default function ElementLibraryTab() {
   const [captureModal, setCaptureModal] = useState(false);
   const [uploadModal, setUploadModal] = useState(false);
   const [lightbox, setLightbox] = useState(null); // {src, alt} 截图灯箱
+  // 项目模式：可编辑网页选择器
+  const [editingSelector, setEditingSelector] = useState(false);
+  const [selectorDraft, setSelectorDraft] = useState('');
   const logsRef = useRef(null);
   const panelRef = useRef(null);
 
@@ -84,6 +87,8 @@ export default function ElementLibraryTab() {
   }, [runLogs]);
 
   const selectedElement = elements.find(e => e.id === selectedElementId) || null;
+  // 项目模式元素无 id 字段（来自 elements.json），在 store 层已补 el.id（el:<name>）
+  // 作稳定选中键，此处无需再处理。
 
   // 列表接口不返回 base64 截图：选中元素时按需拉详情取 screenshot（带缓存）
   const [shotCache, setShotCache] = useState({});
@@ -211,7 +216,11 @@ export default function ElementLibraryTab() {
   const handleDelete = async (id, name) => {
     if (!window.confirm(`确认删除元素 "${name}"？`)) return;
     try {
-      await api.deleteWorkflowElement(wfId, id);
+      if (projectDir) {
+        await api.projectDeleteElement(projectDir, name);
+      } else {
+        await api.deleteWorkflowElement(wfId, id);
+      }
       showToast(`已删除 "${name}"`);
       if (selectedElementId === id) setSelectedElementId(null);
       await refresh();
@@ -233,7 +242,11 @@ export default function ElementLibraryTab() {
     try {
       const el = elements.find(e => e.id === id);
       if (!el) { setShowRenameModal(false); return; }
-      await api.updateWorkflowElement(wfId, id, { ...el, name });
+      if (projectDir) {
+        await api.projectUpdateElement(projectDir, { name: el.name, updates: { name } });
+      } else {
+        await api.updateWorkflowElement(wfId, id, { ...el, name });
+      }
       showToast('重命名成功');
       setShowRenameModal(false);
       await refresh();
@@ -260,11 +273,38 @@ export default function ElementLibraryTab() {
       payload.anchor_mode = 'none';
     }
     try {
-      await api.updateWorkflowElement(wfId, el.id, payload);
+      if (projectDir) {
+        await api.projectUpdateElement(projectDir, { name: el.name, updates: {
+          anchor_element_name: payload.anchor_element_name,
+          anchor_selector: payload.anchor_selector,
+          anchor_mode: payload.anchor_mode,
+          relative_selector: payload.relative_selector,
+        } });
+      } else {
+        await api.updateWorkflowElement(wfId, el.id, payload);
+      }
       showToast(anchorName ? `已设置相对锚点: ${anchorName}` : '已清除相对锚点');
       await refresh();
     } catch (e) {
       showToast('更新锚点失败: ' + e.message, 'error');
+    }
+  };
+
+  // 项目模式：编辑网页主选择器（web_selector）
+  const saveSelector = async (el, value) => {
+    const v = (value || '').trim();
+    if (!v) { showToast('选择器不能为空', 'error'); return; }
+    try {
+      if (projectDir) {
+        await api.projectUpdateElement(projectDir, { name: el.name, updates: { web_selector: v } });
+      } else {
+        await api.updateWorkflowElement(wfId, el.id, { ...el, web_selector: v });
+      }
+      showToast('已更新网页选择器');
+      setEditingSelector(false);
+      await refresh();
+    } catch (e) {
+      showToast('更新选择器失败: ' + e.message, 'error');
     }
   };
 
@@ -315,7 +355,7 @@ export default function ElementLibraryTab() {
           {isOrphan && (
             <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" title="父元素不存在" />
           )}
-          {renamingId !== node.id && !projectDir && (
+          {renamingId !== node.id && (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <button
                 onClick={(e) => { e.stopPropagation(); startRename(node); }}
@@ -491,24 +531,20 @@ export default function ElementLibraryTab() {
                       </span>
                     )}
                     <div className="ml-auto flex items-center gap-1">
-                      {!projectDir && (
-                        <button
-                          onClick={() => startRename(selectedElement)}
-                          className="text-faint hover:text-accent px-1.5 py-0.5 rounded hover:bg-surface-3"
-                          title="重命名"
-                        >
-                          <i className="fas fa-pen text-xs"></i>
-                        </button>
-                      )}
-                      {!projectDir && (
-                        <button
-                          onClick={() => handleDelete(selectedElement.id, selectedElement.name)}
-                          className="text-faint hover:text-danger px-1.5 py-0.5 rounded hover:bg-surface-3"
-                          title="删除"
-                        >
-                          <i className="fas fa-trash text-xs"></i>
-                        </button>
-                      )}
+                      <button
+                        onClick={() => startRename(selectedElement)}
+                        className="text-faint hover:text-accent px-1.5 py-0.5 rounded hover:bg-surface-3"
+                        title="重命名"
+                      >
+                        <i className="fas fa-pen text-xs"></i>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(selectedElement.id, selectedElement.name)}
+                        className="text-faint hover:text-danger px-1.5 py-0.5 rounded hover:bg-surface-3"
+                        title="删除"
+                      >
+                        <i className="fas fa-trash text-xs"></i>
+                      </button>
                     </div>
                   </div>
 
@@ -756,12 +792,43 @@ export default function ElementLibraryTab() {
                   </div>
 
                   {/* Web Selector */}
-                  {selectedElement.web_selector && (
+                  {(selectedElement.web_selector || editingSelector) && (
                     <div className="mb-3">
-                      <div className="text-[10px] text-faint mb-0.5">网页选择器（扩展执行用）</div>
-                      <code className="block text-xs text-body bg-surface-2 px-2 py-1.5 rounded break-all font-mono">
-                        {selectedElement.web_selector}
-                      </code>
+                      <div className="flex items-center mb-0.5">
+                        <span className="text-[10px] text-faint">网页选择器（扩展执行用）</span>
+                        {projectDir && !editingSelector && (
+                          <button
+                            onClick={() => { setSelectorDraft(selectedElement.web_selector || ''); setEditingSelector(true); }}
+                            className="ml-auto text-faint hover:text-accent px-1.5 py-0.5 rounded hover:bg-surface-3"
+                            title="编辑选择器"
+                          >
+                            <i className="fas fa-pen text-[10px]"></i>
+                          </button>
+                        )}
+                      </div>
+                      {editingSelector ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            autoFocus
+                            value={selectorDraft}
+                            onChange={(e) => setSelectorDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveSelector(selectedElement, selectorDraft);
+                              if (e.key === 'Escape') setEditingSelector(false);
+                            }}
+                            className="flex-1 min-w-0 px-2 py-1.5 bg-surface-2 border border-border-strong rounded text-xs font-mono outline-none focus:border-accent"
+                            placeholder="输入 CSS 选择器"
+                          />
+                          <button onClick={() => saveSelector(selectedElement, selectorDraft)}
+                            className="px-2 py-1 text-xs text-white bg-accent hover:bg-accent-strong rounded">保存</button>
+                          <button onClick={() => setEditingSelector(false)}
+                            className="px-2 py-1 text-xs text-muted hover:bg-surface-3 rounded border border-border">取消</button>
+                        </div>
+                      ) : (
+                        <code className="block text-xs text-body bg-surface-2 px-2 py-1.5 rounded break-all font-mono">
+                          {selectedElement.web_selector}
+                        </code>
+                      )}
                     </div>
                   )}
 
