@@ -81,6 +81,23 @@ class MyCommandHandler:
 
 ## 生成步骤（第 0 步 = 命令，先做）
 
+> ### ✅ 运行时验证 ONLY 用 `--verify`（绝不写临时脚本）
+> 填完 `execute()` 后，验证它是否正确：
+> ```js
+> // DSH 工具（推荐）：verify 传参数对象，缺省则用 JSON params 默认值
+> rpa_new_command(cmd="getMousePos", verify={})
+> // 返回: { verify: { success:true, vars_written:{mousePos:{x,y}}, results:[...] } }
+> ```
+> ```bash
+> # CLI（等价）：--verify 单用=默认参数；--verify-file 传参数文件
+> python scripts/command_builder.py getMousePos --verify
+> python scripts/command_builder.py getMousePos --verify-file <参数json>
+> ```
+> **`verify.success=true` 即运行时功能验证通过**（确认 execute 跑对、变量写对）。
+>
+> ❌ 错误示范（禁止）：手写 `_test_xxx.py`/`_selftest.py` 再用 python 跑——`--verify`
+> 已覆盖，无需手写脚本。看到自己写临时脚本就停下，改用 `--verify`。
+
 1. 定 `cmd`(小驼峰=文件名) / runtime / kind / 目录 / params（上表）。
 2. **第 0 步：调 `rpa_new_command`（DSH 工具）或 `python scripts/command_builder.py <cmd>
    --definition-file <临时json>`** → 自动写定义+生成桩+构建JS+质量门禁+热重载。
