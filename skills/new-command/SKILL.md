@@ -66,19 +66,43 @@ class MyCommandHandler:
         return True
 ```
 
-### 3. 生成步骤（一句话版）
+### 3. 生成步骤：**只跑一行命令**（最省交互）
 
+> **核心入口是 `scripts/command_builder.py`（纯 python CLI，任何会话都能跑，不依赖 DSH 工具）。**
+> 它一次调用就完成：写定义 → 生成桩 → 构建 JS → 质量门禁 → **后端热重载 + 校验**。
+> **不要再手工读示例文件、不要手工跑 generate_commands.py、不要写临时测试脚本——全被这条命令吞掉。**
+
+```bash
+# 直接把指令定义写到临时文件（UTF-8），再一行命令全链路构建：
+python scripts/command_builder.py <cmd> --definition-file <临时定义json>
 ```
-1 定 runtime/kind/目录 → 2 定 cmd(小驼峰=文件名) → 3 写 commands/<cmd>.json
-→ 4 跑 rpa_new_command(definition)【自动：生成桩+构建JS+质量门禁+热重载】
-→ 5 填 execute() 实现 → 6 再跑 rpa_new_command(cmd) 复验到 quality_pass=true
-```
+
+**推荐流程（只 3 次关键交互）：**
+1. 想清楚 `cmd` / runtime / kind / 目录 / params（速查表第 2 节），把 JSON 定义写进临时文件。
+2. `python scripts/command_builder.py <cmd> --definition-file <临时json>` → 自动生成桩+构建JS+质量门禁+热重载。返回 `ok=true`（骨架就绪）、`quality_pass=false`（实现未填，正常）。
+3. 填 `execute()` 实现（编辑命令生成的 `<cmd>.py`）。
+4. `python scripts/command_builder.py <cmd>`（**不传 definition**，复用已建 JSON）→ 复验到 `quality_pass=true`。
+
+> 若确实找不到 `command_builder.py` 或想用 DSH 工具，才用 `rpa_new_command`（同一编排逻辑，DSH 插件侧入口）。
 
 ### 4. 验证信号
 
-- `rpa_new_command` 返回 `quality_pass: true` = 实现合规（含 def_fields/execute/emit/summary_tpl）
-- 跑不动时用 `python skills/scripts/check_command_quality.py <cmd>` 看具体哪条不过
-- 分类 slug 映射在 `src/runtime/commands/types/categories.json`
+- `command_builder.py` / `rpa_new_command` 返回 **`quality_pass: true`** = 实现合规
+  （含 def_fields/execute/emit/summary_tpl）、**`reload_pass: true`** = 已热加载。
+- 有一条不过时，用 `python skills/scripts/check_command_quality.py <cmd>` 看具体哪条不满足。
+- 分类 slug 映射在 `src/runtime/commands/types/categories.json`（新增分类才改它）。
+
+## 🚫 三不要（违反会退回低效手工流程，严禁）
+
+生成指令时，**绝不**做以下任何一步——全部已由 `command_builder.py` 一条命令替代：
+
+1. **不要读示例指令文件**（setVolumeWin32.js/.py/_win32.py/registry/utils/categories 等）——
+   速查表第 2 节已给最小模板，直接照抄改，别侦察。
+2. **不要手工跑 `generate_commands.py` / `build_content_js.py`**——`command_builder.py` 内部自动跑。
+3. **不要写临时测试脚本**（_tmp_*.py / validate 脚本）——`command_builder.py` 自带质量门禁 + 热重载校验，
+   够用；真的要运行时验证，用项目既有 `src/runtime/tests/handler_test_utils.py` 的 `run_handler`，别临时造。
+
+> 若你发现自己在做以上任一件事，**立刻停下**，改用第 3 节的 `python scripts/command_builder.py ...`。
 
 ---
 
@@ -193,14 +217,15 @@ sentinel / execute / emit / summary_tpl`。全绿才算完成。
 commands/<type>.json（唯一事实来源）
        │
        ▼
-rpa_new_command(definition)   ← 推荐：一次吞掉 生成桩+构建JS+质量门禁+热重载
+python scripts/command_builder.py <cmd> --definition-file <临时json>
+       │        ← 一次吞掉：生成桩 + 构建JS + 质量门禁 + 后端热重载校验
        ▼
-填 execute() 实现 → 再跑 rpa_new_command(cmd) 复验到 quality_pass=true
+填 execute() 实现 → 再跑 command_builder.py <cmd> 复验到 quality_pass=true
 ```
 
-> **禁止直接创建 handler 文件而不先建 JSON。禁止修改 JSON 后不跑 generate_commands/rpa_new_command。**
-> 命令不可用时（无 DSH 工具/离线），再退回手工：`generate_commands.py` → 填实现 →
-> `build_content_js.py`（extension）→ `POST /api/commands/reload`。
+> **禁止直接创建 handler 文件而不先建 JSON。禁止修改 JSON 后不跑 command_builder/generate_commands。**
+> 命令不可用时（无 python / 沙箱禁运），再退回手工：`generate_commands.py` → 填实现 →
+> `build_content_js.py`（extension）→ 重启后端。
 
 ## 生成指令步骤（一句话版 = 速查表第三节；需要细节看下文）
 
