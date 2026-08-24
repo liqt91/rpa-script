@@ -38,13 +38,20 @@ CONTENT_JS = ROOT / "dist" / "desktop" / "extension" / "content.js"
 
 
 def _run(cmd: list[str], timeout=120) -> tuple[int, str]:
-    """运行子进程，返回 (exit_code, stdout+stderr)。"""
+    """运行子进程，返回 (exit_code, stdout+stderr)。
+
+    Windows 下子进程 stdout 可能是 GBK（代码页），指定 encoding="utf-8" 会抛
+    UnicodeDecodeError。改为读字节后按 utf-8 优先、gbk 兜底解码，保证不崩。
+    """
     try:
         p = subprocess.run(
-            cmd, cwd=str(ROOT), capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=timeout, shell=False,
+            cmd, cwd=str(ROOT), capture_output=True, timeout=timeout, shell=False,
         )
-        out = (p.stdout or "") + (p.stderr or "")
+        raw = (p.stdout or b"") + (p.stderr or b"")
+        try:
+            out = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            out = raw.decode("gbk", errors="replace")
         return p.returncode, out
     except subprocess.TimeoutExpired:
         return -1, "TIMEOUT"

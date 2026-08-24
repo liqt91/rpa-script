@@ -13,11 +13,16 @@ description: 创建新的 RPA 指令（command），一次命令生成+校验+�
 > 这是**唯一**的生成方式。它一次调用就完成：写定义 → 生成桩 → 构建 JS → 质量门禁 →
 > **后端热重载 + 校验**。
 >
+> **复杂指令（要改 `_win32.py` / 加底层 API / 填 handler 实现）也一样走命令**：
+> 命令先生成骨架 + 注册 + 热重载（`ok=true`、实现可后续填）。**helper/execute 是
+> 第二步人工填的业务逻辑**，填完再跑一次命令复验即可。不能因为"要写业务实现"就跳过命令。
+>
 > **如果你发现自己做了下面任一件事，说明你走错了，立刻停下并回到第 0 步：**
 > - ❌ 在读示例指令文件（setVolumeWin32/_win32/registry/utils/categories…）
-> - ❌ 在手工跑 `generate_commands.py` / `build_content_js.py`
-> - ❌ 在写临时测试脚本（_tmp*.py / _validate*.py）
-> - ❌ 在手工编辑 `commands/<cmd>.json` 之外的 handler 文件
+> - ❌ 在手工跑 `generate_commands.py` / `build_content_js.py` / `POST /api/commands/reload`
+> - ❌ 在写临时测试脚本（_tmp*.py / _validate*.py / _selftest.py 等）——要用
+>   命令的 `--verify`（mock runner 跑一次 execute）替代
+> - ❌ 在手工编辑 `commands/<cmd>.json` 之外的 handler 文件（generate_commands 已生成骨架）
 >
 > 下面所有内容只是**参数/目录参考**，先调用命令，再回头看这些。
 
@@ -81,7 +86,11 @@ class MyCommandHandler:
    --definition-file <临时json>`** → 自动写定义+生成桩+构建JS+质量门禁+热重载。
    返回 `ok=true`（骨架就绪）、`quality_pass=false`（实现未填，正常）。
 3. 填 `execute()` 实现（编辑命令生成的 `<cmd>.py`；extension 填 `<cmd>.js`）。
-4. **再调一次命令**（不传 definition，复用已建 JSON）→ 复验到 `quality_pass=true`。
+   **复杂桌面指令**：同一流程——命令已生成 `<cmd>.py` 骨架，你再往 `_win32.py` 加
+   底层 helper 并填 execute（这些是业务逻辑，命令不代劳，但骨架/注册/门禁已代劳）。
+4. **再调一次命令，且用 `--verify`**：`rpa_new_command(cmd, verify={...})`（或
+   `command_builder.py <cmd> --verify-file <参数json>`）→ 复验到 `quality_pass=true`
+   **且 `verify.success=true`**（运行时功能验证，替代手写临时测试脚本）。
 
 > 找 `command_builder.py` / 用 DSH 工具时，等价入口是 `rpa_new_command`（同一编排）。
 
