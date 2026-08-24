@@ -108,6 +108,7 @@ class PickElementUiaHandler:
             "control_type": target.get("control_type", ""),
             "log": f"层级[{level_index}]: {target.get('control_type','')} \"{target.get('name','')}\"",
         }
+        runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
                                 "status": "success", "result": result})
         await runner._emit({"type": "stepComplete", "stepId": step_id,

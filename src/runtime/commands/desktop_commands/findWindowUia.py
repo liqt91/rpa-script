@@ -77,6 +77,7 @@ class FindWindowUiaHandler:
             "automation_id": win.get("automation_id", ""),
             "log": f"找到窗口: {win.get('name')}",
         }
+        runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
                                 "status": "success", "result": result})
         await runner._emit({"type": "stepComplete", "stepId": step_id,

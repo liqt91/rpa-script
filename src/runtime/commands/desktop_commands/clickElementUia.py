@@ -51,6 +51,7 @@ class ClickElementUiaHandler:
             "name": get_text(elem), "control_type": get_control_type(elem),
             "log": f"{get_control_type(elem)} \"{get_text(elem)}\"",
         }
+        runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
                                 "status": "success", "result": result})
         await runner._emit({"type": "stepComplete", "stepId": step_id,

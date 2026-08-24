@@ -42,13 +42,16 @@ description: 创建新的 RPA 指令（command），包括 JSON 定义、handler
     runner.results.append({...})        # 结构化结果
     await runner._emit({"type": "stepComplete", ...})
 □ 不得残留 AUTO-GENERATED 哨兵注释（手写文件不该有）
-□ 声明支持 {{变量}} 的 string/text/str-var 参数，execute 里必须 resolve_vars(...)
+□ 变量展开由 runner 统一处理（调用 handler 前 _resolve_vars(extra)），execute 内
+  拿到的是已展开的值——无需、也不应再单独调 resolve_vars
 ```
 
 ### 0.3 变量支持约定
 
 - **`{{变量}}` 引用**：string/text/str-var 参数若 placeholder 或 description 里写了
-  `{{变量}}`，则 execute 读取该参数时**必须**用 `resolve_vars(str(extra.get("x") or ""), runner.vars)`。
+  `{{变量}}`，说明"支持变量引用"。**executor 会在调用 handler 前对整个 extra 做
+  `_resolve_vars`**，所以 execute 里 `extra.get("x")` 拿到的已经是展开后的值——
+  无需、也不应再单独调 `resolve_vars`（调用它属于冗余）。
 - **`str-var` 输出**：读取用 `clean_var_ref(...)` 去掉引用残渣，写回 `runner.vars[name] = value`。
 
 ### 0.4 结果上报约定（运行日志可见）
@@ -69,7 +72,7 @@ python skills/scripts/check_command_quality.py --all
 ```
 
 规则覆盖：`def_required / def_fields / impl_exists / reg_params / extra_refs /
-resolve_vars / sentinel / execute / emit / summary_tpl`。全绿才算完成。
+sentinel / execute / emit / summary_tpl`。全绿才算完成。
 
 > **单查 vs 全量**：以 `--all` 或单查都能用，但**门禁判定以单查为准**（你要管的是
 > 自己生成的指令）。`--all` 会把 repo 里历史遗留的指令标红（旧 handler 格式 / 无

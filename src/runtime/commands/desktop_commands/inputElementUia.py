@@ -54,6 +54,8 @@ class InputElementUiaHandler:
             "name": get_text(elem), "control_type": get_control_type(elem),
             "log": f"输入: {text}",
         }
+        if ok:
+            runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
                                 "status": "success" if ok else "error", "result": result})
         if ok:

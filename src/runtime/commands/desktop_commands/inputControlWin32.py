@@ -78,6 +78,7 @@ class InputControlHandler:
             "hwnd": edit_hwnd, "class_name": ctrl_class,
             "log": f"输入: {text}",
         }
+        runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
                                 "status": "success", "result": result})
         await runner._emit({"type": "stepComplete", "stepId": step_id,

@@ -59,6 +59,7 @@ class ClickControlHandler:
             "title": get_window_text(hwnd), "class_name": get_class_name(hwnd),
             "log": f"{get_class_name(hwnd)} \"{get_window_text(hwnd)}\"",
         }
+        runner.completed += 1
         runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
                                 "status": "success", "result": result})
         await runner._emit({"type": "stepComplete", "stepId": step_id,

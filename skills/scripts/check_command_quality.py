@@ -4,21 +4,23 @@
 对指定指令（或全量）做"生成后质量检查"，把 AI 生成指令时易犯的规范问题
 固化为可执行规则。返回 JSON，供 skill / 插件 / 命令链读取。
 
-检查项（problem-in-source 优先）：
-  - def_required : JSON 必需字段（cmd/label/runtime/handler.kind）
-  - def_fields   : cmd 与文件名一致、camelCase、runtime/handler.kind 合法、source 指向合理目录
+检查项（problem-in-source 优先；与项目真实执行语义对齐）：
+  - def_required : JSON 必需字段（cmd/label/runtime）
+  - def_fields   : cmd 与文件名一致、camelCase、runtime/handler.kind 合法、source 目录合理
   - impl_exists  : handler.source 指向的 .py 存在
-  - reg_params   : Python @register_handler 的 params 名与 JSON params[].name 对齐
-  - extra_refs   : execute() 里 extra.get(...) 引用的参数名 == JSON params[].name
-  - resolve_vars : 含 {{变量}} placeholder 的 string 参数必须在 execute 里 resolve_vars
+  - reg_params   : @register_handler params 名与 JSON params[].name 对齐（$ref 已展开）
+  - extra_refs   : execute() 里 extra.get(...) 引用 == JSON params[].name（composite 豁免——执行时注入 locator 等）
   - sentinel     : 手写 backend/desktop/control 文件不得残留 AUTO-GENERATED 哨兵注释
-  - execute      : backend/desktop/control 必须有 async def execute()
-  - emit         : 成功路径必须有 runner._emit(stepComplete) + runner.completed += 1
+  - execute      : 非容器 backend/desktop 必须有 async def execute()
+  - emit         : 非容器指令成功路径必须有 runner.completed += 1（completedSteps 计数）
   - summary_tpl  : 有 source 且非纯注册桩时，建议提供 summary_tpl（不强制）
 
+注：不含 resolve_vars 检查——runner 在调用 handler 前对 extra 统一 _resolve_vars（见
+extension_runner._handle_compound / _evaluate_condition），execute 内单独调用是冗余。
+
 用法:
-  python scripts/check_quality.py [cmd ...] [--all] [--json]
-    [cmd ...]  检查指定指令（commands/<cmd>.json）
+  python skills/scripts/check_command_quality.py [cmd ...] [--all] [--json]
+    [cmd ...]  检查指定指令（commands/<cmd>.json）；不带参数默认全量
     --all      检查全部指令
     --json     输出机器可读 JSON
 """
@@ -78,7 +80,17 @@ def _resolve_py_path(defn):
 
 
 def _json_params(defn):
-    return [p for p in (defn.get("params") or []) if isinstance(p, dict)]
+    """JSON params（展开 $ref 共享参数，与 generate_commands/resolve_params 一致）。"""
+    raw = defn.get("params") or []
+    try:
+        import sys as _sys
+        if str(ROOT) not in _sys.path:
+            _sys.path.insert(0, str(ROOT))
+        from src.runtime.workflow.param_options import resolve_params
+        raw = resolve_params(list(raw))
+    except Exception:  # noqa: BLE001 —— 展开失败时回退原始 params（不静默吞掉可见性）
+        pass
+    return [p for p in raw if isinstance(p, dict)]
 
 
 def check_one(defn, path: Path) -> dict:
@@ -120,7 +132,9 @@ def check_one(defn, path: Path) -> dict:
                 issues.append({"rule": "def_fields",
                                "msg": f"extension source '{source}' 不在合法目录（应含 {EXT_SOURCE_OK}）"})
         else:
-            dirmap = {"backend": ["backend_commands", "desktop_commands"], "control": ["control_commands"]}
+            # electron_commands 也是 backend 类（runtime=backend，专用于 Electron 应用）
+            dirmap = {"backend": ["backend_commands", "desktop_commands", "electron_commands"],
+                      "control": ["control_commands"]}
             allowed = dirmap.get(kind, [])
             if allowed and not any(x in source for x in allowed):
                 issues.append({"rule": "def_fields", "msg": f"source '{source}' 与 kind '{kind}' 目录不一致（应含 {allowed}）"})
@@ -144,11 +158,17 @@ def check_one(defn, path: Path) -> dict:
 
     if py_src:
         json_params = {p["name"] for p in _json_params(defn) if p.get("name")}
+        has_execute = "def execute" in py_src
+        has_evaluate = "async def evaluate" in py_src or "def evaluate" in py_src
+        # 复合/容器/结构指令：由 emitter 展开，用 evaluate() 或 raise LoopBreak 控制流，
+        # 不走标准 execute → 不要求 execute/emit/extra_refs 严格与 JSON params 对齐。
+        composites = {"if", "while", "for", "try", "break", "continue", "end"}
+        is_composite = (is_container or has_evaluate or kind == "control"
+                        or any(cmd.startswith(x) for x in composites))
 
         # reg_params: Python @register_handler params vs JSON
-        # （extension 后台指令的 params 可能在 background JS 侧声明，Python 桩不全，不强制对齐；
-        #   仅对 backend/control 严格校验）
-        if kind in ("backend", "control"):
+        # （extension 后台指令 params 在 background JS 侧声明，Python 桩不全；composite 不强制）
+        if kind in ("backend", "control") and not is_composite:
             py_params = set(re.findall(r"Param\(\s*[\"'](\w+)[\"']", py_src))
             missing = json_params - py_params
             extra = py_params - json_params
@@ -157,10 +177,9 @@ def check_one(defn, path: Path) -> dict:
             if extra:
                 issues.append({"rule": "reg_params", "msg": f"params 冗余（Python 有但 JSON 无）: {sorted(extra)}"})
 
-        # extra_refs: execute 里 extra.get 引用 vs JSON params
-        if "def execute" in py_src:
+        # extra_refs: execute 里 extra.get 引用 vs JSON params（composite 豁免——执行时注入 locator 等）
+        if has_execute and not is_composite:
             extra_refs = set(re.findall(r"extra\.get\(\s*[\"'](\w+)[\"']", py_src))
-            # 排除为空的通用分支（如 extra.get("outputVar") 等一律在 JSON 里）
             unknown = extra_refs - json_params
             if unknown:
                 issues.append({"rule": "extra_refs", "msg": f"extra.get 引用不在 JSON params: {sorted(unknown)}"})
@@ -169,22 +188,16 @@ def check_one(defn, path: Path) -> dict:
         if kind in ("backend", "control") and "AUTO-GENERATED" in py_src:
             issues.append({"rule": "sentinel", "msg": "手写实现文件残留 AUTO-GENERATED 哨兵注释（应删除，避免误导）"})
 
-        # execute / emit（容器指令的 execute 是流程控制语义，不强制 stepComplete）
-        if kind in ("backend", "control") and "def execute" not in py_src:
+        # execute / emit（composite 用 evaluate；非结构 backend/desktop 必须有 execute + completed）
+        if kind in ("backend", "control") and not is_composite and not has_execute:
             issues.append({"rule": "execute", "msg": "backend/control 指令缺少 async def execute()"})
-        if "def execute" in py_src and not is_container:
+        if has_execute and not is_composite:
             if "runner._emit" not in py_src:
                 issues.append({"rule": "emit", "msg": "execute 成功路径缺 runner._emit(stepComplete)（运行日志无法呈现）"})
             if "runner.completed" not in py_src:
-                issues.append({"rule": "emit", "msg": "execute 缺 runner.completed 递增"})
-
-        # resolve_vars: string 参数 placeholder 含 {{变量}} → 必须 resolve_vars
-        for p in _json_params(defn):
-            ph = p.get("placeholder", "") or ""
-            if ("{{" in ph or "{{" in str(p.get("description", ""))) and p.get("type") in ("string", "text", "str-var"):
-                if "resolve_vars" not in py_src:
-                    issues.append({"rule": "resolve_vars",
-                                   "msg": f"参数 '{p['name']}' 声明支持 {{{{变量}}}} 但 execute 未 resolve_vars"})
+                issues.append({"rule": "emit", "msg": "execute 缺 runner.completed 递增（completedSteps 计数会不准）"})
+        if has_execute and "runner._emit" in py_src and "stepComplete" not in py_src:
+            issues.append({"rule": "emit", "msg": "runner._emit 缺少 stepComplete 事件（运行日志无完成记录）"})
 
     return {"cmd": cmd, "file": path.name, "runtime": meta["runtime"], "kind": meta["kind"],
             "ok": not issues, "issues": issues}
