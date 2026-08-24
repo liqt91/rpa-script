@@ -5,6 +5,17 @@ description: 检查指令（command）的定义一致性和完整性。用于新
 
 # 指令一致性检查
 
+> **优先用质量门禁脚本**（单一事实来源，逻辑自动保持一致，不手改重复的 inline 脚本）：
+>
+> ```bash
+> python skills/scripts/check_command_quality.py --all      # 全量
+> python skills/scripts/check_command_quality.py <cmd>      # 单个
+> ```
+>
+> 脚本规则：`def_required / def_fields / impl_exists / reg_params / extra_refs /
+> resolve_vars / sentinel / execute / emit / summary_tpl`。全绿 = 一致。
+> 若脚本报错而你想逐条人工定位，再用下面的手动检查流程。
+
 ## 检查时机
 
 - 新增指令完成后
