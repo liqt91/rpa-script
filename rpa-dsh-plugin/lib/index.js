@@ -1002,15 +1002,19 @@ function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: "rpa_new_command",
-    description: "新增一个 RPA 指令（确定性编排，零 LLM）：写 commands/<cmd>.json 定义 → 生成 Python 桩 + JS handler → 拼装 content.js → 质量门禁 → 热重载 + 校验。给 definition（指令 JSON 对象）即全自动跑完（自动跑质量门禁 + 后端热重载校验）；不给 definition 则用已存在的 commands/<cmd>.json。用于 JSON 定义已想好 / 需批量新增指令的场景（真正要 AI 生成实现逻辑时，先调用本命令生成骨架，再让模型填 execute()，可再跑一次本命令触发校验）。",
+    description: "⭐ 新增 RPA 指令的唯一入口：给 cmd + 一句描述（可选 runtime/params/definition），工具自动写 commands/<cmd>.json → 生成桩 → 构建 JS → 质量门禁 → 后端热重载 + 校验 → 可选运行时验证(verify)。一次调用全搞定。\n\n【唯一入口】禁止绕开本工具手工创建 commands/*.json 或 handler 文件——那是错误且低效的方式。\n\n【极小用法】只需 {cmd, description}，工具自动补全 category/icon/order/handler.kind/source 并生成骨架。需要参数时给 params:[{name,label,type}]。要生成完整定义可给 definition，但非必需。\n\n【生成后】填 execute() 实现 → 再调一次本工具(给 cmd + verify 或 verify_file)复验到 quality_pass=true。复杂桌面指令(改 _win32 等底层)也是同一流程：工具先生成骨架，业务逻辑第二步人工填，填完用 verify 复验。",
     parameters: {
-      cmd: { type: "string", required: true, description: "指令名（cmd，同 JSON 的 cmd 字段与文件名）" },
-      definition: { type: "object", additionalProperties: true, description: "指令 JSON 定义对象（可选；含 cmd/label/runtime/params/handler 等，见 commands/ 样例）" },
+      cmd: { type: "string", required: true, description: "指令名（cmd，小驼峰=文件名）" },
+      description: { type: "string", description: "指令一句话描述（生成 label/description 用，极简用法只需 cmd+description）" },
+      runtime: { type: "string", enum: ["backend", "desktop", "electron", "extension", "control"], description: "指令类型；缺省 backend；desktop/electron 走对应目录" },
+      label: { type: "string", description: "显示名（中文）；缺省用 cmd" },
+      params: { type: "array", items: { type: "object", description: "{name,label,type,required?,default?,options?}" }, description: "参数定义，极简用法可省" },
+      definition: { type: "object", additionalProperties: true, description: "完整指令 JSON 定义对象（可选；给了优先，未给则用 cmd/description/runtime/params 自动补全）" },
       skip_build_js: { type: "boolean", description: "跳过 build_content_js.py（非 extension 指令可省，默认 false）" },
       force: { type: "boolean", description: "覆盖已存在的 commands/<cmd>.json（默认 false）" },
       no_quality: { type: "boolean", description: "跳过质量门禁（默认 false=跑）" },
       no_reload: { type: "boolean", description: "跳过后端热重载 + 校验（默认 false=跑；适合后端未运行/离线）" },
-      verify: { type: "object", additionalProperties: true, description: "运行时功能验证：用 mock runner 跑一次 execute()，传入参数对象；缺省用 JSON params 默认值。返回 success/vars_written/results。可借此确认执行逻辑正确（替代手写临时测试脚本）" },
+      verify: { type: "object", additionalProperties: true, description: "运行时功能验证：用 mock runner 跑一次 execute()，传入参数对象；缺省用 JSON params 默认值。返回 success/vars_written/results。替代手写临时测试脚本" },
       verify_file: { type: "string", description: "运行时验证参数字典的文件路径（UTF-8 JSON）；与 verify 二选一" },
       timeout: { type: "number", description: "超时秒数，默认 180" },
     },
@@ -1019,9 +1023,17 @@ function apply(ctx, config) {
     execute: async (args, exec) => {
       const cmd = (args.cmd || "").trim();
       if (!cmd) throw new Error("缺少 cmd（指令名）");
+      // 极简定义自动补全：只给了 cmd/description/runtime/params 时合成 definition
+      let definition = args.definition || null;
+      if (!definition) {
+        const auto = { cmd, label: args.label || cmd, description: args.description || "" };
+        if (args.runtime) auto.runtime = args.runtime;
+        if (Array.isArray(args.params)) auto.params = args.params;
+        definition = auto;
+      }
       return await runCommandBuilder({
         cmd,
-        definition: args.definition || null,
+        definition,
         skipBuildJs: !!args.skip_build_js,
         force: !!args.force,
         noQuality: !!args.no_quality,

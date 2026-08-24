@@ -59,8 +59,65 @@ def _run(cmd: list[str], timeout=120) -> tuple[int, str]:
         return -1, f"SPAWN_ERROR: {e}"
 
 
+def _normalize_definition(defn: dict) -> dict:
+    """智能补全 definition：agent 只需给核心字段（cmd/label/runtime/description/params），
+    命令自动补 handler.kind/source/category/categories/icon/color/order 等默认值。
+
+    返回补全后的定义 dict。缺 runtime 时默认 backend；缺 handler 时按 runtime 推断。
+    """
+    defn = dict(defn or {})
+    cmd = (defn.get("cmd") or "").strip()
+    if not cmd:
+        return defn
+    runtime = defn.get("runtime") or "backend"
+
+    # runtime 归一：desktop/electron 在 JSON 里用 "backend"
+    display_runtime = "backend" if runtime in ("desktop", "electron") else runtime
+
+    # 目录：按 runtime/kind 推断 handler.source
+    if runtime in ("desktop",):
+        src_dir = "desktop_commands"
+        kind = defn.get("kind") or "backend"
+    elif runtime == "electron":
+        src_dir = "electron_commands"
+        kind = defn.get("kind") or "backend"
+    elif runtime == "extension":
+        src_dir = "extension_commands"
+        kind = defn.get("kind") or "extension"
+    elif runtime == "control":
+        src_dir = "control_commands"
+        kind = defn.get("kind") or "control"
+    else:  # backend 纯 python
+        src_dir = "backend_commands"
+        kind = defn.get("kind") or "backend"
+
+    handler = defn.setdefault("handler", {})
+    handler.setdefault("kind", kind)
+    if not handler.get("source"):
+        handler["source"] = f"src/runtime/commands/{src_dir}/{cmd}.py"
+
+    defn["runtime"] = display_runtime
+    if not defn.get("category"):
+        defn["category"] = "桌面操作" if runtime in ("desktop", "electron") else "其他"
+    if not defn.get("categories"):
+        defn["categories"] = ["desktop"] if runtime in ("desktop", "electron") else ["other"]
+    defn.setdefault("icon", "fa-cog")
+    defn.setdefault("iconColor", "text-gray-500")
+    defn.setdefault("bgColor", "bg-gray-50")
+    defn.setdefault("categoryOrder", 50)
+    defn.setdefault("commandOrder", 99)
+    defn.setdefault("label", cmd)
+    defn.setdefault("description", "")
+    defn.setdefault("enabled", True)
+    defn.setdefault("params", [])
+    return defn
+
+
 def _write_definition(cmd: str, definition: dict) -> dict:
-    """把 definition 写到 commands/<cmd>.json。已存在且未强制覆盖则报错。"""
+    """把 definition 写到 commands/<cmd>.json。已存在且未强制覆盖则报错。
+
+    会先经 _normalize_definition 补全默认字段，允许 agent 只给核心字段。
+    """
     if not definition:
         return {"ok": False, "error": "缺少 definition（指令 JSON 定义）"}
     if not cmd:
@@ -71,6 +128,7 @@ def _write_definition(cmd: str, definition: dict) -> dict:
     # 统一字段名：JSON 用 cmd（generate_commands 以 cmd 为键）
     definition = dict(definition)
     definition.setdefault("cmd", cmd)
+    definition = _normalize_definition(definition)
     target = COMMANDS_DIR / f"{cmd}.json"
     if target.exists():
         return {"ok": False, "error": f"指令已存在: {target.name}", "path": str(target)}
