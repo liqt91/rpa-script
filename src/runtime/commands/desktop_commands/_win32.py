@@ -751,3 +751,57 @@ def send_text_via_char(hwnd: int, text: str, delay: float = 0.02) -> bool:
         return True
     except Exception:
         return False
+
+
+# ── 音量控制 ────────────────────────────────────────────────────────
+# winmm API — waveOutSetVolume / waveOutGetVolume（控制默认音频设备主音量）
+
+_winmm = ctypes.windll.winmm
+
+_waveOutSetVolume = _winmm.waveOutSetVolume
+_waveOutSetVolume.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+_waveOutSetVolume.restype = ctypes.c_uint
+
+_waveOutGetVolume = _winmm.waveOutGetVolume
+_waveOutGetVolume.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint)]
+_waveOutGetVolume.restype = ctypes.c_uint
+
+# WAVE_MAPPER = (HWAVEOUT)-1，指向默认音频设备（64 位下为全 1）
+_WAVE_MAPPER = ctypes.c_void_p(-1)
+
+MAX_VOLUME = 0xFFFF
+
+
+def set_volume(value: int) -> bool:
+    """将系统主音量设置为指定百分比（0-100）。
+
+    使用 winmm.waveOutSetVolume 作用于默认音频设备（WAVE_MAPPER）。
+    dwVolume 左右声道各占 16 位（0x0000 静音 ~ 0xFFFF 最大），此处两声道设置相同值。
+    value 会被 clamp 到 0-100。
+
+    Returns:
+        是否设置成功。
+    """
+    if not is_windows():
+        return False
+    try:
+        value = max(0, min(100, int(value)))
+        level = (value * MAX_VOLUME) // 100
+        packed = (level & 0xFFFF) | ((level & 0xFFFF) << 16)
+        return _waveOutSetVolume(_WAVE_MAPPER, packed) == 0
+    except Exception:
+        return False
+
+
+def get_volume() -> int:
+    """获取当前系统主音量百分比（0-100）；非 Windows 或失败返回 0。"""
+    if not is_windows():
+        return 0
+    try:
+        cur = ctypes.c_uint()
+        if _waveOutGetVolume(_WAVE_MAPPER, ctypes.byref(cur)) != 0:
+            return 0
+        left = cur.value & 0xFFFF
+        return int(round(left * 100 / MAX_VOLUME))
+    except Exception:
+        return 0

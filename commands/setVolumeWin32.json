@@ -1,0 +1,31 @@
+{
+  "cmd": "setVolumeWin32",
+  "label": "设置音量",
+  "runtime": "backend",
+  "icon": "fa-volume-up",
+  "iconColor": "text-amber-500",
+  "bgColor": "bg-amber-50",
+  "categoryOrder": 50,
+  "commandOrder": 19,
+  "description": "将系统主音量调整到指定大小（0-100，0 为静音），不依赖浏览器，适用于桌面自动化",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "volume",
+      "label": "目标音量",
+      "type": "number",
+      "required": true,
+      "default": 50,
+      "placeholder": "0-100，支持 {{变量}} 引用；0=静音，100=最大"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/setVolumeWin32.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}
