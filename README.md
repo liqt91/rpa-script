@@ -1,39 +1,45 @@
 # RPA Script
 
-浏览器自动化平台 — 用可视化工作流编排 RPA 任务，支持 Chrome 扩展执行 + 桌面应用 + AI 自然语言生成。
+浏览器自动化平台 — 以 **DSH 原生工具**为主线交付可视化 RPA 流程编排，支持 Chrome/Edge 扩展执行 + 桌面应用 + 元素捕获 + AI 自然语言生成。
+
+> 主线路径：DSH 里的 RPA 工具（`rpa-dsh-plugin`），一个流程 = 一个目录（目录内 `workflow.json` / `elements.json` / `data.json` / `images/` / `run_logs/`）。
 
 ## 架构
 
 ```
 rpa-script/
-├── extension/           Chrome/Edge 扩展（content_capture.js + background.js）
-│   ├── dom_handlers_new/     页面内指令实现（一个指令一个 JS）
-│   ├── background_handlers/  后台指令实现（launchBrowser/navigate/switchTab 等）
-│   └── dom_shared/           共享基建（content_base.js 等）
+├── extension/            Chrome/Edge 扩展（MV3）
+│   ├── dom_handlers_new/      页面内指令实现（一个指令一个 JS）
+│   ├── background_handlers/   后台指令实现（launchBrowser/navigate/switchTab 等）
+│   └── dom_shared/            共享基建（content_base.js 等）
 ├── src/
 │   ├── runtime/          FastAPI 后端
-│   │   ├── workflow/        指令序列编译器 + 运行器（extension_runner.py）
-│   │   ├── commands/        生成后的指令 handler（extension/backend/control/desktop 四类）
-│   │   ├── routers/         API 路由
-│   │   └── tests/           测试（117 通过）
-│   └── ui/workflow-editor/  React 前端（Vite 构建 + Electron 桌面壳）
-├── commands/             指令 JSON 定义（唯一定义源，53 个）
-├── scripts/              工具脚本
-│   ├── build_extension.py  一键构建扩展（generate_commands → background → content）
-│   └── capture_gui/         元素捕获覆盖层（overlay.py）
+│   │   ├── workflow/          指令编译器 + 运行器（extension_runner.py）+ emitter + handler registry
+│   │   ├── commands/          指令 handler（extension/backend/desktop/control/electron 五类）
+│   │   ├── routers/           API 路由（含 projects 流程目录读写）
+│   │   └── tests/             测试（186 通过）
+│   ├── ui/workflow-editor/    React 编辑器（Vite + Tailwind，DB 模式 & 项目目录模式）
+│   └── mcp_server/            MCP 适配器（可选旁路）
+├── commands/             指令 JSON 定义（唯一定义源，72 个，含 $ref 共享参数）
+├── rpa-dsh-plugin/       DSH 插件（工具面 + /rpa 斜杠命令 + rpa_bridge 免后端读写 + 捕获）
+├── scripts/              构建/工具脚本（generate_commands / build_content_js / build_extension 等）
+│   └── capture_gui/          元素捕获覆盖层（遮罩式统一捕获 web/桌面/UIA）
+├── skills/               项目 skill（new-command / check-command / quality gate）
 ├── data/                 运行时数据（data.db）
-└── dist/desktop/          扩展构建输出（Edge/Chrome 加载）
+└── dist/desktop/         扩展构建输出（Edge/Chrome 加载）
 ```
 
 ## 技术栈
 
 | 层 | 技术 |
 |------|------|
-| 后端 | Python 3.12 + FastAPI + SQLAlchemy + SQLite |
-| 前端 | React (Vite) + Tailwind CSS（Electron 桌面壳） |
+| 后端 | Python 3.12/3.13 + FastAPI + SQLAlchemy + SQLite |
+| 前端 | React (Vite) + Tailwind CSS（DSH 内嵌 / workflow-editor） |
 | 浏览器 | Chrome/Edge Extension (Manifest V3) |
-| 桌面 | Electron |
-| 测试 | pytest (117 通过) |
+| DSH 集成 | `rpa-dsh-plugin`（工具 + 斜杠命令 + 免后端读写） |
+| 测试 | pytest (186 通过) |
+
+> **认证**：本机**免登录**（`auth.py` 已简化，密码/登录功能移除，`get_current_user` 恒放行为 admin）。开发/本机使用无需登录。
 
 ## 快速开始
 
@@ -42,16 +48,17 @@ rpa-script/
 npm install
 pip install -r requirements.txt
 
-# 开发模式
-npm run dev               # 前端开发服务器
-python -m src.runtime.main  # 后端（端口 8000）
+# 开发模式（后端随机端口 8100-8199，RPA_PORT 可固定）
+python -m src.runtime.main              # 后端
+npm run dev                             # 前端开发服务器（可选，编辑器可走 DSH 内嵌）
 
 # 运行测试
-pytest -q
+pytest -q                               # 186 通过
 
 # 构建
-cd src/ui/workflow-editor && npm run build
-python scripts/build_extension.py   # 构建扩展（含指令生成）
+python scripts/generate_commands.py     # 指令 JSON → handler 桩
+python scripts/build_content_js.py      # 拼装 content.js
+cd src/ui/workflow-editor && npm run build   # 前端产物（同步到插件 static）
 ```
 
 ## 指令系统
@@ -60,61 +67,56 @@ python scripts/build_extension.py   # 构建扩展（含指令生成）
 
 ```
 commands/clickElement.json        ← 唯一定义
-        ↓ python scripts/build_extension.py
+        ↓ python scripts/generate_commands.py
 src/runtime/commands/extension_commands/clickElement.py  ← Python 注册（自动生成）
 extension/dom_handlers_new/clickElement.js               ← 页面内 JS 实现
 extension/background_handlers/clickElement.js            ← 后台 JS 实现（如需要）
 ```
 
-### 指令分类
+### 指令分类（72 个）
 
 | 目录 | 运行时 | 说明 |
 |------|--------|------|
 | `extension_commands` | extension | 页面指令（Python 注册，动作在 JS 实现） |
-| `dom_handlers_new` | extension | 页面内动作 JS handler（一个指令一个文件） |
+| `dom_handlers_new` | extension | 页面内动作 JS handler |
 | `background_handlers` | extension | 后台动作 JS handler（launchBrowser/navigate 等） |
-| `backend_commands` | backend | Python 后端执行（日志等） |
-| `control_commands` | control | 流程控制（if/for/while/try 等） |
+| `backend_commands` | backend | Python 后端执行（日志/wordToPdf/excelRead 等） |
 | `desktop_commands` | backend | 桌面控件操作（Win32/UIA） |
+| `control_commands` | control | 流程控制（if/for/while/try/break 等） |
+| `electron_commands` | backend | Electron 应用操作 |
 
-详细说明见：`commands/` 下各 JSON 文件的 `description` 字段，或前端"指令定义"页面。
+### 新增指令（推荐：命令 + 质量门禁）
 
-### 指令集（53 个）
+```bash
+# 方式一：确定性命令（给定 definition 即全自动跑完，零 LLM）
+#   对话里让模型调 rpa_new_command（DSH 工具）——写 JSON → generate_commands → build_content_js → 校验注册
 
-当前 `commands/*.json` 共 53 个指令定义。
+# 方式二：手工
+1. 在 commands/ 创建 <cmd>.json
+2. python scripts/generate_commands.py      # 生成桩
+3. python scripts/build_content_js.py       # extension 指令
+4. 重启后端 → auto_register() 加载
 
-## 待办清单
+# 生成后必跑质量门禁（源头防错）
+python skills/scripts/check_command_quality.py <cmd>
+python skills/scripts/check_command_quality.py --all   # 全量
+```
 
-### 紧急
+> **指令质量门禁**：`skills/scripts/check_command_quality.py` 检查 def_required /
+> def_fields / impl_exists / reg_params / extra_refs / sentinel / execute / emit /
+> summary_tpl，AI 生成或新增指令后必跑，从源头避免规范问题。详见 `skills/new-command`。
 
-- [ ] **C1: 指令向量化** — handler label+description → embedding，存 `data/command_embeddings.json`
-- [ ] **C2: 自然语言 → 指令匹配** — 输入"打开百度，搜索RPA" → 返回指令序列及置信度
-- [ ] **C3: 指令序列 → 工作流节点** — 匹配结果生成节点树（含 parent_id、order、extra）
-- [ ] **C4: AI 生成前端入口** — WorkflowList 加"AI 生成"按钮，对话框预览后创建
+## 元素捕获（统一入口）
 
-### 重要
-
-- [ ] **D1-D4: 定时调度器** — Schedules 表 + CRUD API + asyncio 引擎 + 前端管理页
-- [ ] **撤销/重做** — 编辑器 Ctrl+Z / Ctrl+Y
-- [ ] **元素内部滚动** — scrollContainer 参数支持
-
-### 低优
-
-- [ ] 节点配置项联动（select 切换显隐）
-- [ ] 桌面应用 IPC 通信
-- [ ] 循环变量作用域设计
+遮罩式统一捕获（`rpa_capture`，web/桌面/UIA 合一），捕获结果写回流程目录
+`elements.json`（`images/` 存截图）。详见 `docs/capture-unification-plan.md`。
 
 ## 常用命令
 
 ```bash
-# 新增指令
-1. 在 commands/ 创建 xxx.json
-2. python scripts/build_extension.py   # 生成 .py + 拼接 background/content.js
-3. 前端"指令定义"页面可见
-
 # DB 迁移
 python scripts/migrate_workflow_types.py
 
-# 指令校验
+# 校验指令
 python -c "from src.runtime.workflow.handler_validator import validate_handler_sync; print(validate_handler_sync(r'dist/desktop/extension/content.js'))"
 ```
