@@ -1,0 +1,39 @@
+{
+  "cmd": "readSystemFonts",
+  "label": "读取系统字体列表",
+  "runtime": "backend",
+  "icon": "fa-font",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 50,
+  "commandOrder": 25,
+  "description": "读取系统已安装字体列表（Windows 读取字体注册表，非 Windows 降级用 fc-list/字体目录）。结果可写入变量供下游引用，如生成文档/选择字体样式。",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "includeFile",
+      "label": "包含字体文件",
+      "type": "boolean",
+      "group": "advanced",
+      "default": false,
+      "description": "是否在结果中一并返回每个字体对应的字体文件名/路径"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "group": "output",
+      "default": "",
+      "placeholder": "读取到的字体列表字典存入此变量，如 fontList"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/readSystemFonts.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

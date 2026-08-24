@@ -97,10 +97,22 @@ def _normalize_definition(defn: dict) -> dict:
         handler["source"] = f"src/runtime/commands/{src_dir}/{cmd}.py"
 
     defn["runtime"] = display_runtime
-    if not defn.get("category"):
-        defn["category"] = "桌面操作" if runtime in ("desktop", "electron") else "其他"
-    if not defn.get("categories"):
-        defn["categories"] = ["desktop"] if runtime in ("desktop", "electron") else ["other"]
+
+    # 目录/分类推断：优先看 handler.source 所在目录（项目里桌面/Electron 指令 runtime="backend"，
+    # 仅凭 runtime 无法区分纯 python backend 与 desktop backend），其次按 runtime。
+    src = str(handler.get("source") or "")
+    if "desktop_commands" in src or runtime == "desktop":
+        cat, slug = "桌面操作", ["desktop"]
+    elif "electron_commands" in src or runtime == "electron":
+        cat, slug = "Electron 应用", ["electron"]
+    elif runtime == "extension":
+        cat, slug = "浏览器操作", ["browser"]
+    elif runtime == "control":
+        cat, slug = "其他", ["other"]
+    else:
+        cat, slug = "其他", ["other"]
+    defn.setdefault("category", cat)
+    defn.setdefault("categories", slug)
     defn.setdefault("icon", "fa-cog")
     defn.setdefault("iconColor", "text-gray-500")
     defn.setdefault("bgColor", "bg-gray-50")
@@ -113,10 +125,11 @@ def _normalize_definition(defn: dict) -> dict:
     return defn
 
 
-def _write_definition(cmd: str, definition: dict) -> dict:
+def _write_definition(cmd: str, definition: dict, force: bool = False) -> dict:
     """把 definition 写到 commands/<cmd>.json。已存在且未强制覆盖则报错。
 
     会先经 _normalize_definition 补全默认字段，允许 agent 只给核心字段。
+    force=True 时覆盖已存在的定义文件。
     """
     if not definition:
         return {"ok": False, "error": "缺少 definition（指令 JSON 定义）"}
@@ -130,8 +143,8 @@ def _write_definition(cmd: str, definition: dict) -> dict:
     definition.setdefault("cmd", cmd)
     definition = _normalize_definition(definition)
     target = COMMANDS_DIR / f"{cmd}.json"
-    if target.exists():
-        return {"ok": False, "error": f"指令已存在: {target.name}", "path": str(target)}
+    if target.exists() and not force:
+        return {"ok": False, "error": f"指令已存在: {target.name}（用 --force 覆盖）", "path": str(target)}
     try:
         target.write_text(
             json.dumps(definition, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -348,7 +361,7 @@ def main():
         print(json.dumps(result, ensure_ascii=False))
         sys.exit(0)
     if definition:
-        wr = _write_definition(cmd, definition)
+        wr = _write_definition(cmd, definition, force=args.force)
         step = {"name": "write_definition", "ok": wr["ok"],
                 "path": wr.get("path"), **({"error": wr["error"]} if not wr["ok"] else {})}
         result["steps"].append(step)

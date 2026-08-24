@@ -1,0 +1,45 @@
+{
+  "cmd": "getCurrentDateTime",
+  "label": "读取当前日期时间",
+  "runtime": "backend",
+  "category": "变量及日志",
+  "icon": "fa-clock",
+  "iconColor": "text-blue-500",
+  "bgColor": "bg-blue-50",
+  "categoryOrder": 30,
+  "commandOrder": 15,
+  "description": "读取当前系统日期时间，按指定格式输出到变量。",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "format",
+      "label": "格式",
+      "type": "string",
+      "default": "%Y-%m-%d %H:%M:%S",
+      "group": "主属性",
+      "description": "strftime 格式，如 %Y-%m-%d 日期、%H:%M:%S 时间、%Y-%m-%d %H:%M:%S 日期时间"
+    },
+    {
+      "name": "useUtc",
+      "label": "使用 UTC 时间",
+      "type": "boolean",
+      "default": false,
+      "group": "advanced"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "str-var",
+      "default": "currentDateTime",
+      "group": "output"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/backend_commands/getCurrentDateTime.py"
+  },
+  "categories": [
+    "variable"
+  ]
+}

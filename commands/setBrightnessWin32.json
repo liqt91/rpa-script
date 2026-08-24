@@ -1,0 +1,43 @@
+{
+  "cmd": "setBrightnessWin32",
+  "label": "设置屏幕亮度",
+  "runtime": "backend",
+  "icon": "fa-sun",
+  "iconColor": "text-yellow-500",
+  "bgColor": "bg-yellow-50",
+  "categoryOrder": 50,
+  "commandOrder": 20,
+  "description": "将显示器/屏幕亮度调整到指定大小（0-100，0 为最暗），不依赖浏览器，适用于桌面自动化（笔记本内屏 + DDC/CI 外接显示器）。",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "brightness",
+      "label": "目标亮度",
+      "type": "number",
+      "required": true,
+      "default": 50,
+      "placeholder": "0-100，支持 {{变量}} 引用；0=最暗，100=最亮"
+    },
+    {
+      "name": "applyTo",
+      "label": "应用范围",
+      "type": "select",
+      "required": false,
+      "default": "all",
+      "options": [
+        {"label": "所有显示器", "value": "all"},
+        {"label": "主显示器", "value": "primary"}
+      ],
+      "placeholder": "选择要调节的显示器范围"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/setBrightnessWin32.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

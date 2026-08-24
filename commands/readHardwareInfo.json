@@ -1,0 +1,45 @@
+{
+  "cmd": "readHardwareInfo",
+  "label": "读取系统硬件信息",
+  "runtime": "backend",
+  "icon": "fa-microchip",
+  "iconColor": "text-teal-500",
+  "bgColor": "bg-teal-50",
+  "categoryOrder": 50,
+  "commandOrder": 24,
+  "description": "读取系统硬件信息（CPU/内存/显卡/磁盘/主板/操作系统/BIOS），结果可写入变量供下游引用；非 Windows 平台降级返回 Python 层面信息",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "scope",
+      "label": "读取范围",
+      "type": "select",
+      "options": [
+        {"label": "全部硬件信息", "value": "all"},
+        {"label": "系统信息", "value": "system"},
+        {"label": "CPU", "value": "cpu"},
+        {"label": "内存", "value": "memory"},
+        {"label": "显卡", "value": "gpu"},
+        {"label": "磁盘", "value": "disk"}
+      ],
+      "default": "all"
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "group": "output",
+      "default": "",
+      "placeholder": "读取到的硬件信息字典存入此变量，如 hardwareInfo"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/readHardwareInfo.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

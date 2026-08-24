@@ -1,0 +1,31 @@
+{
+  "cmd": "readScreenInfoWin32",
+  "label": "读取屏幕信息",
+  "runtime": "backend",
+  "icon": "fa-desktop",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 50,
+  "commandOrder": 23,
+  "description": "读取所有显示器信息（分辨率/坐标/工作区/DPI/刷新率/主屏标志）及屏幕指标，结果可写入变量供下游引用",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "group": "output",
+      "default": "",
+      "placeholder": "读取到的屏幕信息字典存入此变量，如 screenInfo"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/readScreenInfoWin32.py"
+  },
+  "categories": [
+    "desktop"
+  ],
+  "category": "桌面操作"
+}

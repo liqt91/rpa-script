@@ -1,0 +1,30 @@
+{
+  "cmd": "getMousePos",
+  "label": "读取鼠标坐标",
+  "runtime": "backend",
+  "category": "桌面操作",
+  "categories": [
+    "desktop"
+  ],
+  "icon": "fa-arrow-pointer",
+  "iconColor": "text-purple-500",
+  "bgColor": "bg-purple-50",
+  "categoryOrder": 50,
+  "commandOrder": 20,
+  "description": "读取当前鼠标屏幕坐标（x, y），可写入变量供下游引用",
+  "enabled": true,
+  "params": [
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "default": "",
+      "group": "output",
+      "placeholder": "坐标字典存入此变量，如 mousePos"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/desktop_commands/getMousePos.py"
+  }
+}
