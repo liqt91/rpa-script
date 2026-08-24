@@ -1,6 +1,4 @@
 """
-# AUTO-GENERATED scaffold from commands/deepseekChat.json — implement the execute() body.
-# This file is NOT overwritten once it exists (generate_commands.py keys on its presence).
 DeepSeek 调用 — deepseekChat (backend)
 """
 import os

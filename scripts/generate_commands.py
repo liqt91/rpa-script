@@ -117,8 +117,9 @@ def generate_py(d: dict, scaffold: bool = False) -> str:
         param_lines.append(f"        {param_to_py(p)},")
 
     _scaffold_note = (
-        f'"""\n# AUTO-GENERATED scaffold from commands/{d["cmd"]}.json — implement the execute() body.\n'
-        "# This file is NOT overwritten once it exists (generate_commands.py keys on its presence).\n"
+        f'"""\n# Scaffold from commands/{d["cmd"]}.json — fill in the execute() body.\n'
+        "# 占位文件：仅首次生成一次（generate_commands.py 只在文件不存在时创建）。\n"
+        '# 实现后请删除本注释段。\n'
         f'{d["label"]} — {d["cmd"]} ({rtype})\n"""'
         if scaffold else f'"""Command: {d["label"]}"""'
     )
