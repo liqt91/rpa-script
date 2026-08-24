@@ -9,6 +9,79 @@ description: 创建新的 RPA 指令（command），包括 JSON 定义、handler
 > 避免把规范问题留给事后逐一排查。**新增/修改指令的每一步都必须对照
 > 「生成质量标准」与「生成后自检」执行。**
 
+## ⚡ 开箱即用速查表（第一屏，动手前必看）
+
+### 1. 参数 type 白名单（只用这些）
+
+`string` 文本 · `text` 多行 · `select` 下拉(配 options) · `number` 数字 ·
+`boolean` 布尔 · `str-var` 变量引用({{var}}) · `element` 元素选择器 ·
+`element-list` 元素列表 · `code` 代码块 · `any-input` 任意输入 · `hidden` 隐藏
+
+> ❌ 禁用：`str-dropdown`、`bool-check`、`int-number`（不存在，用 `number` 代替）
+> ✅ group：`主属性` / `advanced` / `output` / `input` / `anchor`
+
+### 2. 5 类指令：放哪 + 最小模板（照抄改）
+
+| 类别 | runtime | handler.kind | JSON 目录 | 实现文件 | JS? |
+|---|---|---|---|---|---|
+| **浏览器/页面** | `extension` | `extension` | `extension_commands/` | `dom_handlers_new/<cmd>.js` | 有 |
+| **Python 逻辑** | `backend` | `backend` | `backend_commands/` | `backend_commands/<cmd>.py` | 无 |
+| **桌面 Win32/UIA** | `backend` | `backend` | `desktop_commands/` | 同目录（底层 helper 放 `_win32.py`） | 无 |
+| **Electron 应用** | `backend` | `backend` | `electron_commands/` | 同目录 | 无 |
+| **流程控制** | `control` | `control` | `control_commands/` | 同目录（`evaluate()` 非 execute） | 无 |
+
+> desktop/electron 指令 JSON 里 `runtime:"backend"`、`handler.source` 指向各自目录。
+> 判断桌面：调 Win32/UIA → `desktop_commands/`；纯 Python → `backend_commands/`。
+
+**最小 JSON 模板**（backend 示例）：
+```json
+{
+  "cmd": "myCommand", "label": "我的指令", "runtime": "backend",
+  "category": "分类中文名", "categories": ["slug"], "icon": "fa-cog",
+  "iconColor": "text-blue-500", "bgColor": "bg-blue-50",
+  "categoryOrder": 50, "commandOrder": 10, "description": "指令描述",
+  "params": [
+    {"name": "paramName", "label": "参数显示名", "type": "string", "required": true}
+  ],
+  "handler": {"kind": "backend", "source": "src/runtime/commands/backend_commands/myCommand.py"}
+}
+```
+
+**最小 Python handler**（backend/desktop，缺文件时 generate_commands 会自动生成脚手架）：
+```python
+@register_handler(cmd="myCommand", label="我的指令", category="分类名", runtime="backend",
+    icon="fa-cog", icon_color="text-blue-500", bg_color="bg-blue-50",
+    category_order=50, command_order=10, description="指令描述", summary_tpl="{paramName}")
+class MyCommandHandler:
+    params = [Param("paramName", "参数显示名", "string", required=True)]
+    @staticmethod
+    async def execute(runner, cmd_type, step_id, instr):
+        extra = instr.get("extra", {})
+        val = extra.get("paramName")
+        runner.completed += 1
+        runner.results.append({"stepId": step_id, "nodeId": instr.get("nodeId"),
+                               "status": "success", "result": {"myCommand": True}})
+        await runner._emit({"type": "stepComplete", "stepId": step_id,
+                            "nodeId": instr.get("nodeId"), "result": {"myCommand": True}})
+        return True
+```
+
+### 3. 生成步骤（一句话版）
+
+```
+1 定 runtime/kind/目录 → 2 定 cmd(小驼峰=文件名) → 3 写 commands/<cmd>.json
+→ 4 跑 rpa_new_command(definition)【自动：生成桩+构建JS+质量门禁+热重载】
+→ 5 填 execute() 实现 → 6 再跑 rpa_new_command(cmd) 复验到 quality_pass=true
+```
+
+### 4. 验证信号
+
+- `rpa_new_command` 返回 `quality_pass: true` = 实现合规（含 def_fields/execute/emit/summary_tpl）
+- 跑不动时用 `python skills/scripts/check_command_quality.py <cmd>` 看具体哪条不过
+- 分类 slug 映射在 `src/runtime/commands/types/categories.json`
+
+---
+
 ## 0. 生成质量标准（源头防错 · 硬性）
 
 生成 instruction 定义或实现代码时，必须同时满足以下全部。任何一条不满足都不算完成。
@@ -114,37 +187,30 @@ sentinel / execute / emit / summary_tpl`。全绿才算完成。
 
 ## 开发流程
 
-### 硬性约束
+### 硬性约束（JSON 是唯一事实来源；两条铁律）
 
 ```
 commands/<type>.json（唯一事实来源）
        │
        ▼
-python scripts/generate_commands.py   ← 必须运行
-       │
+rpa_new_command(definition)   ← 推荐：一次吞掉 生成桩+构建JS+质量门禁+热重载
        ▼
-在生成的桩文件基础上添加实现逻辑
-       │
-       ▼
-python scripts/build_content_js.py    ← extension 指令必须运行
-       │
-       ▼
-重启服务器 → auto_register() 加载 → 验证
+填 execute() 实现 → 再跑 rpa_new_command(cmd) 复验到 quality_pass=true
 ```
 
-> **禁止直接创建 handler 文件而不先建 JSON。禁止修改 JSON 后不运行 generate_commands.py。**
+> **禁止直接创建 handler 文件而不先建 JSON。禁止修改 JSON 后不跑 generate_commands/rpa_new_command。**
+> 命令不可用时（无 DSH 工具/离线），再退回手工：`generate_commands.py` → 填实现 →
+> `build_content_js.py`（extension）→ `POST /api/commands/reload`。
 
-## 生成指令步骤（总览，快速走一遍）
-1. 定 `runtime` / `handler.kind` / 目标目录（判断标准见「四类指令」）。
-2. 定 `cmd`（小驼峰，= JSON 文件名）。
-3. 定参数 Schema + 数据流向 + 分类 slug（见「生成前必须确认的输入知识」）。
-4. 写 `commands/<cmd>.json`（唯一事实来源；`handler.source` 指向 `src/runtime/commands/<目录>/<cmd>.py`）。
-5. `python scripts/generate_commands.py` → 生成 extension 桩（会被覆盖）/ backend 脚手架（首次生成一次，此后 KEEP）。
-6. 填实现：backend/desktop/control 在脚手架的 `execute()` 里写；extension 编辑 `extension/dom_handlers_new/<cmd>.js`。
-7. （仅 extension）`python scripts/build_content_js.py`。
-8. 注册：重启服务器 `auto_register()`，或 `POST /api/commands/reload` 热加载。
-9. 验证：`POST /api/commands/validate`（应 PASSED）+ `sync-check`；`get_handler(cmd)` / `load_new_catalog()` 确认；用 mock 跑 `execute()` 校验数据流与错误分支。
-10. 入库：启动/重载时 `seed_commands_to_db()` upsert，编辑器指令面板可见。
+## 生成指令步骤（一句话版 = 速查表第三节；需要细节看下文）
+
+1. 定 `runtime` / `handler.kind` / 目标目录（速查表第 2 节）。
+2. 定 `cmd`（小驼峰 = 文件名）。
+3. 定参数 Schema + 数据流向 + 分类 slug。
+4. 写 `commands/<cmd>.json`（唯一事实来源）。
+5. **`rpa_new_command(definition)`** → 自动生成桩/脚手架 + 构建 JS + 质量门禁 + 热重载。
+6. 填 `execute()` 实现（backend/desktop/control）；extension 填 `dom_handlers_new/<cmd>.js`。
+7. **再跑 `rpa_new_command(cmd)`**（不传 definition）→ 复验到 `quality_pass: true`。
 
 > 每一步能碰/不能碰的文件，以及 glob 收窄规则，见 `## 0. 工作区文件发现与排除` 与 `## 文件边界`。
 
@@ -166,7 +232,7 @@ python scripts/build_content_js.py    ← extension 指令必须运行
 动手前先确认以下各项，缺一项就先补一项：
 1. `runtime` + `handler.kind` + 目标包目录。判断：调 Win32/UIA → `desktop_commands/`（runtime 仍写 `"backend"`）；纯 Python → `backend_commands/`；结构控制流 → `control_commands/`；浏览器/页面 → `extension`。
 2. 指令名 `cmd`（小驼峰，与 JSON 文件名一致）。
-3. 参数 Schema：每个参数 `name/label/type/required/default/group/options/description/placeholder`。type 用表内值（`string/text/select/number/int-number/boolean/str-var/element`），**勿用 `str-dropdown/bool-check`**；group 用 `主属性/advanced/output/input/anchor`。
+3. 参数 Schema：每个参数 `name/label/type/required/default/group/options/description/placeholder`。type 用表内值（`string/text/select/number/boolean/str-var/element`），**勿用 `str-dropdown/bool-check/int-number`**；group 用 `主属性/advanced/output/input/anchor`。
 4. 参数数据流向：哪些进 `extra.get("paramName")`，哪些写回 `runner.vars[...]` / `runner.results[].result`。参考同类 handler（backend 看 `setVar.py`/`log.py`，extension 看 `clickElement.js`/`inputElement.js`）。
 5. 分类：slug→中文名映射在 `src/runtime/commands/types/categories.json`；需新分类先补该文件（含 `icon`/`sortOrder`），命令 JSON 里 `category` 写中文、`categories` 写 slug。
 6. 验证门禁：`generate_commands.py` → `auto_register()` 注册 → `validate()` 0 错 → `new_catalog.load_new_catalog()` 收录 → 经 `/api/commands/reload` 或重启同步进 DB。
@@ -239,8 +305,7 @@ python scripts/build_content_js.py    ← extension 指令必须运行
 | `string` | 单行文本输入 | `"type": "string"` |
 | `text` | 多行文本输入 | `"type": "text"` |
 | `boolean` | 复选框 | `"type": "boolean"` |
-| `number` | 数字输入 | `"type": "number"` |
-| `int-number` | 整数输入 | `"type": "int-number"` |
+| `number` | 数字输入（含整数/小数） | `"type": "number"` |
 | `str-var` | 变量引用（支持 `{{var}}` 语法） | `"type": "str-var"` |
 | `element` | 元素选择器（已捕获的页面元素） | `"type": "element"` |
 
