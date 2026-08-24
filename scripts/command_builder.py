@@ -156,6 +156,85 @@ def _run_http_reload(cmd: str) -> dict:
     return {"ok": all_ok, "steps": steps, "port": port}
 
 
+class _MockRunner:
+    """轻量 mock runner：只提供 backend handler execute() 需要的接口（vars/results/completed/_emit）。"""
+
+    def __init__(self, vars=None):
+        self.vars = dict(vars or {})
+        self.completed = 0
+        self.results = []
+        self.failed_steps = []
+
+    async def _emit(self, event):
+        # 静默收集 emit 事件（供 verify 判定 stepComplete）
+        self._last_emit = event
+
+
+async def _run_verify_async(cmd: str, extra: dict | None) -> tuple[bool, dict]:
+    """用 mock runner 跑一次 backend handler 的 execute()，验证运行时逻辑。"""
+    import asyncio
+    sys.path.insert(0, str(ROOT))
+    from src.runtime.commands import auto_register
+    auto_register()
+    from src.runtime.workflow.handler_registry import get_all_handlers
+
+    handler_class = None
+    hdef = get_all_handlers().get(cmd)
+    if hdef:
+        handler_class = hdef.get("handler_class")
+    if handler_class is None:
+        return False, {"error": f"handler 未注册: {cmd}"}
+
+    params = _json_params_of(cmd)
+    if extra is None:
+        extra = {}
+        for p in params:
+            if p.get("default") is not None:
+                extra[p["name"]] = p["default"]
+            elif p.get("required"):
+                extra[p["name"]] = ""
+        extra = {k: v for k, v in extra.items() if v is not None}
+
+    exec_method = getattr(handler_class, "execute", None)
+    if exec_method is None:
+        return False, {"error": f"{cmd} 无 execute()，无法运行时验证（extension/control 走 JS/emitter）"}
+
+    runner = _MockRunner()
+    instr = {"extra": extra, "stepId": "verify", "nodeId": 1, "cmdType": cmd}
+    try:
+        success = await exec_method(runner, cmd, "verify", instr)
+    except Exception as e:  # noqa: BLE001
+        return False, {"error": f"execute() 抛异常: {e}"}
+    summary = {
+        "success": bool(success),
+        "completed": runner.completed,
+        "vars_written": {k: v for k, v in runner.vars.items()},
+        "results": runner.results,
+    }
+    return bool(success), summary
+
+
+def _run_verify(cmd: str, extra: dict | None) -> tuple[bool, dict]:
+    """同步封装：asyncio.run(_run_verify_async(...))。"""
+    import asyncio
+    try:
+        return asyncio.run(_run_verify_async(cmd, extra))
+    except Exception as e:  # noqa: BLE001
+        return False, {"error": f"verify 失败: {e}"}
+
+
+def _json_params_of(cmd: str) -> list:
+    """读 commands/<cmd>.json 的 params（展开 $ref）。"""
+    defn = _collect_commands(cmd)
+    raw = defn.get("params") or []
+    try:
+        from src.runtime.workflow.param_options import resolve_params
+        raw = resolve_params(list(raw))
+    except Exception:  # noqa: BLE001
+        pass
+    return [p for p in raw if isinstance(p, dict)]
+
+
 def main():
     parser = argparse.ArgumentParser(description="确定性指令构建编排器")
     parser.add_argument("cmd", help="指令名（cmd）")
@@ -169,6 +248,12 @@ def main():
                         help="跳过质量门禁（默认跑）")
     parser.add_argument("--no-reload", action="store_true",
                         help="跳过热重载 + 校验（默认跑）")
+    parser.add_argument("--verify", nargs="?", const="", default=None,
+                        help="运行时功能验证（可选）：用 mock runner 跑一次 execute()，"
+                             "传 JSON 参数字符串如 '{\"filePath\":\"C:\\\\a.docx\"}'；"
+                             "不给值则用 JSON params 的默认值构造。返回 executes 后的结果/变量写入")
+    parser.add_argument("--verify-file", default=None,
+                        help="运行时功能验证的参数字典文件（UTF-8 JSON，规避命令行转义）；与 --verify 二选一")
     args = parser.parse_args()
 
     cmd = args.cmd.strip()
@@ -289,6 +374,29 @@ def main():
         # reload 失败通常因后端未运行——不计入构建失败，提示即可
         if "error" in rl:
             result["reload_warning"] = rl["error"]
+
+    # ⑦ 运行时功能验证（--verify / --verify-file 提供时执行；解析失败则跳过并记录）
+    run_verify = False
+    verify_extra = None
+    if args.verify_file:
+        run_verify = True
+        try:
+            verify_extra = json.loads(Path(args.verify_file).read_text(encoding="utf-8"))
+        except Exception as e:  # noqa: BLE001
+            result["steps"].append({"name": "verify", "ok": False,
+                                    "error": f"读取 --verify-file 失败: {e}"})
+            run_verify = False
+    elif args.verify is not None:
+        try:
+            verify_extra = json.loads(args.verify) if args.verify.strip() else None
+            run_verify = True
+        except Exception as e:  # noqa: BLE001
+            result["steps"].append({"name": "verify", "ok": False,
+                                    "error": f"--verify 参数不是合法 JSON: {e}"})
+            run_verify = False
+    if run_verify:
+        vok, vsum = _run_verify(cmd, verify_extra)
+        result["steps"].append({"name": "verify", "ok": vok, **vsum})
 
     # 汇总 ok：反映"骨架文件落盘成功"（write_definition/generate_commands/build_js/registry）。
     # quality_gate/reload 的通过情况独立返回（quality_pass），不反过来置 ok=false——

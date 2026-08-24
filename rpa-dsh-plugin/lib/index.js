@@ -948,12 +948,12 @@ function apply(ctx, config) {
   // 确定性指令构建执行：spawn command_builder.py，等 JSON 输出。
   // 供 rpa_new_command 工具调用（新增指令的确定性编排，零 LLM）。
   // definition 经临时文件传递（UTF-8），规避 Windows 命令行中文编码。
-  const runCommandBuilder = ({ cmd, definition = null, skipBuildJs = false, force = false, noQuality = false, noReload = false, timeout = 180 } = {}) => {
+  const runCommandBuilder = ({ cmd, definition = null, skipBuildJs = false, force = false, noQuality = false, noReload = false, verify = null, verifyFile = null, timeout = 180 } = {}) => {
     const repoRoot = config.backendCwd || process.cwd();
     const script = join(repoRoot, "scripts", "command_builder.py");
     const py = capturePython();
     const argv = [script, cmd];
-    let defTmp = null;
+    let defTmp = null, vfTmp = null;
     if (definition) {
       // 写定义到临时 UTF-8 文件（命令行传中文会 GBK 污染）
       const defDir = join(repoRoot, "tmp");
@@ -962,21 +962,32 @@ function apply(ctx, config) {
       try { writeFileSync(defTmp, JSON.stringify(definition, null, 2), "utf8"); } catch {}
       argv.push("--definition-file", defTmp);
     }
+    if (verifyFile) {
+      argv.push("--verify-file", verifyFile);
+    } else if (verify) {
+      // 参数字典：写临时文件（规避命令行 JSON 转义 + 中文）
+      const defDir = join(repoRoot, "tmp");
+      try { mkdirSync(defDir, { recursive: true }); } catch {}
+      vfTmp = join(defDir, `cmd_verify_${Date.now()}.json`);
+      try { writeFileSync(vfTmp, JSON.stringify(verify, null, 2), "utf8"); } catch {}
+      argv.push("--verify-file", vfTmp);
+    }
     if (skipBuildJs) argv.push("--skip-build-js");
     if (force) argv.push("--force");
     if (noQuality) argv.push("--no-quality");
     if (noReload) argv.push("--no-reload");
     const timeoutMs = timeout * 1000;
+    const _clean = () => { for (const t of [defTmp, vfTmp]) if (t) { try { unlinkSync(t); } catch {} } };
     return new Promise((resolve) => {
       const child = spawn(py, argv, { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
       let stdout = "", stderr = "";
-      const timer = setTimeout(() => { try { child.kill(); } catch {} resolve({ ok: false, error: "命令构建超时" }); if (defTmp) { try { unlinkSync(defTmp); } catch {} } }, timeoutMs);
+      const timer = setTimeout(() => { try { child.kill(); } catch {} _clean(); resolve({ ok: false, error: "命令构建超时" }); }, timeoutMs);
       child.stdout.on("data", (d) => { stdout += d; });
       child.stderr.on("data", (d) => { stderr += d; });
-      child.on("error", (e) => { clearTimeout(timer); if (defTmp) { try { unlinkSync(defTmp); } catch {} } resolve({ ok: false, error: "进程启动失败: " + e.message }); });
+      child.on("error", (e) => { clearTimeout(timer); _clean(); resolve({ ok: false, error: "进程启动失败: " + e.message }); });
       child.on("close", (code) => {
         clearTimeout(timer);
-        if (defTmp) { try { unlinkSync(defTmp); } catch {} }
+        _clean();
         try {
           const t = stdout.trim();
           if (!t) return resolve({ ok: false, error: stderr.trim() || `构建退出(code=${code})` });
@@ -999,6 +1010,8 @@ function apply(ctx, config) {
       force: { type: "boolean", description: "覆盖已存在的 commands/<cmd>.json（默认 false）" },
       no_quality: { type: "boolean", description: "跳过质量门禁（默认 false=跑）" },
       no_reload: { type: "boolean", description: "跳过后端热重载 + 校验（默认 false=跑；适合后端未运行/离线）" },
+      verify: { type: "object", additionalProperties: true, description: "运行时功能验证：用 mock runner 跑一次 execute()，传入参数对象；缺省用 JSON params 默认值。返回 success/vars_written/results。可借此确认执行逻辑正确（替代手写临时测试脚本）" },
+      verify_file: { type: "string", description: "运行时验证参数字典的文件路径（UTF-8 JSON）；与 verify 二选一" },
       timeout: { type: "number", description: "超时秒数，默认 180" },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
@@ -1013,6 +1026,8 @@ function apply(ctx, config) {
         force: !!args.force,
         noQuality: !!args.no_quality,
         noReload: !!args.no_reload,
+        verify: args.verify || null,
+        verifyFile: args.verify_file || null,
         timeout: args.timeout ?? 180,
       });
     },
