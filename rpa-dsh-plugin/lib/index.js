@@ -1023,13 +1023,18 @@ function apply(ctx, config) {
     execute: async (args, exec) => {
       const cmd = (args.cmd || "").trim();
       if (!cmd) throw new Error("缺少 cmd（指令名）");
-      // 极简定义自动补全：只给了 cmd/description/runtime/params 时合成 definition
+      // definition 优先；否则若给了极简生成字段(description/runtime/label/params 任一)才合成——
+      // 一个都不给 = 复验/verify 场景，应让 command_builder 读已存在定义，绝不覆盖。
       let definition = args.definition || null;
       if (!definition) {
-        const auto = { cmd, label: args.label || cmd, description: args.description || "" };
-        if (args.runtime) auto.runtime = args.runtime;
-        if (Array.isArray(args.params)) auto.params = args.params;
-        definition = auto;
+        const hasMinimalFields = (args.description != null) || (args.runtime != null)
+          || (args.label != null) || (Array.isArray(args.params));
+        if (hasMinimalFields) {
+          const auto = { cmd, label: args.label || cmd, description: args.description || "" };
+          if (args.runtime) auto.runtime = args.runtime;
+          if (Array.isArray(args.params)) auto.params = args.params;
+          definition = auto;
+        }
       }
       return await runCommandBuilder({
         cmd,
