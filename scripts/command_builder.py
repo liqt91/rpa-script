@@ -22,6 +22,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Windows 控制台默认 GBK，print(json.dumps(...)) 含中文/路径/子进程输出的 \ufffd 时会
+# UnicodeEncodeError。强制 UTF-8 输出，保证本脚本的 JSON 结果稳定可被上游解析。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001
+    pass
+
 ROOT = Path(__file__).resolve().parent.parent
 COMMANDS_DIR = ROOT / "commands"
 GENERATE_SCRIPT = ROOT / "scripts" / "generate_commands.py"
