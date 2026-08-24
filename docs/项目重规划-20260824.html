@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>rpa_script 项目重规划书</title>
+<style>
+  :root{
+    --bg:#f5f4f2; --card:#ffffff; --ink:#1a1a1f; --mut:#6b6b76; --line:#e6e4e0;
+    --ac:#2f6bff; --ac2:#5b8cff; --ok:#1f9d61; --warn:#c98a1e; --danger:#cc3a3a;
+    --vis:#8a5cf5; --shell:#f0efec;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    line-height:1.7; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1000px; margin:0 auto; padding:40px 32px 80px}
+  header.hero{
+    background:linear-gradient(135deg,#2f6bff 0%,#5b8cff 55%,#8a5cf5 100%);
+    color:#fff; border-radius:18px; padding:36px 36px 30px; margin-bottom:32px;
+    box-shadow:0 10px 40px -12px rgba(47,107,255,.45);
+  }
+  header.hero h1{margin:0 0 8px; font-size:30px; line-height:1.25; font-weight:700}
+  header.hero .sub{opacity:.92; font-size:15px; margin-bottom:18px}
+  header.hero .meta{display:flex; flex-wrap:wrap; gap:10px}
+  .pill{
+    background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.28);
+    padding:4px 12px; border-radius:999px; font-size:12.5px; backdrop-filter:blur(4px);
+  }
+  section{margin:0 0 28px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:24px 26px; margin-bottom:20px;
+  }
+  h2{
+    font-size:21px; margin:0 0 16px; padding-bottom:10px; border-bottom:2px solid var(--line);
+    letter-spacing:-.2px;
+  }
+  h2 .tag{float:right; font-size:12px; color:var(--mut); font-weight:500; letter-spacing:.3px}
+  h3{font-size:15.5px; margin:22px 0 10px; color:var(--ac); font-weight:650}
+  h3:first-child{margin-top:0}
+  p{margin:0 0 12px}
+  .lead{font-size:15px; color:var(--mut); margin-bottom:16px}
+  ul,ol{margin:0 0 12px; padding-left:22px}
+  li{margin-bottom:6px}
+  code{
+    background:var(--shell); border:1px solid var(--line); border-radius:5px;
+    padding:1px 7px; font-family:"JetBrains Mono","Cascadia Code",Consolas,monospace;
+    font-size:12.5px; color:#3a3a44;
+  }
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  @media(max-width:720px){.grid{grid-template-columns:1fr}}
+  .kv{display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px dashed var(--line)}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--mut); font-size:13px}
+  .kv .v{font-size:13px; text-align:right; color:var(--ink)}
+  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:18px 0 8px}
+  @media(max-width:720px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+  .stat{
+    background:var(--shell); border:1px solid var(--line); border-radius:12px;
+    padding:14px; text-align:center;
+  }
+  .stat .num{font-size:26px; font-weight:700; color:var(--ac)}
+  .stat .lbl{font-size:12px; color:var(--mut); margin-top:3px}
+  table{width:100%; border-collapse:collapse; font-size:13.5px; margin:10px 0 18px}
+  th,td{text-align:left; padding:9px 11px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{color:var(--mut); font-weight:600; font-size:12.5px; background:var(--shell)}
+  td .dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px}
+  .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.danger{background:var(--danger)}
+  .dot.mut{background:#b9b7b1} .dot.ac{background:var(--ac)}
+  .badge{display:inline-block; padding:2px 9px; border-radius:6px; font-size:11.5px; font-weight:600}
+  .b-ac{background:rgba(47,107,255,.12); color:var(--ac)}
+  .b-ok{background:rgba(31,157,97,.12); color:var(--ok)}
+  .b-warn{background:rgba(201,138,30,.14); color:var(--warn)}
+  .b-mut{background:var(--shell); color:var(--mut)}
+  .callout{
+    border-left:4px solid var(--ac); background:rgba(47,107,255,.06);
+    padding:14px 18px; border-radius:0 10px 10px 0; margin:14px 0 18px;
+  }
+  .callout.warn{border-color:var(--warn); background:rgba(201,138,30,.08)}
+  .callout.danger{border-color:var(--danger); background:rgba(204,58,58,.07)}
+  .callout h4{margin:0 0 6px; font-size:14px; color:var(--ink)}
+  .callout p:last-child{margin-bottom:0}
+  .phase{display:flex; gap:14px; align-items:flex-start; padding:14px 0; border-bottom:1px dashed var(--line)}
+  .phase:last-child{border-bottom:none}
+  .phase .pn{
+    flex:0 0 46px; height:46px; border-radius:50%; background:var(--ac); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px;
+  }
+  .phase .pb{flex:1}
+  .phase .pt{font-size:16px; font-weight:650; margin-bottom:4px}
+  .phase .pd{color:var(--mut); font-size:13.5px}
+  .decision{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:12px}
+  .decision .q{font-weight:650; margin-bottom:6px}
+  .decision .o{font-size:13.5px; color:var(--mut)}
+  .nav{position:sticky; top:0; z-index:5; background:rgba(245,244,242,.9); backdrop-filter:blur(8px); padding:10px 0; margin-bottom:8px}
+  .nav a{color:var(--mut); text-decoration:none; margin-right:18px; font-size:13.5px; transition:color .15s}
+  .nav a:hover{color:var(--ac)}
+  .foot{color:var(--mut); font-size:12px; text-align:center; margin-top:40px}
+  a{color:var(--ac)}
+  .btn-impl{display:inline-block; background:var(--ac); color:#fff; padding:9px 18px; border-radius:8px; text-decoration:none; font-size:13.5px; font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>rpa_script 项目重规划书</h1>
+  <div class="sub">站在「事实用在哪」的角度重排主线、架构与路线图——不做面面俱到，只做清晰的取舍</div>
+  <div class="meta">
+    <span class="pill">2026-08-24</span>
+    <span class="pill">solo-dev · 浏览器自动化平台</span>
+    <span class="pill">基于 git / 工作日志 / feature_list 实测盘点</span>
+  </div>
+</header>
+
+<div class="nav">
+  <a href="#s1">① 现状盘点</a>
+  <a href="#s2">② 主线判断</a>
+  <a href="#s3">③ 架构收敛</a>
+  <a href="#s4">④ 功能路线图</a>
+  <a href="#s5">⑤ 工程化</a>
+  <a href="#s6">⑥ 决策点</a>
+</div>
+
+<!-- ① 现状盘点 -->
+<section id="s1">
+<h2>① 现状盘点 <span class="tag">实测 · 非 README 声称</span></h2>
+
+<div class="stat-row">
+  <div class="stat"><div class="num">69</div><div class="lbl">指令定义 (JSON)</div></div>
+  <div class="stat"><div class="num">5</div><div class="lbl">运行面并立</div></div>
+  <div class="stat"><div class="num">9/10</div><div class="lbl">feature_list 通过</div></div>
+  <div class="stat"><div class="num">~半年</div><div class="lbl">实际投入时长</div></div>
+</div>
+
+<p class="lead">README 声称「53 指令 / 117 测试 / 端口 8000 / Electron 桌面壳」，这些都已过时。实际是 69 个指令、随机端口 8100-8199、Electron 壳已搁置、且多出一条 README 没写的 DSH 插件主线。</p>
+
+<h3>系统的真实构成</h3>
+<div class="grid">
+  <div class="card">
+    <h3 style="margin-top:0">核心运行时（成熟）</h3>
+    <ul>
+      <li><strong>后端</strong>：Python 3.12/3.13 · FastAPI · SQLAlchemy · 127.0.0.1 随机端口</li>
+      <li><strong>扩展</strong>：Chrome/Edge MV3，页面内指令 + 后台指令</li>
+      <li><strong>前端</strong>：React 19 · Vite · Tailwind v4（workflow-editor）</li>
+      <li><strong>数据真相</strong>：一流程 = 一目录（workflow.json / elements.json / data.json / images / run_logs）</li>
+      <li><strong>指令体系</strong>：backend 6 / control 22 / desktop 27 / electron 9 / extension 16 个 py handler</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">并行面（需判断去留）</h3>
+    <ul>
+      <li><strong>DSH 插件</strong> <span class="badge b-ac">主线·活跃</span>：<code>rpa-dsh-plugin</code>，工具面 + <code>/rpa_capture</code> + <code>rpa_bridge</code> 免后端读写</li>
+      <li><strong>MCP server</strong> <span class="badge b-mut">旁路</span>：<code>src/mcp_server</code>（ADR-0011，stdio+HTTP）</li>
+      <li><strong>Electron 桌面壳</strong> <span class="badge b-mut">搁置</span>：<code>desktop/</code></li>
+      <li><strong>webrpa/</strong> <span class="badge b-mut">非本系统</span>：WebRPA 3.1.0 AGPL 分发包（竞品参考）</li>
+      <li><strong>tdSelector_1.2.7</strong> <span class="badge b-mut">非本系统</span>：逆向调研样本</li>
+    </ul>
+  </div>
+</div>
+
+<h3>已完成的高价值工作（近期主线）</h3>
+<table>
+  <tr><th style="width:30%">事项</th><th>状态</th></tr>
+  <tr><td>统一捕获（web/桌面/UIA 遮罩合一）</td><td><span class="dot ok"></span><code>rpa_capture</code> 实测通过</td></tr>
+  <tr><td>捕获写回拆分 <code>elements.json</code></td><td><span class="dot ok"></span>已入 git（80fe02f）</td></tr>
+  <tr><td>项目模式元素库 CRUD（改名/删除/改选择器）</td><td><span class="dot ok"></span>已入 git（0504f58），待你重启实测</td></tr>
+  <tr><td>tdSelector / ObjectModel 逆向调研</td><td><span class="dot ok"></span>结论：网页捕获纯 UIA 足够，ObjectModel 不可用</td></tr>
+  <tr><td>web 指令架构重构 / 并发锁 / 流程参数 / MCP</td><td><span class="dot ok"></span>feature_list 9 项通过</td></tr>
+</table>
+
+<h3>明确的未完成（feature_list / TODO 中挂着）</h3>
+<div class="callout warn">
+  <h4>注意：这些大多是「旧独立平台」时代的产物，需在新主线语境下重新评估优先级</h4>
+  <p>AI 自然语言生成工作流（C1-C4）、定时调度器（D1-D4）、撤销/重做、元素内部滚动（scrollContainer）、节点配置联动、循环变量作用域。</p>
+</div>
+</section>
+
+<!-- ② 主线判断 -->
+<section id="s2">
+<h2>② 主线判断 <span class="tag">最关键的取舍</span></h2>
+
+<div class="callout">
+  <h4>结论：主线的「产品形态」是 —— <strong>DSh 里的 RPA 工具</strong></h4>
+  <p>最近两周所有实质推进（<code>rpa_capture</code>、<code>elements.json</code> 拆分、项目模式 CRUD、<code>rpa_bridge</code> 免后端读写）都发生在「把 RPA 能力以 DSH 原生态交付」这条线上。它不是巧合，是产品被真实使用后自然长出来的主线。</p>
+</div>
+
+<h3>为什么是这条线</h3>
+<ul>
+  <li><strong>你实际在用</strong>：从对话到流程 tab 到捕获，全流程都在 DSH 内完成，编辑免后端、捕获免后端</li>
+  <li><strong>价值密度最高</strong>：捕获 + 工作流编排 + 运行这三件事，DSH 给了最短路径，独立平台反而多一层</li>
+  <li><strong>独立平台是「底座」而非「目标」</strong>：后端/扩展/编辑器仍是 DSH 工具背后的能力层，可保留但不需单独打磨 UI</li>
+  <li><strong>Electron 壳 / webrpa / tdSelector 应明确退出主线</strong>：不投入、不维护、仅作参考</li>
+</ul>
+
+<div class="phase">
+  <div class="pn">1</div>
+  <div class="pb"><div class="pt">收敛产品定位</div>
+    <div class="pd">明确为「面向 DSH 用户的浏览器 + 桌面自动化工具」。所有功能决策先问一句：<strong>它让 DSH 里的使用更顺吗？</strong>不满足就降级或搁置。</div>
+  </div>
+</div>
+<div class="phase">
+  <div class="pn">2</div>
+  <div class="pb"><div class="pt">独立平台降级为可复用底座</div>
+    <div class="pd">后端/扩展/编辑器保留，但不再单独规划独立站 UI 的增强；把精力引流到 DSH 侧入口与体验。</div>
+  </div>
+</div>
+<div class="phase">
+  <div class="pn">3</div>
+  <div class="pb"><div class="pt">外围资产明确归属</div>
+    <div class="pd">webrpa/、tdSelector_1.2.7 → 参考目录，不进版本主线；MCP server 保留但标注「可选旁路」；Electron 壳标记「搁置」。</div>
+  </div>
+</div>
+</section>
+
+<!-- ③ 架构收敛 -->
+<section id="s3">
+<h2>③ 架构与技术债收敛 <span class="tag">重要但排在主线稳定之后</span></h2>
+
+<h3>目标状态</h3>
+<pre style="background:var(--shell);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-size:12.5px;line-height:1.8;overflow:auto;font-family:Consolas,monospace">
+┌──────────────────────────────────────────────────────────┐
+│  DFSH（交互层·唯一面向用户的入口）                          │
+│  · rpa_capture 捕获      · /rpa 流程 tab     · 对话生成    │
+└───────────────┬──────────────────────────────┘
+                │  rpa-dsh-plugin（工具/命令/免后端桥）
+┌───────────────▼──────────────────────────────┐
+│  RPA 底座（能力层·被 DSH 调用，不单独面客）          │
+│  · FastAPI 后端   · MV3 扩展   · 编辑器(reuse)    │
+│  · 指令体系       · 元素库(elements.json)         │
+└──────────────────────────────┬────────────────┘
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        │                      │                      │
+   MCP server(可选旁路)     Electron 壳(搁置)       webrpa/(参考)
+</pre>
+
+<table>
+  <tr><th style="width:28%">技术债</th><th style="width:16%">优先级</th><th>处理</th></tr>
+  <tr><td>README / AGENTS.md 过时（53 指令/117 测试/端口 8000/Electron）</td><td><span class="badge b-ac">P1</span></td><td>改写成现状 + 主线说明；「117 测试」改为实测数字</td></tr>
+  <tr><td>DB 模式 vs 目录模式「双真相」并存</td><td><span class="badge b-ac">P1</span></td><td>明确「目录为唯一真相」，DB 模式只作 legacy 兼容层；编辑器统一走目录</td></tr>
+  <tr><td>元素库写入域已拆 elements.json，但编辑器仍整文档读写 workflow.json</td><td><span class="badge b-ok">P2</span></td><td>已通过 elements.json 拆分基本消除覆盖竞态，剩余小窗口可接受</td></tr>
+  <tr><td>构建/同步多处手工步骤（bundle 双副本 + 后端重启 + 扩展构建）</td><td><span class="badge b-ac">P1</span></td><td>见 ⑤ 工程化，收敛成一个 dev 命令</td></tr>
+  <tr><td>webrpa / tdSelector 混在仓库根目录</td><td><span class="badge b-mut">P3</span></td><td>移至 <code>reference/</code> 或子模块，不进主版本跟踪（.gitignore/子模块）</td></tr>
+  <tr><td>测试基建：conftest 的 Host 白名单挡掉 8 个 workflows 测试</td><td><span class="badge b-warn">P2</span></td><td>TestClient 用 <code>base_url="http://localhost"</code>（已验证），一次性修复存量 8 error</td></tr>
+</table>
+</section>
+
+<!-- ④ 功能路线图 -->
+<section id="s4">
+<h2>④ 功能路线图 <span class="tag">以 DSH 主线为准</span></h2>
+
+<p class="lead">路线图按「是否强化 DSH 主线」重新排序，不再沿用旧平台的「待办清单」顺序。旧平台时代的 C1-C4 / D1-D4 被降权或并入。</p>
+
+<div class="phase">
+  <div class="pn">P0</div>
+  <div class="pb"><div class="pt">稳住当前主线闭环 ✅（已完成主体，待你实证）</div>
+    <div class="pd">
+      · 你重启 dsh web + 后端 → 验证：捕获写 elements.json / 项目模式 CRUD / 选中高亮<br>
+      · 收尾：<code>rpa_bridge</code> 的 Host 白名单与 CORS 对 DSH 内嵌的兼容性核对
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="pn">P1</div>
+  <div class="pb"><div class="pt">DSH 内嵌体验补强（当前最能感知的改进）</div>
+    <div class="pd">
+      · 流程 tab 的 <strong>元素库 UX</strong>：元素行加类型徽章 + 选择器摘要；详情区默认选中首个；加搜索<br>
+      · <strong>浏览器离线引导</strong>：离线状态点击可跳转装扩展页（<code>api.openExtensionsPage</code> 已存在）<br>
+      · <strong>命令面板折叠</strong>：小屏下左侧指令面板可折叠省空间<br>
+      · <strong>对话生成工作流</strong>：把 C1-C4 重写为「对话里直接描述 → 生成节点 → 写入目录」，而非独立站 AI 入口
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="pn">P2</div>
+  <div class="pb"><div class="pt">自动化的可靠性与覆盖面</div>
+    <div class="pd">
+      · 可视化指令更稳：<strong>撤销/重做</strong>、<strong>元素内部滚动</strong>、节点配置联动<br>
+      · 捕获兜底：shadow DOM / iframe 场景的 WebDomResolver（<code>resolveAtPoint</code>，扩展优先、UIA 兜底——已定取向）<br>
+      · 定时调度（D1-D4）——仅当「定时跑 RPA」成为你真实需求时再做
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="pn">P3</div>
+  <div class="pb"><div class="pt">规模化 / 分发（视需要）</div>
+    <div class="pd">
+      · 捕获常驻化（P3 server.py，二次捕获 &lt;200ms）——已在方案里标记「暂缓，先用」<br>
+      · MCP 作为其他 agent 的接入层对外<br>
+      · 若确实要独立分发 → 再评估 Electron 壳，否则维持「DSH 工具」单形态
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ⑤ 工程化 -->
+<section id="s5">
+<h2>⑤ 开发流程 / 工程化收口 <span class="tag">减少手工，提升可复现</span></h2>
+
+<div class="grid">
+  <div class="card">
+    <h3 style="margin-top:0">痛点</h3>
+    <ul>
+      <li><strong>前端产物双副本</strong>：build 后要手动 <code>robocopy /MIR</code> 到 <code>profiles/web/rpa-dsh-plugin</code> 和 <code>node_modules/...</code> 两处</li>
+      <li><strong>插件 lib 三处</strong>：repo / 两 profile 副本，改一处易漏</li>
+      <li><strong>后端改动重启才生效</strong>，捕获类改动 spawn 新进程即时生效（两者易混淆）</li>
+      <li><strong>无统一 dev 命令</strong>，现有 <code>run-build.cjs</code> 只覆盖部分</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">收口方案</h3>
+    <ul>
+      <li>建一个 <code>scripts/sync-plugin.js</code>：build + 同步两处 static + 同步三处 lib，一条命令完成</li>
+      <li><code>harness:check</code> 纳入「改动必须过」门槛（已有结构检查，保持）</li>
+      <li>测试基座一次性修复 Host 白名单那 8 个 error，让 <code>pytest</code> 全绿作为回归基线</li>
+      <li>README / AGENTS.md 同步到现状，避免后续 agent 再被过时文档误导</li>
+    </ul>
+  </div>
+</div>
+</section>
+
+<!-- ⑥ 决策点 -->
+<section id="s6">
+<h2>⑥ 需要你拍板的决策点 <span class="tag">决定后即可动工</span></h2>
+
+<div class="decision">
+  <div class="q">1. 主线确定为「DSH 里的 RPA 工具」？</div>
+  <div class="o">若同意 → 独立平台 UI 不再单独投入；若你其实想做独立产品，则主线要重排（影响 P1-P3 全部）。</div>
+</div>
+<div class="decision">
+  <div class="q">2. 独立跑面（Electron / MCP / webrpa）如何处置？</div>
+  <div class="o">建议：Electron 搁置、webrpa &amp; tdSelector 移出仓库根、MCP 留作可选旁路并在文档标注。</div>
+</div>
+<div class="decision">
+  <div class="q">3. 旧平台功能（AI 生成 / 定时调度）优先级是否下移？</div>
+  <div class="o">建议：AI 生成重写为「对话内生成」进 P1；定时调度降为「确有需要再做」。若你想要，可恢复原优先级。</div>
+</div>
+<div class="decision">
+  <div class="q">4. 是否立刻动手做「工程化收口 + 主线段落」？</div>
+  <div class="o">建议：先做 ①doc 同步 + ②测试基座修复 + ③sync-plugin.js，三者小、收益大；再做 P1 的 UX 补强。</div>
+</div>
+
+<div class="callout danger" style="margin-top:24px">
+  <h4>本次要先落地的一件事</h4>
+  <p>上一条已修复「启动后端 stdio invalid」——那是 <code>createWriteStream</code> 异步 fd 未就绪导致 spawn 崩溃，改用 <code>openSync</code>。此修复<b>尚未提交 git、也尚未同步到两处 profile 副本</b>，请确认后再提交。</p>
+</div>
+
+<a href="#s1" class="btn-impl" style="margin-top:8px">返回顶部重新看</a>
+</section>
+
+<div class="foot">
+  本规划书基于 2026-08-24 对 git / 工作日志 / docs / feature_list 的实测盘点 · rpa_script · 供决策参考
+</div>
+
+</div>
+</body>
+</html>

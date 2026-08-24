@@ -37,11 +37,11 @@ def validate_handler_sync(content_js_path: str | None = None) -> tuple[bool, lis
     from .handler_registry import get_all_handlers
 
     if content_js_path is None:
-        # 默认路径: extension/content.js
+        # 默认路径: dist/desktop/extension/content.js（build_content_js.py 的产出地）
         from pathlib import Path
         content_js_path = str(
             Path(__file__).resolve().parent.parent.parent.parent
-            / "extension" / "content.js"
+            / "dist" / "desktop" / "extension" / "content.js"
         )
 
     messages = []

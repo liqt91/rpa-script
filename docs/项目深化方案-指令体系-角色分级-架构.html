@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>rpa_script 深化方案：指令体系 · 角色分级 · 架构优化</title>
+<style>
+  :root{
+    --bg:#f5f4f2; --card:#fff; --ink:#1a1a1f; --mut:#6b6b76; --line:#e6e4e0;
+    --ac:#2f6bff; --ac2:#5b8cff; --ok:#1f9d61; --warn:#c98a1e; --danger:#cc3a3a;
+    --vis:#8a5cf5; --shell:#f0efec; --soft:rgba(47,107,255,.07);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;line-height:1.72;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1020px;margin:0 auto;padding:40px 32px 90px}
+  header.hero{background:linear-gradient(135deg,#2f6bff,#5b8cff 55%,#8a5cf5);color:#fff;border-radius:18px;padding:34px 36px 28px;margin-bottom:30px;box-shadow:0 10px 40px -12px rgba(47,107,255,.45)}
+  header.hero h1{margin:0 0 8px;font-size:27px;line-height:1.25;font-weight:700}
+  header.hero .sub{opacity:.93;font-size:15px;margin-bottom:16px}
+  header.hero .meta{display:flex;flex-wrap:wrap;gap:9px}
+  .pill{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);padding:4px 12px;border-radius:999px;font-size:12.5px}
+  .nav{position:sticky;top:0;z-index:5;background:rgba(245,244,242,.92);backdrop-filter:blur(8px);padding:10px 0;margin-bottom:8px}
+  .nav a{color:var(--mut);text-decoration:none;margin-right:18px;font-size:13.5px;transition:color .15s}
+  .nav a:hover{color:var(--ac)}
+  h2{font-size:21px;margin:0 0 16px;padding-bottom:10px;border-bottom:2px solid var(--line);letter-spacing:-.2px}
+  h2 .tag{float:right;font-size:12px;color:var(--mut);font-weight:500}
+  h3{font-size:15.5px;margin:22px 0 10px;color:var(--ac);font-weight:650}
+  h3:first-child{margin-top:0}
+  section{margin:0 0 28px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 26px;margin-bottom:20px}
+  p{margin:0 0 12px}
+  .lead{font-size:15px;color:var(--mut);margin-bottom:16px}
+  ul,ol{margin:0 0 12px;padding-left:22px}
+  li{margin-bottom:7px}
+  code{background:var(--shell);border:1px solid var(--line);border-radius:5px;padding:1px 7px;font-family:"JetBrains Mono","Cascadia Code",Consolas,monospace;font-size:12.5px;color:#3a3a44}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:740px){.grid{grid-template-columns:1fr}}
+  .badge{display:inline-block;padding:2px 9px;border-radius:6px;font-size:11.5px;font-weight:600}
+  .b-ac{background:rgba(47,107,255,.12);color:var(--ac)}
+  .b-ok{background:rgba(31,157,97,.12);color:var(--ok)}
+  .b-warn{background:rgba(201,138,30,.14);color:var(--warn)}
+  .b-mut{background:var(--shell);color:var(--mut)}
+  .b-vis{background:rgba(138,92,245,.13);color:var(--vis)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0 18px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-weight:600;font-size:12.5px;background:var(--shell)}
+  .callout{border-left:4px solid var(--ac);background:var(--soft);padding:14px 18px;border-radius:0 10px 10px 0;margin:14px 0 20px}
+  .callout.warn{border-color:var(--warn);background:rgba(201,138,30,.08)}
+  .callout h4{margin:0 0 6px;font-size:14px}
+  .callout p:last-child{margin-bottom:0}
+  /* 泳道 / 流程 */
+  .lane{display:flex;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:14px 0 22px;flex-wrap:wrap}
+  .lane-col{flex:1;min-width:190px;padding:16px 16px 20px;border-right:1px solid var(--line);background:var(--card)}
+  .lane-col:last-child{border-right:none}
+  .lane-col h4{margin:0 0 4px;font-size:14px;font-weight:700}
+  .lane-col .who{font-size:11.5px;margin-bottom:12px;padding:3px 9px;border-radius:6px;display:inline-block}
+  .lane-col ul{margin:0;padding-left:18px;font-size:12.8px;color:var(--mut)}
+  .lane-col ul li{margin-bottom:6px}
+  /* 步骤节点 */
+  .step{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px dashed var(--line)}
+  .step:last-child{border-bottom:none}
+  .step .num{flex:0 0 30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;background:var(--ac)}
+  .step .num.ai{background:var(--vis)}
+  .step .num.human{background:var(--warn)}
+  .step .num.auto{background:var(--ok)}
+  .step .st{flex:1}
+  .step .stt{font-size:14.5px;font-weight:650;margin-bottom:2px}
+  .step .std{font-size:13px;color:var(--mut)}
+  .step .sactor{font-size:11px;margin-left:8px;padding:2px 8px;border-radius:5px;background:var(--shell);color:var(--mut);font-weight:600}
+  .arch-box{background:var(--shell);border:1px solid var(--line);border-radius:12px;padding:18px 20px;font-family:Consolas,monospace;font-size:12.5px;line-height:1.9;overflow:auto;white-space:pre;margin:12px 0 20px}
+  .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0 8px}
+  @media(max-width:740px){.kpi{grid-template-columns:1fr}}
+  .kpi .b{background:var(--shell);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .kpi .n{font-size:16px;font-weight:700;color:var(--ac)}
+  .kpi .l{font-size:12px;color:var(--mut);margin-top:3px}
+  .decision{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 18px;margin-bottom:12px}
+  .decision .q{font-weight:650;margin-bottom:5px}
+  .decision .o{font-size:13.5px;color:var(--mut)}
+  .foot{color:var(--mut);font-size:12px;text-align:center;margin-top:44px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>rpa_script 深化方案</h1>
+  <div class="sub">指令体系的 AI 介入点 · 三级角色分级 · 架构服务与启动提速</div>
+  <div class="meta">
+    <span class="pill">2026-08-24</span>
+    <span class="pill">延续《项目重规划书》</span>
+    <span class="pill">对齐三条主线：直觉操作 / 分级 / 架构</span>
+  </div>
+</header>
+
+<div class="nav">
+  <a href="#a">① 指令体系与 AI 介入点</a>
+  <a href="#b">② 三级角色分级</a>
+  <a href="#c">③ 架构优化与启动提速</a>
+  <a href="#d">④ 落地顺序</a>
+</div>
+
+<!-- ========== ① 指令体系 ========== -->
+<section id="a">
+<h2>① 指令体系：新增指令的直觉化流程 + 命令/LLM 分工 <span class="tag">确定性动作用命令固化，推理才走 LLM</span></h2>
+
+<p class="lead">核心修正：<strong>新增指令流程里，凡是"确定性编排动作"（跑脚本、生成桩、落盘、校验）一律固化为命令，零 LLM；只有真正需要推理的地方（自然语言→定义、写 <code>execute()</code> 业务逻辑、解释校验失败）才让 LLM 介入</strong>。这样既不浪费 token，又保证脚本执行可复现可靠。</p>
+
+<h3>现状：一条前端可见性低的线性链（含大量确定性动作被 AI 代跑）</h3>
+<div class="arch-box">commands/&lt;type&gt;.json（唯一事实来源）
+      │  python scripts/generate_commands.py       ← 确定性·应固化为命令
+      ▼
+  生成桩文件（Python 桩 + JS handler）
+      │
+      ▼
+  Agent 手写实现逻辑（backend/control/desktop 从零；extension 填 JS）  ← 推理·LLM
+      │  python scripts/build_content_js.py        ← 确定性·应固化为命令
+      ▼
+  重启服务器 → auto_register() 加载 → 验证</div>
+
+<p><strong>问题</strong>：① 链条全程靠人工记忆"何时跑哪个脚本"；② 上版把确定性动作也归给 AI，浪费 token 且执行不可靠；③ 缺少把"确定性动作 + 推理动作"编排在一起、且角色清晰的载体。</p>
+
+<h3>目标态：命令(确定性) + LLM(推理) 分层</h3>
+<p>把新增指令切成四步，<strong>每步明确标注「命令/LLM」</strong>。命令用 <code>rpa_new_command</code>（DSH 工具/斜杠命令）封装，本身只是确定性编排器，内部只在两处才会调用 LLM。</p>
+
+<div class="lane">
+  <div class="lane-col">
+    <h4>① 定义</h4>
+    <span class="who b-ac">LLM + 人确认</span>
+    <ul>
+      <li>说一句话：<em>"我想要一个『批量截图』指令"</em></li>
+      <li><strong>LLM</strong> 生成候选 <code>&lt;type&gt;.json</code> 定义 + 参数表，人在表单里勾选/微调</li>
+      <li><strong>命令</strong> 校验：cmd 命名冲突、参数类型合法性、runtime 归类</li>
+    </ul>
+  </div>
+  <div class="lane-col">
+    <h4>② 生成桩</h4>
+    <span class="who b-ok">纯命令</span>
+    <ul>
+      <li><strong>命令</strong> 自动运行 <code>generate_commands.py</code>，产出 Python 桩 + JS handler</li>
+      <li>零 LLM：脚本执行是确定性的，直接落盘</li>
+    </ul>
+  </div>
+  <div class="lane-col">
+    <h4>③ 写实现</h4>
+    <span class="who b-mut">LLM + 人把关</span>
+    <ul>
+      <li>backend/desktop/control：<strong>LLM</strong> 写 <code>execute()</code>（<code>@register_handler</code> 参数由桩保证，不手写）</li>
+      <li>extension：<strong>LLM</strong> 写 JS handler 的 <code>registerHandler</code> 回调</li>
+      <li>结果<strong>命令</strong>直接落盘到目标文件；人类复核逻辑正确性</li>
+    </ul>
+  </div>
+  <div class="lane-col">
+    <h4>④ 验证闭环</h4>
+    <span class="who b-ok">纯命令</span>
+    <ul>
+      <li><strong>命令</strong> 跑 <code>build_content_js.py</code>（extension）</li>
+      <li><strong>命令</strong> 跑 <code>handler_validator</code> → 全绿才通过</li>
+      <li><strong>命令</strong> 生成一条冒烟流程并运行</li>
+      <li>仅当失败需要解释时才回<strong> LLM</strong> 给修改建议</li>
+    </ul>
+  </div>
+</div>
+
+<h3>命令 vs LLM 的明确边界</h3>
+<table>
+  <tr><th style="width:18%">步骤</th><th style="width:20%">方式</th><th style="width:18%">角色</th><th>说明</th></tr>
+  <tr><td>校验定义（命名/参数/runtime）</td><td><span class="badge b-ok">命令</span></td><td>配置者</td><td>确定性 schema 检查，不推理</td></tr>
+  <tr><td>跑 <code>generate_commands.py</code></td><td><span class="badge b-ok">命令</span></td><td>配置者</td><td>确定性脚本，AI 代跑无意义且不可靠</td></tr>
+  <tr><td>写 <code>execute()</code> / JS 回调</td><td><span class="badge b-vis">LLM</span></td><td>配置者</td><td>业务逻辑需推理；<code>@register_handler</code> 参数由桩保证</td></tr>
+  <tr><td>跑构建 / validator / 冒烟</td><td><span class="badge b-ok">命令</span></td><td>自动</td><td>确定性校验，绿了才过</td></tr>
+  <tr><td>解释失败原因 / 给修改建议</td><td><span class="badge b-vis">LLM</span></td><td>配置者</td><td>仅失败时才回到 LLM</td></tr>
+</table>
+
+<h3>命令载体设计（<code>rpa_new_command</code>）</h3>
+<div class="arch-box">rpa_new_command（DSH 工具/斜杠命令 · 纯确定性编排器）
+  │
+  ├─ 入参：{name, definition(可选 JSON), description(可选)}
+  │        · 给了 definition → 跳过 LLM 定义步骤，纯命令走完
+  │        · 只给 description → 步骤① 调一次 LLM 生成定义草案
+  ├─ 步骤①（可选 LLM）→ 生成/合并 JSON 定义
+  ├─ 步骤②（命令）→ 跑 generate_commands.py 生成桩
+  ├─ 步骤③（可选 LLM）→ 写 execute()/JS 回调到文件
+  ├─ 步骤④（命令）→ 跑 build_content_js.py + validator + 冒烟
+  └─ 输出：每步状态 + 校验报告 +（失败时 LLM 建议）</div>
+
+<div class="callout">
+  <h4>一句话原则（修正后）</h4>
+  <p><strong>脚本的执行、落盘、校验永远固化为命令（零 LLM）；LLM 只出现在"定义生成"和"写业务实现"两个推理点上，且失败解释才额外调一次。</strong>让用户一句"新增这个指令"就能走完，既快又准。</p>
+</div>
+</section>
+
+<!-- ========== ② 三级角色分级 ========== -->
+<section id="b">
+<h2>② 三级角色分级：开发者 / 配置者 / 使用者 <span class="tag">操作对象依次是 插件 / 指令 / 流程</span></h2>
+
+<p class="lead">这三级不是三个页面，而是<strong>同一套系统里按"操作对象"划分的三层能力边界</strong>。分级的本质是：<strong>外层(使用者)所见即所用、零暴露；内层(开发者)保留全部控制面</strong>。对应现实：你既是开发者也是使用者，但不同时刻只需要看到对应层。</p>
+
+<table>
+  <tr><th style="width:14%">角色</th><th style="width:22%">操作对象</th><th style="width:22%">核心诉求</th><th>应该看到什么</th></tr>
+  <tr>
+    <td><strong>开发者</strong><br><span class="badge b-ac">plugin</span></td>
+    <td>插件本体（rpa-dsh-plugin）</td>
+    <td>装/卸/配置插件、看插件托管的后端、调参、看健康</td>
+    <td><code>rpa-dsh-plugin</code> 配置、后端托管状态、端口/日志、版本</td>
+  </tr>
+  <tr>
+    <td><strong>配置者</strong><br><span class="badge b-vis">command</span></td>
+    <td>指令（command 定义 + handler）</td>
+    <td>增删改指令、写实现、验证；<br>AI 生成后可进来微调</td>
+    <td>指令定义页、指令分类、参数 schema、<code>generate_commands</code> 结果、validator 报告</td>
+  </tr>
+  <tr>
+    <td><strong>使用者</strong><br><span class="badge b-ok">workflow</span></td>
+    <td>流程（一个目录 = 一个流程）</td>
+    <td>捕获元素 → 拖节点 → 填参数 → 运行看日志</td>
+    <td>流程 tab、元素库、节点画布、运行日志</td>
+  </tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h3 style="margin-top:0">分级的落点（建议）</h3>
+    <ul>
+      <li><strong>默认入口 = 使用者</strong>：打开就是流程 tab，元素库/画布/日志一览无余</li>
+      <li><strong>指令层收敛到「指令定义」页</strong>：配置者/开发者通过独立入口进入，不与流程混流</li>
+      <li><strong>开发者层=插件管理</strong>：DSH 的插件配置 + 插件自带的健康/日志面板</li>
+      <li><strong>AI 角色随层变化</strong>：使用者层 AI 帮"生成流程"；配置者层 AI 帮"生成指令"；开发者层 AI 帮"诊断/托管"</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">避免的坑</h3>
+    <ul>
+      <li><strong>不要让使用者看到指令定义/依赖注入细节</strong>——会吓退；</li>
+      <li><strong>不要让配置者每次都被插件部署细节打断</strong>——级与级之间的"编排细节"要<strong>隐藏到下一层</strong>；</li>
+      <li><strong>三级不物理隔离</strong>：同一人可穿越，但界面按对象分层，避免"一个页面塞三种心智"。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout warn">
+  <h4>关键判断：这三级目前的分界是否清晰？</h4>
+  <p>现状：使用者层（流程 tab）与配置者层（指令定义页）已分开；但 <strong>DSH 插件配置（开发者层）与后端托管</strong>还没有一个统一的"运维视图"。这是最需要补的一块——<strong>给插件加一个"健康 + 托管 + 指令状态"的面板</strong>，作为开发者/配置者层的入口。</p>
+</div>
+</section>
+
+<!-- ========== ③ 架构优化 ========== -->
+<section id="c">
+<h2>③ 架构优化：拆分服务 + 明确托管 + 启动提速 <span class="tag">现状是单进程 FastAPI，lifespan 串行做了很多启动工作</span></h2>
+
+<p class="lead">目标：<strong>该拆的独立成服务、明确谁来托管、把"冷启动慢"和"每次改都要重启"这两个痛点解决掉</strong>。核心洞察：<strong>运行态(执行流程/捕获) 与 管理态(定义/配置) 分离</strong>——前者要常驻快，后者可懒加载。</p>
+
+<h3>服务拆分图</h3>
+<div class="arch-box">┌────────────────────────────────────────────────────────────┐
+│  DSH（交互层）                                                │
+│  · rpa_capture   · /rpa 流程tab   · 对话生成                 │
+└───────────────┬────────────────────────────────┘
+                │ rpa-dsh-plugin（工具/命令/免后端桥）
+┌───────────────▼────────────────────────────────┐
+│  RPA 底座（能力层·由插件托管）                      │
+│                                                  │
+│  ┌────────────────────────────────────┐         │
+│  │  后端 Runtime（常驻·FastAPI·random端口）│         │
+│  │  · 指令解析/运行/日志  · 元素库  · DB   │         │
+│  └──────────────┬─────────────────────┘         │
+│                 │                                 │
+│  ┌──────────────▼─────────────────────┐  ┌──────┐│
+│  │  捕获服务 capture（子进程/常驻可选）    │  │ 扩展  ││
+│  │  · 遮罩·UIA·web resolver           │  │ MV3  ││
+│  └────────────────────────────────────┘  └──────┘│
+└────────────────────────────────────────────────────┘
+        MCP（可选旁路）   Electron（搁置）   webrpa/(参考)</div>
+
+<h3>服务与托管方</h3>
+<table>
+  <tr><th style="width:22%">服务</th><th style="width:20%">由谁托管</th><th style="width:28%">当前状态</th><th>优化方向</th></tr>
+  <tr>
+    <td><strong>后端 Runtime</strong>（FastAPI）</td>
+    <td>DSH 插件 spawn（detached）</td>
+    <td>单进程，端口 8100-8199 随机；lifespan 串行做 DB 迁移/指令注册/种子</td>
+    <td>启动提速（见下）+ 保持常驻</td>
+  </tr>
+  <tr>
+    <td><strong>浏览器扩展</strong>（MV3）</td>
+    <td>浏览器自身</td>
+    <td>WS 连后端；页面内指令 + 后台指令</td>
+    <td>在「插件健康面板」暴露扩展在线状态（已部分做）</td>
+  </tr>
+  <tr>
+    <td><strong>捕获服务 capture</strong></td>
+    <td>每次 spawn 子进程（现状）</td>
+    <td>冷启动 ~476ms（含 python+UIA init）</td>
+    <td><strong>P3 常驻化</strong>：resident <code>server.py</code>，二次捕获 &lt;200ms（已在方案标记暂缓）</td>
+  </tr>
+  <tr>
+    <td><strong>MCP server</strong></td>
+    <td>独立进程 / 框架侧</td>
+    <td>已完成（ADR-0011）</td>
+    <td>标注"可选旁路"</td>
+  </tr>
+  <tr>
+    <td><strong>编辑器静态 + rpa-bridge</strong></td>
+    <td>DSH web 托管（内置）</td>
+    <td>免后端读写 workflow/elements</td>
+    <td>已最优，保持</td>
+  </tr>
+</table>
+
+<h3>启动提速：拆掉 lifespan 里的串行重活</h3>
+<div class="kpi">
+  <div class="b"><div class="n">~476ms</div><div class="l">捕获冷启动（可接受）</div></div>
+  <div class="b"><div class="n">串行</div><div class="l">lifespan 现有阻塞项</div></div>
+  <div class="b"><div class="n">秒级</div><div class="l">目标是启动加速目标</div></div>
+</div>
+
+<p><strong>现有 lifespan（<code>main.py:142-200</code>）串行做了这些</strong>：<code>models.init_db()</code> → <code>run_migrations()</code> → <code>auto_register()</code>（扫描 + importlib 全量导入 69+ 指令）→ <code>_populate_local_handlers()</code> → 种子分类 → 种子 AI 应用 → 种子指令 → 加载指令到内存。</p>
+
+<table>
+  <tr><th style="width:30%">优化</th><th style="width:16%">提升</th><th>做法</th></tr>
+  <tr>
+    <td><strong>懒加载指令注册</strong></td>
+    <td><span class="badge b-ac">大</span></td>
+    <td><code>auto_register()</code> 不阻塞启动：初次请求命中某指令类时才 import。用 <code>lazy</code> registry 替换全量导入</td>
+  </tr>
+  <tr>
+    <td><strong>迁移 &amp; 种子移入后台任务</strong></td>
+    <td><span class="badge b-ac">中</span></td>
+    <td>DB 迁移/种子放 <code>asyncio.create_task</code>，<code>/health</code> 先就绪；加 <code>/ready</code> 标记真正可用</td>
+  </tr>
+  <tr>
+    <td><strong>AI 应用/指令种子按需同步</strong></td>
+    <td><span class="badge b-warn">小</span></td>
+    <td>仅在 DB 为空时同步，避免每次启动都 <code>sync/seed</code></td>
+  </tr>
+  <tr>
+    <td><strong>可选：捕获服务常驻化</strong></td>
+    <td><span class="badge b-ac">中大</span></td>
+    <td>P3 <code>server.py</code> 常驻遮罩/钩子/UIA，冷启动只一次（方案已论证）</td>
+  </tr>
+  <tr>
+    <td><strong>开发时免重启</strong></td>
+    <td><span class="badge b-ok">体验</span></td>
+    <td>捕获类改动 spawn 新进程即时生效（已如此）；后端代码改动仍需重启——<strong>文档里明确标注</strong>避免混淆</td>
+  </tr>
+</table>
+
+<div class="callout">
+  <h4>启动提速的核心原则</h4>
+  <p><strong>先让 <code>/health</code> 秒回（进程活着、端口就绪），再把真正"能用"（指令全加载、DB 就绪）挪到 <code>/ready</code> 或后台。</strong>插件侧 <code>waitForBackendReady</code> 也从"等进程"升级为"等真可用"，避免 30/60s 未就绪误报。</p>
+</div>
+</section>
+
+<!-- ========== ④ 落地顺序 ========== -->
+<section id="d">
+<h2>④ 落地顺序 <span class="tag">先小步高收益，再逐层深入</span></h2>
+
+<div class="card">
+<table>
+  <tr><th style="width:8%">#</th><th style="width:26%">动作</th><th style="width:18%">对应层</th><th>说明</th></tr>
+  <tr><td>1</td><td><strong>插件健康/运维面板</strong></td><td>开发者层</td><td>插件加一个视图：后端托管状态、端口、扩展在线、指令数、最近日志——补上分级里缺的一层</td></tr>
+  <tr><td>2</td><td><strong>指令新增命令 <code>rpa_new_command</code></strong></td><td>配置者层</td><td>把①四步封装成一条确定性命令：<strong>脚本执行/落盘/校验全固化为命令（零 LLM）</strong>，只在"定义生成"和"写 execute()"两处调 LLM，人确认定义+把关逻辑</td></tr>
+  <tr><td>3</td><td><strong>启动懒加载 + 后台化</strong></td><td>底座</td><td><code>auto_register</code> 懒加载、seed/迁移后台化、<code>/ready</code> 语义</td></tr>
+  <tr><td>4</td><td><strong>文档同步</strong></td><td>全</td><td>README/AGENTS.md 更新到现状，标注三类角色与启动语义</td></tr>
+</table>
+</div>
+
+<h3>需要你拍板（按推荐）</h3>
+<div class="decision">
+  <div class="q">1. 插件「健康/运维面板」当前是否最该先做？</div>
+  <div class="o">推荐：是。它补上分级缺的开发者层，也顺带解决"后端到底起没起/端口多少"这类高频疑问。</div>
+</div>
+<div class="decision">
+  <div class="q">2. 指令生成载体：<code>rpa_new_command</code> 命令（已修正，按推荐定为命令）？</div>
+  <div class="o">推荐：定为<strong>确定性命令</strong>（如 <code>/rpa new-command</code> 或 DSH 工具）。它内部只在定义/实现两处调 LLM，其余全为固化脚本执行；纯命令路径（已给 definition）可完全不经过 LLM。</div>
+</div>
+<div class="decision">
+  <div class="q">3. 捕获常驻化（P3）要不要提前？</div>
+  <div class="o">推荐：暂缓。当前 476ms 冷启动可接受，先用着；等"高频连续捕获"成为真实痛点再上。</div>
+</div>
+</section>
+
+<div class="foot">本深化方案为《项目重规划书》的延续，基于 2026-08-24 对指令体系 / AI 生成路径 / 启动链路的实测盘点 · rpa_script</div>
+
+</div>
+</body>
+</html>

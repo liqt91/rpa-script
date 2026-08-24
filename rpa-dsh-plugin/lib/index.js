@@ -30,7 +30,7 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import z from "@deepseek-ai/schemastery";
 import { spawn, execFile } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
@@ -553,13 +553,15 @@ function apply(ctx, config) {
     const env = { ...process.env, ...launch.env };
     // 后端日志落盘：stdio ignore 会吞掉启动失败原因，导致 30s 后只能报"未就绪"而无法排查。
     // 写入后端工作目录 data/backend-run.log，就绪失败时把日志尾行带进错误信息。
-    let runLog = null;
+    // 注意：不能用 createWriteStream 直接当 stdio——它是异步打开，fd 未就绪时 Node 会抛
+    // "The argument 'stdio' is invalid"。改用 openSync 拿同步 fd 传给 stdio（数字 fd 合法）。
+    let runLogFd = -1;
     try {
       const logDir = join((config.backendCwd || process.cwd()), "data");
       mkdirSync(logDir, { recursive: true });
-      runLog = createWriteStream(join(logDir, "backend-run.log"), { flags: "a" });
-    } catch { runLog = null; }
-    const stdio = runLog ? ["ignore", runLog, runLog] : "ignore";
+      runLogFd = openSync(join(logDir, "backend-run.log"), "a");
+    } catch { runLogFd = -1; }
+    const stdio = runLogFd >= 0 ? ["ignore", runLogFd, runLogFd] : "ignore";
     // 优先无 shell 启动（argv 直连可执行文件，彻底隐藏 cmd 窗口）；
     // argv 不可用（命令含 shell 语法）才回退 shell + windowsHide。
     const child = launch.argv
@@ -939,6 +941,73 @@ function apply(ctx, config) {
         name: args.name || "",
         mode: args.mode || "desktop_mask",
         timeout: args.timeout ?? 300,
+      });
+    },
+  }));
+
+  // 确定性指令构建执行：spawn command_builder.py，等 JSON 输出。
+  // 供 rpa_new_command 工具调用（新增指令的确定性编排，零 LLM）。
+  // definition 经临时文件传递（UTF-8），规避 Windows 命令行中文编码。
+  const runCommandBuilder = ({ cmd, definition = null, skipBuildJs = false, force = false, timeout = 180 } = {}) => {
+    const repoRoot = config.backendCwd || process.cwd();
+    const script = join(repoRoot, "scripts", "command_builder.py");
+    const py = capturePython();
+    const argv = [script, cmd];
+    let defTmp = null;
+    if (definition) {
+      // 写定义到临时 UTF-8 文件（命令行传中文会 GBK 污染）
+      const defDir = join(repoRoot, "tmp");
+      try { mkdirSync(defDir, { recursive: true }); } catch {}
+      defTmp = join(defDir, `cmd_def_${Date.now()}.json`);
+      try { writeFileSync(defTmp, JSON.stringify(definition, null, 2), "utf8"); } catch {}
+      argv.push("--definition-file", defTmp);
+    }
+    if (skipBuildJs) argv.push("--skip-build-js");
+    if (force) argv.push("--force");
+    const timeoutMs = timeout * 1000;
+    return new Promise((resolve) => {
+      const child = spawn(py, argv, { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      let stdout = "", stderr = "";
+      const timer = setTimeout(() => { try { child.kill(); } catch {} resolve({ ok: false, error: "命令构建超时" }); if (defTmp) { try { unlinkSync(defTmp); } catch {} } }, timeoutMs);
+      child.stdout.on("data", (d) => { stdout += d; });
+      child.stderr.on("data", (d) => { stderr += d; });
+      child.on("error", (e) => { clearTimeout(timer); if (defTmp) { try { unlinkSync(defTmp); } catch {} } resolve({ ok: false, error: "进程启动失败: " + e.message }); });
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        if (defTmp) { try { unlinkSync(defTmp); } catch {} }
+        try {
+          const t = stdout.trim();
+          if (!t) return resolve({ ok: false, error: stderr.trim() || `构建退出(code=${code})` });
+          const parsed = JSON.parse(t);
+          return resolve({ ok: parsed.ok === true, ...parsed });
+        } catch (e) {
+          return resolve({ ok: false, error: "无法解析构建输出: " + e.message, raw: stdout, stderr });
+        }
+      });
+    });
+  };
+
+  ctx.tools.register(defineTool({
+    name: "rpa_new_command",
+    description: "新增一个 RPA 指令（确定性编排，零 LLM）：写 commands/<cmd>.json 定义 → 生成 Python 桩 + JS handler → 拼装 content.js → 校验。给 definition（指令 JSON 对象）即全自动跑完；不给 definition 则用已存在的 commands/<cmd>.json。用于 JSON 定义已想好 / 需批量新增指令的场景（真正要 AI 生成定义内容时，让模型先把 definition 写进文件再调用本工具）。",
+    parameters: {
+      cmd: { type: "string", required: true, description: "指令名（cmd，同 JSON 的 cmd 字段与文件名）" },
+      definition: { type: "object", additionalProperties: true, description: "指令 JSON 定义对象（可选；含 cmd/label/runtime/params/handler 等，见 commands/ 样例）" },
+      skip_build_js: { type: "boolean", description: "跳过 build_content_js.py（非 extension 指令可省，默认 false）" },
+      force: { type: "boolean", description: "覆盖已存在的 commands/<cmd>.json（默认 false）" },
+      timeout: { type: "number", description: "超时秒数，默认 180" },
+    },
+    output: { schema: { type: "object", additionalProperties: true }, render: toText },
+    isConcurrencySafe: () => true,
+    execute: async (args, exec) => {
+      const cmd = (args.cmd || "").trim();
+      if (!cmd) throw new Error("缺少 cmd（指令名）");
+      return await runCommandBuilder({
+        cmd,
+        definition: args.definition || null,
+        skipBuildJs: !!args.skip_build_js,
+        force: !!args.force,
+        timeout: args.timeout ?? 180,
       });
     },
   }));
