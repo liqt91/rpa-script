@@ -5,11 +5,21 @@ description: 创建新的 RPA 指令（command），一次命令生成+校验+�
 
 # 新增指令
 
-> **唯一入口是 `scripts/command_builder.py`（纯 python CLI，任何会话能跑）。** 它一次
-> 调用就完成：写定义 → 生成桩 → 构建 JS → 质量门禁 → **后端热重载 + 校验**。
-> 🚫 **三不要**：① 不要读示例文件（下表已给模板）；② 不要手工跑 generate_commands/
-> build_content_js（命令内部自动）；③ 不要写临时测试脚本（命令自带门禁+热重载校验）。
-> 发现自己在做这三件事 → 立刻改用它。
+> ## ⚠️ 第 0 步（不可跳过，先做这个）：调用生成命令
+>
+> **生成任何指令前，第一步必须调用 `rpa_new_command`（DSH 工具）或
+> `python scripts/command_builder.py <cmd> --definition-file <json>`。**
+>
+> 这是**唯一**的生成方式。它一次调用就完成：写定义 → 生成桩 → 构建 JS → 质量门禁 →
+> **后端热重载 + 校验**。
+>
+> **如果你发现自己做了下面任一件事，说明你走错了，立刻停下并回到第 0 步：**
+> - ❌ 在读示例指令文件（setVolumeWin32/_win32/registry/utils/categories…）
+> - ❌ 在手工跑 `generate_commands.py` / `build_content_js.py`
+> - ❌ 在写临时测试脚本（_tmp*.py / _validate*.py）
+> - ❌ 在手工编辑 `commands/<cmd>.json` 之外的 handler 文件
+>
+> 下面所有内容只是**参数/目录参考**，先调用命令，再回头看这些。
 
 ## 参数 type 白名单（只用这些）
 
@@ -64,15 +74,14 @@ class MyCommandHandler:
         return True
 ```
 
-## 生成步骤（只 4 步关键交互）
+## 生成步骤（第 0 步 = 命令，先做）
 
 1. 定 `cmd`(小驼峰=文件名) / runtime / kind / 目录 / params（上表）。
-2. 把 JSON 定义写到临时文件，一行命令全链路构建：
-   `python scripts/command_builder.py <cmd> --definition-file <临时json>`
+2. **第 0 步：调 `rpa_new_command`（DSH 工具）或 `python scripts/command_builder.py <cmd>
+   --definition-file <临时json>`** → 自动写定义+生成桩+构建JS+质量门禁+热重载。
    返回 `ok=true`（骨架就绪）、`quality_pass=false`（实现未填，正常）。
-3. 填 `execute()` 实现（编辑命令生成的 `<cmd>.py`）。
-4. `python scripts/command_builder.py <cmd>`（不传 definition，复用 JSON）→ 复验到
-   `quality_pass=true`。
+3. 填 `execute()` 实现（编辑命令生成的 `<cmd>.py`；extension 填 `<cmd>.js`）。
+4. **再调一次命令**（不传 definition，复用已建 JSON）→ 复验到 `quality_pass=true`。
 
 > 找 `command_builder.py` / 用 DSH 工具时，等价入口是 `rpa_new_command`（同一编排）。
 
