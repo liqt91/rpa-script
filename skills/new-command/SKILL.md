@@ -80,19 +80,26 @@ sentinel / execute / emit / summary_tpl`。全绿才算完成。
 
 ## 2. 推荐执行路径（确定性命令 + LLM 分工）
 
-现代流程建议直接用 `rpa_new_command` 命令编排（确定性动作零 LLM）：
+现代流程建议直接用 `rpa_new_command` 命令编排（确定性动作零 LLM）。它一次调用即
+完成：写定义 → 生成桩 → 构建 JS → 质量门禁 → **后端热重载 + 校验**。
+
+**两步式（生成骨架 → 填实现 → 二次校验）：**
 
 ```
-给 definition（JSON 对象）→ rpa_new_command 命令：
-  ① 写 commands/<cmd>.json
-  ② 跑 generate_commands.py 生成桩（extension → py + js）
-  ③ 跑 build_content_js.py 拼装 content.js
-  ④ 校验注册
+第 1 步：rpa_new_command(definition)      # 命令自动跑：写 JSON → 生成桩 → 质量门禁 → 热重载+校验
+  返回：ok=true（骨架落盘成功）、quality_pass=false（scaffold 占位待填）、reload_pass=true
+
+第 2 步：LLM 填 execute() 业务逻辑（直接编辑生成的文件，或补 _win32.py 辅助）
+
+第 3 步：rpa_new_command(cmd)（不传 definition，复用已有 JSON）   # 让质量门禁转绿
+  返回：ok=true、quality_pass=true（全绿）、reload_pass=true
 ```
 
-- **确定性动作**（写文件、跑脚本、落盘、校验）→ 命令 `rpa_new_command`，零 LLM。
+- **命令做确定性动作**（写文件、跑脚本、落盘、质量门禁、热重载）——零 LLM，一次调用吞掉全部。
 - **LLM 只介入两点**：自然语言→JSON 定义、写 `execute()`/JS 回调业务逻辑。
-- 之后仍要跑上面的质量门禁自检（命令只管"生成+构建"，不管"质量规范"）。
+- **`quality_pass` 是关键信号**：`false` 表示实现未填或不合规；LLM 填完实现后再跑一次
+  命令即可看到 `quality_pass: true`。
+- **后端须运行**才能热重载（`reload_validate`）；未运行会提示 warning（`--no-reload` 跳过）。
 
 ## 四类指令
 

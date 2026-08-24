@@ -5,7 +5,9 @@
   ② 跑 generate_commands.py 生成桩（extension → py 桩 + JS handler）
   ③ 跑 build_content_js.py 拼装 content.js（extension 指令）
   ④ 校验：新指令在 content.js / Python registry 中确实就位
-  ⑤ 输出结构化结果（每步状态 + 校验报告）
+  ⑤ 质量门禁：跑 skills/scripts/check_command_quality.py <cmd>（--quality 默认开）
+  ⑥ 热重载 + 校验：POST /api/commands/reload + validate（--reload 默认开）
+  ⑦ 输出结构化结果（每步状态 + 校验报告 + 产物路径）
 
 不调用 LLM：definition 由调用方（模型/人）先准备好，命令只做确定性的生成-落盘-校验。
 用于 backend/control/desktop 指令时，② 会生成 Python 桩（若 runtime 非 extension 且
@@ -77,6 +79,75 @@ def _collect_commands(cmd: str) -> dict:
         return {}
 
 
+def _run_quality_gate(cmd: str) -> dict:
+    """跑质量门禁（skills/scripts/check_command_quality.py <cmd> --json），返回汇总。"""
+    qg = ROOT / "skills" / "scripts" / "check_command_quality.py"
+    if not qg.exists():
+        return {"skip": True, "note": f"质量门禁脚本不存在: {qg}"}
+    code, out = _run([sys.executable, str(qg), cmd, "--json"])
+    try:
+        data = json.loads(out)
+    except Exception:  # noqa: BLE001
+        return {"ok": False, "raw": out.strip()[-400:]}
+    issues = [i for r in data.get("results", []) for i in r.get("issues", [])]
+    return {"ok": data.get("ok", False), "error_count": len(issues), "issues": issues}
+
+
+def _backend_port() -> int:
+    """发现后端端口：优先 data/backend.port，回退 8100。"""
+    try:
+        pf = ROOT / "data" / "backend.port"
+        if pf.exists():
+            return int(pf.read_text(encoding="utf-8").strip() or 0)
+    except Exception:  # noqa: BLE001
+        pass
+    return 8100
+
+
+def _run_http_reload(cmd: str) -> dict:
+    """热重载：POST /api/commands/reload + /validate，把新指令加载进运行时并校验。
+
+    认证为免登录（get_current_user 恒放行），无需 token。返回汇总。
+    """
+    import urllib.request
+    port = _backend_port()
+    base = f"http://127.0.0.1:{port}"
+    headers = {"Content-Type": "application/json"}
+    steps = []
+
+    def _post(path):
+        req = urllib.request.Request(base + path, data=b"{}", headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return resp.status, resp.read().decode("utf-8", errors="replace")
+
+    try:
+        status, body = _post("/api/commands/reload")
+        steps.append({"endpoint": "reload", "status": status})
+        try:
+            reload_data = json.loads(body)
+            steps[-1]["handlers"] = reload_data.get("handlers")
+            steps[-1]["local_handlers"] = reload_data.get("local_handlers")
+        except Exception:  # noqa: BLE001
+            steps[-1]["body"] = body[:200]
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"热重载失败（后端 {base} 可能未运行）: {e}",
+                "steps": steps, "port": port}
+
+    try:
+        status, body = _post("/api/commands/validate")
+        steps.append({"endpoint": "validate", "status": status})
+        try:
+            v = json.loads(body)
+            steps[-1]["passed"] = v.get("passed")
+        except Exception:  # noqa: BLE001
+            steps[-1]["body"] = body[:200]
+    except Exception as e:  # noqa: BLE001
+        steps[-1]["error"] = str(e)
+
+    all_ok = all(s.get("status") == 200 and s.get("passed") is not False for s in steps)
+    return {"ok": all_ok, "steps": steps, "port": port}
+
+
 def main():
     parser = argparse.ArgumentParser(description="确定性指令构建编排器")
     parser.add_argument("cmd", help="指令名（cmd）")
@@ -86,6 +157,10 @@ def main():
     parser.add_argument("--skip-build-js", action="store_true",
                         help="跳过 build_content_js.py（非 extension 指令可省）")
     parser.add_argument("--force", action="store_true", help="覆盖已存在的定义文件")
+    parser.add_argument("--no-quality", action="store_true",
+                        help="跳过质量门禁（默认跑）")
+    parser.add_argument("--no-reload", action="store_true",
+                        help="跳过热重载 + 校验（默认跑）")
     args = parser.parse_args()
 
     cmd = args.cmd.strip()
@@ -194,8 +269,32 @@ def main():
     except Exception as e:  # noqa: BLE001
         result["steps"].append({"name": "validate_registry", "ok": False, "error": f"{e}"})
 
-    # 汇总 ok：全部确定性步骤通过
-    result["ok"] = all(s.get("ok", False) for s in result["steps"])
+    # ⑤ 质量门禁（默认开；--no-quality 跳过）
+    if not args.no_quality:
+        qg = _run_quality_gate(cmd)
+        result["steps"].append({"name": "quality_gate", **qg})
+
+    # ⑥ 热重载 + 校验（默认开；--no-reload 跳过）
+    if not args.no_reload:
+        rl = _run_http_reload(cmd)
+        result["steps"].append({"name": "reload_validate", **rl})
+        # reload 失败通常因后端未运行——不计入构建失败，提示即可
+        if "error" in rl:
+            result["reload_warning"] = rl["error"]
+
+    # 汇总 ok：反映"骨架文件落盘成功"（write_definition/generate_commands/build_js/registry）。
+    # quality_gate/reload 的通过情况独立返回（quality_pass），不反过来置 ok=false——
+    # 生成骨架这一步，scaffold 的 extra.get("paramName") 是合法的占位，实现未填时门禁
+    # 会报，属预期；LLM 填完实现再跑一次本命令即可让门禁转绿。
+    core_steps = ("write_definition", "generate_commands", "build_content_js", "validate_registry")
+    result["ok"] = all(s.get("ok", False) for s in result["steps"] if s.get("name") in core_steps)
+    qg_step = next((s for s in result["steps"] if s.get("name") == "quality_gate"), None)
+    if qg_step:
+        result["quality_pass"] = bool(qg_step.get("ok")) or bool(qg_step.get("skip"))
+        result["quality_issues"] = qg_step.get("issues", [])
+    rl_step = next((s for s in result["steps"] if s.get("name") == "reload_validate"), None)
+    if rl_step:
+        result["reload_pass"] = bool(rl_step.get("ok"))
     print(json.dumps(result, ensure_ascii=False))
 
 

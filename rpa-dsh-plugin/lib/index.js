@@ -948,7 +948,7 @@ function apply(ctx, config) {
   // 确定性指令构建执行：spawn command_builder.py，等 JSON 输出。
   // 供 rpa_new_command 工具调用（新增指令的确定性编排，零 LLM）。
   // definition 经临时文件传递（UTF-8），规避 Windows 命令行中文编码。
-  const runCommandBuilder = ({ cmd, definition = null, skipBuildJs = false, force = false, timeout = 180 } = {}) => {
+  const runCommandBuilder = ({ cmd, definition = null, skipBuildJs = false, force = false, noQuality = false, noReload = false, timeout = 180 } = {}) => {
     const repoRoot = config.backendCwd || process.cwd();
     const script = join(repoRoot, "scripts", "command_builder.py");
     const py = capturePython();
@@ -964,6 +964,8 @@ function apply(ctx, config) {
     }
     if (skipBuildJs) argv.push("--skip-build-js");
     if (force) argv.push("--force");
+    if (noQuality) argv.push("--no-quality");
+    if (noReload) argv.push("--no-reload");
     const timeoutMs = timeout * 1000;
     return new Promise((resolve) => {
       const child = spawn(py, argv, { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
@@ -989,12 +991,14 @@ function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: "rpa_new_command",
-    description: "新增一个 RPA 指令（确定性编排，零 LLM）：写 commands/<cmd>.json 定义 → 生成 Python 桩 + JS handler → 拼装 content.js → 校验。给 definition（指令 JSON 对象）即全自动跑完；不给 definition 则用已存在的 commands/<cmd>.json。用于 JSON 定义已想好 / 需批量新增指令的场景（真正要 AI 生成定义内容时，让模型先把 definition 写进文件再调用本工具）。",
+    description: "新增一个 RPA 指令（确定性编排，零 LLM）：写 commands/<cmd>.json 定义 → 生成 Python 桩 + JS handler → 拼装 content.js → 质量门禁 → 热重载 + 校验。给 definition（指令 JSON 对象）即全自动跑完（自动跑质量门禁 + 后端热重载校验）；不给 definition 则用已存在的 commands/<cmd>.json。用于 JSON 定义已想好 / 需批量新增指令的场景（真正要 AI 生成实现逻辑时，先调用本命令生成骨架，再让模型填 execute()，可再跑一次本命令触发校验）。",
     parameters: {
       cmd: { type: "string", required: true, description: "指令名（cmd，同 JSON 的 cmd 字段与文件名）" },
       definition: { type: "object", additionalProperties: true, description: "指令 JSON 定义对象（可选；含 cmd/label/runtime/params/handler 等，见 commands/ 样例）" },
       skip_build_js: { type: "boolean", description: "跳过 build_content_js.py（非 extension 指令可省，默认 false）" },
       force: { type: "boolean", description: "覆盖已存在的 commands/<cmd>.json（默认 false）" },
+      no_quality: { type: "boolean", description: "跳过质量门禁（默认 false=跑）" },
+      no_reload: { type: "boolean", description: "跳过后端热重载 + 校验（默认 false=跑；适合后端未运行/离线）" },
       timeout: { type: "number", description: "超时秒数，默认 180" },
     },
     output: { schema: { type: "object", additionalProperties: true }, render: toText },
@@ -1007,6 +1011,8 @@ function apply(ctx, config) {
         definition: args.definition || null,
         skipBuildJs: !!args.skip_build_js,
         force: !!args.force,
+        noQuality: !!args.no_quality,
+        noReload: !!args.no_reload,
         timeout: args.timeout ?? 180,
       });
     },
