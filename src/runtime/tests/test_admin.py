@@ -16,8 +16,9 @@ def test_dashboard_stats(client, auth_headers, db_session):
     assert body["run_count"] == 1
 
 
-def test_dashboard_requires_auth(client):
-    assert client.get("/api/admin/dashboard").status_code == 401
+def test_dashboard_accessible_no_auth(client):
+    """免登录（认证已移除）：/api/admin/dashboard 无 Authorization 也可访问。"""
+    assert client.get("/api/admin/dashboard").status_code == 200
 
 
 def test_open_db_folder(client, auth_headers, monkeypatch):
