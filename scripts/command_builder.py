@@ -16,10 +16,8 @@ handler.kind=backend/control，则脚本 SKIP——按语义保留手写实现�
 
 import argparse
 import json
-import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 # Windows 控制台默认 GBK，print(json.dumps(...)) 含中文/路径/子进程输出的 \ufffd 时会
@@ -245,7 +243,6 @@ class _MockRunner:
 
 async def _run_verify_async(cmd: str, extra: dict | None) -> tuple[bool, dict]:
     """用 mock runner 跑一次 backend handler 的 execute()，验证运行时逻辑。"""
-    import asyncio
     sys.path.insert(0, str(ROOT))
     from src.runtime.commands import auto_register
     auto_register()
@@ -378,7 +375,6 @@ def main():
 
     defn = _collect_commands(cmd)
     runtime = defn.get("runtime", "")
-    handler_kind = (defn.get("handler") or {}).get("kind", "")
 
     # ② 生成桩（generate_commands 遍历全量，幂等）
     code, out = _run([sys.executable, str(GENERATE_SCRIPT)])

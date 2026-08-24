@@ -6,7 +6,6 @@
 """
 from src.runtime.workflow.handlers.registry import register_handler, Param
 from src.runtime.workflow.handlers.utils import convert_value
-import asyncio
 
 
 @register_handler(cmd="setVolumeWin32", label="设置音量",

@@ -1180,7 +1180,6 @@ _SM_CYVIRTUALSCREEN = 79
 def _get_dpi_for_monitor_fn():
     """shcore.GetDpiForMonitor（Win 8.1+）绑定；失败返回 None。"""
     try:
-        from ctypes import wintypes as _wt
         fn = ctypes.windll.shcore.GetDpiForMonitor
         fn.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
                        ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_uint32)]

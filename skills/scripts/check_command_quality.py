@@ -222,8 +222,12 @@ def main():
             continue
         defn = _read_json(f)
         if "__error__" in defn:
-            results.append({"cmd": f.stem, "file": f.name, "runtime": "", "kind": "",
-                            "ok": False, "issues": [{"rule": "def_required", "msg": f"JSON 解析失败: {defn['__error__']}"}]})
+            results.append({
+                "cmd": f.stem, "file": f.name, "runtime": "", "kind": "",
+                "ok": False,
+                "issues": [{"rule": "def_required",
+                            "msg": f"JSON 解析失败: {defn['__error__']}"}],
+            })
             continue
         results.append(check_one(defn, f))
 

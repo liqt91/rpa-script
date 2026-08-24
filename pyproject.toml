@@ -16,4 +16,6 @@ ignore = ["F403", "E402"]
 
 "src/runtime/workflow/commands.py" = ["E501"]
 "src/shared/extraction_engine.py" = ["E501"]
-"src/runtime/commands/extension_commands/*.py" = ["E501"]
+# 指令实现文件（extension/backend/desktop/control*_commands/*.py）：Param 定义
+# 与 PowerShell/JSON 字符串常为单行长行，属生成+手写业务代码，豁免行长度。
+"src/runtime/commands/*_commands/*.py" = ["E501"]
