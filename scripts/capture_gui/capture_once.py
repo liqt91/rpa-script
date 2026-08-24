@@ -7,7 +7,7 @@
 用法：
   python capture_once.py [mode] [--workspace <工作区目录>]
   mode: web | desktop_mask（默认 desktop_mask，统一遮罩捕获，含浏览器内容区自动转网页）
-  --workspace: 捕获成功后把元素就地写进该工作区 workflow.json + images/
+  --workspace: 捕获成功后把元素就地写进该工作区 elements.json + images/
 """
 import argparse
 import json

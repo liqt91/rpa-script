@@ -2012,9 +2012,11 @@ async def run_workflow_extension(wf: models.Workflow, nodes: list[models.Workflo
 # ---------------------------------------------------------------------------
 
 def load_project_workflow(project_dir: str) -> tuple[Any, list[Any], dict[str, Any]]:
-    """从项目目录加载 workflow.json，返回 (轻量 wf, 轻量 nodes, element_map)。
+    """从项目目录加载 workflow.json + elements.json，返回 (轻量 wf, 轻量 nodes, element_map)。
 
-    - workflow.json 结构：{name, description, url, parameters, nodes:[...], elements:[...]}
+    - workflow.json 结构：{name, description, url, parameters, nodes:[...], elements:[...](遗留)}
+    - elements.json 结构：{version, elements:[...]}（元素库唯一落点，v2.2 拆分）
+    - 元素合并：elements.json 优先，workflow.json 遗留 elements[] 按名补齐（不强制迁移）
     - node 字段：id / parent_id / order / cmd / action / element_name / extra / enabled
     - element 字段：name / web_selector / element_kind（emitter 用到的最小集）
     """
@@ -2029,7 +2031,30 @@ def load_project_workflow(project_dir: str) -> tuple[Any, list[Any], dict[str, A
         data = json.load(f)
 
     nodes_raw = data.get("nodes") or []
-    elements_raw = data.get("elements") or []
+    legacy_elements = data.get("elements") or []
+
+    # elements.json 为元素库唯一落点；workflow.json 遗留元素按名合并兜底
+    primary_elements: list = []
+    el_path = os.path.join(root, "elements.json")
+    if os.path.isfile(el_path):
+        try:
+            with open(el_path, encoding="utf-8-sig") as f:
+                edata = json.load(f)
+            if isinstance(edata, dict) and isinstance(edata.get("elements"), list):
+                primary_elements = edata["elements"]
+            elif isinstance(edata, list):
+                primary_elements = edata
+        except Exception:
+            logger.warning("[project] 解析 elements.json 失败，回退 workflow.json 遗留元素: %s", el_path)
+    if primary_elements or legacy_elements:
+        seen = {e.get("name") for e in primary_elements
+                if isinstance(e, dict) and e.get("name")}
+        elements_raw = list(primary_elements) + [
+            e for e in legacy_elements
+            if isinstance(e, dict) and e.get("name") and e["name"] not in seen
+        ]
+    else:
+        elements_raw = []
 
     def _norm_extra(extra):
         if extra is None:

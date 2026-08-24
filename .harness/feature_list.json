@@ -8,10 +8,26 @@
       "title": "GET /health returns {status:'ok'}",
       "passes": true,
       "steps": [
-        { "id": "type", "title": "Define HealthResponse in types/", "done": true },
-        { "id": "service", "title": "Implement getHealth() in service/", "done": true },
-        { "id": "runtime", "title": "Wire route in runtime/", "done": true },
-        { "id": "smoke", "title": "curl localhost returns 200 + {status:'ok'}", "done": true }
+        {
+          "id": "type",
+          "title": "Define HealthResponse in types/",
+          "done": true
+        },
+        {
+          "id": "service",
+          "title": "Implement getHealth() in service/",
+          "done": true
+        },
+        {
+          "id": "runtime",
+          "title": "Wire route in runtime/",
+          "done": true
+        },
+        {
+          "id": "smoke",
+          "title": "curl localhost returns 200 + {status:'ok'}",
+          "done": true
+        }
       ],
       "domain": "default"
     },
@@ -20,8 +36,16 @@
       "title": "Custom 404 page (or handler)",
       "passes": true,
       "steps": [
-        { "id": "ui", "title": "Add 404 view/handler in ui/ or runtime/", "done": true },
-        { "id": "smoke", "title": "curl /no-such-path returns 404 with the custom body", "done": true }
+        {
+          "id": "ui",
+          "title": "Add 404 view/handler in ui/ or runtime/",
+          "done": true
+        },
+        {
+          "id": "smoke",
+          "title": "curl /no-such-path returns 404 with the custom body",
+          "done": true
+        }
       ],
       "domain": "default"
     },
@@ -30,11 +54,31 @@
       "title": "Workflow-level run parameters with ${var} interpolation",
       "passes": true,
       "steps": [
-        { "id": "model", "title": "Add parameters JSON column + migration", "done": true },
-        { "id": "schema", "title": "Expose parameters in schemas", "done": true },
-        { "id": "runtime", "title": "Inject parameters into runner.vars and Python exporter", "done": true },
-        { "id": "ui", "title": "Editor parameter panel and run dialog", "done": true },
-        { "id": "test", "title": "Backend CRUD + injection tests pass", "done": true }
+        {
+          "id": "model",
+          "title": "Add parameters JSON column + migration",
+          "done": true
+        },
+        {
+          "id": "schema",
+          "title": "Expose parameters in schemas",
+          "done": true
+        },
+        {
+          "id": "runtime",
+          "title": "Inject parameters into runner.vars and Python exporter",
+          "done": true
+        },
+        {
+          "id": "ui",
+          "title": "Editor parameter panel and run dialog",
+          "done": true
+        },
+        {
+          "id": "test",
+          "title": "Backend CRUD + injection tests pass",
+          "done": true
+        }
       ],
       "domain": "workflows"
     },
@@ -43,14 +87,46 @@
       "title": "捕获新元素 / 捕获关联元素模块重构",
       "passes": true,
       "steps": [
-        { "id": "adr", "title": "ADR accepted", "done": true },
-        { "id": "model", "title": "Add element_kind column + migration", "done": true },
-        { "id": "types", "title": "Update WorkflowElement schemas", "done": true },
-        { "id": "service", "title": "Save validation by element_kind", "done": true },
-        { "id": "runtime", "title": "Return elementKind in element library", "done": true },
-        { "id": "extension", "title": "Child-mode anchor-first capture + auto recompute", "done": true },
-        { "id": "runner", "title": "Resolve element by element_kind in runtime/exporter", "done": true },
-        { "id": "test", "title": "End-to-end child capture test passes", "done": true }
+        {
+          "id": "adr",
+          "title": "ADR accepted",
+          "done": true
+        },
+        {
+          "id": "model",
+          "title": "Add element_kind column + migration",
+          "done": true
+        },
+        {
+          "id": "types",
+          "title": "Update WorkflowElement schemas",
+          "done": true
+        },
+        {
+          "id": "service",
+          "title": "Save validation by element_kind",
+          "done": true
+        },
+        {
+          "id": "runtime",
+          "title": "Return elementKind in element library",
+          "done": true
+        },
+        {
+          "id": "extension",
+          "title": "Child-mode anchor-first capture + auto recompute",
+          "done": true
+        },
+        {
+          "id": "runner",
+          "title": "Resolve element by element_kind in runtime/exporter",
+          "done": true
+        },
+        {
+          "id": "test",
+          "title": "End-to-end child capture test passes",
+          "done": true
+        }
       ],
       "domain": "workflows"
     },
@@ -59,11 +135,31 @@
       "title": "工作流全局并发锁（ADR-0007）",
       "passes": true,
       "steps": [
-        { "id": "config", "title": "Add MAX_CONCURRENT_WORKFLOWS and lock timeout settings", "done": true },
-        { "id": "lock", "title": "Implement global asyncio.Semaphore in service/runtime", "done": true },
-        { "id": "route", "title": "Wire lock into workflow run endpoint with 503 + Retry-After", "done": true },
-        { "id": "state", "title": "Synchronize access to _active_runners, _step_futures, _queues", "done": true },
-        { "id": "smoke", "title": "Concurrent run returns 503 when lock is held", "done": true }
+        {
+          "id": "config",
+          "title": "Add MAX_CONCURRENT_WORKFLOWS and lock timeout settings",
+          "done": true
+        },
+        {
+          "id": "lock",
+          "title": "Implement global asyncio.Semaphore in service/runtime",
+          "done": true
+        },
+        {
+          "id": "route",
+          "title": "Wire lock into workflow run endpoint with 503 + Retry-After",
+          "done": true
+        },
+        {
+          "id": "state",
+          "title": "Synchronize access to _active_runners, _step_futures, _queues",
+          "done": true
+        },
+        {
+          "id": "smoke",
+          "title": "Concurrent run returns 503 when lock is held",
+          "done": true
+        }
       ],
       "domain": "workflows"
     },
@@ -72,10 +168,26 @@
       "title": "工作流并发锁前端约束展示",
       "passes": true,
       "steps": [
-        { "id": "api", "title": "Expose /api/workflows/runs/status endpoint", "done": true },
-        { "id": "ui", "title": "Toolbar fetches status and disables run at capacity", "done": true },
-        { "id": "build", "title": "Rebuild static workflow-editor assets", "done": true },
-        { "id": "test", "title": "Status endpoint + smoke tests pass", "done": true }
+        {
+          "id": "api",
+          "title": "Expose /api/workflows/runs/status endpoint",
+          "done": true
+        },
+        {
+          "id": "ui",
+          "title": "Toolbar fetches status and disables run at capacity",
+          "done": true
+        },
+        {
+          "id": "build",
+          "title": "Rebuild static workflow-editor assets",
+          "done": true
+        },
+        {
+          "id": "test",
+          "title": "Status endpoint + smoke tests pass",
+          "done": true
+        }
       ],
       "domain": "workflows"
     },
@@ -84,12 +196,41 @@
       "title": "元素捕获统一入口 + 统一存储结构（element_type 两维判别）",
       "passes": false,
       "steps": [
-        { "id": "migration", "title": "Migration 014: element_type column + win32/uia 迁移", "done": true },
-        { "id": "normalize", "title": "elements_service.normalize_element_capture + create/update 边界接入", "done": true },
-        { "id": "overlay", "title": "GUI 捕获链路修复：domPath/features/listFamily 映射 + 桌面截图 + 新字段", "done": true },
-        { "id": "modal", "title": "CaptureToolModal 保存 {name, attributes} + 帮助指南折叠", "done": true },
-        { "id": "cleanup", "title": "移除旧入口（网页/桌面/UIA 按钮、picker 端点/脚本、capture_router、图像库 tab）", "done": true },
-        { "id": "test", "title": "端到端：GUI 捕获 → 保存 → 元素库显示/验证通过", "done": false }
+        {
+          "id": "migration",
+          "title": "Migration 014: element_type column + win32/uia 迁移",
+          "done": true
+        },
+        {
+          "id": "normalize",
+          "title": "elements_service.normalize_element_capture + create/update 边界接入",
+          "done": true
+        },
+        {
+          "id": "overlay",
+          "title": "GUI 捕获链路修复：domPath/features/listFamily 映射 + 桌面截图 + 新字段",
+          "done": true
+        },
+        {
+          "id": "modal",
+          "title": "CaptureToolModal 保存 {name, attributes} + 帮助指南折叠",
+          "done": true
+        },
+        {
+          "id": "cleanup",
+          "title": "移除旧入口（网页/桌面/UIA 按钮、picker 端点/脚本、capture_router、图像库 tab）",
+          "done": true
+        },
+        {
+          "id": "test",
+          "title": "端到端：GUI 捕获 → 保存 → 元素库显示/验证通过",
+          "done": false
+        },
+        {
+          "id": "elements-json-split",
+          "title": "捕获写回拆分到 elements.json（写入域分离消除编辑器覆盖竞态）",
+          "done": true
+        }
       ],
       "domain": "workflows"
     },
@@ -98,12 +239,36 @@
       "title": "元素验证：可见标签页遍历 + 可见/不可见统计",
       "passes": true,
       "steps": [
-        { "id": "content", "title": "content_capture.js verifySelector 返回 total/visible/invisible 统计", "done": true },
-        { "id": "background", "title": "background 遍历物理可见窗口 active tab（非最小化/discarded/URL过滤/focused+lastAccessed 排序）", "done": true },
-        { "id": "backend", "title": "verify-selector 跨浏览器 fan-out 汇总（含 browser 标识）", "done": true },
-        { "id": "ui", "title": "CaptureToolModal 展示「命中 N 个 · 可见 X · 不可见 Y」+ 命中页", "done": true },
-        { "id": "deploy", "title": "重建 dist/desktop/extension + 前端 bundle", "done": true },
-        { "id": "test", "title": "fan-out 单测（3 例）+ 全量 pytest + 结构测试通过", "done": true }
+        {
+          "id": "content",
+          "title": "content_capture.js verifySelector 返回 total/visible/invisible 统计",
+          "done": true
+        },
+        {
+          "id": "background",
+          "title": "background 遍历物理可见窗口 active tab（非最小化/discarded/URL过滤/focused+lastAccessed 排序）",
+          "done": true
+        },
+        {
+          "id": "backend",
+          "title": "verify-selector 跨浏览器 fan-out 汇总（含 browser 标识）",
+          "done": true
+        },
+        {
+          "id": "ui",
+          "title": "CaptureToolModal 展示「命中 N 个 · 可见 X · 不可见 Y」+ 命中页",
+          "done": true
+        },
+        {
+          "id": "deploy",
+          "title": "重建 dist/desktop/extension + 前端 bundle",
+          "done": true
+        },
+        {
+          "id": "test",
+          "title": "fan-out 单测（3 例）+ 全量 pytest + 结构测试通过",
+          "done": true
+        }
       ],
       "domain": "workflows"
     },
@@ -112,13 +277,41 @@
       "title": "web 指令动作下沉到各 JS handler + 移除遗留指令系统",
       "passes": true,
       "steps": [
-        { "id": "js", "title": "各指令 handler 自实现动作，content_base 仅留共享基建 + coordsResult", "done": true },
-        { "id": "js-delete", "title": "删除遗留 dom_handlers/elementAction，navigate/newTab/closeBrowser 移入 new", "done": true },
-        { "id": "py-registry", "title": "删 workflow/handlers/{extension,backend,flow} 旧注册 + LEGACY_MAP", "done": true },
-        { "id": "pressenter", "title": "inputElement 按数据参数 pressEnter 执行 + Enter 可靠性(requestSubmit 兜底)", "done": true },
-        { "id": "runner", "title": "runner 按 result.osKey 数据发 OS 键（去除指令名特判）", "done": true },
-        { "id": "registry-fix", "title": "auto_register 幂等 + LOCAL_HANDLERS 懒加载（依赖注册表全量）", "done": true },
-        { "id": "test", "title": "重写指令集测试 + 全量 pytest(117) + 结构测试通过", "done": true }
+        {
+          "id": "js",
+          "title": "各指令 handler 自实现动作，content_base 仅留共享基建 + coordsResult",
+          "done": true
+        },
+        {
+          "id": "js-delete",
+          "title": "删除遗留 dom_handlers/elementAction，navigate/newTab/closeBrowser 移入 new",
+          "done": true
+        },
+        {
+          "id": "py-registry",
+          "title": "删 workflow/handlers/{extension,backend,flow} 旧注册 + LEGACY_MAP",
+          "done": true
+        },
+        {
+          "id": "pressenter",
+          "title": "inputElement 按数据参数 pressEnter 执行 + Enter 可靠性(requestSubmit 兜底)",
+          "done": true
+        },
+        {
+          "id": "runner",
+          "title": "runner 按 result.osKey 数据发 OS 键（去除指令名特判）",
+          "done": true
+        },
+        {
+          "id": "registry-fix",
+          "title": "auto_register 幂等 + LOCAL_HANDLERS 懒加载（依赖注册表全量）",
+          "done": true
+        },
+        {
+          "id": "test",
+          "title": "重写指令集测试 + 全量 pytest(117) + 结构测试通过",
+          "done": true
+        }
       ],
       "domain": "workflows"
     },
@@ -127,15 +320,51 @@
       "title": "MCP 服务器：src/mcp_server 顶层适配器（ADR-0011，stdio+HTTP，P1-P3+P5）",
       "passes": true,
       "steps": [
-        { "id": "adr", "title": "ADR-0011 + 层登记（config.json/结构测试/architecture.md）", "done": true },
-        { "id": "backend", "title": "POST /api/extension/exec + GET /api/extension/commands（test_extension_exec.py 6 例 + 活后端验证）", "done": true },
-        { "id": "skeleton", "title": "src/mcp_server 骨架：config/client/server + health 工具，stdio 跑通", "done": true },
-        { "id": "p1-read", "title": "P1 工作流只读工具 + resources（冒烟：list_workflows=11）", "done": true },
-        { "id": "p2-write", "title": "P2 流程创作工具（冒烟：create/add/batch/update/delete 闭环）", "done": true },
-        { "id": "p3-run", "title": "P3 运行控制工具（冒烟：run wf=23 真实执行 3/3 成功）", "done": true },
-        { "id": "p5-browser", "title": "P5 浏览器实时代理工具（冒烟：catalog 15 条 + exec 链路错误透传正确）", "done": true },
-        { "id": "http", "title": "streamable HTTP 传输入口（python -m src.mcp_server.http）", "done": true },
-        { "id": "test", "title": "15 新测全过 + ruff 0 + 结构测试 + 全量 pytest（119 passed，13 失败为 HEAD 存量）", "done": true }
+        {
+          "id": "adr",
+          "title": "ADR-0011 + 层登记（config.json/结构测试/architecture.md）",
+          "done": true
+        },
+        {
+          "id": "backend",
+          "title": "POST /api/extension/exec + GET /api/extension/commands（test_extension_exec.py 6 例 + 活后端验证）",
+          "done": true
+        },
+        {
+          "id": "skeleton",
+          "title": "src/mcp_server 骨架：config/client/server + health 工具，stdio 跑通",
+          "done": true
+        },
+        {
+          "id": "p1-read",
+          "title": "P1 工作流只读工具 + resources（冒烟：list_workflows=11）",
+          "done": true
+        },
+        {
+          "id": "p2-write",
+          "title": "P2 流程创作工具（冒烟：create/add/batch/update/delete 闭环）",
+          "done": true
+        },
+        {
+          "id": "p3-run",
+          "title": "P3 运行控制工具（冒烟：run wf=23 真实执行 3/3 成功）",
+          "done": true
+        },
+        {
+          "id": "p5-browser",
+          "title": "P5 浏览器实时代理工具（冒烟：catalog 15 条 + exec 链路错误透传正确）",
+          "done": true
+        },
+        {
+          "id": "http",
+          "title": "streamable HTTP 传输入口（python -m src.mcp_server.http）",
+          "done": true
+        },
+        {
+          "id": "test",
+          "title": "15 新测全过 + ruff 0 + 结构测试 + 全量 pytest（119 passed，13 失败为 HEAD 存量）",
+          "done": true
+        }
       ],
       "domain": "workflows"
     },
@@ -144,10 +373,26 @@
       "title": "DSH 集成 P0：POST /api/workflows/import 原子导入 + run/extension async 模式",
       "passes": true,
       "steps": [
-        { "id": "import", "title": "POST /api/workflows/import 原子创建（temp_id 父引用 + 元素库 + 失败回滚）", "done": true },
-        { "id": "async", "title": "run/extension async 模式（立即返回 run_id、容量满 503、log 接口 running 字段）", "done": true },
-        { "id": "mcp", "title": "MCP workflow_edit 加 import_workflow 工具（Claude 客户端同享）", "done": true },
-        { "id": "test", "title": "新增 4 测试全过 + 全量 pytest 183 passed + 结构测试 PASSED", "done": true }
+        {
+          "id": "import",
+          "title": "POST /api/workflows/import 原子创建（temp_id 父引用 + 元素库 + 失败回滚）",
+          "done": true
+        },
+        {
+          "id": "async",
+          "title": "run/extension async 模式（立即返回 run_id、容量满 503、log 接口 running 字段）",
+          "done": true
+        },
+        {
+          "id": "mcp",
+          "title": "MCP workflow_edit 加 import_workflow 工具（Claude 客户端同享）",
+          "done": true
+        },
+        {
+          "id": "test",
+          "title": "新增 4 测试全过 + 全量 pytest 183 passed + 结构测试 PASSED",
+          "done": true
+        }
       ],
       "domain": "workflows"
     }

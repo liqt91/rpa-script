@@ -229,7 +229,7 @@ stdio——同时覆盖 DSH 宿主调用、抽屉按钮直连、未来独立打�
 
 | 阶段 | 内容 | 验收 |
 |---|---|---|
-| **P0** 入口+写回（不新起服务） | `capture_once.py` 加 `--workspace` 写回 **`elements.json`**；编辑器+运行器改合并读取（§4.5）；插件注册 `rpa_capture` 工具（spawn 透传工作区）；抽屉按钮先做"让 AI 帮我捕获"（`session.prompt` 代发，零新通道） | 在 DSH 对话里说"捕获xx元素"端到端跑通，元素出现在工作区 `elements.json` 且编辑器元素 tab/运行器可见 |
+| **P0** 入口+写回（不新起服务） | ~~`capture_once.py` 加 `--workspace` 写回 **`elements.json`**；编辑器+运行器改合并读取（§4.5）；插件注册 `rpa_capture` 工具~~ ✅ 已完成（含 elements.json 拆分，见下） | ✅ 已实测 |
 | **P1** resolver 链 | `resolvers.py`（②③④），遮罩主循环按帧路由；web 暂留旧 `_capture_via_extension` 分支 | 桌面捕获回归；hover 高亮=点击结果 |
 | **P2** WebDomResolver | 扩展 `resolveAtPoint` + 后端中继 + 链接入①；钩子仅 Alt 吞 | 浏览器⇄桌面滑动零切换感；受限页落②；多浏览器/多屏/150% DPI 抽查 |
 | **P3** 清理 + 常驻化决策 | 删 v1 遗留；按 §4.1 触发条件决定是否把 spawn 换成常驻 `server.py`（若做：抽屉按钮单击切直连 API、二次捕获 <200ms、具备热键前提） | grep 无残留；`harness:check` 通过 |

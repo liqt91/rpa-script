@@ -209,6 +209,48 @@ def _save_workflow_data(root: Path, data: dict) -> None:
     tmp.replace(target)
 
 
+def _atomic_write_json(target: Path, data: dict) -> None:
+    """原子写 JSON（先写临时文件再 rename）。"""
+    raw = json.dumps(data, ensure_ascii=False, indent=2)
+    tmp = target.with_suffix(".tmp")
+    tmp.write_text(raw, encoding="utf-8")
+    tmp.replace(target)
+
+
+def _load_project_elements(root: Path) -> list:
+    """读项目元素库：elements.json 优先 + workflow.json 遗留 elements[] 合并。
+
+    elements.json 拆分（capture-unification-plan v2.2）：捕获/保存的统一落点是
+    elements.json（workflow.json 只有编辑器整文档写，写进去会被旧内存副本覆盖）。
+    遗留 workflow.json 内嵌元素按名合并兜底（elements.json 同名优先），不强制迁移。
+    """
+    primary = []
+    el_path = root / "elements.json"
+    if el_path.is_file():
+        try:
+            data = json.loads(el_path.read_text(encoding="utf-8-sig"))
+            if isinstance(data, dict) and isinstance(data.get("elements"), list):
+                primary = data["elements"]
+            elif isinstance(data, list):
+                primary = data
+        except Exception as e:
+            logger.warning("[projects] 解析 elements.json 失败: %s", e)
+    legacy = _load_workflow_data(root).get("elements") or []
+    if not legacy:
+        return list(primary)
+    seen = {e.get("name") for e in primary if isinstance(e, dict) and e.get("name")}
+    merged = list(primary)
+    for e in legacy:
+        if isinstance(e, dict) and e.get("name") and e["name"] not in seen:
+            merged.append(e)
+    return merged
+
+
+def _save_project_elements(root: Path, elements: list) -> None:
+    """原子写回 elements.json（捕获/保存的唯一落点；不碰 workflow.json）。"""
+    _atomic_write_json(root / "elements.json", {"version": 1, "elements": elements})
+
+
 def _persist_element_screenshot(root: Path, name: str, screenshot) -> str | None:
     """把捕获 payload 的截图（base64 dataURL 或裸 base64）落盘到 目录/images/<safe>.png。
 
@@ -253,12 +295,15 @@ def _project_root(path: str) -> Path:
 
 @router.post("/elements/save")
 def project_save_element(path: str = Query(...), payload: dict = Body(...)):
-    """保存捕获元素到目录元素库（web/桌面统一；复用 normalize_element_capture）。"""
+    """保存捕获元素到目录元素库 elements.json（web/桌面统一；复用 normalize_element_capture）。
+
+    写入域分离：元素只写 elements.json，不碰 workflow.json（编辑器对它整文档
+    读-改-写，元素写进去会被编辑器下次保存覆盖）。
+    """
     from src.service.elements_service import normalize_element_capture
 
     root = _project_root(path)
-    data = _load_workflow_data(root)
-    elements = data.setdefault("elements", [])
+    elements = _load_project_elements(root)  # elements.json + workflow.json 遗留合并
 
     # 规范化捕获 payload（纯函数，输出 web/win32/uia 规范化字段）
     norm = normalize_element_capture(payload.get("attributes") or payload)
@@ -293,7 +338,7 @@ def project_save_element(path: str = Query(...), payload: dict = Body(...)):
         elements[idx] = entry
     else:
         elements.append(entry)
-    _save_workflow_data(root, data)
+    _save_project_elements(root, elements)
     return {"ok": True, "name": name, "count": len(elements)}
 
 
@@ -305,7 +350,7 @@ async def project_register_image(
     scope: str = Form("screen"),
     file: UploadFile = File(...),
 ):
-    """上传截图注册为图像元素：参考图存 目录/images/<name>.png，元素写入目录元素库。"""
+    """上传截图注册为图像元素：参考图存 目录/images/<name>.png，元素写入 elements.json。"""
     root = _project_root(path)
     name = (name or "").strip()[:128]
     if not name:
@@ -315,8 +360,7 @@ async def project_register_image(
         raise HTTPException(status_code=400, detail="参考图内容为空")
 
     # 参考图落盘（同名校验：已有同名非图像元素拒绝）
-    data = _load_workflow_data(root)
-    elements = data.setdefault("elements", [])
+    elements = _load_project_elements(root)
     existing = next((e for e in elements if e.get("name") == name), None)
     if existing and existing.get("element_type") != "image":
         raise HTTPException(status_code=400, detail=f"元素名 '{name}' 已被非图像元素占用")
@@ -351,5 +395,5 @@ async def project_register_image(
         elements[elements.index(existing)] = entry
     else:
         elements.append(entry)
-    _save_workflow_data(root, data)
+    _save_project_elements(root, elements)
     return {"ok": True, "name": name, "imagePath": rel_path, "count": len(elements)}

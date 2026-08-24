@@ -921,7 +921,7 @@ function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: "rpa_capture",
-    description: "捕获界面元素（全屏遮罩 + Alt+点击，网页/桌面/UIA 统一；网页元素会生成 CSS/XPath 推荐方案）。用户要求“捕获/拾取某元素/某个控件”时调用：调起后弹全屏半透明遮罩，用户把鼠标移到目标上（hover 高亮）再 Alt+点击，捕获结果自动就地写入当前流程工作区的 workflow.json 元素库（含截图到 images/）。返回值含 element（捕获数据）与 writeback（写回结果）。",
+    description: "捕获界面元素（全屏遮罩 + Alt+点击，网页/桌面/UIA 统一；网页元素会生成 CSS/XPath 推荐方案）。用户要求“捕获/拾取某元素/某个控件”时调用：调起后弹全屏半透明遮罩，用户把鼠标移到目标上（hover 高亮）再 Alt+点击，捕获结果自动就地写入当前流程工作区的 elements.json 元素库（含截图到 images/）。返回值含 element（捕获数据）与 writeback（写回结果）。",
     parameters: {
       workspace: { type: "string", description: "流程工作区目录（须含 rpa.json）；缺省用当前会话工作目录" },
       name: { type: "string", description: "元素命名；缺省自动生成" },
@@ -1334,7 +1334,7 @@ function apply(ctx, config) {
 
     commandCtx.commands.register({
       name: "rpa_capture",
-      description: "捕获当前工作区的界面元素：弹全屏遮罩，鼠标移到目标上 Alt+点击，捕获结果自动写入当前流程工作区 workflow.json 元素库（含截图）。等价于直接跟模型说“捕获这个元素”，但不经模型、结果只进 UI。",
+      description: "捕获当前工作区的界面元素：弹全屏遮罩，鼠标移到目标上 Alt+点击，捕获结果自动写入当前流程工作区 elements.json 元素库（含截图）。等价于直接跟模型说“捕获这个元素”，但不经模型、结果只进 UI。",
       input: { hint: "[可选:元素名]" },
       async handler({ agent, rawInput }) {
         const cwd = agent?.session?.header?.cwd;
@@ -1349,7 +1349,7 @@ function apply(ctx, config) {
           return {
             kind: ok ? "success" : "error",
             text: ok
-              ? `已捕获元素「${nm || "无名称"}」并写入 ${cwd} 的 workflow.json 元素库` +
+              ? `已捕获元素「${nm || "无名称"}」并写入 ${cwd} 的 elements.json 元素库` +
                 (r.css_selector ? `（选择器 ${r.css_selector}）` : "")
               : `已捕获但写入失败：${wb?.error || "未知错误"}（可在对话中让模型调 rpa_capture 重试）`,
           };

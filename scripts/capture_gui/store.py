@@ -122,7 +122,11 @@ class ElementStore:
 # 工作区（一目录一流程）就地写回
 # 与 src/runtime/routers/project_router.project_save_element 产出同构的 entry
 # （element_type/web_selector/css_candidates/.../image），供 capture 进程直接
-# 把捕获元素落进工作区 workflow.json，不依赖 runtime/fastapi 层。
+# 把捕获元素落进工作区 elements.json，不依赖 runtime/fastapi 层。
+#
+# 写回协议（capture-unification-plan v2.2）：捕获只写 elements.json，不碰
+# workflow.json —— 编辑器对 workflow.json 是整文档读-改-写，捕获写进去会被
+# 编辑器下次保存用旧内存副本覆盖；拆文件后写入域分离，竞态工程性消除。
 # ---------------------------------------------------------------------------
 
 
@@ -164,7 +168,8 @@ def _persist_screenshot(images_dir, name, screenshot):
 def save_element_to_workspace(workspace, info: dict, name=None):
     """把捕获元素（info dict，_info_to_dict 产物）就地写进工作区目录。
 
-    写 workflow.json 的 elements（同名替换） + screenshot 落 images/。
+    写 elements.json 的 elements（同名替换，原子写） + screenshot 落 images/。
+    不碰 workflow.json（编辑器对它整文档读-改-写，写进去会被旧内存副本覆盖）。
     返回 {ok, name, count} 或抛 ValueError（非流程工作区 / 无名称）。
     """
     from pathlib import Path
@@ -178,13 +183,20 @@ def save_element_to_workspace(workspace, info: dict, name=None):
         cs = (info.get("css_selector") or "")
         name = cs.strip("#. ") or info.get("control_type") or "捕获元素"
 
-    # workflow.json 布局校验：可能缺 elements 字段
-    wf_path = root / "workflow.json"
-    if wf_path.exists():
-        data = json.loads(wf_path.read_text(encoding="utf-8-sig"))
+    # elements.json 布局：{"version": 1, "elements": [...]}（缺文件时新建）
+    el_path = root / "elements.json"
+    if el_path.exists():
+        try:
+            edata = json.loads(el_path.read_text(encoding="utf-8-sig"))
+        except Exception:
+            edata = {}
     else:
-        data = {"name": root.name, "elements": []}
-    elements = data.setdefault("elements", [])
+        edata = {}
+    if not isinstance(edata, dict):
+        edata = {}
+    elements = edata.setdefault("elements", [])
+    if not isinstance(elements, list):
+        edata["elements"] = elements = []
 
     et = info.get("element_type", "web")
     if et == "web":
@@ -269,8 +281,9 @@ def save_element_to_workspace(workspace, info: dict, name=None):
         elements[idx] = entry
     else:
         elements.append(entry)
-    raw = json.dumps(data, ensure_ascii=False, indent=2)
-    tmp = wf_path.with_suffix(".tmp")
+    edata.setdefault("version", 1)
+    raw = json.dumps(edata, ensure_ascii=False, indent=2)
+    tmp = el_path.with_suffix(".tmp")
     tmp.write_text(raw, encoding="utf-8")
-    tmp.replace(wf_path)
+    tmp.replace(el_path)
     return {"ok": True, "name": name, "count": len(elements)}

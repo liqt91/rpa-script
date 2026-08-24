@@ -573,8 +573,24 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
     }
   }, []);
 
+  // 项目模式元素合并：elements.json 优先（捕获唯一落点）+ workflow.json 遗留
+  // elements[] 按名补齐（向后兼容，不强制迁移）。同名以 elements.json 为准。
+  const readProjectElements = useCallback(async (projectDir, wfData = null) => {
+    let primary = [];
+    try {
+      const res = await api.readProjectFile(projectDir, 'elements.json');
+      const d = res?.data;
+      primary = Array.isArray(d?.elements) ? d.elements : (Array.isArray(d) ? d : []);
+    } catch { /* elements.json 缺失/损坏时回退遗留 */ }
+    const legacy = Array.isArray(wfData?.elements) ? wfData.elements : [];
+    if (!legacy.length) return primary;
+    const seen = new Set(primary.map(e => e && e.name).filter(Boolean));
+    return [...primary, ...legacy.filter(e => e && e.name && !seen.has(e.name))];
+  }, []);
+
   const loadWorkflow = useCallback(async () => {
-    // 项目模式（目录为唯一真相）：读目录 workflow.json（含 name/nodes/elements/parameters）
+    // 项目模式（目录为唯一真相）：读目录 workflow.json（name/nodes/parameters）
+    // + elements.json（元素库，与 workflow.json 遗留 elements 合并）
     if (stateRef.current.projectDir) {
       const projectDir = stateRef.current.projectDir;
       console.log(`[WorkflowContext] loading project workflow from ${projectDir}`);
@@ -592,7 +608,7 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
         };
         dispatch({ type: 'SET_WORKFLOW', payload: wf });
         dispatch({ type: 'SET_NODES', payload: Array.isArray(data.nodes) ? data.nodes : [], isDirty: false });
-        if (Array.isArray(data.elements)) dispatch({ type: 'SET_ELEMENTS', payload: data.elements });
+        dispatch({ type: 'SET_ELEMENTS', payload: await readProjectElements(projectDir, data) });
       } catch (e) {
         console.error(`[WorkflowContext] loadWorkflow(project) failed: ${e.message}`);
         dispatch({ type: 'SET_ERROR', payload: e.message });
@@ -639,14 +655,15 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, []);
+  }, [readProjectElements]);
 
   const loadElements = useCallback(async () => {
-    // 项目模式：元素存于目录 workflow.json（捕获/上传后重读刷新）
+    // 项目模式：元素存于目录 elements.json（捕获/上传后重读刷新；
+    // workflow.json 遗留 elements 合并兜底）
     if (stateRef.current.projectDir) {
       try {
         const res = await api.readProjectFile(stateRef.current.projectDir, 'workflow.json');
-        const els = Array.isArray(res?.data?.elements) ? res.data.elements : [];
+        const els = await readProjectElements(stateRef.current.projectDir, res?.data || null);
         dispatch({ type: 'SET_ELEMENTS', payload: els });
       } catch (e) {
         // silent
@@ -660,7 +677,7 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
     } catch (e) {
       // silent
     }
-  }, []);
+  }, [readProjectElements]);
 
   // ─── Local node operations ──────────────────────────────────────
 
@@ -867,7 +884,8 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
 
   const commit = useCallback(async () => {
     const current = stateRef.current;
-    // 项目模式（目录为唯一真相）：整个 workflow.json 写回目录
+    // 项目模式（目录为唯一真相）：workflow.json 只写流程定义（name/nodes/parameters），
+    // 元素单独写 elements.json（写入域分离，避免整文档读-改-写覆盖捕获元素）
     if (current.projectDir) {
       if (!current.isDirty) return;
       console.log(`[WorkflowContext] project commit saving ${current.nodes.length} nodes -> ${current.projectDir}`);
@@ -888,14 +906,20 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
           url: current.workflow?.url || '',
           parameters: current.workflow?.parameters || [],
           nodes,
-          elements: current.elements || [],
           updated_at: new Date().toISOString(),
         };
+        // 元素库先落盘（读最新盘合并编辑器内存 → 原子写 elements.json），
+        // 再写 workflow.json——若中途失败，workflow.json 里的遗留元素仍在，可重试
+        const diskEls = await readProjectElements(current.projectDir, null);
+        const diskNames = new Set(diskEls.map(e => e && e.name).filter(Boolean));
+        const merged = [...diskEls, ...(current.elements || []).filter(e => e && e.name && !diskNames.has(e.name))];
+        await api.writeProjectFile(current.projectDir, 'elements.json', { version: 1, elements: merged });
         await api.writeProjectFile(current.projectDir, 'workflow.json', payload);
+        dispatch({ type: 'SET_ELEMENTS', payload: merged });
         dispatch({ type: 'SET_NODES', payload: nodes });
         dispatch({ type: 'SET_DIRTY', payload: false });
         setTimeout(() => persistToLocal(), 0);
-        console.log('[WorkflowContext] ✅ project commit saved to directory');
+        console.log('[WorkflowContext] ✅ project commit saved to directory (workflow.json + elements.json)');
       } catch (e) {
         console.error(`[WorkflowContext] project commit failed: ${e.message}`);
         dispatch({ type: 'SET_ERROR', payload: e.message });
@@ -950,7 +974,7 @@ export function WorkflowProvider({ children, wfId, projectDir }) {
     } finally {
       dispatch({ type: 'SET_SAVING', payload: false });
     }
-  }, []);
+  }, [persistToLocal, readProjectElements]);
 
   const reorderNodes = useCallback(async (orders) => {
     const current = stateRef.current;
