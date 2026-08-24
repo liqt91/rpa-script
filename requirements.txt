@@ -12,6 +12,7 @@ markdownify
 pywebview
 python-multipart
 Pillow
+openpyxl
 uiautomation
 fastmcp
 numpy

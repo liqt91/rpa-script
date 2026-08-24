@@ -1,0 +1,62 @@
+{
+  "cmd": "wordToPdf",
+  "label": "Word转PDF",
+  "runtime": "backend",
+  "category": "文件处理",
+  "categories": ["file"],
+  "icon": "fa-file-pdf",
+  "iconColor": "text-red-500",
+  "bgColor": "bg-red-50",
+  "categoryOrder": 47,
+  "commandOrder": 10,
+  "description": "将 Word(.doc/.docx) 文档转换为 PDF 文件，输出路径可写入变量。支持 Word COM / LibreOffice 两种引擎。",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "filePath",
+      "label": "Word文件路径",
+      "type": "string",
+      "required": true,
+      "placeholder": "如 C:\\data\\report.docx，支持 {{变量}}",
+      "group": "主属性"
+    },
+    {
+      "name": "outputDir",
+      "label": "输出目录",
+      "type": "string",
+      "placeholder": "留空则与输入文件同目录",
+      "group": "主属性"
+    },
+    {
+      "name": "engine",
+      "label": "转换引擎",
+      "type": "select",
+      "default": "word",
+      "options": [
+        { "label": "Word (COM)", "value": "word" },
+        { "label": "LibreOffice", "value": "libreoffice" }
+      ],
+      "group": "主属性"
+    },
+    {
+      "name": "fileName",
+      "label": "输出文件名(不含扩展名)",
+      "type": "string",
+      "placeholder": "留空使用输入文件名",
+      "group": "advanced"
+    },
+    {
+      "name": "outputVar",
+      "label": "保存PDF路径到变量",
+      "type": "str-var",
+      "default": "pdfPath",
+      "group": "output",
+      "description": "转换后生成的 PDF 绝对路径存入该变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/backend_commands/wordToPdf.py"
+  }
+}

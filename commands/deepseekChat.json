@@ -1,0 +1,82 @@
+{
+  "cmd": "deepseekChat",
+  "label": "DeepSeek 调用",
+  "runtime": "backend",
+  "category": "AI 调用",
+  "categories": ["ai"],
+  "icon": "fa-robot",
+  "iconColor": "text-violet-500",
+  "bgColor": "bg-violet-50",
+  "categoryOrder": 40,
+  "commandOrder": 10,
+  "description": "调用 DeepSeek Chat Completions API，返回回复正文并写入变量",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "prompt",
+      "label": "提示词（用户消息）",
+      "type": "text",
+      "required": true,
+      "placeholder": "要发给 DeepSeek 的内容，支持 {{变量}}"
+    },
+    {
+      "name": "systemPrompt",
+      "label": "系统提示词（System）",
+      "type": "text",
+      "group": "advanced",
+      "placeholder": "可选，设定 AI 的角色 / 规则 / 输出格式"
+    },
+    {
+      "name": "model",
+      "label": "模型",
+      "type": "select",
+      "default": "deepseek-chat",
+      "options": [
+        { "label": "deepseek-chat", "value": "deepseek-chat" },
+        { "label": "deepseek-reasoner", "value": "deepseek-reasoner" },
+        { "label": "deepseek-v4-pro", "value": "deepseek-v4-pro" }
+      ]
+    },
+    {
+      "name": "temperature",
+      "label": "温度",
+      "type": "number",
+      "default": 0.3,
+      "group": "advanced"
+    },
+    {
+      "name": "maxTokens",
+      "label": "最大回复长度",
+      "type": "number",
+      "default": 2048,
+      "group": "advanced"
+    },
+    {
+      "name": "apiKey",
+      "label": "API Key",
+      "type": "string",
+      "group": "advanced",
+      "placeholder": "留空则使用环境变量 AI_API_KEY"
+    },
+    {
+      "name": "baseUrl",
+      "label": "API 地址",
+      "type": "string",
+      "group": "advanced",
+      "placeholder": "留空使用 https://api.deepseek.com/v1/chat/completions"
+    },
+    {
+      "name": "outputVar",
+      "label": "结果变量名",
+      "type": "str-var",
+      "group": "output",
+      "default": "deepseekResult",
+      "description": "回复正文将存入该变量"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/backend_commands/deepseekChat.py"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "cmd": "excelRead",
+  "label": "读取Excel内容",
+  "runtime": "backend",
+  "category": "数据处理",
+  "icon": "fa-file-excel",
+  "iconColor": "text-green-500",
+  "bgColor": "bg-green-50",
+  "categoryOrder": 45,
+  "commandOrder": 10,
+  "description": "读取Excel(.xlsx)单元格或区域的内容，保存到变量。单个单元格返回标量，区域或整表返回二维列表。",
+  "enabled": true,
+  "params": [
+    {
+      "name": "filePath",
+      "label": "Excel文件路径",
+      "type": "string",
+      "required": true,
+      "placeholder": "如 C:\\data\\report.xlsx",
+      "group": "主属性"
+    },
+    {
+      "name": "sheet",
+      "label": "工作表名",
+      "type": "string",
+      "placeholder": "留空用第一个工作表",
+      "group": "主属性"
+    },
+    {
+      "name": "range",
+      "label": "单元格/区域",
+      "type": "string",
+      "placeholder": "如 A1 单个单元格，或 A1:C10 区域；留空读取整张表",
+      "group": "主属性"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "str-var",
+      "default": "excelData",
+      "group": "output"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/backend_commands/excelRead.py"
+  },
+  "categories": [
+    "data"
+  ]
+}

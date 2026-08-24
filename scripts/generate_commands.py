@@ -97,8 +97,12 @@ def _category(d: dict) -> str:
     return cat
 
 
-def generate_py(d: dict) -> str:
-    """Generate the Python handler declaration file."""
+def generate_py(d: dict, scaffold: bool = False) -> str:
+    """Generate the Python handler declaration file.
+
+    scaffold=True 时，对 backend/desktop/control 指令产出可执行脚手架
+    （含 params + execute 骨架，脚本只在该文件不存在时生成一次）。
+    """
     rtype = d["runtime"]
     params = resolve_params(d.get("params", []))
     handler = d.get("handler", {})
@@ -112,8 +116,14 @@ def generate_py(d: dict) -> str:
     for p in params:
         param_lines.append(f"        {param_to_py(p)},")
 
+    _scaffold_note = (
+        f'"""\n# AUTO-GENERATED scaffold from commands/{d["cmd"]}.json — implement the execute() body.\n'
+        "# This file is NOT overwritten once it exists (generate_commands.py keys on its presence).\n"
+        f'{d["label"]} — {d["cmd"]} ({rtype})\n"""'
+        if scaffold else f'"""Command: {d["label"]}"""'
+    )
     lines = [
-        f'"""Command: {d["label"]}"""',
+        _scaffold_note,
         "from src.runtime.workflow.handlers.registry import register_handler, Param",
         "",
         f'@register_handler(cmd="{d["cmd"]}", label="{d["label"]}",',
@@ -141,10 +151,38 @@ def generate_py(d: dict) -> str:
         lines.extend(param_lines)
         lines.append("    ]")
 
-    # Backend/control handlers are hand-written or AI-generated — nothing extra to generate
+    # Backend/control handlers are hand-written — emit an executable scaffold on request
     if handler.get("kind") in ("backend", "control"):
         source = handler.get("source", "")
-        if source:
+        if scaffold:
+            lines.append("")
+            lines.append("    @staticmethod")
+            lines.append("    async def execute(runner, cmd_type, step_id, instr):")
+            lines.append('        extra = instr.get("extra", {})')
+            lines.append("")
+            lines.append("        # TODO: 实现核心逻辑")
+            lines.append('        # 用 extra.get("paramName") 读取参数；用 runner.vars["varName"] 读取变量')
+            lines.append("        # 结果写入变量：runner.vars[resultVar] = 结果值")
+            lines.append(f'        result = {{"cmd": "{d["cmd"]}", "value": None}}  # 在此放入关键结果')
+            lines.append("")
+            lines.append("        runner.completed += 1")
+            lines.append("        runner.results.append({")
+            lines.append('            "stepId": step_id,')
+            lines.append('            "nodeId": instr.get("nodeId"),')
+            lines.append('            "status": "success",')
+            lines.append('            "result": result,')
+            lines.append("        })")
+            lines.append("        await runner._emit({")
+            lines.append('            "type": "stepComplete",')
+            lines.append('            "stepId": step_id,')
+            lines.append('            "nodeId": instr.get("nodeId"),')
+            lines.append('            "result": result,')
+            lines.append("        })")
+            lines.append("        return True")
+            if source:
+                lines.append("")
+                lines.append(f"    # 底稿指向: {source}")
+        elif source:
             lines.append("")
             lines.append(f"    # Implementation: {source}")
 
@@ -201,24 +239,48 @@ def _choose_output_dirs(d: dict) -> tuple[Path, Path]:
     return py_dir, js_dir
 
 
+_RUNTIME_COMMANDS_PREFIX = "src/runtime/commands/"
+
+
+def _python_target_path(d: dict) -> Path:
+    """Resolve the Python handler output path.
+
+    Prefer handler.source when it lives inside the auto-registered runtime
+    commands tree (src/runtime/commands/...), so backend commands land in
+    backend_commands/ and desktop commands land in desktop_commands/.
+    Otherwise (stale/missing/JS source) fall back to the runtime dir.
+    """
+    source = d.get("handler", {}).get("source", "")
+    if source and source.endswith(".py") and source.startswith(_RUNTIME_COMMANDS_PREFIX):
+        return ROOT / source
+    py_dir, _ = _choose_output_dirs(d)
+    return py_dir / f"{d['cmd']}.py"
+
+
 def write_outputs(defs: list[dict]):
     """Write generated .py and .js files."""
     for d in defs:
         handler = d.get("handler", {})
         kind = handler.get("kind", "")
-        py_dir, js_dir = _choose_output_dirs(d)
+        _py_dir, js_dir = _choose_output_dirs(d)
+        py_path = _python_target_path(d)
 
-        # Python handler — extension generates stub; backend/control are hand-written
-        py_code = generate_py(d)
-        py_path = py_dir / f"{d['cmd']}.py"
-        os.makedirs(py_path.parent, exist_ok=True)
-
+        # Python handler — extension generates stub; backend/desktop/control are
+        # hand-written: scaffold once if the file is missing, otherwise KEEP.
         if kind in ("", "extension") and d["runtime"] != "control":
-            # Always regenerate extension stubs; control commands are hand-written
-            py_path.write_text(py_code, encoding="utf-8")
+            os.makedirs(py_path.parent, exist_ok=True)
+            py_path.write_text(generate_py(d), encoding="utf-8")
             print(f"  GEN  {py_path}")
         else:
-            print(f"  SKIP {py_path} ({kind or d['runtime']} — hand-written)")
+            is_structural = bool(d.get("isContainer") or d.get("isBranch") or d.get("isStructural"))
+            if py_path.exists():
+                print(f"  KEEP {py_path} (hand-written, exists)")
+            elif is_structural:
+                print(f"  SKIP {py_path} ({kind or d['runtime']} — structural/control, hand-written)")
+            else:
+                os.makedirs(py_path.parent, exist_ok=True)
+                py_path.write_text(generate_py(d, scaffold=True), encoding="utf-8")
+                print(f"  GEN  {py_path} (scaffold)")
 
         # JS part — only for extension commands
         # Background handlers (source in background_handlers/) are compiled
