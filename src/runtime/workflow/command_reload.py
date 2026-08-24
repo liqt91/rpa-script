@@ -37,7 +37,7 @@ def reload_command_runtime(db=None) -> dict:
     from src.runtime.workflow.handlers import registry as _reg
     _reg._HANDLER_REGISTRY.clear()
     for _sub in ("backend_commands", "extension_commands", "desktop_commands",
-                 "electron_commands", "control_commands"):
+                 "control_commands"):
         importlib.import_module(f"src.runtime.commands.{_sub}")
 
     # 3. 重建 LOCAL_HANDLERS（先清空，避免残留被删指令的 handler）

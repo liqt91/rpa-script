@@ -47,22 +47,6 @@ MAX_EXEC_TIMEOUT = 120.0
 
 # ── GUI 浏览器捕获（阻塞等待 Alt+Click） ──
 
-@router.post("/electron-capture")
-async def electron_capture(request: dict = None):
-    """GUI 调用：在 Electron 应用页面激活 Alt+Click 捕获模式，阻塞等待选取。"""
-    import uuid
-    request_id = (request or {}).get("requestId", str(uuid.uuid4())[:8])
-    timeout = (request or {}).get("timeout", 20)
-    title_fragment = (request or {}).get("titleFragment", "")
-
-    from src.runtime.workflow.electron_manager import electron_manager
-    if not electron_manager.is_running:
-        return {"error": "Electron 应用未运行，请先执行「启动 Electron 应用」", "requestId": request_id}
-    result = await electron_manager.start_capture(title_fragment, timeout)
-    result["requestId"] = request_id
-    return result
-
-
 @router.post("/gui-browser-capture")
 async def gui_browser_capture(request: dict = None):
     """GUI 调用：激活插件捕获模式，阻塞等待用户选取元素。"""

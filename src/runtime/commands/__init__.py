@@ -4,6 +4,7 @@
 子目录自注册：
 - backend_commands:   本地端操作指令 (Python handler)
 - extension_commands: 扩展端执行指令 (Python 注册桩)
+- desktop_commands:   桌面操作指令 (Win32/UIA)
 - control_commands:   本地端控制指令 (容器/流程控制)
 - tools:              代码生成工具
 """
@@ -25,6 +26,5 @@ def auto_register():
     from . import backend_commands  # noqa: F401
     from . import extension_commands  # noqa: F401
     from . import desktop_commands  # noqa: F401
-    from . import electron_commands  # noqa: F401
     from . import control_commands  # noqa: F401
     _registered = True

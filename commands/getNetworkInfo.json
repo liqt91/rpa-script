@@ -1,0 +1,55 @@
+{
+  "cmd": "getNetworkInfo",
+  "label": "获取本机网络连接信息",
+  "runtime": "backend",
+  "category": "桌面操作",
+  "icon": "fa-network-wired",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 50,
+  "commandOrder": 26,
+  "description": "读取本机网络连接信息（网卡/接口、活动 TCP/UDP 连接、主机 IP）。优先用 psutil，未安装时降级用 socket/netstat。结果可写入变量供下游引用。",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "scope",
+      "label": "读取范围",
+      "type": "select",
+      "default": "all",
+      "options": [
+        {
+          "label": "全部网络信息",
+          "value": "all"
+        },
+        {
+          "label": "网卡/接口",
+          "value": "interface"
+        },
+        {
+          "label": "网络连接",
+          "value": "connection"
+        },
+        {
+          "label": "主机信息",
+          "value": "host"
+        }
+      ]
+    },
+    {
+      "name": "resultVar",
+      "label": "结果存入变量",
+      "type": "str-var",
+      "group": "output",
+      "default": "",
+      "placeholder": "读取到的网络信息字典存入此变量，如 networkInfo"
+    }
+  ],
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/backend_commands/getNetworkInfo.py"
+  },
+  "categories": [
+    "desktop"
+  ]
+}

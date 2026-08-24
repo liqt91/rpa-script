@@ -42,10 +42,9 @@ description: 创建新的 RPA 指令（command），一次命令生成+校验+�
 | 浏览器/页面 | `extension` | `extension` | `dom_handlers_new/<cmd>.js` | 有 |
 | Python 逻辑 | `backend` | `backend` | `backend_commands/<cmd>.py` | 无 |
 | 桌面 Win32/UIA | `backend` | `backend` | `desktop_commands/<cmd>.py`（helper 放 `_win32.py`） | 无 |
-| Electron 应用 | `backend` | `backend` | `electron_commands/<cmd>.py` | 无 |
 | 流程控制 | `control` | `control` | `control_commands/<cmd>.py`（`evaluate()` 非 execute） | 无 |
 
-> desktop/electron 指令 `runtime:"backend"`、`handler.source` 指向各自目录。
+> 桌面指令 `runtime:"backend"`、`handler.source` 指向 `desktop_commands/`。
 > 判断：调 Win32/UIA → `desktop_commands/`；纯 Python → `backend_commands/`。
 
 **最小 JSON**（backend 示例；desktop 时 source 换 `desktop_commands/`）：

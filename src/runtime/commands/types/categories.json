@@ -9,7 +9,6 @@
     {"slug": "condition", "name": "条件判断", "icon": "fa-code-branch", "sortOrder": 45},
     {"slug": "file", "name": "文件处理", "icon": "fa-file-lines", "sortOrder": 47},
     {"slug": "exception", "name": "异常处理", "icon": "fa-shield-halved", "sortOrder": 48},
-    {"slug": "desktop", "name": "桌面操作", "icon": "fa-desktop", "sortOrder": 50},
-    {"slug": "electron", "name": "Electron 应用", "icon": "fa-window-restore", "sortOrder": 55}
+    {"slug": "desktop", "name": "桌面操作", "icon": "fa-desktop", "sortOrder": 50}
   ]
 }

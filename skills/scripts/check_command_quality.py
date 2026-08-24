@@ -132,8 +132,7 @@ def check_one(defn, path: Path) -> dict:
                 issues.append({"rule": "def_fields",
                                "msg": f"extension source '{source}' 不在合法目录（应含 {EXT_SOURCE_OK}）"})
         else:
-            # electron_commands 也是 backend 类（runtime=backend，专用于 Electron 应用）
-            dirmap = {"backend": ["backend_commands", "desktop_commands", "electron_commands"],
+            dirmap = {"backend": ["backend_commands", "desktop_commands"],
                       "control": ["control_commands"]}
             allowed = dirmap.get(kind, [])
             if allowed and not any(x in source for x in allowed):

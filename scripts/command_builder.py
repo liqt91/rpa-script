@@ -71,15 +71,12 @@ def _normalize_definition(defn: dict) -> dict:
         return defn
     runtime = defn.get("runtime") or "backend"
 
-    # runtime 归一：desktop/electron 在 JSON 里用 "backend"
-    display_runtime = "backend" if runtime in ("desktop", "electron") else runtime
+    # runtime 归一：desktop 在 JSON 里用 "backend"
+    display_runtime = "backend" if runtime == "desktop" else runtime
 
     # 目录：按 runtime/kind 推断 handler.source
-    if runtime in ("desktop",):
+    if runtime == "desktop":
         src_dir = "desktop_commands"
-        kind = defn.get("kind") or "backend"
-    elif runtime == "electron":
-        src_dir = "electron_commands"
         kind = defn.get("kind") or "backend"
     elif runtime == "extension":
         src_dir = "extension_commands"
@@ -98,13 +95,11 @@ def _normalize_definition(defn: dict) -> dict:
 
     defn["runtime"] = display_runtime
 
-    # 目录/分类推断：优先看 handler.source 所在目录（项目里桌面/Electron 指令 runtime="backend"，
+    # 目录/分类推断：优先看 handler.source 所在目录（项目里桌面指令 runtime="backend"，
     # 仅凭 runtime 无法区分纯 python backend 与 desktop backend），其次按 runtime。
     src = str(handler.get("source") or "")
     if "desktop_commands" in src or runtime == "desktop":
         cat, slug = "桌面操作", ["desktop"]
-    elif "electron_commands" in src or runtime == "electron":
-        cat, slug = "Electron 应用", ["electron"]
     elif runtime == "extension":
         cat, slug = "浏览器操作", ["browser"]
     elif runtime == "control":

@@ -1006,7 +1006,7 @@ function apply(ctx, config) {
     parameters: {
       cmd: { type: "string", required: true, description: "指令名（cmd，小驼峰=文件名）" },
       description: { type: "string", description: "指令一句话描述（生成 label/description 用，极简用法只需 cmd+description）" },
-      runtime: { type: "string", enum: ["backend", "desktop", "electron", "extension", "control"], description: "指令类型；缺省 backend；desktop/electron 走对应目录" },
+      runtime: { type: "string", enum: ["backend", "desktop", "extension", "control"], description: "指令类型；缺省 backend；desktop 走 desktop_commands" },
       label: { type: "string", description: "显示名（中文）；缺省用 cmd" },
       params: { type: "array", items: { type: "object", description: "{name,label,type,required?,default?,options?}" }, description: "参数定义，极简用法可省" },
       definition: { type: "object", additionalProperties: true, description: "完整指令 JSON 定义对象（可选；给了优先，未给则用 cmd/description/runtime/params 自动补全）" },
