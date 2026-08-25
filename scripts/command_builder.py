@@ -267,7 +267,13 @@ async def _run_verify_async(cmd: str, extra: dict | None) -> tuple[bool, dict]:
 
     exec_method = getattr(handler_class, "execute", None)
     if exec_method is None:
-        return False, {"error": f"{cmd} 无 execute()，无法运行时验证（extension/control 走 JS/emitter）"}
+        # extension/control 指令走 JS / emitter，命令层无法跑 execute——明确 skipped（不置错），
+        # 避免 agent 误以为验证失败。backend/desktop 无 execute 则报错。
+        runtime = (hdef or {}).get("runtime", "")
+        if runtime in ("extension", "control"):
+            return True, {"skipped": True,
+                          "note": f"{cmd} 是 {runtime} 指令，验证走浏览器/流程层，命令层不执行 execute()"}
+        return False, {"error": f"{cmd} 无 execute()，无法运行时验证（含 runtime={runtime}）"}
 
     runner = _MockRunner()
     instr = {"extra": extra, "stepId": "verify", "nodeId": 1, "cmdType": cmd}
@@ -407,7 +413,7 @@ def main():
             step["content_js"] = str(CONTENT_JS)
             step["registered_in_content_js"] = js_registered
         result["steps"].append(step)
-        if not bcode:
+        if bcode != 0:  # exit 0 = 成功；非 0 才判失败（不能 `not bcode`——0 是 falsy 会误判成功的构建为失败）
             result["ok"] = False
             print(json.dumps(result, ensure_ascii=False))
             sys.exit(0)

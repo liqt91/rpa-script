@@ -75,9 +75,10 @@ def param_to_py(p: dict) -> str:
     if p.get("group"):
         parts.append(f'group="{p["group"]}"')
     if p.get("placeholder"):
-        parts.append(f'placeholder="{p["placeholder"]}"')
+        # 用 _py_literal（json.dumps）转义，避免 placeholder 含 \ 时产生 invalid escape sequence
+        parts.append(f"placeholder={_py_literal(p['placeholder'])}")
     if p.get("description"):
-        parts.append(f'description="{p["description"]}"')
+        parts.append(f"description={_py_literal(p['description'])}")
     return f"Param({', '.join(parts)})"
 
 

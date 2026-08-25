@@ -1,0 +1,73 @@
+{
+  "cmd": "getLinksByRegex",
+  "label": "正则获取链接",
+  "runtime": "extension",
+  "category": "浏览器元素操作",
+  "icon": "fa-link",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 20,
+  "commandOrder": 55,
+  "description": "获取页面上所有匹配正则表达式的链接，支持按 href 或链接文本匹配",
+  "params": [
+    {
+      "name": "pattern",
+      "label": "匹配正则",
+      "type": "string",
+      "required": true,
+      "group": "主属性",
+      "placeholder": "如 https://example\\.com/.*"
+    },
+    {
+      "name": "matchField",
+      "label": "匹配对象",
+      "type": "select",
+      "default": "href",
+      "group": "advanced",
+      "options": [
+        {
+          "label": "链接地址（href）",
+          "value": "href"
+        },
+        {
+          "label": "链接文本",
+          "value": "text"
+        },
+        {
+          "label": "两者任一",
+          "value": "any"
+        }
+      ]
+    },
+    {
+      "name": "onlyVisible",
+      "label": "仅可见链接",
+      "type": "boolean",
+      "default": false,
+      "group": "advanced"
+    },
+    {
+      "name": "deduplicate",
+      "label": "去重",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "links",
+      "group": "output",
+      "description": "匹配到的链接列表（数组，含 href 与 text）将保存到此变量"
+    }
+  ],
+  "categories": [
+    "browser-element"
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/getLinksByRegex.js"
+  },
+  "enabled": true
+}

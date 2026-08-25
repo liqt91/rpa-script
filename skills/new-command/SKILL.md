@@ -110,6 +110,31 @@ class MyCommandHandler:
 
 > 找 `command_builder.py` / 用 DSH 工具时，等价入口是 `rpa_new_command`（同一编排）。
 
+## 网页指令（extension）专属约定
+
+扩展指令的实现是 **JS handler**（`extension/dom_handlers_new/<cmd>.js`），Python 桩只做注册。
+关键：**结果如何写回变量**（不用猜，规则如下）。
+
+### JS handler 签名
+```js
+registerHandler('myCmd', async (args) => {
+  const { locator, selectorFamily, extra } = args;   // 元素定位 + 参数字典
+  // extra 里有你 JSON 定义的参数名
+  return { value: "结果文本", count: 3, items: [...] };  // 返回 dict
+});
+```
+
+### 结果写回变量（extension_runner.py:407/1652 规则）
+runner 读 `resultVar`/`saveToVar`/`varName` 作为目标变量名，从返回 dict 取主值写入：
+- 返回 dict 里**优先** `extracted` → `navigatedTo` → `value` → 否则整 dict
+- 写回 `vars[<resultVar名>]`（例如 `extra.resultVar="links"` → 写 `vars.links`）
+
+所以要"返回一个列表/结果给变量"，**返回 dict 里放 `value`（或 extracted）**，JSON 定义个
+`resultVar`(str-var) 参数即可。
+
+> 示例：`getLinksByRegex` 返回 `{ value: links数组, count: links.length }`，定义
+> `resultVar` 参数 → runner 把 `links` 数组写入 `vars[resultVar]`。
+
 ## 质量标准（硬性 · 生成时对照）
 
 **JSON**：`cmd` 非空小驼峰=文件名 · `runtime∈{extension,backend,control}` ·
