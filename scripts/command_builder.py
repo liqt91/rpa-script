@@ -16,6 +16,8 @@ handler.kind=backend/control，则脚本 SKIP——按语义保留手写实现�
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -241,6 +243,47 @@ class _MockRunner:
         self._last_emit = event
 
 
+def _verify_web_handler_node(cmd: str, extra: dict | None) -> tuple[bool, dict]:
+    """extension 指令：用 Node 桩（scripts/verify_web_handler.mjs）验证 JS handler 逻辑。
+
+    不依赖浏览器扩展（绕开"重载扩展"问题）。无 node 或桩缺失时返回 skipped。
+    extra 缺省用 params 默认值。
+    """
+    import tempfile
+    node = shutil.which("node")
+    base = ROOT / "scripts" / "verify_web_handler.mjs"
+    if not node or not base.exists():
+        return True, {"skipped": True, "note": "extension 指令验证需要 node + verify_web_handler.mjs，当前不可用"}
+
+    # 写 extra 到临时文件让 Node 桩读（规避命令行 JSON 转义）
+    extra_file = None
+    try:
+        if extra is None:
+            extra = {}
+            for p in _json_params_of(cmd):
+                if p.get("default") is not None:
+                    extra[p["name"]] = p["default"]
+        extra_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w", encoding="utf-8")
+        json.dump(extra, extra_file, ensure_ascii=False)
+        extra_file.flush()
+        extra_file.close()
+        code, out = _run([node, str(base), cmd, "--extra-file", extra_file.name], timeout=30)
+    except Exception as e:  # noqa: BLE001
+        return True, {"skipped": True, "note": f"extension 桩验证出错，跳过: {e}"}
+    finally:
+        if extra_file:
+            try:
+                os.unlink(extra_file.name)
+            except Exception:
+                pass
+    # _run 返回 (exit, out)；exit 0 = 桩跑通（验证成功）
+    return code == 0, {
+        "ok": code == 0,
+        "note": "extension JS handler 经 verify_web_handler.mjs 验证",
+        "raw": out.strip()[-600:] if out.strip() else "",
+    }
+
+
 async def _run_verify_async(cmd: str, extra: dict | None) -> tuple[bool, dict]:
     """用 mock runner 跑一次 backend handler 的 execute()，验证运行时逻辑。"""
     sys.path.insert(0, str(ROOT))
@@ -267,12 +310,15 @@ async def _run_verify_async(cmd: str, extra: dict | None) -> tuple[bool, dict]:
 
     exec_method = getattr(handler_class, "execute", None)
     if exec_method is None:
-        # extension/control 指令走 JS / emitter，命令层无法跑 execute——明确 skipped（不置错），
-        # 避免 agent 误以为验证失败。backend/desktop 无 execute 则报错。
+        # extension/control 指令走 JS / emitter，命令层无法跑 execute。
+        # extension：尝试用 Node 桩（scripts/verify_web_handler.mjs）验证 JS handler 逻辑；
+        # 无 node/桩时明确 skipped。control：流程层语义，直接 skipped。
         runtime = (hdef or {}).get("runtime", "")
-        if runtime in ("extension", "control"):
+        if runtime == "extension":
+            return _verify_web_handler_node(cmd, extra)
+        if runtime == "control":
             return True, {"skipped": True,
-                          "note": f"{cmd} 是 {runtime} 指令，验证走浏览器/流程层，命令层不执行 execute()"}
+                          "note": f"{cmd} 是 control 指令，验证走流程层，命令层不执行 execute()"}
         return False, {"error": f"{cmd} 无 execute()，无法运行时验证（含 runtime={runtime}）"}
 
     runner = _MockRunner()

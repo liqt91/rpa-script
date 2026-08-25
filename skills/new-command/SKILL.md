@@ -135,6 +135,13 @@ runner 读 `resultVar`/`saveToVar`/`varName` 作为目标变量名，从返回 d
 > 示例：`getLinksByRegex` 返回 `{ value: links数组, count: links.length }`，定义
 > `resultVar` 参数 → runner 把 `links` 数组写入 `vars[resultVar]`。
 
+### 网页指令的验证（不重载扩展）
+- `rpa_new_command(cmd, verify=...)` 对 extension 指令**自动用 Node 桩**
+  （`scripts/verify_web_handler.mjs`）验证 JS handler 逻辑，**无需重载浏览器扩展**。
+- ⚠️ **真机测试前仍需重载扩展**：网页指令的 JS 写到 `content.js`，浏览器扩展需在
+  `chrome://extensions` 点「重新加载」（或重启扩展）才能让新指令在页面生效——这是
+  Chrome 安全限制，无法自动重载。命令的 `--verify` 只能验证逻辑，不能替代真机重载。
+
 ## 质量标准（硬性 · 生成时对照）
 
 **JSON**：`cmd` 非空小驼峰=文件名 · `runtime∈{extension,backend,control}` ·
