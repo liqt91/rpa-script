@@ -1,0 +1,76 @@
+{
+  "cmd": "countElementsByText",
+  "label": "统计包含文本的元素",
+  "runtime": "extension",
+  "category": "浏览器元素操作",
+  "icon": "fa-list-ol",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 20,
+  "commandOrder": 60,
+  "description": "统计页面上文本包含/匹配指定内容（支持正则）的元素数量，结果保存到变量",
+  "enabled": true,
+  "isNew": true,
+  "params": [
+    {
+      "name": "text",
+      "label": "查找文本",
+      "type": "string",
+      "required": true,
+      "group": "主属性",
+      "placeholder": "支持 ${var} 变量",
+      "description": "要查找的文本内容，支持 ${var} 变量"
+    },
+    {
+      "name": "elementName",
+      "label": "范围内元素",
+      "type": "element",
+      "group": "主属性",
+      "placeholder": "不填则统计全页面",
+      "description": "仅在指定的已捕获元素内部统计；不填则在整页统计"
+    },
+    {
+      "name": "matchType",
+      "label": "匹配方式",
+      "type": "select",
+      "default": "contains",
+      "group": "advanced",
+      "options": [
+        {
+          "label": "包含文本",
+          "value": "contains"
+        },
+        {
+          "label": "完全等于",
+          "value": "equals"
+        },
+        {
+          "label": "正则匹配",
+          "value": "regex"
+        }
+      ]
+    },
+    {
+      "name": "onlyVisible",
+      "label": "仅统计可见元素",
+      "type": "boolean",
+      "default": false,
+      "group": "advanced"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "count",
+      "group": "output",
+      "description": "统计得到的元素数量（整数）将保存到此变量"
+    }
+  ],
+  "categories": [
+    "browser-element"
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/countElementsByText.js"
+  }
+}

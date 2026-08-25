@@ -39,11 +39,35 @@ logger = logging.getLogger(__name__)
 
 # 扩展侧无需元素定位器的指令（由 extra.url / windowVar 驱动）：
 # P4 locator 校验仅对需要元素的指令生效，避免误杀导航/窗口类指令。
+# 不再维护硬编码"免定位器指令"白名单——改为从指令定义判断（_cmd_requires_locator）。
+# 保留该集合仅作"已知明确无需定位"的扩展指令快速兜底（含无 element 类参数的指令）；
+# 但主路径走 _cmd_requires_locator，新指令无需手动登记。
 _LOCATOR_FREE_EXTENSION_CMDS = frozenset({
     "navigate", "newTab", "launchBrowser",
     "closeBrowser", "closeTab", "switchTab",
     "takeScreenshot", "pressKey", "getCurrentUrl",
 })
+
+
+def _cmd_requires_locator(cmd_type: str) -> bool:
+    """从指令定义判断该指令是否**强制**需要元素定位器。
+
+    规则：指令存在 **required=True 的 element / element-list 参数** → 必须提供 locator
+    （定位是核心输入，缺失即错误）；否则（无 element 参数，或 element 参数可选）
+    → 允许无 locator（全页面统计 / 页面级操作 / 可选范围内元素）。以定义为准，
+    避免手工维护豁免名单，可选元素场景也不会误伤全页面用法。
+    """
+    try:
+        from .handlers.registry import get_all_handlers
+        hdef = get_all_handlers().get(cmd_type) or {}
+        params = hdef.get("params") or []
+        for p in params:
+            if isinstance(p, dict) and p.get("type") in ("element", "element-list") \
+                    and p.get("required") is True:
+                return True
+    except Exception:  # noqa: BLE001 —— 注册表不可用时保守认为需要 locator
+        return True
+    return False
 
 
 def _get_cursor_pos():
@@ -1521,10 +1545,10 @@ class ExtensionRunner:
 
         # P4: 元素定位器为空时给出明确错误，避免被扩展侧
         # 「工作标签页已被手动关闭」等状态类错误掩盖真实原因。
-        # 仅对需要元素定位的指令生效：navigate/newTab/launchBrowser 等
-        # 无定位器指令（由 extra.url / windowVar 驱动）跳过该校验。
+        # 仅对需要元素定位的指令生效：无 element 类参数的指令（全页面统计/页面级操作）
+        # 由 _cmd_requires_locator 判定免于该校验（以指令定义为准，非硬编码名单）。
         if ("locator" in resolved_instr
-                and cmd_type not in _LOCATOR_FREE_EXTENSION_CMDS
+                and _cmd_requires_locator(cmd_type)
                 and not self._has_usable_locator(resolved_instr)):
             msg = (f"指令「{cmd_type}」的元素定位器为空（locator 无有效值）。"
                    f"请检查该步骤引用的元素是否已正确配置或重新捕获"

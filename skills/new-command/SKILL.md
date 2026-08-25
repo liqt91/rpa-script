@@ -135,12 +135,32 @@ runner 读 `resultVar`/`saveToVar`/`varName` 作为目标变量名，从返回 d
 > 示例：`getLinksByRegex` 返回 `{ value: links数组, count: links.length }`，定义
 > `resultVar` 参数 → runner 把 `links` 数组写入 `vars[resultVar]`。
 
-### 网页指令的验证（不重载扩展）
-- `rpa_new_command(cmd, verify=...)` 对 extension 指令**自动用 Node 桩**
-  （`scripts/verify_web_handler.mjs`）验证 JS handler 逻辑，**无需重载浏览器扩展**。
-- ⚠️ **真机测试前仍需重载扩展**：网页指令的 JS 写到 `content.js`，浏览器扩展需在
-  `chrome://extensions` 点「重新加载」（或重启扩展）才能让新指令在页面生效——这是
-  Chrome 安全限制，无法自动重载。命令的 `--verify` 只能验证逻辑，不能替代真机重载。
+### extension 链路关键机制（不用读源码，这些就是规则）
+
+- **type 匹配**：指令的 `type` = cmd 名，`content.js` 里 `registerHandler('<cmd>', fn)` 与其匹配。
+  JS handler 在 `extension/dom_handlers_new/<cmd>.js`，构建时拼进 `content.js`。
+- **locator 注入**：指令若有 **element 类参数**（用户选了元素），runner 把定位器放进
+  `args.locator` + `args.selectorFamily`；无元素时这俩为空。参数其余值进 `args.extra`。
+- **免定位器规则（自动，不需改代码）**：指令**没有必填的 element 参数**时，允许空 locator
+  （= 全页面统计 / 页面级操作）。判断由 `extension_runner._cmd_requires_locator` 自动完成——
+  只要 JSON 里 element 参数不是 `required:true`，就能全页面跑，**无需登记白名单**。
+- **可用 helper**（content_base.js 提供）：`findTarget`、`checkVisibility(el, mode)`、
+  `getVisibilityMode`、`resolveAllLocators` 等。
+
+### 网页指令的验证优先级
+
+1. **逻辑验证用 Node 桩（默认方式，别起 HTTP 服务/导入工作流）**：`rpa_new_command(cmd,
+   verify=...)` 对 extension 指令自动跑 `scripts/verify_web_handler.mjs`，**无需重载扩展**
+   即可验证 JS 逻辑（加 `--extra-file`/`--links` 注入参数与示例 DOM）。
+2. **真机 E2E（最终确认，可选）**：先**在 `chrome://extensions` 重载扩展**让新 content.js
+   生效，再跑真实页面。**扩展不重载时，E2E 只能验证"下发到浏览器"，验证不了 handler 逻辑**
+   （会报 Unknown step type）——所以别把不重载的 E2E 当验证证据。
+
+### ⚠️ 改核心模块需重启后端（人工）
+
+改了 `src/runtime/workflow/extension_runner.py` 等**核心运行时模块**，`/api/commands/reload`
+**不会重载它们**（已在 sys.modules），**必须重启后端进程**才生效（建议人工重启）。
+新增指令本身（命令/JS/py）无需重启，命令已自动热重载。
 
 ## 质量标准（硬性 · 生成时对照）
 
