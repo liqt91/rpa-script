@@ -1,161 +1,87 @@
-# 待办清单
+# 待办清单 / 项目路线图
 
-## 夜间任务池（每任务独立完成、验收明确、预计<30分钟）
-
-### A. 旧流程迁移到新指令架构
-
-- [x] **A1: DB 迁移脚本 — 旧 type 名批量更新**
-  - 写 `scripts/migrate_workflow_types.py`，扫描 `workflow_nodes` 表的 `type` 字段
-  - 将已知旧名替换为新名（如 `click`→`clickElement`、`input`→`inputText` 等）
-  - 只改 `type`，不动 `extra` 和 `parent_id`
-  - 验收：运行脚本后，DB 中所有旧 type 名消失，`grep -rn '"click"' data/` 无结果
-
-- [x] **A2: 旧流程验证 — 跑通新架构的 end-to-end 测试**
-  - 确保 LEGACY_MAP 覆盖所有旧 type → handler 的映射
-  - 写一个测试：从 DB 加载一个旧流程，`build_instructions()` 不丢节点
-  - 验收：`test_legacy_workflow.py` 通过
-
-### B. content.js 补充缺失 handler（13 个 ❌ + 若干内部辅助）
-
-- [x] **B1: waitForElement / waitForElementHide**
-  - content.js 实现，用 MutationObserver 或 polling 检测元素出现/消失
-  - 验收：测试确认元素出现后立即返回，超时抛异常
-
-- [x] **B2: waitForLoad / waitForUrl / waitForText**
-  - waitForLoad: `document.readyState === 'complete'` + 可选额外延迟
-  - waitForUrl: polling `location.href` 变化
-  - waitForText: 检测页面上包含指定文本是否出现
-  - 验收：各写一个测试
-
-- [x] **B3: scrollToTop / scrollOneScreen / scrollBy**
-  - content.js 实现，基于 `window.scrollBy` / `document.querySelector(locator).scrollIntoView`
-  - 验收：测试确认滚动后页面位置变化
-
-- [x] **B4: takeScreenshot**
-  - content.js 调用 `chrome.tabs.captureVisibleTab`，base64 回传 Python 存为 PNG
-  - 需要 background.js 配合声明权限
-  - 验收：工作流中添加截图指令，运行后 data/ 目录生成 PNG
-
-- [x] **B5: keyCombo / getPageTitle / getElementCount / clickIfExists**
-  - keyCombo: 模拟组合键 Ctrl+C 等
-  - getPageTitle: `document.title`
-  - getElementCount: `document.querySelectorAll(locator).length`
-  - clickIfExists: 元素存在则点击，不存在则跳过（不报错）
-  - 验收：每个各写一个测试
-
-### C. AI 自然语言生成流程
-
-- [ ] **C1: 指令向量化 — 将 52 个指令转为向量索引**
-  - 提取每个指令的 `label` + `description` + `params` 为文本
-  - 用 sentence-transformers（或 OpenAI embedding）生成向量
-  - 存为 `data/command_embeddings.json`
-  - 验收：`scripts/build_embeddings.py` 运行后生成 JSON，`len == 52`
-
-- [ ] **C2: 自然语言 → 指令匹配**
-  - 用户输入"打开百度，搜索RPA，等待3秒"，分词后匹配 handler
-  - "打开" → launchBrowser，"百度" → navigate url=baidu.com，"搜索" → clickElement + inputText
-  - 返回匹配的指令列表及置信度
-  - 验收：`test_nl_match.py` 测试 "打开百度搜索RPA" → [launchBrowser, navigate, clickElement, inputText]
-
-- [ ] **C3: 指令序列 → 工作流节点生成**
-  - 根据匹配的指令列表，生成节点树（含 parent_id、order、extra 默认值）
-  - 处理容器指令的配对（forList+endFor 等）
-  - 验收：`test_nl_to_nodes.py` 输入自然语言 → 返回可直接插入 DB 的节点列表
-
-- [ ] **C4: AI 生成前端入口**
-  - 在 WorkflowList 添加"AI 生成"按钮
-  - 弹出一个对话框：输入自然语言描述 → 显示匹配的指令序列预览 → 确认后创建工作流
-  - 验收：输入"采集知乎热搜前10条"，生成含 launchBrowser+navigate+forEachElement+getText+writeTableRow 的工作流
-
-### D. 定时调度器
-
-- [ ] **D1: 调度模型 — Schedules 表 + 迁移**
-  - 新增 `schedules` 表：id, workflow_id, cron_expr, enabled, last_run_at, next_run_at
-  - 支持 cron 表达式和简单间隔（每 N 分钟/小时/天）
-  - 验收：迁移脚本执行后表存在，CRUD API 可用
-
-- [ ] **D2: 调度 CRUD API**
-  - GET/POST/PUT/DELETE `/api/workflows/{id}/schedules`
-  - 验证 cron 表达式合法性
-  - 验收：curl 测试 CRUD 四个操作
-
-- [ ] **D3: 调度引擎 — asyncio 定时检查**
-  - 在 lifespan 启动一个后台任务，每分钟检查 pending schedules
-  - 到达时间 → 调用 `run_workflow_extension()` 执行
-  - 记录执行日志到 schedules 表
-  - 验收：创建一个每分钟执行的工作流，观察日志确认执行了 3 次以上
-
-- [ ] **D4: 调度前端页面**
-  - Schedules.jsx 替换占位页
-  - 列表显示所有计划任务（工作流名、cron、下次执行时间、状态）
-  - 支持新建/编辑/删除/启停
-  - 验收：页面可创建、启用、禁用一个调度
-
-### E. 基础补全
-
-- [x] **E1: content.js 补充 checkElementVisible / checkElementExists handler**
-  - 这两个在 content.js 已有注册但 Python 端未声明
-  - 在 extension/ 目录创建对应的 .py handler 文件
-  - 验收：`handler_validator.py` 校验 ❌ 数量减少
-
-- [x] **E2: handler_validator 默认路径修复**
-  - `handler_validator.py` 的默认 content_js_path 指向了错误的项目根
-  - 改为基于 `__file__` 计算相对于 REPO_ROOT 的路径
-  - 验收：不传参数调用 `validate_handler_sync()` 能正确找到 content.js
-
-- [x] **E3: CommandsPage 增加"添加字段"按钮仅对自定义指令生效**
-  - 当前内建指令也可以加字段，但 handler 不认新字段
-  - 对 `isBuiltin` 指令隐藏 "+ 添加字段" 按钮
-  - 验收：选内建指令 → 看不到 + 添加字段；选自定义指令 → 可以看到
-
-## 中优先级
-
-- [ ] **撤销 / 重做快捷键（Ctrl+Z / Ctrl+Y）**
-- [ ] **支持元素内部滚动** (scrollContainer)
-- [ ] **节点配置项联动** (select 切换显隐)
-- [ ] **桌面应用 IPC 通信**
-
-## 已记录 / 低优先级
-
-- [ ] **循环变量作用域设计**
+> 更新：2026-08-25（项目审视后）｜当前版本 v0.2.3｜主线：DSH 原生工具交付可视化 RPA（一个流程 = 一个目录）
 
 ---
 
-## 2025-07-10 进度：新指令架构 + AI 代码生成
+## 📋 项目审视 · 现状与未来方向
 
-### 指令定义编辑器 (CommandEditor)
-- [x] 4 列并排布局：指令配置 | JSON 预览 | Python Handler 预览 | JS Handler 预览
-- [x] 3 种指令类型：扩展端执行 (extension) / 本地端操作 (backend) / 本地端控制 (emitter)
-- [x] 分类改为多对多（`command_categories` 表），下拉多选
-- [x] 图标选择：120+ Font Awesome 图标网格预览，颜色实时反映
-- [x] 图标颜色 + 背景颜色：Tailwind 22 色调色板，点选
-- [x] bgColor、commandOrder、enabled、isContainer、closesWith 等配置项
-- [x] 参数编辑：name/label/type/group(下拉)/required/default/placeholder/description/options
-- [x] 保存时过滤 UI 内部字段（_catOpen, _iconOpen 等）和旧 handler 字段
-- [x] 删除指令（确认弹窗 → 删除 JSON + handler 文件）
+### 现状（一句话）
+浏览器自动化平台：Chrome/Edge 扩展（MV3）+ FastAPI 后端 + React 编排器 + MCP + `rpa-dsh-plugin`。
+命令 **82**、pytest **186**、ruff/结构测试通过；`feature_list` 大部分 `passes`，仅 `capture-unified-entry-storage` 差一个端到端测试。
 
-### 新指令文件架构
-```
-src/runtime/commands/
-  backend_commands/     ← 本地端操作指令 (Python handler, @register_handler + execute)
-  extension_commands/   ← 扩展端执行指令 (Python 注册桩, @register_handler)
-  control_commands/     ← 本地端控制指令 (emitter, 待搬入)
-  tools/                ← handler_template.py 等代码生成工具
-```
-- [x] 自注册：`__init__.py` 扫描 .py 文件 → `importlib.import_module`
-- [x] 启动时 `main.py` → `auto_register()`
-- [x] 清理旧 `handlers_new/` 目录
-- [x] API 读写路径指向 `commands/backend_commands/`
+### 已完成 / 成熟
+- 工作流参数、并发锁、元素捕获重构、web 指令架构重构、MCP 服务器、DSH P0 异步导入/运行 —— 均已 `passes`。
+- 指令生成工具链已闭环：`rpa_new_command` / `command_builder` / `--verify`（mock runner）/ Node 桩 / 免定位器定义驱动 / skill new-command v1.12。
+- TODO A（旧流程迁移）、B（content 缺失 handler）、E（基础补全）—— 已完成。
 
-### AI 代码生成
-- [x] AI 配置页 (`/#/ai-config`)：DeepSeek 配置、场景编辑、测试生成
-- [x] LLM API：`POST /api/ai/llm-config/scenarios/{id}/generate`
-- [x] Prompt 模板改为 scaffold 注入：后端预生成完整骨架代码，AI 只填 TODO 区域
-- [x] `_build_handler_scaffold()`：从 JSON 定义生成 import/注册/params/参数读取/结果上报
-- [x] 数据库 `ai_llm_configs` 表 + migration
-- [x] 分类 `command_categories` 表 + migration + 8 个默认分类
-- [x] 旧 JSON 文件迁移（category → categories slug）
+### 风险 / 债务
+- **架构文档与代码漂移**：`architecture.md` 层序（`types→…→mcp_server→ui`+`providers/`）与 `src/runtime/commands/*_commands` 指令系统对不上；`state.json` 停在 mvp/无风险；README 命令数 82≠72、electron 已删未更新。
+- **插件运行时脆**：改 DSH 插件**服务端**需极度保守（`syncProjectSkills` 曾致 dsh 起不来，已回退）。
+- **验证缺口（AI 建命令/流程不可靠的主因）**：后台 handler 无 Node 桩验证；真机 e2e 需手动重载扩展；改核心模块需重启后端。
+- **免登录**：本机/开发 OK；一旦共享/发布是多用户安全风险。
+- `capture-unified-entry-storage`：仅差「GUI 捕获→保存→元素库」端到端测试。
 
-### 数据库
-- 路径：`C:\Users\Administrator\AppData\Roaming\RPA Script\data.db`
-- Prompt 以数据库 `ai_llm_configs.scenarios` 为准，代码中 `DEFAULT_COMMAND_CODE_GEN_PROMPT` 仅首次种子
+### 未来方向（按优先级）
+- **P0｜AI 一句话 → 可运行工作流（主线）**：强化 `pre-generate-workflow` / `generate-workflow` + 元素库就绪 + 捕获。用户描述意图 → agent 自动拆解并建成**可运行**流程。TODO 原 C 块的向量匹配（C1-C4）已被这套 skill 驱动路线取代。
+- **P0｜补验证缺口**：后台 handler 加 `chrome.*` mock 的 Node 桩验证；真机 e2e 免手动重载扩展（dev 扩展热重载/自动化）；改核心模块自动重启后端。
+- **P1｜流程根集中 RPA_HOME + 统一管理页**：改路径模型，**不做旧兼容、不做复杂去重**；RPA_HOME 默认**用户可见目录**（非隐藏 `.dsh`，用户能在工作区/资源管理器直接打开）。
+- **P1｜定时调度（D 块）**：做成无人值守周期自动化（枚举 `RPA_HOME` 下的流程）。
+- **P1｜可靠性/发行准备**：桌面安装器（扩展拷到稳定目录）+ 内嵌扩展 + 一条命令跑；免登录的共享/发布风险评估。
+- **P2｜清理与收尾**：更新 `architecture.md`/`state.json`/README；补 `capture-unified-entry-storage` e2e；命令目录 UI catalog 提交纪律。
+
+---
+
+## 待办（按优先级）
+
+### P0
+- [ ] **P0-AI｜一句话生成可运行工作流（主线强化）**
+  - [ ] pre-generate-workflow / generate-workflow 与元素库就绪、捕获打通
+  - [ ] agent 从自然语言 → 完整可运行流程（含元素捕获、参数、结果写回）
+  - [ ] 验收：输入"采集知乎热搜前10条"→ 一键生成 + 运行成功
+- [ ] **P0-验证｜后台 handler 的 Node 桩验证** —— `verify_web_handler.mjs` 加 `chrome.tabs.query`/`chrome.windows` 的 mock，让 getAllTabs/switchTab 等可走官方桩
+- [ ] **P0-验证｜真机 e2e 免手动重载扩展** —— dev 扩展热重载 / 自动化刷新，让"重载扩展"不再是必备人工步
+- [ ] **P0-验证｜改核心模块自动重启后端** —— extension_runner 等被改后自动重启，减少人工判断
+
+### P1
+- [ ] **P1-流程根｜集中流程根 RPA_HOME + 统一管理页**（改路径模型）
+  - [ ] `RPA_HOME` 可配置；**默认用户可见目录**（如 `~/RPA脚本`，**非隐藏 `.dsh`**，用户能在资源管理器/工作区直接打开）
+  - [ ] 一个流程 = `RPA_HOME/<流程目录>/`（内部 rpa.json/workflow.json/elements.json/data.json/images/run_logs 结构不变）
+  - [ ] 所有流程只在 `RPA_HOME` 下；**旧散落目录不迁移、不兼容**，直接切新模型
+  - [ ] 目录名 = 流程名，重名由 OS/自然命名处理（**不做复杂去重**）
+  - [ ] 统一管理页枚举 `RPA_HOME/*/rpa.json`（名称/节点数/最近运行/状态 + 打开编辑器/运行/复制/重命名/归档/删除/加调度）
+  - [ ] 会话/编辑器/运行路径改为"从 `RPA_HOME` 选流程"，**打破旧的"会话 cwd=当前流程"绑定**
+  - [ ] 后续：定时调度（枚举 RPA_HOME）、AI 一句话生成（落到 `RPA_HOME/<新流程名>`）
+- [ ] **P1-调度｜D1: 调度模型 — Schedules 表 + 迁移**（cron + 简单间隔，last/next run）
+- [ ] **P1-调度｜D2: 调度 CRUD API**（`/api/workflows/{id}/schedules`，校验 cron）
+- [ ] **P1-调度｜D3: 调度引擎 — asyncio 定时检查**（lifespan 后台任务，到期调 `run_workflow_extension()`）
+- [ ] **P1-调度｜D4: 调度前端页面**（列表 + 新建/编辑/删除/启停）
+- [ ] **P1-发行｜桌面安装器 + 内嵌扩展 + 一条命令跑**（插件 README P2：扩展拷稳定目录 + 写 External Extensions + 提示重启）
+
+### P2
+- [ ] **P2-清理｜更新 architecture.md / state.json / README**（层序/状态/命令数 82、移除 electron 残留）
+- [ ] **P2-收尾｜capture-unified-entry-storage 端到端测试**
+- [ ] 撤销 / 重做快捷键（Ctrl+Z / Ctrl+Y）
+- [ ] 支持元素内部滚动（scrollContainer）
+- [ ] 节点配置项联动（select 切换显隐）
+- [ ] 桌面应用 IPC 通信
+- [ ] 循环变量作用域设计
+
+### 已完成（留档）
+- [x] A1-A2：旧流程迁移到新指令架构（迁移脚本 + LEGACY_MAP 验证）
+- [x] B1-B5：content.js 补充 waitFor/*/scroll/takeScreenshot/keyCombo/getPageTitle/getElementCount/clickIfExists
+- [x] E1-E3：checkElementVisible/Exists 注册、handler_validator 路径修复、内建指令隐藏"添加字段"
+- [x] 指令生成工具链闭环：rpa_new_command 极简用 + command_builder `--verify` + Node 桩 + 免定位器定义驱动 + skill v1.12
+- [x] error/# MCP 服务器、web 指令架构重构、元素捕获重构、工作流并发锁、DSH 异步导入/运行
+
+---
+
+## 历史进度（2025-07-10，留档）
+
+### 新指令架构 + AI 代码生成
+- [x] 指令定义编辑器（4 列布局、多分类、图标/配色、参数编辑、删除）
+- [x] 自注册 handler 目录（backend/extension/control_commands）
+- [x] AI 代码生成：LLM API + scaffold 注入 + 分类表 + 旧 JSON 迁移
+- [x] 数据库：data.db、ai_llm_configs、command_categories
+
+> 注：AI 代码生成（AI 填 TODO 区）已被 DSH skill 驱动路线（agent 直接生成/复用）进一步取代，保留作历史。
