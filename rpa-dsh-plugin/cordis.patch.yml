@@ -14,6 +14,8 @@
         # 本地 file: 形态可配置指向仓库 venv；npm 形态留空则自举 python/ 内 venv
         backendCommand: !!js process.env.RPA_BACKEND_COMMAND || ''
         backendCwd: !!js process.env.RPA_BACKEND_CWD || ''
+        # RPA 流程根：集中所有流程目录（用户可感知）。留空用默认 ~/RPA脚本
+        rpaHome: !!js process.env.RPA_HOME || ''
         # 浏览器单指令默认超时（毫秒）
         browserExecTimeoutMs: !!js Number(process.env.RPA_BROWSER_EXEC_TIMEOUT_MS || 30000)
         # rpa_run_wait 轮询间隔（毫秒）

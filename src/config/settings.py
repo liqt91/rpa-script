@@ -114,3 +114,12 @@ PORT = int(os.getenv("PORT", "8000"))
 # 工作流全局并发锁（ADR-0007）
 MAX_CONCURRENT_WORKFLOWS = int(os.getenv("MAX_CONCURRENT_WORKFLOWS", "1"))
 WORKFLOW_LOCK_TIMEOUT_SECONDS = float(os.getenv("WORKFLOW_LOCK_TIMEOUT_SECONDS", "30.0"))
+
+# RPA 流程根（RPA_HOME）：所有流程目录的集中根。
+# 默认用户可感知目录（家目录下 `RPA脚本`，非隐藏 `.dsh`——用户能在资源管理器/工作区直接打开）；
+# 可用环境变量 RPA_HOME 覆盖，也可在 UI 设置。
+RPA_HOME = os.environ.get(
+    "RPA_HOME",
+    os.path.join(os.path.expanduser("~"), "RPA脚本"),
+)
+os.makedirs(RPA_HOME, exist_ok=True)

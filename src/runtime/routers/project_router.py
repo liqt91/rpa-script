@@ -18,6 +18,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
+from src.config import runtime_config as config
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -25,6 +27,109 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 # 允许读写的目录内文件名（白名单，禁止任意路径穿越）
 _READABLE_FILES = frozenset({"rpa.json", "workflow.json", "elements.json", "data.json"})
 _WRITABLE_FILES = frozenset({"workflow.json", "elements.json", "data.json"})
+
+
+def _rpa_home() -> Path:
+    """RPA 流程根的绝对路径（集中所有流程目录）。"""
+    return Path(config.RPA_HOME).expanduser().resolve()
+
+
+def _flow_marker_meta(root: Path) -> dict:
+    try:
+        return json.loads((root / "rpa.json").read_text(encoding="utf-8-sig"))
+    except Exception:
+        return {}
+
+
+def _list_rpa_flows() -> list[dict]:
+    """枚举 RPA_HOME 下所有流程目录（含 rpa.json 的子目录）。"""
+    home = _rpa_home()
+    flows = []
+    if not home.is_dir():
+        return flows
+    for child in sorted(home.iterdir(), key=lambda p: p.name.lower()):
+        if not child.is_dir() or child.name.startswith("."):
+            continue
+        if not (child / "rpa.json").is_file():
+            continue
+        meta = _flow_marker_meta(child)
+        node_count = 0
+        has_workflow = (child / "workflow.json").is_file()
+        if has_workflow:
+            try:
+                wf = json.loads((child / "workflow.json").read_text(encoding="utf-8-sig"))
+                node_count = len(wf.get("nodes") or [])
+            except Exception:
+                pass
+        flows.append({
+            "name": meta.get("name") or child.name,
+            "slug": child.name,
+            "path": str(child),
+            "hasWorkflow": has_workflow,
+            "nodeCount": node_count,
+        })
+    return flows
+
+
+def _init_flow_dir(root: Path, name: str, description: str = "") -> Path:
+    """在一个（新）流程目录内初始化 rpa.json + 空 workflow.json（缺则建，幂等）。
+
+    目录名 = 流程名（OS 层天然唯一；同名即幂等复用，不做复杂去重）。
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    marker = root / "rpa.json"
+    if not marker.is_file():
+        marker.write_text(json.dumps({
+            "name": name,
+            "version": 1,
+            "description": description,
+            "created_at": __import__("datetime").datetime.now().isoformat(),
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+    wf = root / "workflow.json"
+    if not wf.is_file():
+        wf.write_text(json.dumps({
+            "name": name,
+            "description": description,
+            "url": "",
+            "parameters": [],
+            "nodes": [],
+            "elements": [],
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+    return root
+
+
+@router.get("/home")
+def project_home():
+    """返回 RPA 流程根路径（集中根，用户可感知目录）。"""
+    home = _rpa_home()
+    return {"ok": True, "rpaHome": str(home)}
+
+
+@router.get("/list")
+def project_list():
+    """枚举 RPA 流程根下所有流程（集中管理页的数据源）。"""
+    flows = _list_rpa_flows()
+    return {"ok": True, "count": len(flows), "flows": flows}
+
+
+@router.post("/create")
+def project_create(payload: dict = Body(...)):
+    """在 RPA 流程根下创建一个新流程目录（缺则建 rpa.json + 空 workflow.json，幂等）。
+
+    payload: {name(必填), description?}。目录名 = 流程名。
+    """
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="缺少流程名 name")
+    # 目录名只保留安全字符，避免非法路径/穿越
+    slug = "".join(c for c in name if c.isalnum() or c in ("_", "-", " ")).strip() or "flow"
+    root = _rpa_home() / slug
+    # 允许路径穿越：slug 已过滤，仍做一次安全校验
+    resolved = root.resolve()
+    if not str(resolved).startswith(str(_rpa_home())):
+        raise HTTPException(status_code=400, detail="非法流程名")
+    _init_flow_dir(resolved, name, payload.get("description") or "")
+    return {"ok": True, "name": name, "path": str(resolved), "rpaHome": str(_rpa_home())}
 
 
 @router.get("/read")

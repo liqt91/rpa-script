@@ -438,7 +438,140 @@ window.__ModuleLoader__.load({
           unregisterFlowTab();
         };
       }, "rpa-console: flow tab sync");
+
+      /* -------- RPA 配置 tab（settings.plugins.tab） --------
+       * 给「插件」分区贡献一个功能专属 tab；页面绑定已注册的 `rpa` settings 命名空间，
+       * 读/写 rpaHome/backendCwd/backendUrl/autoStartBackend。失败不影响既有功能。
+       */
+      try {
+        // settingsScope 用 ctx.get 可选获取（不是硬注入），取不到就跳过，绝不影响模块加载
+        var scopeCtx = null;
+        try { scopeCtx = ctx.get("settingsScope"); } catch (e) {}
+        if (!scopeCtx || typeof scopeCtx.bind !== "function") return;
+        var rpaScope = scopeCtx.bind({ namespace: "rpa" });
+        var rpaMsgT = function (key) {
+          var m = { saved: "已保存", saveFailed: "保存失败" };
+          return m[key] || key;
+        };
+        ctx.slots.inject("settings.plugins.tab", function () {
+          return ctx.slots.register({
+            name: "settings.plugins.tab",
+            id: "rpa",
+            order: 30,
+            locale: NS,
+            label: "RPA 配置",
+            inject: function () { return { scope: rpaScope, t: rpaMsgT }; }
+          }, RpaSettingsPage);
+        });
+      } catch (e) {
+        ctx.logger?.warn?.("rpa settings tab 注册失败: " + (e && e.message));
+      }
     }
+
+    /** RPA 插件配置页（功能专属 tab）：绑定 `rpa` settings 命名空间，读/写配置字段。 */
+    var RpaSettingsPage = function (props) {
+      var scope = props.scope;
+      var t = props.t;
+      var initial = {};
+      var writable = true;
+      try {
+        var snap = scope.getSnapshot();
+        initial = snap.value || {};
+        writable = snap.writable !== false;
+      } catch (e) {}
+      var pairDrafts = React.useState({});
+      var drafts = pairDrafts[0];
+      var setDrafts = pairDrafts[1];
+      var pairSaving = React.useState(false);
+      var saving = pairSaving[0];
+      var setSaving = pairSaving[1];
+      var pairMsg = React.useState("");
+      var msg = pairMsg[0];
+      var setMsg = pairMsg[1];
+
+      // 订阅 scope 变化（外部改动 / 保存后）→ 清空草稿重读
+      React.useEffect(function () {
+        return scope.subscribe(function () { setDrafts({}); });
+      });
+
+      var fields = [
+        { key: "rpaHome", label: "RPA 流程根目录", hint: "所有流程的集中目录；留空用 ~/RPA脚本", placeholder: "如 C:\\Users\\你\\RPA脚本" },
+        { key: "backendCwd", label: "后端工作目录", hint: "仅本地开发形态需要；打包安装形态后端内置于插件包，此项留空", placeholder: "RPA 代码仓库路径" },
+        { key: "backendUrl", label: "后端地址", hint: "留空自动从端口文件发现（随机端口）", placeholder: "留空自动发现" }
+      ];
+      var packaged = initial.deployForm === "packaged";
+      var visibleFields = packaged ? fields.filter(function (f) { return f.key !== "backendCwd"; }) : fields;
+      var draftVal = function (key) {
+        return Object.prototype.hasOwnProperty.call(drafts, key) ? drafts[key] : (initial[key] || "");
+      };
+      var edit = function (key, text) {
+        var d = Object.assign({}, drafts);
+        d[key] = text;
+        setDrafts(d);
+      };
+      var boolChecked = function () {
+        var ab = draftVal("autoStartBackend");
+        return ab === "true" || ab === true;
+      };
+      var save = function () {
+        setSaving(true); setMsg("");
+        var plan = [];
+        fields.forEach(function (f) {
+          var v = draftVal(f.key).trim();
+          if (v !== (initial[f.key] || "")) plan.push({ run: function () { return v === "" ? scope.unset(f.key) : scope.set(f.key, v); } });
+        });
+        var abVal = boolChecked();
+        if (abVal !== (initial.autoStartBackend === true)) plan.push({ run: function () { return scope.set("autoStartBackend", abVal); } });
+        var i = 0;
+        var next = function () {
+          if (i >= plan.length) { setSaving(false); setMsg(t("saved")); setDrafts({}); return; }
+          plan[i].run().then(next).catch(function (e) {
+            setSaving(false); setMsg(t("saveFailed") + "：" + (e && e.message ? e.message : e));
+          });
+          i++;
+        };
+        if (plan.length === 0) { setSaving(false); setMsg(t("saved")); return; }
+        next();
+      };
+      var inputStyle = {
+        height: 32, padding: "0 10px", fontSize: 13, lineHeight: 1.5,
+        border: "1px solid var(--dsw-alias-border-l2)", borderRadius: 8,
+        background: "var(--dsw-alias-bg-layer-3)", color: "var(--dsw-alias-label-primary)"
+      };
+      var labelStyle = { fontSize: 13, fontWeight: 500, color: "var(--dsw-alias-label-primary)" };
+      var hintStyle = { fontSize: 12, color: "var(--dsw-alias-label-tertiary)" };
+      var btnBase = {
+        height: 32, padding: "0 14px", fontSize: 13, cursor: "pointer",
+        borderRadius: 8, border: "1px solid var(--dsw-alias-border-l2)",
+        color: "var(--dsw-alias-label-primary)", background: "var(--dsw-alias-bg-layer-3)"
+      };
+      return jsxRuntime.jsxs("div", { style: { maxWidth: 640, display: "flex", flexDirection: "column", gap: 16, padding: "8px 0" }, children: [
+        jsxRuntime.jsxs("div", { children: [
+          jsxRuntime.jsx("h3", { style: { margin: "0 0 4px", fontSize: 15, fontWeight: 600, color: "var(--dsw-alias-label-primary)" }, children: "RPA 配置" }),
+          jsxRuntime.jsx("p", { style: { margin: 0, fontSize: 13, color: "var(--dsw-alias-label-tertiary)" }, children: "RPA 插件设置：集中流程根目录、后端目录/地址、是否自动拉起。" })
+        ] }),
+        jsxRuntime.jsxs("label", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--dsw-alias-label-primary)" }, children: [
+          jsxRuntime.jsx("input", { type: "checkbox", checked: boolChecked(), disabled: !writable, onChange: function (e) { edit("autoStartBackend", e.target.checked ? "true" : "false"); } }),
+          jsxRuntime.jsx("span", { children: "自动拉起后端" }),
+          jsxRuntime.jsx("span", { style: hintStyle, children: "（启动 dsh 时自动拉起 RPA 后端；会影响启动速度，默认不勾选）" })
+        ] }),
+        visibleFields.map(function (f) {
+          return jsxRuntime.jsxs("div", { key: f.key, style: { display: "flex", flexDirection: "column", gap: 4 }, children: [
+            jsxRuntime.jsx("span", { style: labelStyle, children: f.label }),
+            jsxRuntime.jsx("input", { value: draftVal(f.key), disabled: !writable, placeholder: f.placeholder || "", onChange: function (e) { edit(f.key, e.target.value); }, style: inputStyle }),
+            jsxRuntime.jsx("small", { style: hintStyle, children: f.hint })
+          ] });
+        }),
+        jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 12 }, children: [
+          jsxRuntime.jsx("button", {
+            onClick: save, disabled: saving || !writable,
+            style: Object.assign({}, btnBase, (saving || !writable) ? { opacity: 0.5, cursor: "default" } : {}),
+            children: saving ? "保存中…" : "保存"
+          }),
+          msg ? jsxRuntime.jsx("span", { style: { fontSize: 12, color: "var(--dsw-alias-label-tertiary)" }, children: msg }) : null
+        ] })
+      ] });
+    };
 
     exports.apply = apply;
     exports.inject = ["slots", "locale", "sessions"];

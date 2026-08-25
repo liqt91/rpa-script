@@ -29,8 +29,9 @@
 
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import z from "@deepseek-ai/schemastery";
+import { settingsNamespace } from "@deepseek-ai/dsh-settings";
 import { spawn, execFile } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
@@ -42,7 +43,7 @@ function require_node_child_process() {
 }
 
 const name = "rpa-bridge";
-const inject = ["tools", "systemPrompt", "webServer"];
+const inject = ["tools", "systemPrompt", "webServer", "settings"];
 
 const Config = z.object({
   // 后端地址：留空自动从端口文件发现（随机端口 8100-8199）；也可显式固定
@@ -55,6 +56,8 @@ const Config = z.object({
   autoStartBackend: z.boolean().default(false),
   backendCommand: z.string().default(""),
   backendCwd: z.string().default(""),
+  // RPA 流程根：集中所有流程目录（用户可感知目录）。留空用默认 ~/RPA脚本；也回退 RPA_HOME 环境变量。
+  rpaHome: z.string().default(""),
   // 浏览器单指令默认超时
   browserExecTimeoutMs: z.number().default(30000),
   // rpa_run_wait 轮询间隔
@@ -140,6 +143,12 @@ function serveStatic(root, pathname, res) {
 /** 数据目录：npm 形态落到用户 .dsh 下（不污染 node_modules）。 */
 function defaultDataDir() {
   return join(homedir(), ".dsh", "rpa-data");
+}
+
+/** RPA 流程根：所有流程的集中目录。优先插件配置 rpaHome → 环境变量 RPA_HOME → 默认 `~/RPA脚本`。 */
+function resolveRpaHome(cfg) {
+  const v = (cfg?.rpaHome || process.env.RPA_HOME || join(homedir(), "RPA脚本")).trim();
+  return v || join(homedir(), "RPA脚本");
 }
 
 function hasCommand(cmd) {
@@ -408,6 +417,40 @@ function browserExec(api, cfg, args, signal) {
 function apply(ctx, config) {
   const api = createApi(config);
 
+  // 注册 rpa 的 settings 命名空间（供「插件配置」卡片的浏览器半侧认领；底座组合值为 base）
+  const RPA_NS = "rpa";
+  ctx.settings.register(
+    settingsNamespace(RPA_NS),
+    z.object({
+      rpaHome: z.string(),
+      backendCwd: z.string(),
+      backendUrl: z.string(),
+      autoStartBackend: z.boolean(),
+      deployForm: z.string(), // 派生只读：local | packaged，客户端据此隐藏/展示字段
+    }),
+    {
+      base: {
+        rpaHome: resolveRpaHome(config),
+        backendCwd: config.backendCwd || "",
+        backendUrl: config.backendUrl || "",
+        autoStartBackend: Boolean(config.autoStartBackend),
+        deployForm: config.backendCommand ? "local" : "packaged",
+      },
+    },
+  );
+
+  // 防御性读 settings 值（settings 优先 → 组合 base/config → env/默认）。
+  // ctx.settings.get('rpa') 返回分层的解析值（schema默认 → base → 用户 settings 分节）。
+  const rpaSetting = (field) => {
+    try { return ctx.settings.get("rpa")?.[field]; } catch { return undefined; }
+  };
+  const rpaHomeValue = () => rpaSetting("rpaHome") || resolveRpaHome(config);
+  // autoStartBackend：settings 勾选优先 → 回退 cordis config（默认 false）。本次让它真实生效。
+  const autoStartBackendValue = () => {
+    const s = rpaSetting("autoStartBackend");
+    return typeof s === "boolean" ? s : Boolean(config.autoStartBackend);
+  };
+
   /* -------- 激活时健康检查（不阻塞激活，失败仅告警） -------- */
   setTimeout(() => {
     api.get("/health", { auth: false, timeoutMs: 5000 })
@@ -438,7 +481,7 @@ function apply(ctx, config) {
       if (!launchErrorShown) {
         ctx.logger.info(
           `[rpa-bridge] 后端未运行（懒启动）：首次使用 RPA 工具或打开控制台时自动拉起；` +
-          (config.autoStartBackend ? "" : " 或配置 autoStartBackend 允许自动拉起。")
+          (autoStartBackendValue() ? "" : " 或配置 autoStartBackend 允许自动拉起。")
         );
         launchErrorShown = true;
       }
@@ -453,7 +496,7 @@ function apply(ctx, config) {
         let alive = false;
         try { await api.get("/health", { timeoutMs: 1500 }); alive = true; } catch {}
         if (alive) return;
-        if (!config.autoStartBackend) {
+        if (!autoStartBackendValue()) {
           throw new Error("后端未运行。请在 RPA 控制台点「启动后端」，或开启 autoStartBackend 自动拉起。");
         }
         const r = await startBackendProcess("start");
@@ -551,6 +594,8 @@ function apply(ctx, config) {
       return { ok: false, error: "无可用的后端启动方式（本地形态请配置 backendCommand 指向仓库 venv）" };
     }
     const env = { ...process.env, ...launch.env };
+    // 把插件配置的 RPA_HOME 以环境变量传给后端（后端 settings.py 读 RPA_HOME）
+    env.RPA_HOME = rpaHomeValue();
     // 后端日志落盘：stdio ignore 会吞掉启动失败原因，导致 30s 后只能报"未就绪"而无法排查。
     // 写入后端工作目录 data/backend-run.log，就绪失败时把日志尾行带进错误信息。
     // 注意：不能用 createWriteStream 直接当 stdio——它是异步打开，fd 未就绪时 Node 会抛
@@ -852,10 +897,18 @@ function apply(ctx, config) {
     // 注意：不走 withEnsure —— 初始化工作区是纯 node fs + workspaceRegistry，不依赖 Python 后端
     execute: async (args, exec) => {
       const cwd = exec?.agent?.session?.header?.cwd;
-      const dir = (args.path || "").trim() || cwd;
-      if (!dir) throw new Error("无法确定流程目录：未提供 path 且当前会话没有工作目录");
+      let name = (args.name || "").trim();
+      let dir = (args.path || "").trim();
+      if (!dir) {
+        // 集中流程根：默认在 RPA_HOME 下按流程名建目录（目录名 = 流程名，OS 层唯一）
+        const base = rpaHomeValue();
+        mkdirSync(base, { recursive: true });
+        name = name || "RPA 流程";
+        dir = join(base, name);
+      } else if (!name) {
+        name = dir.split(/[\\/]/).filter(Boolean).pop() || "RPA 流程";
+      }
       mkdirSync(dir, { recursive: true });
-      const name = (args.name || "").trim() || dir.split(/[\\/]/).filter(Boolean).pop() || "RPA 流程";
       const marker = join(dir, RPA_MARKER);
       if (!existsSync(marker)) {
         writeFileSync(marker, JSON.stringify({
@@ -1009,7 +1062,7 @@ function apply(ctx, config) {
       runtime: { type: "string", enum: ["backend", "desktop", "extension", "control"], description: "指令类型；缺省 backend；desktop 走 desktop_commands" },
       handlerKind: { type: "string", enum: ["dom", "background"], description: "extension 指令的 handler 类型：dom=页面 DOM（默认，source→dom_handlers_new）；background=浏览器后台（chrome.tabs/windows，source→background_handlers，管线自动 build background.js）" },
       label: { type: "string", description: "显示名（中文）；缺省用 cmd" },
-      params: { type: "array", items: { type: "object", description: "{name,label,type,required?,default?,options?}" }, description: "参数定义，极简用法可省" },
+      params: { type: "array", items: { type: "object", additionalProperties: true, description: "{name,label,type,required?,default?,options?}" }, description: "参数定义，极简用法可省" },
       definition: { type: "object", additionalProperties: true, description: "完整指令 JSON 定义对象（可选；给了优先，未给则用 cmd/description/runtime/params 自动补全）" },
       skip_build_js: { type: "boolean", description: "跳过 build_content_js.py（非 extension 指令可省，默认 false）" },
       force: { type: "boolean", description: "覆盖已存在的 commands/<cmd>.json（默认 false）" },
@@ -1095,26 +1148,24 @@ function apply(ctx, config) {
         });
       };
 
-      // 1) 当前会话目录优先（即使未注册到 workspaceRegistry 也列出）
-      if (sessionCwd) {
-        const cwdNorm = resolve(String(sessionCwd));
-        collect(cwdNorm, { current: true });
-      }
-      // 2) workspaceRegistry 中其余含 rpa.json 的工作区
+      // 集中流程根：枚举 RPA_HOME 下所有流程目录（含 rpa.json）
       try {
-        const registry = ctx.workspaceRegistry;
-        if (registry && typeof registry.list === "function") {
-          for (const ws of registry.list()) {
-            const dir = ws?.path;
-            if (!dir || seen.has(dir)) continue;
+        const base = rpaHomeValue();
+        if (existsSync(base)) {
+          for (const entry of readdirSync(base, { withFileTypes: true })) {
+            if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+            const dir = join(base, entry.name);
             collect(dir, {
-              workspaceId: ws.id,
-              current: Boolean(sessionCwd) && resolve(dir).toLowerCase() === resolve(String(sessionCwd)).toLowerCase(),
+              current: Boolean(sessionCwd) && resolve(dir).toLowerCase() === String(resolve(String(sessionCwd))).toLowerCase(),
             });
           }
         }
       } catch (e) {
-        ctx.logger.warn(`[rpa-bridge] rpa_project_list 读取工作区失败: ${e.message}`);
+        ctx.logger.warn(`[rpa-bridge] rpa_project_list 读取 RPA_HOME 失败: ${e.message}`);
+      }
+      // 会话目录本身是富 rpa.json 但不在 RPA_HOME 下 → 也列出（标 current）
+      if (sessionCwd && !seen.has(resolve(String(sessionCwd)))) {
+        collect(resolve(String(sessionCwd)), { current: true });
       }
       return { ok: true, count: projects.length, projects };
     },
