@@ -1,0 +1,44 @@
+{
+  "bgColor": "bg-indigo-50",
+  "categories": [
+    "browser-element"
+  ],
+  "category": "浏览器元素操作",
+  "categoryOrder": 20,
+  "cmd": "getInputBoxes",
+  "commandOrder": 58,
+  "description": "获取网页上所有输入框（input/textarea），含 name/type/value/placeholder/关联 label，结果保存到变量",
+  "enabled": true,
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/getInputBoxes.js"
+  },
+  "icon": "fa-edit",
+  "iconColor": "text-indigo-500",
+  "label": "获取网页输入框",
+  "params": [
+    {
+      "default": true,
+      "group": "advanced",
+      "label": "包含多行文本框",
+      "name": "includeTextarea",
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "group": "advanced",
+      "label": "包含隐藏字段",
+      "name": "includeHidden",
+      "type": "boolean"
+    },
+    {
+      "default": "inputs",
+      "description": "输入框列表（数组，含 tag/name/type/value/placeholder/label/id）将保存到此变量",
+      "group": "output",
+      "label": "保存到变量",
+      "name": "resultVar",
+      "type": "string"
+    }
+  ],
+  "runtime": "extension"
+}

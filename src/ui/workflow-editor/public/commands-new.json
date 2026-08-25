@@ -3,11 +3,14 @@
     "浏览器操作",
     "浏览器元素操作",
     "变量及日志",
+    "AI 调用",
     "循环",
     "条件判断",
+    "文件处理",
     "异常处理",
     "桌面操作",
-    "vision"
+    "vision",
+    "data"
   ],
   "commands": {
     "循环": [
@@ -2428,6 +2431,80 @@
         "handler": "src/runtime/commands/desktop_commands/mouseClickWin32.py"
       },
       {
+        "cmd": "setVolumeWin32",
+        "label": "设置音量",
+        "category": "桌面操作",
+        "icon": "fa-volume-up",
+        "iconColor": "text-amber-500",
+        "bgColor": "bg-amber-50",
+        "description": "将系统主音量调整到指定大小（0-100，0 为静音），不依赖浏览器，适用于桌面自动化",
+        "fields": [
+          {
+            "name": "volume",
+            "label": "目标音量",
+            "type": "number",
+            "group": "主属性",
+            "required": true,
+            "default": 50,
+            "placeholder": "0-100，支持 {{变量}} 引用；0=静音，100=最大"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 50,
+        "commandOrder": 19,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/desktop_commands/setVolumeWin32.py"
+      },
+      {
         "cmd": "clickMenuWin32",
         "label": "点击菜单",
         "category": "桌面操作",
@@ -2507,6 +2584,171 @@
         "hasRuntime": true,
         "local": true,
         "handler": "src/runtime/commands/desktop_commands/clickMenuWin32.py"
+      },
+      {
+        "cmd": "getMousePos",
+        "label": "读取鼠标坐标",
+        "category": "桌面操作",
+        "icon": "fa-arrow-pointer",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "description": "读取当前鼠标屏幕坐标（x, y），可写入变量供下游引用",
+        "fields": [
+          {
+            "name": "resultVar",
+            "label": "结果存入变量",
+            "type": "str-var",
+            "group": "output",
+            "default": "",
+            "placeholder": "坐标字典存入此变量，如 mousePos"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 50,
+        "commandOrder": 20,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/desktop_commands/getMousePos.py"
+      },
+      {
+        "cmd": "setBrightnessWin32",
+        "label": "设置屏幕亮度",
+        "category": "桌面操作",
+        "icon": "fa-sun",
+        "iconColor": "text-yellow-500",
+        "bgColor": "bg-yellow-50",
+        "description": "将显示器/屏幕亮度调整到指定大小（0-100，0 为最暗），不依赖浏览器，适用于桌面自动化（笔记本内屏 + DDC/CI 外接显示器）。",
+        "fields": [
+          {
+            "name": "brightness",
+            "label": "目标亮度",
+            "type": "number",
+            "group": "主属性",
+            "required": true,
+            "default": 50,
+            "placeholder": "0-100，支持 {{变量}} 引用；0=最暗，100=最亮"
+          },
+          {
+            "name": "applyTo",
+            "label": "应用范围",
+            "type": "select",
+            "group": "主属性",
+            "default": "all",
+            "options": [
+              {
+                "label": "所有显示器",
+                "value": "all"
+              },
+              {
+                "label": "主显示器",
+                "value": "primary"
+              }
+            ],
+            "placeholder": "选择要调节的显示器范围"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 50,
+        "commandOrder": 20,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/desktop_commands/setBrightnessWin32.py"
       },
       {
         "cmd": "waitWin32",
@@ -2775,6 +3017,364 @@
         "hasRuntime": true,
         "local": true,
         "handler": "src/runtime/commands/desktop_commands/closeWindowWin32.py"
+      },
+      {
+        "cmd": "readScreenInfoWin32",
+        "label": "读取屏幕信息",
+        "category": "桌面操作",
+        "icon": "fa-desktop",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "读取所有显示器信息（分辨率/坐标/工作区/DPI/刷新率/主屏标志）及屏幕指标，结果可写入变量供下游引用",
+        "fields": [
+          {
+            "name": "resultVar",
+            "label": "结果存入变量",
+            "type": "str-var",
+            "group": "output",
+            "default": "",
+            "placeholder": "读取到的屏幕信息字典存入此变量，如 screenInfo"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 50,
+        "commandOrder": 23,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/desktop_commands/readScreenInfoWin32.py"
+      },
+      {
+        "cmd": "readHardwareInfo",
+        "label": "读取系统硬件信息",
+        "category": "桌面操作",
+        "icon": "fa-microchip",
+        "iconColor": "text-teal-500",
+        "bgColor": "bg-teal-50",
+        "description": "读取系统硬件信息（CPU/内存/显卡/磁盘/主板/操作系统/BIOS），结果可写入变量供下游引用；非 Windows 平台降级返回 Python 层面信息",
+        "fields": [
+          {
+            "name": "scope",
+            "label": "读取范围",
+            "type": "select",
+            "group": "主属性",
+            "default": "all",
+            "options": [
+              {
+                "label": "全部硬件信息",
+                "value": "all"
+              },
+              {
+                "label": "系统信息",
+                "value": "system"
+              },
+              {
+                "label": "CPU",
+                "value": "cpu"
+              },
+              {
+                "label": "内存",
+                "value": "memory"
+              },
+              {
+                "label": "显卡",
+                "value": "gpu"
+              },
+              {
+                "label": "磁盘",
+                "value": "disk"
+              }
+            ]
+          },
+          {
+            "name": "resultVar",
+            "label": "结果存入变量",
+            "type": "str-var",
+            "group": "output",
+            "default": "",
+            "placeholder": "读取到的硬件信息字典存入此变量，如 hardwareInfo"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 50,
+        "commandOrder": 24,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/desktop_commands/readHardwareInfo.py"
+      },
+      {
+        "cmd": "readSystemFonts",
+        "label": "读取系统字体列表",
+        "category": "桌面操作",
+        "icon": "fa-font",
+        "iconColor": "text-purple-500",
+        "bgColor": "bg-purple-50",
+        "description": "读取系统已安装字体列表（Windows 读取字体注册表，非 Windows 降级用 fc-list/字体目录）。结果可写入变量供下游引用，如生成文档/选择字体样式。",
+        "fields": [
+          {
+            "name": "includeFile",
+            "label": "包含字体文件",
+            "type": "boolean",
+            "group": "advanced",
+            "default": false,
+            "description": "是否在结果中一并返回每个字体对应的字体文件名/路径"
+          },
+          {
+            "name": "resultVar",
+            "label": "结果存入变量",
+            "type": "str-var",
+            "group": "output",
+            "default": "",
+            "placeholder": "读取到的字体列表字典存入此变量，如 fontList"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 50,
+        "commandOrder": 25,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/desktop_commands/readSystemFonts.py"
+      },
+      {
+        "cmd": "getNetworkInfo",
+        "label": "获取本机网络连接信息",
+        "category": "桌面操作",
+        "icon": "fa-network-wired",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "读取本机网络连接信息（网卡/接口、活动 TCP/UDP 连接、主机 IP）。优先用 psutil，未安装时降级用 socket/netstat。结果可写入变量供下游引用。",
+        "fields": [
+          {
+            "name": "scope",
+            "label": "读取范围",
+            "type": "select",
+            "group": "主属性",
+            "default": "all",
+            "options": [
+              {
+                "label": "全部网络信息",
+                "value": "all"
+              },
+              {
+                "label": "网卡/接口",
+                "value": "interface"
+              },
+              {
+                "label": "网络连接",
+                "value": "connection"
+              },
+              {
+                "label": "主机信息",
+                "value": "host"
+              }
+            ]
+          },
+          {
+            "name": "resultVar",
+            "label": "结果存入变量",
+            "type": "str-var",
+            "group": "output",
+            "default": "",
+            "placeholder": "读取到的网络信息字典存入此变量，如 networkInfo"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 50,
+        "commandOrder": 26,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/backend_commands/getNetworkInfo.py"
       }
     ],
     "浏览器元素操作": [
@@ -3340,6 +3940,765 @@
         "hasRuntime": true,
         "local": false,
         "handler": "extension/dom_handlers_new/getElementLink.js"
+      },
+      {
+        "cmd": "getLinksByRegex",
+        "label": "正则获取链接",
+        "category": "浏览器元素操作",
+        "icon": "fa-link",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "获取页面上所有匹配正则表达式的链接，支持按 href 或链接文本匹配",
+        "fields": [
+          {
+            "name": "pattern",
+            "label": "匹配正则",
+            "type": "string",
+            "group": "主属性",
+            "required": true,
+            "placeholder": "如 https://example\\.com/.*"
+          },
+          {
+            "name": "matchField",
+            "label": "匹配对象",
+            "type": "select",
+            "group": "advanced",
+            "default": "href",
+            "options": [
+              {
+                "label": "链接地址（href）",
+                "value": "href"
+              },
+              {
+                "label": "链接文本",
+                "value": "text"
+              },
+              {
+                "label": "两者任一",
+                "value": "any"
+              }
+            ]
+          },
+          {
+            "name": "onlyVisible",
+            "label": "仅可见链接",
+            "type": "boolean",
+            "group": "advanced",
+            "default": false
+          },
+          {
+            "name": "deduplicate",
+            "label": "去重",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "links",
+            "description": "匹配到的链接列表（数组，含 href 与 text）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 20,
+        "commandOrder": 55,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/dom_handlers_new/getLinksByRegex.js"
+      },
+      {
+        "cmd": "getAllImages",
+        "label": "获取页面所有图片",
+        "category": "浏览器元素操作",
+        "icon": "fa-images",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "获取页面上所有图片的链接地址（含懒加载、srcset 多尺寸、可选 CSS 背景图），结果保存到变量",
+        "fields": [
+          {
+            "name": "onlyVisible",
+            "label": "仅可见图片",
+            "type": "boolean",
+            "group": "advanced",
+            "default": false
+          },
+          {
+            "name": "deduplicate",
+            "label": "去重",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true
+          },
+          {
+            "name": "includeSrcset",
+            "label": "解析 srcset 多尺寸",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true
+          },
+          {
+            "name": "includeCssBackground",
+            "label": "包含 CSS 背景图",
+            "type": "boolean",
+            "group": "advanced",
+            "default": false
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "images",
+            "description": "匹配到的图片列表（数组，含 src/alt/尺寸）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 20,
+        "commandOrder": 56,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/dom_handlers_new/getAllImages.js"
+      },
+      {
+        "cmd": "getAllFormFields",
+        "label": "获取所有表单字段",
+        "category": "浏览器元素操作",
+        "icon": "fa-list-ul",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "获取页面上所有表单控件（input/textarea/select），含 name/type/value/placeholder/关联 label",
+        "fields": [
+          {
+            "name": "includeHidden",
+            "label": "包含隐藏字段",
+            "type": "boolean",
+            "group": "advanced",
+            "default": false
+          },
+          {
+            "name": "includeSelect",
+            "label": "包含下拉框",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "fields",
+            "description": "表单字段列表（数组，含 tag/name/type/value/placeholder/label）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 20,
+        "commandOrder": 57,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/dom_handlers_new/getAllFormFields.js"
+      },
+      {
+        "cmd": "extractEmails",
+        "label": "提取邮箱地址",
+        "category": "浏览器元素操作",
+        "icon": "fa-envelope",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "提取页面上的邮箱地址（mailto 链接与正文文本），支持自定义正则",
+        "fields": [
+          {
+            "name": "pattern",
+            "label": "匹配正则",
+            "type": "string",
+            "group": "主属性",
+            "default": "",
+            "placeholder": "留空使用内置邮箱正则",
+            "description": "留空使用内置邮箱正则"
+          },
+          {
+            "name": "deduplicate",
+            "label": "去重",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "emails",
+            "description": "提取到的邮箱列表（数组，含 email/source）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 20,
+        "commandOrder": 58,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/dom_handlers_new/extractEmails.js"
+      },
+      {
+        "cmd": "getInputBoxes",
+        "label": "获取网页输入框",
+        "category": "浏览器元素操作",
+        "icon": "fa-edit",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "获取网页上所有输入框（input/textarea），含 name/type/value/placeholder/关联 label，结果保存到变量",
+        "fields": [
+          {
+            "name": "includeTextarea",
+            "label": "包含多行文本框",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true
+          },
+          {
+            "name": "includeHidden",
+            "label": "包含隐藏字段",
+            "type": "boolean",
+            "group": "advanced",
+            "default": false
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "inputs",
+            "description": "输入框列表（数组，含 tag/name/type/value/placeholder/label/id）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 20,
+        "commandOrder": 58,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/dom_handlers_new/getInputBoxes.js"
+      },
+      {
+        "cmd": "getPageInfo",
+        "label": "获取页面信息",
+        "category": "浏览器元素操作",
+        "icon": "fa-info-circle",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "获取页面元信息（标题/URL/语言/描述/关键词），可选读取 og:title 等 meta",
+        "fields": [
+          {
+            "name": "includeMeta",
+            "label": "读取 meta 信息",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true,
+            "description": "同时读取 meta description/keywords/og:title"
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "pageInfo",
+            "description": "页面信息对象（含 title/url/lang/description/keywords）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 20,
+        "commandOrder": 59,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/dom_handlers_new/getPageInfo.js"
+      },
+      {
+        "cmd": "countElementsByText",
+        "label": "统计包含文本的元素",
+        "category": "浏览器元素操作",
+        "icon": "fa-list-ol",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "统计页面上文本包含/匹配指定内容（支持正则）的元素数量，结果保存到变量",
+        "fields": [
+          {
+            "name": "text",
+            "label": "查找文本",
+            "type": "string",
+            "group": "主属性",
+            "required": true,
+            "placeholder": "支持 ${var} 变量",
+            "description": "要查找的文本内容，支持 ${var} 变量"
+          },
+          {
+            "name": "elementName",
+            "label": "范围内元素",
+            "type": "element",
+            "group": "主属性",
+            "placeholder": "不填则统计全页面",
+            "description": "仅在指定的已捕获元素内部统计；不填则在整页统计"
+          },
+          {
+            "name": "matchType",
+            "label": "匹配方式",
+            "type": "select",
+            "group": "advanced",
+            "default": "contains",
+            "options": [
+              {
+                "label": "包含文本",
+                "value": "contains"
+              },
+              {
+                "label": "完全等于",
+                "value": "equals"
+              },
+              {
+                "label": "正则匹配",
+                "value": "regex"
+              }
+            ]
+          },
+          {
+            "name": "onlyVisible",
+            "label": "仅统计可见元素",
+            "type": "boolean",
+            "group": "advanced",
+            "default": false
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "count",
+            "description": "统计得到的元素数量（整数）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 20,
+        "commandOrder": 60,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/dom_handlers_new/countElementsByText.js"
+      },
+      {
+        "cmd": "findBrokenImages",
+        "label": "检测加载失败图片",
+        "category": "浏览器元素操作",
+        "icon": "fa-image",
+        "iconColor": "text-indigo-500",
+        "bgColor": "bg-indigo-50",
+        "description": "检测页面上加载失败的图片（naturalWidth===0 或加载出错），返回 src/alt",
+        "fields": [
+          {
+            "name": "deduplicate",
+            "label": "去重",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "brokenImages",
+            "description": "加载失败的图片列表（数组，含 src/alt）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 20,
+        "commandOrder": 60,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/dom_handlers_new/findBrokenImages.js"
       },
       {
         "cmd": "hover",
@@ -4356,6 +5715,94 @@
         "handler": "extension/background_handlers/switchTab.js"
       },
       {
+        "cmd": "getAllTabs",
+        "label": "获取所有标签页",
+        "category": "浏览器操作",
+        "icon": "fa-clone",
+        "iconColor": "text-blue-500",
+        "bgColor": "bg-blue-50",
+        "description": "获取指定浏览器窗口（或所有窗口）中打开的全部标签页列表，可保存到变量",
+        "fields": [
+          {
+            "name": "windowVar",
+            "label": "浏览器窗口",
+            "type": "string",
+            "group": "input",
+            "placeholder": "如 browser1，留空使用当前工作窗口"
+          },
+          {
+            "name": "onlyWebPages",
+            "label": "仅网页",
+            "type": "boolean",
+            "group": "advanced",
+            "default": true,
+            "description": "过滤 chrome://、edge://、扩展页、file://、about: 等受限页面"
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "string",
+            "group": "output",
+            "default": "tabs",
+            "description": "标签页列表（数组，每项含 index/url/title/active/id/windowId）将保存到此变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 10,
+        "commandOrder": 45,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": false,
+        "handler": "extension/background_handlers/getAllTabs.js"
+      },
+      {
         "cmd": "closeTab",
         "label": "关闭标签页",
         "category": "浏览器操作",
@@ -4513,6 +5960,145 @@
         "hasRuntime": true,
         "local": false,
         "handler": "extension/background_handlers/closeBrowser.js"
+      }
+    ],
+    "AI 调用": [
+      {
+        "cmd": "deepseekChat",
+        "label": "DeepSeek 调用",
+        "category": "AI 调用",
+        "icon": "fa-robot",
+        "iconColor": "text-violet-500",
+        "bgColor": "bg-violet-50",
+        "description": "调用 DeepSeek Chat Completions API，返回回复正文并写入变量",
+        "fields": [
+          {
+            "name": "prompt",
+            "label": "提示词（用户消息）",
+            "type": "text",
+            "group": "主属性",
+            "required": true,
+            "placeholder": "要发给 DeepSeek 的内容，支持 {{变量}}"
+          },
+          {
+            "name": "systemPrompt",
+            "label": "系统提示词（System）",
+            "type": "text",
+            "group": "advanced",
+            "placeholder": "可选，设定 AI 的角色 / 规则 / 输出格式"
+          },
+          {
+            "name": "model",
+            "label": "模型",
+            "type": "select",
+            "group": "主属性",
+            "default": "deepseek-chat",
+            "options": [
+              {
+                "label": "deepseek-chat",
+                "value": "deepseek-chat"
+              },
+              {
+                "label": "deepseek-reasoner",
+                "value": "deepseek-reasoner"
+              },
+              {
+                "label": "deepseek-v4-pro",
+                "value": "deepseek-v4-pro"
+              }
+            ]
+          },
+          {
+            "name": "temperature",
+            "label": "温度",
+            "type": "number",
+            "group": "advanced",
+            "default": 0.3
+          },
+          {
+            "name": "maxTokens",
+            "label": "最大回复长度",
+            "type": "number",
+            "group": "advanced",
+            "default": 2048
+          },
+          {
+            "name": "apiKey",
+            "label": "API Key",
+            "type": "string",
+            "group": "advanced",
+            "placeholder": "留空则使用环境变量 AI_API_KEY"
+          },
+          {
+            "name": "baseUrl",
+            "label": "API 地址",
+            "type": "string",
+            "group": "advanced",
+            "placeholder": "留空使用 https://api.deepseek.com/v1/chat/completions"
+          },
+          {
+            "name": "outputVar",
+            "label": "结果变量名",
+            "type": "str-var",
+            "group": "output",
+            "default": "deepseekResult",
+            "description": "回复正文将存入该变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 40,
+        "commandOrder": 10,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/backend_commands/deepseekChat.py"
       }
     ],
     "条件判断": [
@@ -4921,6 +6507,102 @@
         "handler": null
       }
     ],
+    "data": [
+      {
+        "cmd": "excelRead",
+        "label": "读取Excel内容",
+        "category": "data",
+        "icon": "fa-file-excel",
+        "iconColor": "text-green-500",
+        "bgColor": "bg-green-50",
+        "description": "读取Excel(.xlsx)单元格或区域的内容，保存到变量。单个单元格返回标量，区域或整表返回二维列表。",
+        "fields": [
+          {
+            "name": "filePath",
+            "label": "Excel文件路径",
+            "type": "string",
+            "group": "主属性",
+            "required": true,
+            "placeholder": "如 C:\\data\\report.xlsx"
+          },
+          {
+            "name": "sheet",
+            "label": "工作表名",
+            "type": "string",
+            "group": "主属性",
+            "placeholder": "留空用第一个工作表"
+          },
+          {
+            "name": "range",
+            "label": "单元格/区域",
+            "type": "string",
+            "group": "主属性",
+            "placeholder": "如 A1 单个单元格，或 A1:C10 区域；留空读取整张表"
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "str-var",
+            "group": "output",
+            "default": "excelData"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 45,
+        "commandOrder": 10,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/backend_commands/excelRead.py"
+      }
+    ],
     "变量及日志": [
       {
         "cmd": "setVar",
@@ -5038,6 +6720,93 @@
         "handler": "handlers/backend/set_var_impl.py"
       },
       {
+        "cmd": "getCurrentDateTime",
+        "label": "读取当前日期时间",
+        "category": "变量及日志",
+        "icon": "fa-clock",
+        "iconColor": "text-blue-500",
+        "bgColor": "bg-blue-50",
+        "description": "读取当前系统日期时间，按指定格式输出到变量。",
+        "fields": [
+          {
+            "name": "format",
+            "label": "格式",
+            "type": "string",
+            "group": "主属性",
+            "default": "%Y-%m-%d %H:%M:%S",
+            "description": "strftime 格式，如 %Y-%m-%d 日期、%H:%M:%S 时间、%Y-%m-%d %H:%M:%S 日期时间"
+          },
+          {
+            "name": "useUtc",
+            "label": "使用 UTC 时间",
+            "type": "boolean",
+            "group": "advanced",
+            "default": false
+          },
+          {
+            "name": "resultVar",
+            "label": "保存到变量",
+            "type": "str-var",
+            "group": "output",
+            "default": "currentDateTime"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 30,
+        "commandOrder": 15,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/backend_commands/getCurrentDateTime.py"
+      },
+      {
         "cmd": "log",
         "label": "输出日志",
         "category": "变量及日志",
@@ -5129,6 +6898,120 @@
         "hasRuntime": true,
         "local": true,
         "handler": "src/runtime/commands/backend_commands/log.py"
+      }
+    ],
+    "文件处理": [
+      {
+        "cmd": "wordToPdf",
+        "label": "Word转PDF",
+        "category": "文件处理",
+        "icon": "fa-file-pdf",
+        "iconColor": "text-red-500",
+        "bgColor": "bg-red-50",
+        "description": "将 Word(.doc/.docx) 文档转换为 PDF 文件，输出路径可写入变量。支持 Word COM / LibreOffice 两种引擎。",
+        "fields": [
+          {
+            "name": "filePath",
+            "label": "Word文件路径",
+            "type": "string",
+            "group": "主属性",
+            "required": true,
+            "placeholder": "如 C:\\data\\report.docx，支持 {{变量}}"
+          },
+          {
+            "name": "outputDir",
+            "label": "输出目录",
+            "type": "string",
+            "group": "主属性",
+            "placeholder": "留空则与输入文件同目录"
+          },
+          {
+            "name": "engine",
+            "label": "转换引擎",
+            "type": "select",
+            "group": "主属性",
+            "default": "word",
+            "options": [
+              {
+                "label": "Word (COM)",
+                "value": "word"
+              },
+              {
+                "label": "LibreOffice",
+                "value": "libreoffice"
+              }
+            ]
+          },
+          {
+            "name": "fileName",
+            "label": "输出文件名(不含扩展名)",
+            "type": "string",
+            "group": "advanced",
+            "placeholder": "留空使用输入文件名"
+          },
+          {
+            "name": "outputVar",
+            "label": "保存PDF路径到变量",
+            "type": "str-var",
+            "group": "output",
+            "default": "pdfPath",
+            "description": "转换后生成的 PDF 绝对路径存入该变量"
+          },
+          {
+            "name": "onError",
+            "label": "执行失败时",
+            "type": "select",
+            "options": [
+              {
+                "label": "停止",
+                "value": "stop"
+              },
+              {
+                "label": "继续",
+                "value": "continue"
+              },
+              {
+                "label": "重试",
+                "value": "retry"
+              }
+            ],
+            "default": "stop",
+            "group": "advanced"
+          },
+          {
+            "name": "retryCount",
+            "label": "重试次数",
+            "type": "number",
+            "default": 3,
+            "group": "advanced"
+          },
+          {
+            "name": "timeout",
+            "label": "超时(秒)",
+            "type": "number",
+            "default": 10,
+            "group": "advanced"
+          },
+          {
+            "name": "description",
+            "label": "步骤说明",
+            "type": "text",
+            "default": "",
+            "group": "advanced"
+          }
+        ],
+        "isContainer": false,
+        "isBranch": false,
+        "isStructural": false,
+        "closesWith": null,
+        "categoryOrder": 47,
+        "commandOrder": 10,
+        "isBuiltin": false,
+        "enabled": true,
+        "isNew": true,
+        "hasRuntime": true,
+        "local": true,
+        "handler": "src/runtime/commands/backend_commands/wordToPdf.py"
       }
     ]
   },

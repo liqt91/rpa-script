@@ -79,3 +79,7 @@ liqt91/
 # Runtime captured data
 data/captured_elements.json
 src/data/
+
+# Runtime logs & probe artifacts (auto-generated)
+data/backend-run.log
+data/probe-uia-web*.json

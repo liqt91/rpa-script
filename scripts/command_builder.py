@@ -34,7 +34,9 @@ ROOT = Path(__file__).resolve().parent.parent
 COMMANDS_DIR = ROOT / "commands"
 GENERATE_SCRIPT = ROOT / "scripts" / "generate_commands.py"
 BUILD_JS_SCRIPT = ROOT / "scripts" / "build_content_js.py"
+BUILD_BACKGROUND_JS_SCRIPT = ROOT / "scripts" / "build_background_js.py"
 CONTENT_JS = ROOT / "dist" / "desktop" / "extension" / "content.js"
+BACKGROUND_JS = ROOT / "dist" / "desktop" / "extension" / "background.js"
 
 
 def _run(cmd: list[str], timeout=120) -> tuple[int, str]:
@@ -91,15 +93,24 @@ def _normalize_definition(defn: dict) -> dict:
     handler = defn.setdefault("handler", {})
     handler.setdefault("kind", kind)
     if not handler.get("source"):
-        handler["source"] = f"src/runtime/commands/{src_dir}/{cmd}.py"
+        # extension 指令的实现是 JS（handwritten in extension/dom_handlers_new/<cmd>.js），
+        # 只有 backend/desktop/control 才是 Python handler。source 错指向 .py 会让
+        # generate_js() 把 Python 读成 JS 写进 .js 文件，必须区分。
+        if runtime == "extension":
+            handler["source"] = f"extension/dom_handlers_new/{cmd}.js"
+        else:
+            handler["source"] = f"src/runtime/commands/{src_dir}/{cmd}.py"
 
     defn["runtime"] = display_runtime
 
-    # 目录/分类推断：优先看 handler.source 所在目录（项目里桌面指令 runtime="backend"，
-    # 仅凭 runtime 无法区分纯 python backend 与 desktop backend），其次按 runtime。
+    # 目录/分类推断：按 handler.source 所在目录区分（项目里桌面指令 runtime="backend"，
+    # 仅凭 runtime 无法区分纯 python backend 与 desktop backend；extension 里
+    # background_handlers/=浏览器操作、dom_handlers_new/=浏览器元素操作），其次按 runtime。
     src = str(handler.get("source") or "")
     if "desktop_commands" in src or runtime == "desktop":
         cat, slug = "桌面操作", ["desktop"]
+    elif "dom_handlers_new" in src:
+        cat, slug = "浏览器元素操作", ["browser-element"]
     elif runtime == "extension":
         cat, slug = "浏览器操作", ["browser"]
     elif runtime == "control":
@@ -427,6 +438,7 @@ def main():
 
     defn = _collect_commands(cmd)
     runtime = defn.get("runtime", "")
+    is_background = ("background_handlers" in str((defn.get("handler") or {}).get("source", "")))
 
     # ② 生成桩（generate_commands 遍历全量，幂等）
     code, out = _run([sys.executable, str(GENERATE_SCRIPT)])
@@ -465,6 +477,23 @@ def main():
             sys.exit(0)
     elif runtime == "extension":
         result["steps"].append({"name": "build_content_js", "ok": True, "skipped": True})
+
+    # ③b 拼装 background.js（仅 extension 后台 handler：source 指向 background_handlers）
+    if runtime == "extension" and is_background and not args.skip_build_js:
+        bcode2, bout2 = _run([sys.executable, str(BUILD_BACKGROUND_JS_SCRIPT)])
+        step2 = {"name": "build_background_js", "ok": bcode2 == 0, "exit": bcode2}
+        if BACKGROUND_JS.exists():
+            bcontent = BACKGROUND_JS.read_text(encoding="utf-8")
+            step2["background_js"] = str(BACKGROUND_JS)
+            step2["registered_in_background_js"] = (
+                f"registerBackgroundHandler('{cmd}'" in bcontent
+                or f'registerBackgroundHandler("{cmd}"' in bcontent
+            )
+        result["steps"].append(step2)
+        if bcode2 != 0:
+            result["ok"] = False
+            print(json.dumps(result, ensure_ascii=False))
+            sys.exit(0)
 
     # ④ 校验：Python registry 是否声明该指令（backend/control 走手工注册，需重启后加载）
     try:

@@ -98,9 +98,12 @@ class MyCommandHandler:
 > 已覆盖，无需手写脚本。看到自己写临时脚本就停下，改用 `--verify`。
 
 1. 定 `cmd`(小驼峰=文件名) / runtime / kind / 目录 / params（上表）。
-2. **第 0 步：调 `rpa_new_command`（DSH 工具）或 `python scripts/command_builder.py <cmd>
-   --definition-file <临时json>`** → 自动写定义+生成桩+构建JS+质量门禁+热重载。
+2. **第 0 步：调 `rpa_new_command`（DSH 工具）** → 自动写定义+生成桩+构建JS+质量门禁+热重载。
    返回 `ok=true`（骨架就绪）、`quality_pass=false`（实现未填，正常）。
+
+   > ⚠️ **只走 `rpa_new_command` 这个 DSH 工具**。不要在 shell 里手敲 `python`/`cmd` 或
+   > 跑 `command_builder.py` CLI——那会触发沙箱/权限确认框，且命令内部拉起的子进程可能被拒
+   > （Access denied）。工具的等价 CLI 是 `command_builder.py`，**但只应在工具内部执行**。
 3. 填 `execute()` 实现（编辑命令生成的 `<cmd>.py`；extension 填 `<cmd>.js`）。
    **复杂桌面指令**：同一流程——命令已生成 `<cmd>.py` 骨架，你再往 `_win32.py` 加
    底层 helper 并填 execute（这些是业务逻辑，命令不代劳，但骨架/注册/门禁已代劳）。
@@ -161,6 +164,23 @@ runner 读 `resultVar`/`saveToVar`/`varName` 作为目标变量名，从返回 d
 改了 `src/runtime/workflow/extension_runner.py` 等**核心运行时模块**，`/api/commands/reload`
 **不会重载它们**（已在 sys.modules），**必须重启后端进程**才生效（建议人工重启）。
 新增指令本身（命令/JS/py）无需重启，命令已自动热重载。
+
+## 浏览器后台 handler（background）专属约定
+
+部分浏览器指令需要 **chrome.\* API**（`chrome.tabs.query`、`chrome.windows`、窗口会话），
+内容脚本(content script)访问不到，须走 **background handler**：
+
+- 实现文件：`extension/background_handlers/<cmd>.js`，`handler.source` 必须指向
+  `extension/background_handlers/<cmd>.js`（**不是** dom_handlers_new）。
+- 用 `rpa_new_command` 时给 `runtime="extension"` + `handlerKind="background"`，
+  **工具自动把 source 落对，并自动 `build background.js`**——不用手改 JSON、不用手动跑构建。
+- 签名：`registerBackgroundHandler('cmd', async (step, agent) => {...})`，
+  可直接用 `chrome.tabs.*` / `chrome.windows.*`，以及 `agent.workWindowId`。
+- 需要 manifest 的 `tabs`/`windows` 权限（项目已有）。
+- **无法用 Node 桩（`verify_web_handler.mjs`）验证**（无 chrome.\*），验证以
+  「构建 background.js + 注册 + 质量门禁 + 代码审查」为准；真机确认仍需先重载扩展。
+- 写回变量约定同 DOM handler：返回 `{ value: [...] }` → runner 把数组写入 resultVar
+  （extension_runner.py:407/1652 规则，`extracted`→`navigatedTo`→`value`→整 dict）。
 
 ## 质量标准（硬性 · 生成时对照）
 

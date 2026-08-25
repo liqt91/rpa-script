@@ -1,0 +1,37 @@
+{
+  "cmd": "findBrokenImages",
+  "label": "检测加载失败图片",
+  "runtime": "extension",
+  "category": "浏览器元素操作",
+  "icon": "fa-image",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 20,
+  "commandOrder": 60,
+  "description": "检测页面上加载失败的图片（naturalWidth===0 或加载出错），返回 src/alt",
+  "params": [
+    {
+      "name": "deduplicate",
+      "label": "去重",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "brokenImages",
+      "group": "output",
+      "description": "加载失败的图片列表（数组，含 src/alt）将保存到此变量"
+    }
+  ],
+  "categories": [
+    "browser-element"
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/findBrokenImages.js"
+  },
+  "enabled": true
+}

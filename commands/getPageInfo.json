@@ -1,0 +1,38 @@
+{
+  "cmd": "getPageInfo",
+  "label": "获取页面信息",
+  "runtime": "extension",
+  "category": "浏览器元素操作",
+  "icon": "fa-info-circle",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 20,
+  "commandOrder": 59,
+  "description": "获取页面元信息（标题/URL/语言/描述/关键词），可选读取 og:title 等 meta",
+  "params": [
+    {
+      "name": "includeMeta",
+      "label": "读取 meta 信息",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced",
+      "description": "同时读取 meta description/keywords/og:title"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "pageInfo",
+      "group": "output",
+      "description": "页面信息对象（含 title/url/lang/description/keywords）将保存到此变量"
+    }
+  ],
+  "categories": [
+    "browser-element"
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/getPageInfo.js"
+  },
+  "enabled": true
+}

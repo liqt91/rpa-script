@@ -29,13 +29,32 @@ const url = arg('url') || 'https://example.com';
 const extra = extraFile
   ? JSON.parse(readFileSync(expandedPath(extraFile), 'utf8').replace(/^\uFEFF/, ''))
   : JSON.parse(extraRaw.replace(/"/g, '"'));  // 若 shell 吞了双引号则尽力恢复
-// 可选注入示例 DOM（links=[{href,text}]）让 querySelectorAll 返回真实元素
+// 可选注入示例 DOM：links=[{href,text}] 供链接类指令(getLinksByRegex 等)；
+// images=[{src,currentSrc,alt,attrs:{src,data-src,srcset,...}}] 供图片类指令(getAllImages 等)。
+// 均未注入时提供一套默认元素，保证指令能回到非空结果、真正跑到分支逻辑。
 const linksJson = arg('links');
 let links = null;
 if (linksJson) {
   links = JSON.parse(readFileSync(expandedPath(linksJson), 'utf8').replace(/^\uFEFF/, ''));
 } else {
-  links = [{ href: 'https://google.com', text: 'Google' }, { href: 'https://baidu.com', text: 'Baidu' }];
+  links = [
+    { href: 'https://google.com', text: 'Google' },
+    { href: 'https://baidu.com', text: 'Baidu' },
+    { href: 'mailto:sales@example.com', text: 'Email us' },
+  ];
+}
+const imagesJson = arg('images');
+let images = null;
+if (imagesJson) {
+  images = JSON.parse(readFileSync(expandedPath(imagesJson), 'utf8').replace(/^\uFEFF/, ''));
+} else {
+  images = [
+    { src: '/img/hero.png', currentSrc: '', alt: 'Hero', naturalWidth: 1200, naturalHeight: 800,
+      attrs: { src: '/img/hero.png', 'data-src': '/img/hero-lazy.png',
+        srcset: '/img/hero-480.png 480w, /img/hero-960.png 960w' } },
+    { src: 'data:image/png;base64,AAAA', currentSrc: '', alt: 'DataURI',
+      attrs: { src: 'data:image/png;base64,AAAA' } },
+  ];
 }
 
 function expandedPath(p) {
@@ -43,20 +62,112 @@ function expandedPath(p) {
 }
 
 // ── 最小 DOM 桩 ──
+// 通用元素（表单/标签/meta 等）：tagName/type/value/attrs/innerText/parentElement。
+class MockTag {
+  constructor({ tag = 'div', type = '', value = '', attrs = {}, text = '' } = {}) {
+    this.tagName = tag.toUpperCase();
+    this.type = type;
+    this.value = value;
+    this._attr = { ...attrs };
+    this.innerText = text;
+    this.textContent = text;
+    this.parentElement = null;
+    this.classList = { contains: () => false };
+  }
+  getAttribute(k) { return this._attr[k] ?? null; }
+  closest() { return null; }
+}
+
 class MockEl {
   constructor(href = '', text = '') {
     this._attr = { href };
     this.href = href.startsWith('http') ? href : new URL(href, url).href;
     this.innerText = text;
     this.textContent = text;
+    this.tagName = 'A';
+    this.parentElement = null;
   }
   getAttribute(k) { return this._attr[k] ?? null; }
   closest() { return null; }
   classList = { contains: () => false };
 }
 const mockEls = links.map((l) => new MockEl(l.href, l.text));
+
+// <img> 桩：.src/.currentSrc 解析为绝对地址（对相对路径），getAttribute 读原始属性，含尺寸/alt。
+class MockImg {
+  constructor(o = {}) {
+    this._base = url;
+    this._src = o.src || '';
+    this._currentSrc = o.currentSrc || '';
+    this._attr = { ...(o.attrs || {}) };
+    this.alt = o.alt ?? '';
+    this.naturalWidth = o.naturalWidth ?? 0;
+    this.naturalHeight = o.naturalHeight ?? 0;
+    this.width = o.width ?? 0;
+    this.height = o.height ?? 0;
+    this.tagName = 'IMG';
+    this.parentElement = null;
+    this.complete = o.complete ?? true;
+  }
+  get src() { return this._resolve(this._src); }
+  get currentSrc() { return this._resolve(this._currentSrc); }
+  _resolve(v) {
+    if (!v) return '';
+    try { return new URL(v, this._base).href; } catch { return v; }
+  }
+  getAttribute(k) { return this._attr[k] ?? null; }
+  closest() { return null; }
+  classList = { contains: () => false };
+}
+const mockImgs = images.map((o) => new MockImg(o));
+
+// 表单控件默认集（供 getAllFormFields 等）
+const mockForms = [
+  new MockTag({ tag: 'input', type: 'text', value: '', attrs: { name: 'email', type: 'text', placeholder: 'name@example.com' } }),
+  new MockTag({ tag: 'input', type: 'hidden', value: '123', attrs: { name: 'tid', type: 'hidden' } }),
+  new MockTag({ tag: 'textarea', type: 'textarea', value: '', attrs: { name: 'msg' } }),
+  new MockTag({ tag: 'select', type: 'select', value: 'free', attrs: { name: 'plan' } }),
+];
+// meta 默认集（供 getPageInfo 等）
+const mockMetas = [
+  new MockTag({ tag: 'meta', attrs: { name: 'description', content: 'Example page' } }),
+  new MockTag({ tag: 'meta', attrs: { name: 'keywords', content: 'rpa, automation' } }),
+  new MockTag({ tag: 'meta', attrs: { property: 'og:title', content: 'Example Title' } }),
+];
+const mockLabels = [];
+
+// 按选择器类型分流返回对应 mock 元素，让指令真正跑到分支逻辑。
+// 逐个逗号片段解析首字母 tag（'a[href]'→a、'input'→input），避免子串误判（如 textarea 含 'a'）。
+function queryAll(selector) {
+  const s = (selector || '').trim();
+  if (s === '*') return [...mockEls, ...mockImgs, ...mockForms, ...mockMetas];
+  const kind = {
+    img: mockImgs, a: mockEls, input: mockForms, textarea: mockForms,
+    select: mockForms, meta: mockMetas, label: mockLabels,
+  };
+  const seen = new Set();
+  const out = [];
+  const push = (arr) => { for (const e of arr) { if (!seen.has(e)) { seen.add(e); out.push(e); } } };
+  for (const part of s.split(',')) {
+    const p = part.trim();
+    const m = p.match(/^([a-zA-Z][a-zA-Z0-9]*)/);
+    if (m) {
+      const tag = m[1].toLowerCase();
+      if (kind[tag]) push(kind[tag]);
+    } else if (p.includes('href')) {
+      // 无 tag 但带 href（如 '[href]'）→ 链接
+      push(mockEls);
+    }
+  }
+  return out;
+}
 const mockDocument = {
-  querySelectorAll: () => mockEls,
+  baseURI: url,
+  title: 'Example Page',
+  URL: url,
+  documentElement: { lang: 'en' },
+  body: { innerText: 'Contact us at sales@example.com for more info.' },
+  querySelectorAll: queryAll,
 };
 
 // stub 全局（handler 里可能用 document/window/registerHandler）

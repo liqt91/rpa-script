@@ -1,0 +1,44 @@
+{
+  "cmd": "getAllFormFields",
+  "label": "获取所有表单字段",
+  "runtime": "extension",
+  "category": "浏览器元素操作",
+  "icon": "fa-list-ul",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 20,
+  "commandOrder": 57,
+  "description": "获取页面上所有表单控件（input/textarea/select），含 name/type/value/placeholder/关联 label",
+  "params": [
+    {
+      "name": "includeHidden",
+      "label": "包含隐藏字段",
+      "type": "boolean",
+      "default": false,
+      "group": "advanced"
+    },
+    {
+      "name": "includeSelect",
+      "label": "包含下拉框",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "fields",
+      "group": "output",
+      "description": "表单字段列表（数组，含 tag/name/type/value/placeholder/label）将保存到此变量"
+    }
+  ],
+  "categories": [
+    "browser-element"
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/getAllFormFields.js"
+  },
+  "enabled": true
+}

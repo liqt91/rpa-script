@@ -1,0 +1,46 @@
+{
+  "cmd": "extractEmails",
+  "label": "提取邮箱地址",
+  "runtime": "extension",
+  "category": "浏览器元素操作",
+  "icon": "fa-envelope",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 20,
+  "commandOrder": 58,
+  "description": "提取页面上的邮箱地址（mailto 链接与正文文本），支持自定义正则",
+  "params": [
+    {
+      "name": "pattern",
+      "label": "匹配正则",
+      "type": "string",
+      "default": "",
+      "group": "主属性",
+      "description": "留空使用内置邮箱正则",
+      "placeholder": "留空使用内置邮箱正则"
+    },
+    {
+      "name": "deduplicate",
+      "label": "去重",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "emails",
+      "group": "output",
+      "description": "提取到的邮箱列表（数组，含 email/source）将保存到此变量"
+    }
+  ],
+  "categories": [
+    "browser-element"
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/extractEmails.js"
+  },
+  "enabled": true
+}

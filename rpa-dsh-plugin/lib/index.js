@@ -1002,11 +1002,12 @@ function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: "rpa_new_command",
-    description: "⭐ 新增 RPA 指令的唯一入口：给 cmd + 一句描述（可选 runtime/params/definition），工具自动写 commands/<cmd>.json → 生成桩 → 构建 JS → 质量门禁 → 后端热重载 + 校验 → 可选运行时验证(verify)。一次调用全搞定。\n\n【唯一入口】禁止绕开本工具手工创建 commands/*.json 或 handler 文件——那是错误且低效的方式。\n\n【极小用法】只需 {cmd, description}，工具自动补全 category/icon/order/handler.kind/source 并生成骨架。需要参数时给 params:[{name,label,type}]。要生成完整定义可给 definition，但非必需。\n\n【生成后】填 execute() 实现 → 再调一次本工具(给 cmd + verify 或 verify_file)复验到 quality_pass=true。复杂桌面指令(改 _win32 等底层)也是同一流程：工具先生成骨架，业务逻辑第二步人工填，填完用 verify 复验。",
+    description: "⭐ 新增 RPA 指令的唯一入口：给 cmd + 一句描述（可选 runtime/params/definition），工具自动写 commands/<cmd>.json → 生成桩 → 构建 JS → 质量门禁 → 后端热重载 + 校验 → 可选运行时验证(verify)。一次调用全搞定。\n\n【唯一入口】禁止绕开本工具手工创建 commands/*.json 或 handler 文件——那是错误且低效的方式。\n\n【极小用法】只需 {cmd, description}，工具自动补全 category/icon/order/handler.kind/source 并生成骨架。需要参数时给 params:[{name,label,type}]。要生成完整定义可给 definition，但非必需。\n\n【浏览器后台指令】操作 chrome.tabs/windows（如获取所有标签页/切标签/开新标签）给 runtime=\"extension\" + handlerKind=\"background\"，工具自动把 source 指向 background_handlers/<cmd>.js，管线自动 build background.js。\n\n【生成后】填 execute() 实现 → 再调一次本工具(给 cmd + verify 或 verify_file)复验到 quality_pass=true。复杂桌面指令(改 _win32 等底层)也是同一流程：工具先生成骨架，业务逻辑第二步人工填，填完用 verify 复验。",
     parameters: {
       cmd: { type: "string", required: true, description: "指令名（cmd，小驼峰=文件名）" },
       description: { type: "string", description: "指令一句话描述（生成 label/description 用，极简用法只需 cmd+description）" },
       runtime: { type: "string", enum: ["backend", "desktop", "extension", "control"], description: "指令类型；缺省 backend；desktop 走 desktop_commands" },
+      handlerKind: { type: "string", enum: ["dom", "background"], description: "extension 指令的 handler 类型：dom=页面 DOM（默认，source→dom_handlers_new）；background=浏览器后台（chrome.tabs/windows，source→background_handlers，管线自动 build background.js）" },
       label: { type: "string", description: "显示名（中文）；缺省用 cmd" },
       params: { type: "array", items: { type: "object", description: "{name,label,type,required?,default?,options?}" }, description: "参数定义，极简用法可省" },
       definition: { type: "object", additionalProperties: true, description: "完整指令 JSON 定义对象（可选；给了优先，未给则用 cmd/description/runtime/params 自动补全）" },
@@ -1028,11 +1029,15 @@ function apply(ctx, config) {
       let definition = args.definition || null;
       if (!definition) {
         const hasMinimalFields = (args.description != null) || (args.runtime != null)
-          || (args.label != null) || (Array.isArray(args.params));
+          || (args.label != null) || (Array.isArray(args.params)) || (args.handlerKind != null);
         if (hasMinimalFields) {
           const auto = { cmd, label: args.label || cmd, description: args.description || "" };
           if (args.runtime) auto.runtime = args.runtime;
           if (Array.isArray(args.params)) auto.params = args.params;
+          if (args.runtime === "extension" && args.handlerKind === "background") {
+            // 后台 handler：source 指向 background_handlers（管线据此自动 build background.js）
+            auto.handler = { kind: "extension", source: `extension/background_handlers/${cmd}.js` };
+          }
           definition = auto;
         }
       }

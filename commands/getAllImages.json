@@ -1,0 +1,58 @@
+{
+  "cmd": "getAllImages",
+  "label": "获取页面所有图片",
+  "runtime": "extension",
+  "category": "浏览器元素操作",
+  "icon": "fa-images",
+  "iconColor": "text-indigo-500",
+  "bgColor": "bg-indigo-50",
+  "categoryOrder": 20,
+  "commandOrder": 56,
+  "description": "获取页面上所有图片的链接地址（含懒加载、srcset 多尺寸、可选 CSS 背景图），结果保存到变量",
+  "params": [
+    {
+      "name": "onlyVisible",
+      "label": "仅可见图片",
+      "type": "boolean",
+      "default": false,
+      "group": "advanced"
+    },
+    {
+      "name": "deduplicate",
+      "label": "去重",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced"
+    },
+    {
+      "name": "includeSrcset",
+      "label": "解析 srcset 多尺寸",
+      "type": "boolean",
+      "default": true,
+      "group": "advanced"
+    },
+    {
+      "name": "includeCssBackground",
+      "label": "包含 CSS 背景图",
+      "type": "boolean",
+      "default": false,
+      "group": "advanced"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存到变量",
+      "type": "string",
+      "default": "images",
+      "group": "output",
+      "description": "匹配到的图片列表（数组，含 src/alt/尺寸）将保存到此变量"
+    }
+  ],
+  "categories": [
+    "browser-element"
+  ],
+  "handler": {
+    "kind": "extension",
+    "source": "extension/dom_handlers_new/getAllImages.js"
+  },
+  "enabled": true
+}
