@@ -30,6 +30,8 @@ generate-workflow       ← 下游 skill
 WorkflowNode[] → API → 数据库
 ```
 
+> **⚠️ 规划时先核对指令能力面板**：拆解流程时应先 `rpa_commands(side=editor)` 盘现有指令，**尽量落在现有指令能表达的步骤**；若发现某一步现有指令无法满足，**不要默认要去新建指令**——把它作为"待确认的能力缺口"列给用户，说明"缺哪个能力"，经用户确认后才交给下游（新建走 `rpa_new_command`）。参考下游 `generate-workflow` 的「硬性约束」章节。
+
 ## 与用户交互模型
 
 本 skill 与用户有三次关键交互：

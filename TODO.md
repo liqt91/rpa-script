@@ -44,14 +44,14 @@
 - [ ] **P0-验证｜改核心模块自动重启后端** —— extension_runner 等被改后自动重启，减少人工判断
 
 ### P1
-- [ ] **P1-流程根｜集中流程根 RPA_HOME + 统一管理页**（改路径模型）
-  - [ ] `RPA_HOME` 可配置；**默认用户可见目录**（如 `~/RPA脚本`，**非隐藏 `.dsh`**，用户能在资源管理器/工作区直接打开）
-  - [ ] 一个流程 = `RPA_HOME/<流程目录>/`（内部 rpa.json/workflow.json/elements.json/data.json/images/run_logs 结构不变）
-  - [ ] 所有流程只在 `RPA_HOME` 下；**旧散落目录不迁移、不兼容**，直接切新模型
-  - [ ] 目录名 = 流程名，重名由 OS/自然命名处理（**不做复杂去重**）
-  - [ ] 统一管理页枚举 `RPA_HOME/*/rpa.json`（名称/节点数/最近运行/状态 + 打开编辑器/运行/复制/重命名/归档/删除/加调度）
-  - [ ] 会话/编辑器/运行路径改为"从 `RPA_HOME` 选流程"，**打破旧的"会话 cwd=当前流程"绑定**
-  - [ ] 后续：定时调度（枚举 RPA_HOME）、AI 一句话生成（落到 `RPA_HOME/<新流程名>`）
+- [x] **P1-流程根｜集中流程根 RPA_HOME + 统一管理页**（基础已落地；管理页/行内操作按需搁置）
+  - [x] `RPA_HOME` 可配置；**默认用户可见目录**（`~/RPA脚本`，非隐藏 `.dsh`）—— settings.py + 插件 rpaHome + settings 命名空间
+  - [x] 一个流程 = `RPA_HOME/<流程目录>/`（内部 rpa.json/workflow.json/elements.json/images/run_logs）—— 两个 create 入口已建
+  - [x] 所有流程只在 `RPA_HOME` 下（**软性**：非 RPA_HOME 可建但 outsideHome，不进统一管理）
+  - [x] 目录名 = 流程名，重名由 OS/自然命名处理（不做复杂去重）
+  - [x] 数据源 `/rpa-bridge/projects/list` 枚举 RPA_HOME 流程；设置「RPA」tab 含流程列表 + 新建流程输入（A 方案，纯新建不自动开）
+  - [ ] ~~统一管理页全行内操作（打开编辑器/运行/复制/重命名/归档/删除/加调度）~~ —— 搁置
+  - [ ] ~~会话/编辑器/运行路径改为"从 RPA_HOME 选流程"（打破会话 cwd 绑定）~~ —— 搁置（rpa 工具已用 RPA_HOME；DSH 会话绑定未重接）
 - [ ] **P1-调度｜D1: 调度模型 — Schedules 表 + 迁移**（cron + 简单间隔，last/next run）
 - [ ] **P1-调度｜D2: 调度 CRUD API**（`/api/workflows/{id}/schedules`，校验 cron）
 - [ ] **P1-调度｜D3: 调度引擎 — asyncio 定时检查**（lifespan 后台任务，到期调 `run_workflow_extension()`）

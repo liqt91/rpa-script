@@ -439,32 +439,31 @@ window.__ModuleLoader__.load({
         };
       }, "rpa-console: flow tab sync");
 
-      /* -------- RPA 配置 tab（settings.plugins.tab） --------
-       * 给「插件」分区贡献一个功能专属 tab；页面绑定已注册的 `rpa` settings 命名空间，
-       * 读/写 rpaHome/backendCwd/backendUrl/autoStartBackend。失败不影响既有功能。
-       */
+      /* -------- RPA tab（settings.plugins.tab）：配置 + 流程 合并为单 tab -------- */
       try {
-        // settingsScope 用 ctx.get 可选获取（不是硬注入），取不到就跳过，绝不影响模块加载
-        var scopeCtx = null;
-        try { scopeCtx = ctx.get("settingsScope"); } catch (e) {}
-        if (!scopeCtx || typeof scopeCtx.bind !== "function") return;
-        var rpaScope = scopeCtx.bind({ namespace: "rpa" });
+        var rpaScope = null;
         var rpaMsgT = function (key) {
           var m = { saved: "已保存", saveFailed: "保存失败" };
           return m[key] || key;
         };
+        try {
+          var scopeCtx = ctx.get("settingsScope");
+          if (scopeCtx && typeof scopeCtx.bind === "function") {
+            rpaScope = scopeCtx.bind({ namespace: "rpa" });
+          }
+        } catch (e) {}
         ctx.slots.inject("settings.plugins.tab", function () {
           return ctx.slots.register({
             name: "settings.plugins.tab",
             id: "rpa",
             order: 30,
             locale: NS,
-            label: "RPA 配置",
+            label: "RPA",
             inject: function () { return { scope: rpaScope, t: rpaMsgT }; }
-          }, RpaSettingsPage);
+          }, RpaPage);
         });
       } catch (e) {
-        ctx.logger?.warn?.("rpa settings tab 注册失败: " + (e && e.message));
+        ctx.logger?.warn?.("rpa tab 注册失败: " + (e && e.message));
       }
     }
 
@@ -570,6 +569,88 @@ window.__ModuleLoader__.load({
           }),
           msg ? jsxRuntime.jsx("span", { style: { fontSize: 12, color: "var(--dsw-alias-label-tertiary)" }, children: msg }) : null
         ] })
+      ] });
+    };
+
+    /** RPA 流程管理（功能专属 tab 的「流程」区）：拉取 /rpa-bridge/projects/list + 新建流程。 */
+    var FlowManagementPage = function () {
+      var pair = React.useState({ loaded: false, flows: [], error: "" });
+      var state = pair[0];
+      var setState = pair[1];
+      var pairName = React.useState("");
+      var newName = pairName[0];
+      var setNewName = pairName[1];
+      var pairCreating = React.useState(false);
+      var creating = pairCreating[0];
+      var setCreating = pairCreating[1];
+
+      var load = function () {
+        fetch("/rpa-bridge/projects/list")
+          .then(function (r) { return r.json(); })
+          .then(function (d) { setState({ loaded: true, flows: d.flows || [], error: d.error || "" }); })
+          .catch(function (e) { setState({ loaded: true, flows: [], error: "加载失败：" + (e && e.message ? e.message : e) }); });
+      };
+      React.useEffect(function () { load(); }, []);
+
+      var create = function () {
+        var nm = newName.trim();
+        if (!nm || creating) return;
+        setCreating(true);
+        fetch("/rpa-bridge/projects/create", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: nm })
+        }).then(function (r) { return r.json(); })
+          .then(function (d) {
+            setCreating(false);
+            if (d.ok) { setNewName(""); load(); }
+            else setState({ loaded: true, flows: state.flows, error: d.error || "创建失败" });
+          })
+          .catch(function (e) { setCreating(false); setState({ loaded: true, flows: state.flows, error: "创建失败：" + (e && e.message ? e.message : e) }); });
+      };
+
+      var rowStyle = {
+        display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+        border: "1px solid var(--dsw-alias-border-l2)", borderRadius: 8,
+        background: "var(--dsw-alias-bg-layer-3)"
+      };
+      var nameStyle = { fontSize: 14, fontWeight: 600, color: "var(--dsw-alias-label-primary)" };
+      var subStyle = { fontSize: 12, color: "var(--dsw-alias-label-tertiary)" };
+      var emptyStyle = { color: "var(--dsw-alias-label-tertiary)", fontSize: 13 };
+      var inputStyle = {
+        height: 32, padding: "0 10px", fontSize: 13, flex: 1, minWidth: 0,
+        border: "1px solid var(--dsw-alias-border-l2)", borderRadius: 8,
+        background: "var(--dsw-alias-bg-layer-3)", color: "var(--dsw-alias-label-primary)"
+      };
+      var btnStyle = {
+        height: 32, padding: "0 14px", fontSize: 13, cursor: "pointer",
+        borderRadius: 8, border: "1px solid var(--dsw-alias-border-l2)",
+        color: "var(--dsw-alias-label-primary)", background: "var(--dsw-alias-bg-layer-3)"
+      };
+      return jsxRuntime.jsxs("div", { style: { maxWidth: 720, display: "flex", flexDirection: "column", gap: 12 }, children: [
+        jsxRuntime.jsx("h3", { style: { margin: "0 0 4px", fontSize: 15, fontWeight: 600, color: "var(--dsw-alias-label-primary)" }, children: "流程" }),
+        jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
+          jsxRuntime.jsx("input", { value: newName, placeholder: "新流程名（将建到 RPA_HOME 下）", onChange: function (e) { setNewName(e.target.value); }, style: inputStyle }),
+          jsxRuntime.jsx("button", { onClick: create, disabled: creating || !newName.trim(), style: Object.assign({}, btnStyle, (creating || !newName.trim()) ? { opacity: 0.5, cursor: "default" } : {}), children: creating ? "创建中…" : "新建流程" })
+        ] }),
+        !state.loaded ? jsxRuntime.jsx("p", { style: emptyStyle, children: "加载中…" })
+          : state.error ? jsxRuntime.jsx("p", { style: { color: "var(--dsw-alias-label-error)" }, children: state.error })
+          : state.flows.length === 0 ? jsxRuntime.jsx("p", { style: emptyStyle, children: "RPA_HOME 下还没有流程。← 输入名称新建，流程会落到 RPA_HOME。" })
+          : state.flows.map(function (f) {
+            return jsxRuntime.jsxs("div", { key: f.slug, style: rowStyle, children: [
+              jsxRuntime.jsxs("div", { style: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }, children: [
+                jsxRuntime.jsx("span", { style: nameStyle, children: f.name }),
+                jsxRuntime.jsx("span", { style: subStyle, children: (f.hasWorkflow ? "节点 " + f.nodeCount : "未编辑（无工作流）") + " · " + f.path })
+              ] })
+            ] });
+          })
+      ] });
+    };
+
+    /** RPA 页（合并 tab）：配置区（若 settingsScope 可用）+ 流程区。 */
+    var RpaPage = function (props) {
+      return jsxRuntime.jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 30 }, children: [
+        props.scope ? jsxRuntime.jsx(RpaSettingsPage, { scope: props.scope, t: props.t }) : null,
+        jsxRuntime.jsx(FlowManagementPage, {})
       ] });
     };
 

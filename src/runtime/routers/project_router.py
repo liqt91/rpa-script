@@ -95,6 +95,12 @@ def _init_flow_dir(root: Path, name: str, description: str = "") -> Path:
             "nodes": [],
             "elements": [],
         }, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 补齐流程目录结构：元素库(空) + images/ + run_logs/（data.json 留给写表格时再建）
+    els = root / "elements.json"
+    if not els.is_file():
+        els.write_text(json.dumps({"version": 1, "elements": []}, ensure_ascii=False, indent=2), encoding="utf-8")
+    (root / "images").mkdir(exist_ok=True)
+    (root / "run_logs").mkdir(exist_ok=True)
     return root
 
 

@@ -818,6 +818,94 @@ function apply(ctx, config) {
     ctx.logger.warn(`[rpa-bridge] 注册 project 读写路由失败: ${e.message}`);
   }
 
+  /* -------- RPA 流程列表（统一管理页数据源，同源 fetch） -------- */
+  try {
+    ctx.webServer.register({
+      kind: "exact",
+      path: "/rpa-bridge/projects/list",
+      handler: async (req, res) => {
+        const send = (obj, status = 200) => {
+          res.writeHead(status, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(obj));
+        };
+        if (req.method !== "GET") return send({ ok: false, error: "method not allowed" }, 405);
+        const home = rpaHomeValue();
+        const base = resolve(home);
+        const flows = [];
+        if (existsSync(base)) {
+          for (const entry of readdirSync(base, { withFileTypes: true })) {
+            if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+            const dir = join(base, entry.name);
+            if (!existsSync(join(dir, RPA_MARKER))) continue;
+            let meta = {};
+            try { meta = JSON.parse(readFileSync(join(dir, RPA_MARKER), "utf8")); } catch {}
+            let nodeCount = 0;
+            let hasWorkflow = false;
+            const wfPath = join(dir, "workflow.json");
+            if (existsSync(wfPath)) {
+              hasWorkflow = true;
+              try {
+                const wf = JSON.parse(readFileSync(wfPath, "utf8"));
+                nodeCount = Array.isArray(wf.nodes) ? wf.nodes.length : 0;
+              } catch {}
+            }
+            flows.push({
+              name: meta.name || entry.name,
+              slug: entry.name,
+              path: dir,
+              hasWorkflow,
+              nodeCount,
+            });
+          }
+        }
+        flows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        return send({ ok: true, count: flows.length, rpaHome: String(base), flows });
+      },
+    }, "rpa-bridge: projects list route");
+    ctx.logger.info("[rpa-bridge] 已注册 /rpa-bridge/projects/list（统一管理页数据源）");
+  } catch (e) {
+    ctx.logger.warn(`[rpa-bridge] 注册 projects/list 路由失败: ${e.message}`);
+  }
+
+  /* -------- RPA 新建流程（RPA_HOME/<name>；client 调用，同源） -------- */
+  try {
+    ctx.webServer.register({
+      kind: "exact",
+      path: "/rpa-bridge/projects/create",
+      handler: async (req, res) => {
+        const send = (obj, status = 200) => {
+          res.writeHead(status, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(obj));
+        };
+        if (req.method !== "POST") return send({ ok: false, error: "method not allowed" }, 405);
+        const body = await readRequestBody(req);
+        const name = (body.name || "").trim();
+        if (!name) return send({ ok: false, error: "缺少流程名 name" }, 400);
+        const base = resolve(rpaHomeValue());
+        mkdirSync(base, { recursive: true });
+        const dir = join(base, name);
+        mkdirSync(dir, { recursive: true });
+        const marker = join(dir, RPA_MARKER);
+        if (!existsSync(marker)) {
+          writeFileSync(marker, JSON.stringify({ name, version: 1, created_at: new Date().toISOString() }, null, 2), "utf8");
+        }
+        const wf = join(dir, "workflow.json");
+        if (!existsSync(wf)) {
+          writeFileSync(wf, JSON.stringify({ name, description: "", url: "", parameters: [], nodes: [], elements: [] }, null, 2), "utf8");
+        }
+        // 补齐流程目录结构：元素库(空) + images/ + run_logs/（data.json 留给写表格时再建）
+        const els = join(dir, "elements.json");
+        if (!existsSync(els)) writeFileSync(els, JSON.stringify({ version: 1, elements: [] }, null, 2), "utf8");
+        mkdirSync(join(dir, "images"), { recursive: true });
+        mkdirSync(join(dir, "run_logs"), { recursive: true });
+        return send({ ok: true, path: dir, name });
+      },
+    }, "rpa-bridge: projects create route");
+    ctx.logger.info("[rpa-bridge] 已注册 /rpa-bridge/projects/create（新建 RPA 流程）");
+  } catch (e) {
+    ctx.logger.warn(`[rpa-bridge] 注册 projects/create 路由失败: ${e.message}`);
+  }
+
   /* -------- workflow-editor 静态托管（页面免后端：dsh web serve 编辑器） -------- */
   try {
     const editorRoot = editorStaticRoot();
@@ -917,6 +1005,12 @@ function apply(ctx, config) {
           created_at: new Date().toISOString(),
         }, null, 2), "utf8");
       }
+      // 软性落地 RPA_HOME：非 RPA_HOME 下的流程仍允许建，但标记 outsideHome（不进统一管理页）
+      const home = rpaHomeValue();
+      const dirNorm = resolve(dir).toLowerCase();
+      const homeNorm = resolve(home).toLowerCase();
+      const inHome = dirNorm === homeNorm || dirNorm.startsWith(homeNorm + sep);
+      const outsideHome = !inHome;
       // 注册为 DSH 工作区（服务就绪时；失败不阻断 —— 目录与标记已就位）
       let workspaceId = null;
       try {
@@ -928,7 +1022,13 @@ function apply(ctx, config) {
       } catch (e) {
         ctx.logger.warn(`[rpa-bridge] 注册工作区失败（目录本身已就绪）: ${e.message}`);
       }
-      return { ok: true, path: dir, name, isRpa: true, workspaceId };
+      return {
+        ok: true, path: dir, name, isRpa: true, workspaceId,
+        outsideHome,
+        message: outsideHome
+          ? `流程目录在 RPA_HOME（${home}）之外，不会出现在统一管理页。建议用 rpa_project_create 默认创建，流程会落在 RPA_HOME 下。`
+          : undefined,
+      };
     },
   }));
 
@@ -1119,6 +1219,8 @@ function apply(ctx, config) {
       const sessionCwd = exec?.agent?.session?.header?.cwd;
       const projects = [];
       const seen = new Set();
+      const home = rpaHomeValue();
+      const homeNorm = resolve(home).toLowerCase();
 
       // 统一收集一个目录的信息（有 rpa.json 才收）
       const collect = (dir, { current = false, workspaceId = null } = {}) => {
@@ -1138,6 +1240,8 @@ function apply(ctx, config) {
             nodeCount = Array.isArray(wf.nodes) ? wf.nodes.length : 0;
           }
         } catch {}
+        const dirNorm = resolve(dir).toLowerCase();
+        const outsideHome = !(dirNorm === homeNorm || dirNorm.startsWith(homeNorm + sep));
         projects.push({
           name: meta?.name || dir.split(/[\\/]/).filter(Boolean).pop() || dir,
           path: dir,
@@ -1145,6 +1249,7 @@ function apply(ctx, config) {
           hasWorkflow,
           nodeCount,
           current,
+          outsideHome,
         });
       };
 

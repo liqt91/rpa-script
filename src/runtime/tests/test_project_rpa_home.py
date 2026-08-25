@@ -19,6 +19,9 @@ def test_project_home_create_list(tmp_path, monkeypatch):
     assert root.is_dir()
     assert (root / "rpa.json").is_file()
     assert (root / "workflow.json").is_file()
+    assert (root / "elements.json").is_file()
+    assert (root / "images").is_dir()
+    assert (root / "run_logs").is_dir()
     assert root.parent == (tmp_path / "RPA主页").resolve()
 
     # /list 枚举根下所有流程

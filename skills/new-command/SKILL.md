@@ -177,8 +177,9 @@ runner 读 `resultVar`/`saveToVar`/`varName` 作为目标变量名，从返回 d
 - 签名：`registerBackgroundHandler('cmd', async (step, agent) => {...})`，
   可直接用 `chrome.tabs.*` / `chrome.windows.*`，以及 `agent.workWindowId`。
 - 需要 manifest 的 `tabs`/`windows` 权限（项目已有）。
-- **无法用 Node 桩（`verify_web_handler.mjs`）验证**（无 chrome.\*），验证以
-  「构建 background.js + 注册 + 质量门禁 + 代码审查」为准；真机确认仍需先重载扩展。
+- **可用 Node 桩（`verify_web_handler.mjs`）验证**：桩已 stub `chrome.tabs.query/update/get` 与
+  `chrome.windows.update`，并按 `(step, agent)` 调用后台 handler——`rpa_new_command(cmd, verify=...)`
+  会自动检测 `background_handlers/` 并跑桩（无需重载扩展）。真机确认仍需先重载扩展。
 - 写回变量约定同 DOM handler：返回 `{ value: [...] }` → runner 把数组写入 resultVar
   （extension_runner.py:407/1652 规则，`extracted`→`navigatedTo`→`value`→整 dict）。
 

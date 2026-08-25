@@ -11,7 +11,7 @@
  *     /closest/classList 等）。若 handler 用到更冷门的 DOM API，需要在这个桩里补。
  *   - 不加载 content_base.js 的共享 helper（checkVisibility 等），桩里提供最小实现。
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -178,23 +178,55 @@ globalThis.window = { location: { href: url } };
 // checkVisibility 等共享 helper 的最小实现（真实在 content_base.js 里）
 globalThis.checkVisibility = (el) => true;
 
-// 读 handler 文件，剥离 registerHandler('...', fn) 包装取出 fn
-const jsPath = join(ROOT, 'extension', 'dom_handlers_new', `${cmd}.js`);
-let src = readFileSync(jsPath, 'utf8');
+// 读 handler 文件：background_handlers 优先（存在且 dom 不存在 → 后台 handler），否则 dom_handlers_new。
+const bgJs = join(ROOT, 'extension', 'background_handlers', `${cmd}.js`);
+const domJs = join(ROOT, 'extension', 'dom_handlers_new', `${cmd}.js`);
+let srcPath;
+let isBackground = false;
+if (existsSync(bgJs) && !existsSync(domJs)) {
+  srcPath = bgJs;
+  isBackground = true;
+} else {
+  srcPath = domJs;
+}
+let src;
+try { src = readFileSync(srcPath, 'utf8'); }
+catch (e) { console.error(`找不到 handler 文件: ${srcPath}`); process.exit(1); }
 
-// 收集器模式：stub registerHandler 收集 fn，eval 整个文件（handler 通常只在文件里
-// 调一次 registerHandler('cmd', async fn)，无需正则拆取）。
+// 收集器模式：stub registerHandler / registerBackgroundHandler 收集 fn，eval 整个文件。
 const handlers = {};
 globalThis.registerHandler = (c, f) => { handlers[c] = f; };
+globalThis.registerBackgroundHandler = (c, f) => { handlers[c] = f; };
 try { eval(src); } catch (e) { console.error('eval handler 失败:', e.message); process.exit(1); }
 
-// 真实 document 根（默认空）可被调用方注入：通过 extra 里的 __links 注入示例
-// 简单起见，默认用空 DOM，至少验证"无匹配返回空数组 + 不抛异常"。
 const fn2 = handlers[cmd];
 if (!fn2) { console.error(`未注册 handler: ${cmd}`); process.exit(1); }
 
+// chrome.\* 桩（后台 handler 用）：tabs.query 按 windowId 过滤、返回默认 Tab 集。
+const defaultTabs = [
+  { index: 0, id: 1, windowId: 1, title: 'Google', url: 'https://google.com', active: true, pinned: false, discarded: false },
+  { index: 1, id: 2, windowId: 1, title: 'Baidu', url: 'https://baidu.com', active: false, pinned: true, discarded: false },
+  { index: 2, id: 3, windowId: 1, title: 'New Tab', url: 'chrome://newtab/', active: false, pinned: false, discarded: false },
+];
+globalThis.chrome = {
+  tabs: {
+    query: async (q = {}) => (q.windowId == null) ? defaultTabs : defaultTabs.filter((t) => t.windowId === q.windowId),
+    update: async (id, props) => ({ id, ...props }),
+    get: async (id) => defaultTabs.find((t) => t.id === id) || { id, windowId: 1, url: 'https://example.com', status: 'complete', active: true },
+  },
+  windows: { update: async (id, props) => ({ id, ...props }) },
+};
+
 (async () => {
-  const result = await fn2({ locator: '', selectorFamily: 'css', extra });
+  let result;
+  if (isBackground) {
+    // 后台 handler 签名：registerBackgroundHandler(cmd, async (step, agent) => {...})
+    const agent = { workWindowId: 1, _persistWorkState: async () => {}, _injectContentScript: async () => {} };
+    result = await fn2({ stepId: 'verify', type: cmd, extra }, agent);
+  } else {
+    // DOM handler 签名：registerHandler(cmd, async (args) => {...})
+    result = await fn2({ locator: '', selectorFamily: 'css', extra });
+  }
   console.log('🔎 结果:');
   console.log(JSON.stringify(result, null, 2));
   // 基础断言：返回对象含 value/extracted/items 之一（写变量机制），或不抛异常
