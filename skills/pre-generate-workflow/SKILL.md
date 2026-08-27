@@ -6,7 +6,7 @@ description: 预生成流程。分析用户的自动化需求，用自然语言�
 # 预生成流程
 
 > **位置：** 本 skill 产出自然语言流程描述，不写代码。
-> 下游 `generate-workflow` skill 读取本 skill 的产出，生成实际的节点数据。
+> 下游 `generate-workflow` skill 读取本 skill 的产出，写入流程目录（一个流程 = 一个目录）。
 
 ## 职责边界
 
@@ -17,7 +17,7 @@ description: 预生成流程。分析用户的自动化需求，用自然语言�
 pre-generate-workflow   ← 本 skill
     │
     ├─ 分析需求，拆解步骤
-    ├─ 检查元素库
+    ├─ 检查元素库（目录内 elements.json）
     ├─ 与用户对齐
     │
     ▼
@@ -27,10 +27,27 @@ pre-generate-workflow   ← 本 skill
 generate-workflow       ← 下游 skill
     │
     ▼
-WorkflowNode[] → API → 数据库
+写 workflow.json + elements.json → 流程目录 → rpa_run_start 运行
 ```
 
 > **⚠️ 规划时先核对指令能力面板**：拆解流程时应先 `rpa_commands(side=editor)` 盘现有指令，**尽量落在现有指令能表达的步骤**；若发现某一步现有指令无法满足，**不要默认要去新建指令**——把它作为"待确认的能力缺口"列给用户，说明"缺哪个能力"，经用户确认后才交给下游（新建走 `rpa_new_command`）。参考下游 `generate-workflow` 的「硬性约束」章节。
+
+## 目录模式（主线，取代旧的 /api/workflows 数据库模式）
+
+本 skill 与下游 `generate-workflow` 已切换到 **「一个流程 = 一个目录」** 的主线：
+
+- 流程 = `RPA_HOME/<流程名>/` 目录（内部 `rpa.json` + `workflow.json` + `elements.json` + `images/` + `run_logs/`）
+- 不再使用 `curl /api/workflows` 等数据库 CRUD；改为 **DSH 文件工具写目录内 JSON** + **`rpa_*` 工具**
+- 运行：`rpa_run_start()`（不带参数，当前会话目录即流程目录）→ `rpa_run_wait(project=目录, run_id)`
+
+### 目录模式下的工具对应
+
+| 旧 DB 模式 | 目录模式 |
+|---|---|
+| `POST /api/workflows` 建工作流 | `rpa_project_create(path, name)` 建流程目录 |
+| `GET /api/workflows/{id}/elements` 查元素 | 读目录内 `elements.json`（`rpa_capture` 写回） |
+| `PUT /api/workflows/{id}/nodes/batch` 写节点 | 文件工具写 `workflow.json`（下游 generate-workflow 负责） |
+| `python skills/scripts/run_workflow.py <id>` 运行 | `rpa_run_start()` + `rpa_run_wait(project, run_id)` |
 
 ## 与用户交互模型
 
@@ -67,22 +84,26 @@ WorkflowNode[] → API → 数据库
 ### 交互 2：元素库检查 — 硬中断
 
 1. 根据步骤拆解结果，列出需要的元素
-2. 调 API 查现有元素
+2. 读流程目录内 `elements.json`（`rpa_capture` 捕获写回的元素库；也可能是 `workflow.json` 内联的遗留 `elements` 数组）
 3. 对比得出缺失清单
 4. **如果缺元素，输出清单并中断，不继续后续步骤：**
 
 ```
-⚠️ 元素缺失 — 请先在浏览器扩展面板中捕获以下元素，完成后回复"好了"：
+⚠️ 元素缺失 — 请先捕获以下元素，完成后回复"好了"：
+依次调用 rpa_capture（全屏遮罩 + Alt+点击捕获），name 用清单里的名字：
 
   □ search_input    — 搜索输入框 (类型: plain)
   □ search_btn      — 搜索按钮 (类型: plain)
   □ result_list     — 搜索结果列表 (类型: anchor)
   □ result_title    — 结果标题，锚定到 result_list (类型: child)
 
+当前流程目录: <RPA_HOME>/<流程名>/
 当前已有元素: 0 个
 ```
 
-5. 用户补完后，重新查询确认，全部就绪再继续。
+5. 用户补完后（Agent 调 `rpa_capture` 一条条捕获，或用户手动捕获），重新读 `elements.json` 确认，全部就绪再继续。
+
+> **捕获由 Agent 用 `rpa_capture` 工具完成**（不是让用户去扩展面板手点）：`rpa_capture` 弹全屏遮罩，用户在目标元素上 Alt+点击，捕获结果自动写回流程目录 `elements.json`（含截图到 `images/`）。桌面元素同理（Win32/UIA）。
 
 ### 交互 3：流程对齐 — 呈现 + 修改循环
 
@@ -102,24 +123,24 @@ WorkflowNode[] → API → 数据库
 
 ## 执行流程
 
-### 步骤 0：确定 Workflow
+### 步骤 0：确定流程目录
 
-用户可能已有 workflow（含已捕获的元素），也可能是全新开始。
+用户可能已有流程目录（含已捕获的元素），也可能是全新开始。
 
-**情况 A：用户提供了 workflow_id**
-→ 直接进入步骤 1。
+**情况 A：用户提供了流程目录路径，或当前会话目录已经是流程目录**
+→ 直接进入步骤 1。确认方式：目录内有 `rpa.json`。
 
-**情况 B：用户没有 workflow**
-→ 先创建一个空 workflow：
+**情况 B：全新开始**
+→ 先建流程目录（在 RPA_HOME 下，或当前会话工作目录）：
 
-```bash
-curl -X POST http://localhost:xxxx/api/workflows \
-  -H "Content-Type: application/json" \
-  -d '{"name": "新流程", "description": "", "url": "", "parameters": []}'
-# 记录返回的 id
+```
+rpa_project_create(path=..., name="流程名")
+# 幂等；在目标目录写 rpa.json，之后该目录会话自动出现「流程」编辑 tab
 ```
 
-> 元素库为空时交互 2 会中断。让用户在新 workflow 下捕获元素后再继续。
+之后流程数据落在 `<目录>/workflow.json` + `<目录>/elements.json`。
+
+> 元素库为空时交互 2 会中断。让用户（或 Agent 用 rpa_capture）捕获元素后再继续。
 
 ### 步骤 1：解析用户需求
 
@@ -134,32 +155,15 @@ curl -X POST http://localhost:xxxx/api/workflows \
 
 ### 步骤 2：查询可用指令
 
-遍历 `commands/` 目录下所有 JSON，了解当前可用的指令集合。确认用户的每一步有对应指令可执行。
+调用 `rpa_commands(side=editor)` 获取编辑器指令目录（含参数 schema），了解当前可用的指令集合。确认用户的每一步有对应指令可执行。
 
 > **注意**：`commands/*.json` 声明的参数名可能与 handler 实际读取名不一致
 > （如 forList 声明 `listName` 但 handler 读 `listVar`）。已验证真值见
 > `generate-workflow` skill 的「已验证真值」一节，生成阶段以该节为准。
 
-```bash
-# 快速列出所有可用指令
-python -c "
-import json, os
-for f in sorted(os.listdir('commands')):
-    if not f.endswith('.json'): continue
-    with open(f'commands/{f}', encoding='utf-8') as fp:
-        d = json.load(fp)
-    cats = d.get('categories', [d.get('category','')])
-    print(f'{d[\"cmd\"]:<28} [{d[\"runtime\"]}] {d[\"label\"]}')
-"
-```
-
 ### 步骤 3：检查元素库
 
-用户描述的步骤中可能涉及页面元素（按钮、输入框、列表等）。通过 API 查询当前 workflow 已有的元素：
-
-```bash
-curl http://localhost:xxxx/api/workflows/{wf_id}/elements
-```
+用户描述的步骤中可能涉及页面元素（按钮、输入框、列表等）。读流程目录内的 `elements.json`（或 `workflow.json` 内联的遗留 `elements` 数组）查已有元素：
 
 每个元素的关键字段：
 
@@ -185,9 +189,9 @@ curl http://localhost:xxxx/api/workflows/{wf_id}/elements
 
 **元素不够 → 按"交互 2"模式硬中断：**
 
-输出缺失清单，等待用户补完。用户回复"好了"/"done"后，重新调 API 确认。全部就绪才继续步骤 4。**
+输出缺失清单，等待用户补完。用户回复"好了"/"done"后，重新读 `elements.json` 确认。全部就绪才继续步骤 4。**
 
-不要替用户捕获元素（Agent 无法操作浏览器扩展面板）。
+捕获由 Agent 用 `rpa_capture` 工具完成（弹遮罩 → 用户 Alt+点击目标元素 → 自动写回 `elements.json`），无需用户去扩展面板手点。
 不要跳过检查直接进入步骤 4。
 
 ### 步骤 4：拆解为分步骤自然语言描述

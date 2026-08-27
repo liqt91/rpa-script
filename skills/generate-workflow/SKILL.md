@@ -5,7 +5,7 @@ description: 根据预生成流程的产出，将自然语言步骤序列转换�
 
 # 生成流程
 
-> **位置：** 本 skill 是 `pre-generate-workflow` 的下游。接收结构化流程描述，生成实际的节点数据并通过 API 写入。
+> **位置：** 本 skill 是 `pre-generate-workflow` 的下游。接收结构化流程描述，生成节点数据并写入**流程目录**（一个流程 = 一个目录）。
 
 ## 职责边界
 
@@ -16,13 +16,24 @@ pre-generate-workflow 产出
 generate-workflow       ← 本 skill
     │
     ├─ 映射步骤 → cmd + extra
-    ├─ 构建节点树 (parent_id, order)
+    ├─ 构建节点树 (id, parent_id, order)
     ├─ 校验
     │
     ▼
-POST /api/workflows      → 创建 Workflow
-PUT  /api/workflows/{id}/nodes/batch  → 写入所有节点
+写 workflow.json + elements.json → 流程目录（DSH 文件工具）
+rpa_run_start() + rpa_run_wait()  → 真实运行验证
 ```
+
+## 目录模式（主线）
+
+本 skill 写**流程目录内 JSON**，不再走 `POST /api/workflows` / `PUT /nodes/batch` 数据库 API。
+
+- 流程目录 = `RPA_HOME/<流程名>/`（由 `pre-generate-workflow` 步骤 0 用 `rpa_project_create` 建好）
+- 用 **DSH 文件工具（write/edit）** 写以下两文件：
+  - `workflow.json`：`{name, description, url, parameters, nodes:[...], elements:[...](可内联遗留)}`
+  - `elements.json`：`{version:1, elements:[{name, selector|web_selector, selector_family, element_kind}]}`（元素库）
+- 运行验证：`rpa_run_start()` + `rpa_run_wait(project=目录, run_id)`
+- 目录模式 `workflow.json` 的 node 字段是 `id`（不是 `temp_id`）；缺 `id` 时运行器按序补 `n1/n2/...`
 
 ## ⚠️ 硬性约束（最高优先）：只复用现有指令，缺则确认后新建
 
@@ -152,11 +163,11 @@ for c in cmds:
 
 ### 步骤 3：映射步骤 → 节点数据
 
-将每个自然语言步骤映射为 WorkflowNode 数据结构：
+将每个自然语言步骤映射为 WorkflowNode 数据结构（目录模式 `workflow.json` 的 node 用 `id` 而非 `temp_id`）：
 
 ```json
 {
-  "temp_id": "step_1",
+  "id": "n1",
   "parent_id": null,
   "order": 1,
   "cmd": "launchBrowser",
@@ -220,8 +231,8 @@ child 元素只能在 forEachElement 内部使用
 
 ```
 根节点:                   parent_id = null
-容器(if/forEach/while)内: parent_id = 容器的 temp_id
-else/catch 分支内:        parent_id = 对应 if/try 的 temp_id
+容器(if/forEach/while)内: parent_id = 容器的 id
+else/catch 分支内:        parent_id = 对应 if/try 的 id
 结束标记:                 endLoop/endIf 是顶层兄弟节点（parent_id = null），
                           非容器子节点
 ```
@@ -256,7 +267,7 @@ elseBody 内独立编号
 ```json
 [
   {
-    "temp_id": "n1",
+    "id": "n1",
     "parent_id": null,
     "order": 1,
     "cmd": "launchBrowser",
@@ -264,7 +275,7 @@ elseBody 内独立编号
     "extra": {"browserType": "chrome", "windowVar": "browser"}
   },
   {
-    "temp_id": "n2",
+    "id": "n2",
     "parent_id": null,
     "order": 2,
     "cmd": "navigate",
@@ -272,7 +283,7 @@ elseBody 内独立编号
     "extra": {"url": "https://example.com", "windowVar": "{{browser}}"}
   },
   {
-    "temp_id": "n3",
+    "id": "n3",
     "parent_id": null,
     "order": 3,
     "cmd": "inputElement",
@@ -280,7 +291,7 @@ elseBody 内独立编号
     "extra": {"text": "天气预报", "windowVar": "{{browser}}"}
   },
   {
-    "temp_id": "n4",
+    "id": "n4",
     "parent_id": null,
     "order": 4,
     "cmd": "clickElement",
@@ -288,7 +299,7 @@ elseBody 内独立编号
     "extra": {"windowVar": "{{browser}}"}
   },
   {
-    "temp_id": "n5",
+    "id": "n5",
     "parent_id": null,
     "order": 5,
     "cmd": "forEachElement",
@@ -296,7 +307,7 @@ elseBody 内独立编号
     "extra": {"maxItems": 5, "windowVar": "{{browser}}"}
   },
   {
-    "temp_id": "n5_1",
+    "id": "n5_1",
     "parent_id": "n5",
     "order": 1,
     "cmd": "getText",
@@ -353,7 +364,7 @@ for i, n in enumerate(nodes):
     
     # 容器节点必须有子节点
     if schema.get('isContainer'):
-        children = [c for c in nodes if c.get('parent_id') == n.get('temp_id')]
+        children = [c for c in nodes if c.get('parent_id') == n.get('id')]
         if not children:
             errors.append(f'节点{i} ({cmd}): 容器节点缺少子节点')
 
@@ -366,53 +377,58 @@ else:
 "
 ```
 
-### 步骤 6：写入数据库
+### 步骤 6：写入流程目录（DSH 文件工具）
 
-```bash
-# 1. 创建 Workflow
-curl -X POST http://localhost:xxxx/api/workflows \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer {token}" \
-  -d '{
-    "name": "流程名称",
-    "description": "流程描述",
-    "url": "https://target-url.com",
-    "parameters": []
-  }'
-# 返回: {"id": 123, "name": "...", ...}
+用 **DSH 文件工具（write/edit）** 把节点树写进流程目录：
 
-# 2. 批量写入节点
-curl -X PUT http://localhost:xxxx/api/workflows/123/nodes/batch \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer {token}" \
-  -d '[
-    {"temp_id":"n1","parent_id":null,"order":1,"cmd":"launchBrowser",...},
+1. 写 `workflow.json`（流程目录根下）：
+
+```json
+{
+  "name": "流程名称",
+  "description": "流程描述",
+  "url": "https://target-url.com",
+  "parameters": [],
+  "elements": [],
+  "nodes": [
+    {"id":"n1","parent_id":null,"order":1,"cmd":"launchBrowser","element_name":null,"extra":{"browserType":"chrome","windowVar":"browser"}},
     ...
-  ]'
-# batch API 自动：
-#   - 将 temp_id 映射为数据库自增 id
-#   - 修复 parent_id 引用（temp_id → 真实 id）
-#   - 删除不在 payload 中的旧节点
+  ]
+}
 ```
+
+2. 写 `elements.json`（用户已用 `rpa_capture` 捕获的元素；若元素已内联在 pre 产出里也可直接落这里）：
+
+```json
+{
+  "version": 1,
+  "elements": [
+    {"name": "search_input", "selector": "#kw", "selector_family": "css", "element_kind": "plain"}
+  ]
+}
+```
+
+> 目录模式无「原子导入」API——就是**直接写文件**。`load_project_workflow` 运行时会读
+> `workflow.json` + `elements.json`（elements.json 优先，workflow.json 内联 elements 按名兜底合并）。
+> node 用 `id`（缺省运行器按序补 n1/n2/...），`parent_id` 引用这些 id。
 
 ### 步骤 7：强制验证（不可跳过）
 
 生成的工作流必须真实运行一次并全部通过，才算完成。
 
 **前置：**
-- 后端已启动（dev 模式 :8000，使用仓库 `data/data.db`）
-- 浏览器流程：扩展在线 —— `GET /api/extension/status` → `online:true`（扩展选项端口设为 8000）
+- 后端已启动、扩展在线 —— 先 `rpa_status` 确认 `backend.ok` + `extension.online:true`
+- 流程目录就是当前会话工作目录（`rpa_project_create` 已绑定）
 
-**运行：**
+**运行（在 DSH 会话里调工具，非 curl/python）：**
 
-```bash
-python skills/scripts/run_workflow.py <wf_id>
-```
+1. `rpa_run_start()` —— 不带参数，当前会话目录即流程目录，立即返回 run_id
+2. `rpa_run_wait(project=<流程目录绝对路径>, run_id=<run_id>)` —— 轮询等终态
 
 **判定：**
-- 输出 `failed=0` 且 `success=true` → 通过
-- `failed>0` → 回到步骤 5 修正 extra/节点，重新写入后重跑，直到 `failed=0`
-- 深度核对（可选）：`python skills/scripts/read_run.py <logDir>` 逐条查看 run.log
+- 返回 `success=true` 且 `failed=0` → 通过
+- `failed>0` → 回到步骤 5 修正 extra/节点（edit 修正 workflow.json），重跑直到 `failed=0`
+- 深度核对：`rpa_run_status(project=..., run_id=...)` 查步骤日志
 
 **与 command-test 的区别**：command-test 测试只记录问题不改代码；本 skill 发现问题直接修节点并重跑，直到通过。
 
@@ -484,6 +500,6 @@ python skills/scripts/run_workflow.py <wf_id>
 | 生成工作流时擅自新建/发明指令 | 应优先复用/组合现有指令；确缺功能且经**用户确认**后才可新建（见上方硬性约束） |
 | 容器节点无子节点 | 空容器运行无意义 |
 | child 元素用在 forEachElement 外部 | child 元素依赖循环上下文 |
-| temp_id 重复 | batch API 会覆盖 |
+| id 重复 | 同 parent 下 id 冲突会导致 parent_id 引用歧义 |
 | windowVar 引用不一致 | 不同步骤引用不同变量名会导致路由错误 |
 | 漏掉 launchBrowser | extension 指令需要浏览器上下文 |

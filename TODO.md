@@ -36,9 +36,9 @@
 
 ### P0
 - [ ] **P0-AI｜一句话生成可运行工作流（主线强化）**
-  - [ ] pre-generate-workflow / generate-workflow 与元素库就绪、捕获打通
-  - [ ] agent 从自然语言 → 完整可运行流程（含元素捕获、参数、结果写回）
-  - [ ] 验收：输入"采集知乎热搜前10条"→ 一键生成 + 运行成功
+  - [x] pre-generate-workflow / generate-workflow 与元素库就绪、捕获打通 —— **两个 SKILL.md 已适配目录模式**（rpa_project_create / rpa_capture / 写 workflow.json + elements.json / rpa_run_start+wait，替换旧 curl /api/workflows DB 模式），已同步到 ~/.dsh/skills/
+  - [x] agent 从自然语言 → 完整可运行流程（含元素捕获、参数、结果写回）—— **简单站点目录模式闭环验证通过**（launchBrowser→navigate→closeBrowser，3/3 成功）
+  - [ ] 验收：输入"采集知乎热搜前10条"→ 一键生成 + 运行成功（**未做**，严格验收待元素捕获闭环）
 - [ ] **P0-验证｜后台 handler 的 Node 桩验证** —— `verify_web_handler.mjs` 加 `chrome.tabs.query`/`chrome.windows` 的 mock，让 getAllTabs/switchTab 等可走官方桩
 - [ ] **P0-验证｜真机 e2e 免手动重载扩展** —— dev 扩展热重载 / 自动化刷新，让"重载扩展"不再是必备人工步
 - [ ] **P0-验证｜改核心模块自动重启后端** —— extension_runner 等被改后自动重启，减少人工判断
