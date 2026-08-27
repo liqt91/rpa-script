@@ -45,6 +45,8 @@
 - [ ] **P0-验证｜真机 e2e 免手动重载扩展** —— dev 扩展热重载 / 自动化刷新，让"重载扩展"不再是必备人工步
 - [ ] **P0-验证｜改核心模块自动重启后端** —— extension_runner 等被改后自动重启，减少人工判断
 - [ ] **P0-缺陷｜rpa_capture 的 mode=web 多浏览器选错窗口** —— `run_capture("web")` 走 `_find_active_browser()`（取「最前面的浏览器窗口」），多浏览器窗口共存时（如用户自己的 Edge 浏览窗口 vs 流程 launchBrowser 开的小红书窗口，本机为远程桌面环境，DSH GUI 不在本机）会绑错窗口。**已修（待验证）**：`background_base.js` 的 launchBrowserCapture 改为优先绑定 `workWindowId`（RPA 流程最近操作的窗口）的活动标签页并置前，无工作窗口才回退 currentWindow；已重建 dist background.js（语法校验通过），**需 edge://extensions 手动重载扩展后验证**。
+- [ ] **P0-缺陷｜clickElement 0 匹配仍返回成功** —— 元素不存在时 clickElement 返回 `clicked:true, matchedCount:0` 而不是报错，导致流程静默继续到后续步骤才超时失败（小红书流程筛选按钮未渲染时踩到）。应改为 0 匹配时报错或按 onError 处理。
+- [ ] **P0-缺陷｜inputElement 的 OS 键盘输入依赖窗口焦点** —— 远程桌面/焦点被抢场景下 `simulateKeyboard:true`（默认）报成功但实际没输入（用户实测）。小红书流程已改 `simulateKeyboard:false`（DOM 合成）修复；建议 inputElement 在 OS 输入前检查/强制窗口前台，或失败可检测。
 
 ### P1
 - [x] **P1-流程根｜集中流程根 RPA_HOME + 统一管理页**（基础已落地；管理页/行内操作按需搁置）
