@@ -1,4 +1,4 @@
-﻿"""verifyEffect 声明式效果验证 — runner 侧单元测试。
+"""verifyEffect 声明式效果验证 — runner 侧单元测试。
 
 场景：inputElement 模拟键盘输入（OS SendInput）后，handler 在结果里声明
 verifyEffect={kind: readbackValue, expect}，runner 必须在回车前回读目标元素

@@ -1,85 +1,105 @@
 # rpa_script — Agent Working Notes
 
-rpa_script — solo-dev project on the agent-harness-kit harness. generic/generic project. Single-developer hobby
-project. This file is intentionally short — it is a **table of contents**, not
-an encyclopedia.
+rpa_script — solo-dev browser/desktop RPA 自动化平台。主线 = DSH 原生工具交付可视化
+RPA（一个流程 = 一个目录）。本文件是**目录**，不是百科全书；细节按需 @-import。
 
-## Build & Run
+## Build & Run（真实命令表）
 
-- Install:    `npm install`
-- Dev:        `npm run dev`
-- Test:       `npm test`
-- Lint:       `npm run lint`
-- Structural: `npm run harness:check` (must pass before any PR)
+本项目不是 npm 项目，无 `npm run dev`/`npm test`/`npm run lint`。
 
-## Architecture (brief)
+- 后端：`python -m src.runtime.main`
+- 测试：`pytest -q`（全量 186+）
+- Lint：`ruff check src tests`
+- 结构检查：`npm run harness:check`（统一门禁：AST 层序 + 命令注册表 + skill 契约 + skill 同步；`--with-tests` 追加 pytest）
+- skill 契约：`npm run skills:check`
+- 新建/改指令：调用 DSH 工具 `rpa_new_command`（唯一入口，勿手跑脚本）
 
-Layer order, enforced mechanically:
+## Architecture（六域，前向依赖）
 
-**types → config → repo → service → runtime → ui** — code may only depend forward. Cross-cutting concerns
-enter via `providers/`.
+```text
+backend    src/                        dtypes → config → repo → service → runtime → mcp_server
+frontend   src/ui/workflow-editor/     （独立 domain）
+extension  extension/ → dist/desktop/extension/   （源 → 构建产物，两者都要管）
+commands   commands/*.json             （唯一定义源；handler/注册表/content.js 是产物）
+plugin     rpa-dsh-plugin/             （DSH 工具面；服务端改动 = 高危）
+skills     skills/ → ~/.dsh/skills/    （源 → 同步目标，两者都要管）
+```
 
-Full diagram and rationale: `.harness/docs/architecture.md`.
+结构测试只管 backend 层序（`config.json` `domains[].layers`）。完整职责表：
+`@.harness/docs/architecture.md`。
 
-## Golden principles (must hold)
+## 改动路径速查（本项目最高频决策点）
 
-1. Prefer shared utilities in `src/shared/` over new helpers.
-2. Validate at boundaries; never probe data shape "YOLO-style".
-3. Each test is end-to-end through one feature in `.harness/feature_list.json`.
+| 改了什么 | 必须做 |
+|---|---|
+| `commands/*.json` / handler | `rpa_new_command` 复跑（生成→构建→门禁→热重载一条龙） |
+| `extension/` JS 源 | 重建 dist → 自动重载扩展（勿手改 `dist/**` 产物） |
+| `src/runtime` 核心（runner/emitter） | **重启后端** + pytest（热重载不覆盖已在内存的模块） |
+| `skills/` | bump version + 同步 `~/.dsh/skills/`（`skills/scripts/check-project-skill-sync.mjs` 兜底，即 `npm run skills:sync`） |
+| workflow-editor 前端 | rebuild + 同步两处 profile 副本 |
 
-Full list: `.harness/docs/golden-principles.md`.
+完整矩阵 + 机械兜底：`@.harness/docs/change-matrix.md`。
 
-## Where to look (read on demand)
+## Golden principles（节选，全文见 `.harness/docs/golden-principles.md`）
 
-The lines below use `@`-imports — the agent loads the referenced file
-into context only when this section is referenced, keeping AGENTS.md tiny.
+1. 边界校验，不 YOLO 探测数据形状。
+2. 每个坑变成一个机械预防（脚本/检查/hook），而不是一句"请注意"。
+3. Agent 失败 → `agent-failures.md` + 一个永久预防。
+4. AGENTS.md ≤ 200 行，细节全部 @-import。
 
-- @.harness/docs/architecture.md      — when adding a new module or moving code.
-- @.harness/docs/adr/                 — when changing public APIs.
-- @.harness/docs/golden-principles.md — before any refactor.
-- @.harness/feature_list.json         — before claiming a feature is done.
-- @.harness/project/state.json        — before changing phase, MVP scope, risks, or checklists.
-- `.harness/memory/current-summary.md` — compact shared project memory injected by SessionStart.
-- `.harness/PROGRESS.md`     — read at session start; append at session end (kit-managed, not @-imported).
+## Where to look（按需 @-import）
 
-## Skills you should use
+- `@.harness/docs/architecture.md` — 加模块/移动代码。
+- `@.harness/docs/change-matrix.md` — 改了什么 → 必做什么 → 谁兜底。
+- `@.harness/docs/harness-structure.md` — harness 三层结构地图（三层/目录/门禁/入口）。
+- `@.harness/docs/adr/` — 改公共 API。
+- `@.harness/docs/golden-principles.md` — 重构前。
+- `@.harness/feature_list.json` — 声称特性完成前。
+- `@.harness/project/state.json` — 改 phase/MVP/风险/清单前。
+- `.harness/memory/current-summary.md` — 共享项目记忆（SessionStart 注入）。
+- `.harness/PROGRESS.md` — 会话开始读、结束追加一行。
 
-- `/inspect-module <path>`            when you need to understand existing code.
-- `/add-feature <description>`        when adding new capability — never freestyle.
-- `/structural-test-author <layer>`   when adding a new structural rule.
-- `/garbage-collection`               every Friday or before tagging a release.
-- `/eval-runner`                      before merging any change to a skill or agent file.
-- `/deliver-html`                     when user wants an analysis / audit / plan / decision doc / next-actions report — HTML for humans, MD stays for agent files (principle #11).
-- `/remember-project`                 when a decision, risk, scope change, or handoff note must survive future sessions.
-- `/project-status`                   when the user needs a phase/MVP/checklist/risk/status dashboard.
+## Skills
 
-## Self-review (no reviewer subagents in this environment)
+- `/inspect-module <path>` — 理解现有代码。
+- `/add-feature <description>` — 加新能力。
+- `/deliver-html` — 分析/审计/计划/决策文档（人类阅读 → HTML；agent 文件 → MD）。
+- `/remember-project` — 决策/风险/范围变更必须落地。
+- `/project-status` — phase/MVP/清单/风险/状态看板。
 
-The former `architecture-reviewer` / `security-reviewer` / `reliability-reviewer`
-subagents are gone. For the following classes of change, do an explicit
-self-review pass and state it in the commit message or result:
+## Self-review（无 reviewer 子代理）
 
-- cross-layer change → check the layer order in `.harness/docs/architecture.md`.
-- auth / input handling / secret-touching change → validate at boundaries.
-- new error path / retry loop / async boundary → trace the failure + cancellation path.
+- 跨层改动 → 核对架构层序 + harness:check 的 layer-spanning 报告。
+- auth/输入/密钥 → 边界校验。
+- 新错误路径/重试/异步边界 → 追踪失败 + 取消路径。
+
+在提交信息或结果里声明已自审。
 
 ## Workflow contract
 
-1. Start session: run `/inspect-module .`, read `.harness/PROGRESS.md`, and keep `.harness/project/state.json` aligned with the active work.
-2. Pick ONE feature from `.harness/feature_list.json` whose `passes: false`.
-3. Implement. Run the structural test. If it fails, FIX before continuing.
-4. Self-verify (see self-review section above).
-5. Commit with descriptive message. Append a line to `.harness/PROGRESS.md`.
-6. Update `.harness/feature_list.json` (`passes: true`) **only after** end-to-end test passes.
+1. 会话开始：读 `.harness/PROGRESS.md`，对齐 `state.json`。
+2. 从 `feature_list.json` 选一个 `passes: false` 的特性。
+3. 实现 → 跑结构测试，失败先修。
+4. 自审（见上）。
+5. 提交（描述性 message）+ 追加一行 `.harness/PROGRESS.md`。
+6. **只在端到端测试通过后**把 `feature_list.json` 的 `passes` 置 true。
 
 ## What NOT to do
 
-- Don't add a new layer without an ADR.
-- Don't npm install packages with native bindings without an ADR.
-- Don't disable the structural test to make a PR pass.
-- Don't write code that the structural test cannot reason about (no dynamic
-  imports across layers).
-- Don't update AGENTS.md without proposing a harness improvement
-  (`/propose-harness-improvement`).
-- Don't grow AGENTS.md past 200 instructions (soft limit). Excess belongs in
-  `.harness/docs/` or @-imports.
+- 不加新层/新架构域而不写 ADR。
+- 不引入 native binding 依赖而不写 ADR。
+- 不禁用结构测试来过关。
+- 不写结构测试无法推理的动态跨层 import。
+- 不改 `extension/`（MV3 CSP 禁 eval/new Function）、不改 `dist/**` 产物、
+  不手跑 `generate_commands.py`/`build_*_js.py`。
+- 不改 AGENTS.md 而不走 `/propose-harness-improvement`。
+- 不让 AGENTS.md 超 200 行。
+
+## 环境不变量（来自日志踩坑，必守）
+
+- 浏览器加载 `dist/desktop/extension/`，不是 `extension/` — 改了源不重建 = 改了空气。
+- DSH 加载 `~/.dsh/skills/`，不是仓库 `skills/` — 不同步 = 新事实永不生效。
+- 改 `src/runtime` 核心必须重启后端；`skills/scripts/check-project-skill-sync.mjs`（`npm run skills:sync`）兜底 skill 同步。
+- 静默失败是最大敌人：每步补验证节点、0 匹配报错、回读校验。
+- 项目跑在本机（DSH GUI 与浏览器同机），多窗口共存无焦点仍会绑错窗口，需程序化绑定 `workWindowId`。
+- 沙箱默认仅写工作区，可提权 full access；RPA 后端需提权后启动（写 RPA_HOME、驻留、spawn 浏览器）。

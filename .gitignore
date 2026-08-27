@@ -18,6 +18,7 @@ rpa-dsh-plugin/*.tgz
 # Python cache
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Runtime data & telemetry
 data/data.db
@@ -42,6 +43,11 @@ data/run_logs/
 data/workflows/
 tmp/
 open-source-readiness.html
+# Generated deliverables (rendered from .md by /deliver-html)
+harness-design-rpa-script.html
+
+# npm artifact (project has no node deps; scripts only)
+package-lock.json
 
 # Harness session/runtime state (regenerated per session)
 .harness/PROGRESS.md

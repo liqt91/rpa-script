@@ -395,6 +395,103 @@
         }
       ],
       "domain": "workflows"
+    },
+    {
+      "id": "ai-one-shot-workflow",
+      "title": "AI 一句话 → 可运行工作流（P0 主线强化）",
+      "passes": false,
+      "steps": [
+        {
+          "id": "skills",
+          "title": "pre-generate/generate-workflow 适配目录模式 + 渐进式提问",
+          "done": true
+        },
+        {
+          "id": "xiaohongshu",
+          "title": "小红书搜索实战跑通（199/199 步，存 JSON 30 条）",
+          "done": true
+        },
+        {
+          "id": "savejson",
+          "title": "saveJsonFile 指令（UTF-8 写文件 + append 合并数组）",
+          "done": true
+        },
+        {
+          "id": "zhihu",
+          "title": "验收：输入「采集知乎热搜前10条」→ 一键生成 + 运行成功",
+          "done": false
+        }
+      ],
+      "domain": "workflows"
+    },
+    {
+      "id": "core-module-auto-restart",
+      "title": "改核心模块自动重启后端（P0 验证缺口）",
+      "passes": false,
+      "steps": [
+        {
+          "id": "watch",
+          "title": "watch src/runtime/workflow/ + src/runtime/commands/ 变更 → 杀旧进程 → 重启 → 冒烟 /health",
+          "done": false
+        },
+        {
+          "id": "pytest",
+          "title": "重启后自动跑相关 pytest（或提示）",
+          "done": false
+        }
+      ],
+      "domain": "workflows"
+    },
+    {
+      "id": "scheduler-d1-d4",
+      "title": "定时调度（P1：Schedules 表 + CRUD + 引擎 + 前端）",
+      "passes": false,
+      "steps": [
+        {
+          "id": "d1-model",
+          "title": "D1: Schedules 表 + 迁移（cron + 简单间隔，last/next run）",
+          "done": false
+        },
+        {
+          "id": "d2-api",
+          "title": "D2: /api/workflows/{id}/schedules CRUD（校验 cron）",
+          "done": false
+        },
+        {
+          "id": "d3-engine",
+          "title": "D3: asyncio 定时检查（lifespan 后台任务，到期调 run_workflow_extension）",
+          "done": false
+        },
+        {
+          "id": "d4-ui",
+          "title": "D4: 调度前端页面（列表 + 新建/编辑/删除/启停）",
+          "done": false
+        }
+      ],
+      "domain": "workflows"
+    },
+    {
+      "id": "installer-release",
+      "title": "桌面安装器 + 内嵌扩展 + 一条命令跑（P1 发行）",
+      "passes": false,
+      "steps": [
+        {
+          "id": "installer",
+          "title": "桌面安装器（扩展拷到稳定目录）",
+          "done": false
+        },
+        {
+          "id": "embedded-ext",
+          "title": "内嵌扩展 + 写 External Extensions + 提示重启",
+          "done": false
+        },
+        {
+          "id": "one-cmd",
+          "title": "一条命令跑通（README P2 流程）",
+          "done": false
+        }
+      ],
+      "domain": "workflows"
     }
   ]
 }

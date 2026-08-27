@@ -1,9 +1,26 @@
-# PLAN — mcp-server
+# PLAN — P0 主线：AI 一句话 → 可运行工作流
 
-新增顶层 `src/mcp_server/` MCP 服务器（ADR-0011，命名避开官方 mcp SDK 包名冲突），作为现有 REST API 的薄适配器：
-httpx + JWT 调后端，工具分四组——工作流只读（P1）、流程创作（P2）、运行控制
-（P3）、浏览器实时代理（P5）。后端仅新增 `POST /api/extension/exec`（单指令
-执行，复用 ext_manager requestId/future 模式）与 `GET /api/extension/commands`
-（透出 handler 注册表供工具 schema 自动生成）。传输双通道：stdio 默认 + 独立
-进程 streamable HTTP。依赖新增 fastmcp。里程碑顺序：骨架(health) → 后端两端点
-→ P1 → P2 → P3 → P5 → HTTP → 门禁（结构测试/ruff/pytest）→ PROGRESS。
+当前主线（替代已归档的 mcp-server 计划）：强化 `pre-generate-workflow` /
+`generate-workflow` + 元素库就绪 + 捕获，让用户描述意图 → agent 自动拆解并建成**可运行**流程。
+
+## 现状
+
+- 小红书搜索已实战跑通（199/199 步，saveJsonFile 落盘 30 条），见 TODO.md P0-AI。
+- 待验收：同模式验证「采集知乎热搜前 10 条」。
+
+## 里程碑
+
+1. **元素捕获与存储已就绪** — `capture-unified-entry-storage`（ADR-0010，passes）。
+2. **skill 驱动生成链路已闭环** — `pre-generate-workflow` / `generate-workflow` / `new-command`。
+3. **验证缺口补齐（P0）** — background handler Node 桩（✅）、真机 e2e 免手动重载（✅）、
+   改核心模块自动重启后端（未做，见 feature `core-module-auto-restart`）。
+4. **验收** — 「采集知乎热搜前 10 条」一键生成 + 运行成功（feature `ai-one-shot-workflow`）。
+
+## 后续（P1）
+
+- 定时调度（`scheduler-d1-d4`）、发行（`installer-release`）。
+
+## 相关
+
+- 完整待办与优先级：`TODO.md`（2026-08-25 审视版）。
+- harness 收拢设计：`tmp/harness-design-body.md`。

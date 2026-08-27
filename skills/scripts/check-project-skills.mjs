@@ -73,6 +73,8 @@ async function main() {
       if (reg.version !== contract.version) errors.push(`${id}: registry version drift (${reg.version} != ${contract.version})`);
       if (JSON.stringify(reg.capabilities || []) !== JSON.stringify(contract.capabilities || []))
         errors.push(`${id}: registry capabilities drift`);
+      if ((reg.description || "") !== (contract.description || ""))
+        errors.push(`${id}: registry description drift`);
     }
   }
 

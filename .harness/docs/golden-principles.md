@@ -10,13 +10,11 @@ against this file weekly.
 
 ## 1. Forward-only layer dependencies
 
-`types → config → repo → service → runtime → ui`
+`dtypes → config → repo → service → runtime → mcp_server`（backend domain）；前端是独立 domain `ui/workflow-editor`。项目另有四个非分层域（extension / commands / plugin / skills），各自 source-of-truth 与产物由专项检查守护（见 `change-matrix.md`）。
 
 Why: prevents circular imports, makes refactors local, mirrors OpenAI's Codex
 codebase rule.
-Enforced by: structural test (`.harness/config.json` `domains[].layers`). The
-TypeScript adapter also blocks `src/runtime/` files from importing `src/ui/`,
-keeping runtime code independent from presentation code.
+Enforced by: structural test (`.harness/config.json` `domains[].layers`)，只管 backend 层序，不扩大到其他域。
 
 ## 2. Validate at boundaries; trust internals
 
@@ -25,7 +23,7 @@ object at the runtime boundary. Internal code assumes the type holds.
 
 Why: removes "defensive" type checks scattered across services that hide
 bugs.
-Enforced by: code review + `security-reviewer` subagent.
+Enforced by: inline self-review (边界校验), per ADR-0012 (reviewer subagents removed).
 
 ## 3. Shared utilities live in `src/shared/`
 
@@ -51,7 +49,7 @@ loop has both `maxAttempts` and a deadline. No `while True:` in production
 code.
 
 Why: agents love infinite retries.
-Enforced by: `reliability-reviewer` subagent.
+Enforced by: inline self-review (trace failure + cancellation path), per ADR-0012.
 
 ## 6. JSON beats Markdown for state the agent updates
 

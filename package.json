@@ -2,7 +2,8 @@
   "name": "rpa_script",
   "private": true,
   "scripts": {
-    "harness:check": "node .harness/runners/structural-check.mjs",
-    "skills:check": "node skills/scripts/check-project-skills.mjs"
+    "harness:check": "node scripts/harness-check.mjs",
+    "skills:check": "node skills/scripts/check-project-skills.mjs",
+    "skills:sync": "node skills/scripts/check-project-skill-sync.mjs"
   }
 }

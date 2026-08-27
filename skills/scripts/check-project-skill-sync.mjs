@@ -13,7 +13,7 @@
  *   - references/ 等附属文件按递归 hash 比对（SKILL.md 之外的内容漂移）。
  *
  * 用法：
- *   node .harness/scripts/check-project-skill-sync.mjs [--json] [--fix-days=N]
+ *   node skills/scripts/check-project-skill-sync.mjs [--json] [--fix-days=N]
  *   --json        输出 JSON（供 agent 程序化读取）
  *   --report-only 只报告不退出非零
  */
