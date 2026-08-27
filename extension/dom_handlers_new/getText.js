@@ -6,6 +6,9 @@
  */
 registerHandler('getText', async function getText({ locator, selectorFamily, extra }) {
   const el = findTarget(locator, selectorFamily, extra);
-  const value = (el.textContent || el.innerText || '').trim();
+  // 表单元素（input/textarea/select）的文本在 value 属性里，textContent 恒为空；
+  // 回退读 value 使「输入后回读验证」（getText + ifVarEquals）对输入框可用。
+  const isForm = /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName || '');
+  const value = (isForm ? (el.value ?? '') : (el.textContent || el.innerText || '')).trim();
   return { value, text: value, extracted: value };
 });

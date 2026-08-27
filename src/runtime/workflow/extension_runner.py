@@ -1643,6 +1643,31 @@ class ExtensionRunner:
                         )
                     logger.info(f"[ExtensionRunner] OS typed {len(result['osType'])} chars")
 
+                # ── 声明式效果验证（verifyEffect）：OS 级动作只保证事件被系统接受，
+                # 不保证落到目标元素（焦点被抢时静默失败）。handler 在结果里声明
+                # verifyEffect 后，runner 在回车等后续动作前回读目标元素比对。
+                # 必须在 osEnter 之前做——回车可能跳页导致目标元素消失。
+                _verify = result.get("verifyEffect") if isinstance(result, dict) else None
+                if _verify and _verify.get("kind") == "readbackValue":
+                    _expected = str(_verify.get("expect", ""))
+                    _rb = await self._call_extension_handler(
+                        "getText",
+                        {
+                            "locator": resolved_instr.get("locator") or "",
+                            "selectorFamily": resolved_instr.get("selectorFamily") or "css",
+                            "extra": resolved_instr.get("extra") or {},
+                        },
+                        timeout=10,
+                    )
+                    _actual = str((_rb or {}).get("value", ""))
+                    if _actual != _expected:
+                        raise RuntimeError(
+                            f"模拟键盘输入回读校验失败：期望「{_expected}」，实际「{_actual}」。"
+                            "真实按键未落到目标输入框（窗口焦点可能被抢，或页面拦截了输入）。"
+                        )
+                    result["inputVerified"] = True
+                    logger.info(f"[ExtensionRunner] input readback verified: {_expected!r}")
+
                 # ── OS Enter after input (inputElement pressEnter) ──
                 if isinstance(result, dict) and result.get("osEnter"):
                     _os_press_key("Enter", "")

@@ -29,7 +29,12 @@ registerHandler('inputElement', async function inputElement({ locator, selectorF
       }
     }
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    return { input: text, length: text.length };
+    // 内建回读校验：写入后读回 value 比对，不一致即失败（页面脚本可能改写/拦截输入）
+    const actual = el.value ?? '';
+    if (actual !== text) {
+      throw new Error(`输入回读校验失败：期望「${text}」，实际「${actual}」`);
+    }
+    return { input: text, length: text.length, inputVerified: true };
   }
 
   // 模拟键盘输入 → OS 级真实键入（SendInput）。先把目标浏览器窗口/标签页置前台，
@@ -47,5 +52,10 @@ registerHandler('inputElement', async function inputElement({ locator, selectorF
     osType: text,
     osClear: extra?.clearFirst !== false,
     osEnter: extra?.pressEnter === true,
+    // 声明式效果验证：OS 键入（SendInput）只保证按键事件被系统接受，无法保证
+    // 落到目标输入框（焦点被抢时静默丢失）。runner 在键入后、回车前按此声明回读
+    // 目标元素 value 比对，不一致即判定步骤失败。机制通用：任何 handler 返回
+    // verifyEffect 都会获得 runner 侧回读验证，非本指令特例。
+    verifyEffect: { kind: 'readbackValue', expect: text },
   };
 });
