@@ -34,6 +34,14 @@
       ],
       "default": "local",
       "group": "advanced"
+    },
+    {
+      "name": "hoverDelayMs",
+      "label": "悬停前等待(ms)",
+      "type": "number",
+      "default": 400,
+      "group": "advanced",
+      "description": "滚动到元素后、悬停前的拟人化等待时长（毫秒）。反爬需要更慢节奏时调大"
     }
   ],
   "categories": [

@@ -240,6 +240,77 @@ def _run_http_reload(cmd: str) -> dict:
     return {"ok": all_ok, "steps": steps, "port": port}
 
 
+def _query_active_runs() -> dict:
+    """检查后端当前是否有活跃的扩展工作流运行。
+
+    无活跃流程或无后端时返回 {"active": False, "count": 0}；
+    有活跃流程时返回 {"active": True, "count": N, "runs": [...]}。
+    """
+    import urllib.request
+    port = _backend_port()
+    base = f"http://127.0.0.1:{port}"
+    try:
+        req = urllib.request.Request(base + "/api/workflows/runs/active", method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+        runs = json.loads(body)
+        if not isinstance(runs, list):
+            runs = []
+        return {"active": len(runs) > 0, "count": len(runs), "runs": runs}
+    except Exception as e:  # noqa: BLE001
+        # 后端未运行/查询失败：按「无活跃」处理（不阻断构建），但返回提示
+        return {"active": False, "count": 0, "query_error": str(e)}
+
+
+def _trigger_extension_reload(browser_type: str | None = None) -> dict:
+    """通过后端 WS 广播 reloadExtension，让扩展自己调 chrome.runtime.reload()。
+
+    复用已有 POST /api/extension/command?action=reloadExtension 端点。
+    browser_type=None 时遍历所有「在线」浏览器逐个触发（chrome/edge 都重载）；
+    指定时只重载该浏览器。
+    """
+    import urllib.request
+    port = _backend_port()
+    base = f"http://127.0.0.1:{port}"
+    headers = {"Content-Type": "application/json"}
+
+    # 未指定浏览器：先查在线浏览器列表，逐个触发
+    targets = []
+    if browser_type:
+        targets = [browser_type]
+    else:
+        try:
+            req = urllib.request.Request(base + "/api/extension/status", method="GET")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = json.loads(resp.read().decode("utf-8", errors="replace"))
+            for b in (status.get("browsers") or []):
+                name = b.get("browser")
+                if name:
+                    targets.append(name)
+        except Exception:  # noqa: BLE001
+            pass
+    if not targets:
+        # 状态查询失败/无在线浏览器：回退到广播所有（不传 browser_type）
+        targets = [None]
+
+    results = []
+    for bt in targets:
+        url = base + "/api/extension/command?action=reloadExtension"
+        if bt:
+            url += f"&browser_type={bt}"
+        try:
+            req = urllib.request.Request(url, data=b"{}", headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+            results.append({"browser": bt or "all", "ok": True,
+                            "status": getattr(resp, "status", None), "body": body[:200]})
+        except Exception as e:  # noqa: BLE001
+            results.append({"browser": bt or "all", "ok": False, "error": str(e)})
+
+    all_ok = all(r.get("ok") for r in results)
+    return {"ok": all_ok, "results": results, "targets": targets}
+
+
 class _MockRunner:
     """轻量 mock runner：只提供 backend handler execute() 需要的接口（vars/results/completed/_emit）。"""
 
@@ -524,6 +595,31 @@ def main():
         # reload 失败通常因后端未运行——不计入构建失败，提示即可
         if "error" in rl:
             result["reload_warning"] = rl["error"]
+
+    # ⑥b 扩展重载：新增/改了 extension 指令（content.js / background.js 已重新拼接）时，
+    # 需让浏览器扩展重载才能生效。这里检测活跃流程：
+    #   - 无活跃流程 → 直接触发插件重载（chrome.runtime.reload()，免手动）。
+    #   - 有活跃流程 → 不在此触发（会打断运行），只带 needs_extension_reload + active_runs
+    #     标记，交由 DSH 工具层（rpa_new_command）提问用户「等/立即」后再触发。
+    if runtime == "extension" and not args.no_reload:
+        runs_info = _query_active_runs()
+        if runs_info.get("active"):
+            result["needs_extension_reload"] = True
+            result["active_runs"] = runs_info.get("count", 0)
+            result["active_run_names"] = [
+                r.get("workflow_name") or r.get("workflow_id")
+                for r in runs_info.get("runs", [])
+            ]
+            result["steps"].append({
+                "name": "extension_reload", "ok": True, "deferred": True,
+                "reason": f"有 {runs_info.get('count', 0)} 个流程在运行，插件重载已延后（交工具层提问）",
+            })
+        else:
+            ext_reload = _trigger_extension_reload()
+            result["steps"].append({"name": "extension_reload", **ext_reload})
+            result["extension_reloaded"] = bool(ext_reload.get("ok"))
+            if not ext_reload.get("ok"):
+                result["extension_reload_warning"] = ext_reload.get("error")
 
     # ⑦ 运行时功能验证（--verify / --verify-file 提供时执行；解析失败则跳过并记录）
     run_verify = False

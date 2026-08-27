@@ -86,6 +86,22 @@
       "default": "auto",
       "group": "advanced",
       "description": "auto：真实鼠标移动+点击（兼容现状）；js：页面内合成完整鼠标事件序列（mousemove/mousedown/mouseup/click），不移动系统鼠标、后台可用，适合被遮挡元素/反爬页；os：强制真实鼠标"
+    },
+    {
+      "name": "scrollDelayMs",
+      "label": "点击前等待(ms)",
+      "type": "number",
+      "default": 400,
+      "group": "advanced",
+      "description": "滚动到元素后、点击前的拟人化等待均值（毫秒）。反爬需要更慢节奏时调大"
+    },
+    {
+      "name": "postClickDelayMs",
+      "label": "点击后等待(ms)",
+      "type": "number",
+      "default": 300,
+      "group": "advanced",
+      "description": "真实点击后的拟人化等待均值（毫秒），仅在真实鼠标点击时生效"
     }
   ],
   "pythonAction": "click",

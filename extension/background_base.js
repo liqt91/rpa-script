@@ -274,6 +274,18 @@ class AgentBackground {
 
     if (action === 'pong') return;
 
+    // 自动重载扩展：新增/修改扩展指令后由后端通过 WS 触发，
+    // 免去手动开 edge://extensions 点刷新。reload() 会重启 service worker
+    // 并断开 WS，扩展侧会自动重连（register 重新上报）。
+    if (action === 'reloadExtension') {
+      console.log('[Agent] reloadExtension requested, reloading extension...');
+      // 延迟 200ms 让本条消息处理（含日志）落定后再重载，避免打断消息循环。
+      setTimeout(() => {
+        try { chrome.runtime.reload(); } catch (e) { console.error('[Agent] reload failed:', e); }
+      }, 200);
+      return;
+    }
+
     if (action === 'executeStep') {
       await this._handleExecuteStep(payload);
       return;

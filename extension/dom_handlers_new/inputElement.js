@@ -40,7 +40,7 @@ registerHandler('inputElement', async function inputElement({ locator, selectorF
   // 模拟键盘输入 → OS 级真实键入（SendInput）。先把目标浏览器窗口/标签页置前台，
   // 确保真实按键送达；焦点由前面的「点击元素」指令提供。
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  await sleep(randNormal(300, 100));
+  await sleep(randNormal(extra?.inputDelayMs ?? 300, (extra?.inputDelayMs ?? 300) * 0.375));
   el.focus();
   try {
     await chrome.runtime.sendMessage({ action: 'activateWindow' });

@@ -75,6 +75,14 @@
       ],
       "default": "visible",
       "group": "advanced"
+    },
+    {
+      "name": "inputDelayMs",
+      "label": "输入前等待(ms)",
+      "type": "number",
+      "default": 300,
+      "group": "advanced",
+      "description": "滚动到元素后、开始输入前的拟人化等待均值（毫秒），仅在模拟键盘输入时生效"
     }
   ],
   "pythonAction": "input",

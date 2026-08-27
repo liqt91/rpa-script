@@ -30,7 +30,7 @@ registerHandler('pressKey', async function({ extra }) {
   const target = document.activeElement || document.body;
   target.dispatchEvent(new KeyboardEvent('keydown', init));
   if (!['Control', 'Alt', 'Shift', 'Meta'].includes(key)) {
-    await sleep(randNormal(80, 30));
+    await sleep(randNormal(extra?.keyDelayMs ?? 80, (extra?.keyDelayMs ?? 80) * 0.375));
   }
   target.dispatchEvent(new KeyboardEvent('keyup', init));
 

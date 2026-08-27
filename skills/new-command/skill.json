@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "new-command",
   "name": "new-command",
-  "version": "1.12.0",
-  "description": "创建新的 RPA 指令（command），包括 JSON 定义、handler 代码生成和注册验证。四类指令：extension（扩展端）、backend（本地执行）、desktop（桌面操作）、control（控制流）。",
+  "version": "1.13.0",
+  "description": "创建新的 RPA 指令（command），包括 JSON 定义、handler 代码生成和注册验证。四类指令：extension（浏览器：DOM 页面操作 / background 后台）、backend（本地执行）、desktop（桌面操作）、control（控制流）。",
   "capabilities": [
     "generation"
   ],

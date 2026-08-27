@@ -18,4 +18,5 @@ class InputElementHandler:
         Param("scope", "匹配范围", "select", default="local", options=[{"label": "当前外层元素内", "value": "local"}, {"label": "全页面", "value": "global"}], group="advanced"),
         Param("loopAnchor", "锚点元素", "string", default="", group="anchor"),
         Param("visibilityMode", "元素可见性", "select", default="visible", options=[{"label": "仅可见", "value": "visible"}, {"label": "所有", "value": "any"}], group="advanced"),
+        Param("inputDelayMs", "输入前等待(ms)", "number", default=300, group="advanced", description="滚动到元素后、开始输入前的拟人化等待均值（毫秒），仅在模拟键盘输入时生效"),
     ]

@@ -19,7 +19,7 @@ registerHandler('clickElement', async function clickElement({ locator, selectorF
   // ── js：合成完整鼠标事件序列（不碰真实鼠标）──
   if (clickMethod === 'js') {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    await sleep(randNormal(400, 150));
+    await sleep(randNormal(extra?.scrollDelayMs ?? 400, (extra?.scrollDelayMs ?? 400) * 0.375));
     const rect = el.getBoundingClientRect();
     const cx = Math.round(rect.left + rect.width / 2);
     const cy = Math.round(rect.top + rect.height / 2);
@@ -40,7 +40,7 @@ registerHandler('clickElement', async function clickElement({ locator, selectorF
   // ── auto / os：真实 OS 点击（humanLike 控制是否移动真实鼠标）──
   if (humanLike) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    await sleep(randNormal(400, 150));
+    await sleep(randNormal(extra?.scrollDelayMs ?? 400, (extra?.scrollDelayMs ?? 400) * 0.375));
   }
   const rect = el.getBoundingClientRect();
   const viewX = Math.round(rect.left + rect.width / 2);
@@ -56,7 +56,7 @@ registerHandler('clickElement', async function clickElement({ locator, selectorF
       el.click();
     }
   }
-  if (humanLike) await sleep(randNormal(300, 100));
+  if (humanLike) await sleep(randNormal(extra?.postClickDelayMs ?? 300, (extra?.postClickDelayMs ?? 300) * 0.375));
   return {
     clicked: true,
     osClick: humanLike,

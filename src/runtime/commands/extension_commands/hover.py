@@ -13,4 +13,5 @@ class HoverHandler:
     params = [
         Param("elementName", "目标元素", "element", group="主属性", placeholder="选择一个已捕获的元素"),
         Param("scope", "匹配范围", "select", default="local", options=[{"label": "当前循环元素内", "value": "local"}, {"label": "全页面", "value": "global"}], group="advanced"),
+        Param("hoverDelayMs", "悬停前等待(ms)", "number", default=400, group="advanced", description="滚动到元素后、悬停前的拟人化等待时长（毫秒）。反爬需要更慢节奏时调大"),
     ]

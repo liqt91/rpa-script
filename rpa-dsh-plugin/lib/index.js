@@ -1194,7 +1194,7 @@ function apply(ctx, config) {
           definition = auto;
         }
       }
-      return await runCommandBuilder({
+      const result = await runCommandBuilder({
         cmd,
         definition,
         skipBuildJs: !!args.skip_build_js,
@@ -1205,6 +1205,20 @@ function apply(ctx, config) {
         verifyFile: args.verify_file || null,
         timeout: args.timeout ?? 180,
       });
+      // 扩展重载守卫：command_builder 检测到「有活跃流程正在运行」时不会直接重载，
+      // 而是返回 needs_extension_reload + active_runs 标记。此处附加明确指引，
+      // 让调用方 agent 向用户提问「等待结束后重载 / 立即重载」，再据此触发：
+      //   触发方式 = POST /api/extension/command?action=reloadExtension&browser_type=edge
+      //   （等待结束后重载 = 轮询 GET /api/workflows/runs/active 直到 count 归零再触发）
+      if (result && result.needs_extension_reload) {
+        result.__extension_reload_guidance =
+          `有 ${result.active_runs ?? 0} 个流程正在运行（${(result.active_run_names || []).join("、") || "未知"}）。` +
+          "插件重载会打断运行中的流程，因此已延后。请用 ask_user_question 向用户确认：" +
+          "「① 等待这些流程结束后再自动重载扩展（默认推荐）② 立即重载（会打断当前运行）」。\n" +
+          "- 若用户选「等待结束」：轮询 GET /api/workflows/runs/active 直到 count=0，再 POST /api/extension/command?action=reloadExtension&browser_type=edge\n" +
+          "- 若用户选「立即」：直接 POST /api/extension/command?action=reloadExtension&browser_type=edge\n";
+      }
+      return result;
     },
   }));
 

@@ -7,7 +7,7 @@
 registerHandler('hover', async function hover({ locator, selectorFamily, extra }) {
   const el = findTarget(locator, selectorFamily, extra);
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  await sleep(400);
+  await sleep(extra?.hoverDelayMs ?? 400);
   const rect = el.getBoundingClientRect();
   const viewX = Math.round(rect.left + rect.width / 2);
   const viewY = Math.round(rect.top + rect.height / 2);

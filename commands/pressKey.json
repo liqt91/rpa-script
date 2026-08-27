@@ -121,6 +121,14 @@
       "default": true,
       "group": "advanced",
       "description": "勾选：runner 用 OS keybd_event 发送（可信，浏览器快捷键 F1/F5/F12 等可生效）；不勾选：页面内合成 KeyboardEvent（快，但不触发浏览器级快捷键）"
+    },
+    {
+      "name": "keyDelayMs",
+      "label": "按键间隔(ms)",
+      "type": "number",
+      "default": 80,
+      "group": "advanced",
+      "description": "合成按键 keydown 与 keyup 之间的拟人化间隔均值（毫秒）"
     }
   ],
   "categories": [
