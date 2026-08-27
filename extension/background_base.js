@@ -296,13 +296,28 @@ class AgentBackground {
     if (action === 'launchBrowserCapture') {
       const { requestId } = payload || {};
       try {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        const tab = tabs[0];
+        // 优先绑定工作窗口（RPA 流程最近 launchBrowser/switchTab 的窗口）的活动标签页。
+        // 多浏览器窗口共存时（如用户自己的浏览窗口在前台、流程窗口在后台），
+        // currentWindow 会错绑到前台窗口；工作窗口才是用户要捕获的目标。
+        // 工作窗口不存在/已关闭时回退 currentWindow。
+        let tab = null;
+        if (this.workWindowId != null) {
+          try {
+            const workTabs = await chrome.tabs.query({ active: true, windowId: this.workWindowId });
+            tab = workTabs[0] || null;
+          } catch (e) { tab = null; }
+        }
+        if (!tab) {
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          tab = tabs[0];
+        }
         if (!tab) {
           this.guiCapture = null;
           this._send('browserCaptureComplete', { requestId, result: { error: '没有活动标签页' } });
           return;
         }
+        // 把目标窗口置前，用户能直接看到要捕获的页面
+        try { await chrome.windows.update(tab.windowId, { focused: true }); } catch (e) {}
         // 记录 GUI 捕获会话（用于标签页切换时跟随重瞄）
         this.guiCapture = { requestId, tabId: tab.id, prevTabId: null, webOnly: !!payload?.webOnly, captureActive: false };
         await ensureContentScripts(tab.id);

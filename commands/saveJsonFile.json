@@ -1,0 +1,57 @@
+{
+  "cmd": "saveJsonFile",
+  "label": "保存JSON文件",
+  "description": "把变量/表达式的数据写成 JSON 文件（UTF-8，带缩进）；可选追加模式：目标文件已存在且根是数组时，将新数据并入数组",
+  "runtime": "backend",
+  "handler": {
+    "kind": "backend",
+    "source": "src/runtime/commands/backend_commands/saveJsonFile.py"
+  },
+  "category": "文件处理",
+  "categories": [
+    "file"
+  ],
+  "icon": "fa-file-export",
+  "iconColor": "text-amber-500",
+  "bgColor": "bg-amber-50",
+  "categoryOrder": 47,
+  "commandOrder": 20,
+  "enabled": true,
+  "params": [
+    {
+      "name": "data",
+      "label": "要保存的数据",
+      "type": "text",
+      "required": true,
+      "group": "主属性",
+      "description": "支持 {{var}} 变量引用（引用列表/字典会直接以对象写入）；也可以是 JSON 文本或普通文本",
+      "placeholder": "{{results}} 或 {\"list\": [...]}"
+    },
+    {
+      "name": "filePath",
+      "label": "文件路径",
+      "type": "string",
+      "required": true,
+      "group": "主属性",
+      "description": "绝对路径（支持 {{var}}）；父目录不存在时自动创建",
+      "placeholder": "C:/Users/.../result.json"
+    },
+    {
+      "name": "append",
+      "label": "追加到已有数组",
+      "type": "boolean",
+      "default": false,
+      "group": "advanced",
+      "description": "勾选后：文件已存在且根为数组时，把新数据并入该数组（新数据是数组则逐项并入，否则整体追加为一项）"
+    },
+    {
+      "name": "resultVar",
+      "label": "保存结果到变量",
+      "type": "str-var",
+      "required": false,
+      "group": "output",
+      "description": "可选。把写入结果（文件路径+条数）存到变量",
+      "default": ""
+    }
+  ]
+}

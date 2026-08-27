@@ -37,14 +37,14 @@
 ### P0
 - [ ] **P0-AI｜一句话生成可运行工作流（主线强化）**
   - [x] pre-generate-workflow / generate-workflow 与元素库就绪、捕获打通 —— **两个 SKILL.md 已适配目录模式** + **渐进式提问交互**（只问硬前置：新建vs改/URL/抓取字段去向），已同步 ~/.dsh/skills/
-  - [x] agent 从自然语言 → 完整可运行流程（含元素捕获、参数、结果写回）—— **「小红书搜索」真实实战验证通过**：搜索→筛选(最新+一天内)→forEachElement 遍历抓标题/作者/点赞/链接（39/40 步成功）
+  - [x] agent 从自然语言 → 完整可运行流程（含元素捕获、参数、结果写回）—— **「小红书搜索」真实实战验证通过**：搜索→筛选(最新+一天内)→forEachElement 遍历抓标题/作者/点赞/链接→存 JSON（199/199 步成功）
   - [ ] 验收：输入"采集知乎热搜前10条"→ 一键生成 + 运行成功（改用小红书搜索已实战跑通；知乎热搜可用同模式验证）
-  - [ ] **遗留：抓取结果无「写 JSON 文件」指令**（saveJsonFile 已删，当前只用 log 打印）—— 需 `rpa_new_command` 新建 saveJsonFile 或确认替代方案
-  - [ ] **遗留：forEachElement 内 child 元素偶发找不到**（note_title .title 在第7卡片报"当前循环项未找到"，可能广告位/特殊卡片）—— 需 onError=continue 兜底或 child 元素加空判
+  - [x] **遗留：抓取结果无「写 JSON 文件」指令** —— 已新建 `saveJsonFile`（backend，UTF-8 写文件 + append 合并数组 + Python repr 兜底），小红书流程已接入并真实落盘 `results_摄影.json`（30 条）
+  - [x] **遗留：forEachElement 内 child 元素偶发找不到** —— 已给 4 个 child 抓取节点加 `onError=continue`，实测视频卡片（无 .title）优雅跳过不中断
 - [ ] **P0-验证｜后台 handler 的 Node 桩验证** —— `verify_web_handler.mjs` 加 `chrome.tabs.query`/`chrome.windows` 的 mock，让 getAllTabs/switchTab 等可走官方桩
 - [ ] **P0-验证｜真机 e2e 免手动重载扩展** —— dev 扩展热重载 / 自动化刷新，让"重载扩展"不再是必备人工步
 - [ ] **P0-验证｜改核心模块自动重启后端** —— extension_runner 等被改后自动重启，减少人工判断
-- [ ] **P0-缺陷｜rpa_capture 的 mode=web 多浏览器选错窗口** —— `run_capture("web")` 走 `_find_active_browser()`（取「最前面的浏览器窗口」），多浏览器/多窗口共存时（如 DSH 也是 Edge、小红书也是 Edge）会捕获到错误窗口（DSH 而非小红书）。`desktop_mask` 模式「跟光标走」是对的（已实测成功捕获小红书搜索框），web 模式应改为同样按光标/目标窗口路由，而非 `_find_active_browser()`。
+- [ ] **P0-缺陷｜rpa_capture 的 mode=web 多浏览器选错窗口** —— `run_capture("web")` 走 `_find_active_browser()`（取「最前面的浏览器窗口」），多浏览器窗口共存时（如用户自己的 Edge 浏览窗口 vs 流程 launchBrowser 开的小红书窗口，本机为远程桌面环境，DSH GUI 不在本机）会绑错窗口。**已修（待验证）**：`background_base.js` 的 launchBrowserCapture 改为优先绑定 `workWindowId`（RPA 流程最近操作的窗口）的活动标签页并置前，无工作窗口才回退 currentWindow；已重建 dist background.js（语法校验通过），**需 edge://extensions 手动重载扩展后验证**。
 
 ### P1
 - [x] **P1-流程根｜集中流程根 RPA_HOME + 统一管理页**（基础已落地；管理页/行内操作按需搁置）
