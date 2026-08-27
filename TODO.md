@@ -59,8 +59,8 @@
 - [ ] **P1-发行｜桌面安装器 + 内嵌扩展 + 一条命令跑**（插件 README P2：扩展拷稳定目录 + 写 External Extensions + 提示重启）
 
 ### P2
-- [ ] **P2-清理｜更新 architecture.md / state.json / README**（层序/状态/命令数 82、移除 electron 残留）
-- [ ] **P2-收尾｜capture-unified-entry-storage 端到端测试**
+- [x] **P2-清理｜更新 architecture.md / state.json / README**（层序修正 dtypes、命令数 82、移除 electron 残留、补 ADR 列表、填 risks）
+- [x] **P2-收尾｜capture-unified-entry-storage 端到端测试**（test_capture_e2e.py 8 例：web/win32/uia 捕获→保存→读回验证）
 - [ ] 撤销 / 重做快捷键（Ctrl+Z / Ctrl+Y）
 - [ ] 支持元素内部滚动（scrollContainer）
 - [ ] 节点配置项联动（select 切换显隐）

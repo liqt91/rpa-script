@@ -194,7 +194,7 @@
     {
       "id": "capture-unified-entry-storage",
       "title": "元素捕获统一入口 + 统一存储结构（element_type 两维判别）",
-      "passes": false,
+      "passes": true,
       "steps": [
         {
           "id": "migration",
@@ -224,7 +224,7 @@
         {
           "id": "test",
           "title": "端到端：GUI 捕获 → 保存 → 元素库显示/验证通过",
-          "done": false
+          "done": true
         },
         {
           "id": "elements-json-split",

@@ -6,7 +6,7 @@ T1 指令热重载测试：/api/commands/reload 的核心逻辑（reload_command
 """
 from src.runtime.workflow.command_reload import reload_command_runtime
 
-# 桌面指令抽查（含自动选择与新指令）
+# 桌面指令全集（30 个，desktop 分类；随 commands/*.json 增长需同步）
 DESKTOP_CMDS = [
     "openAppWin32", "waitWindowWin32", "findWindowAuto", "findWindowWin32",
     "findWindowUia", "findParentWin32", "findSiblingWin32", "findChildWin32",
@@ -15,6 +15,8 @@ DESKTOP_CMDS = [
     "inputControlAuto", "inputControlWin32", "inputElementUia",
     "sendKeyWin32", "mouseClickWin32", "clickMenuWin32", "waitWin32",
     "screenshotWindowWin32", "closeWindowWin32",
+    "getMousePos", "getNetworkInfo", "readHardwareInfo", "readScreenInfoWin32",
+    "readSystemFonts", "setBrightnessWin32", "setVolumeWin32",
 ]
 
 
@@ -56,7 +58,7 @@ def test_reload_updates_new_catalog_categories():
     cat = load_new_catalog()
     assert "桌面操作" in cat["categories"], f"分类缺失: {cat['categories']}"
     desktop = cat["commands"].get("桌面操作", [])
-    assert len(desktop) == 23, f"桌面指令数异常: {len(desktop)}"
+    assert len(desktop) == 30, f"桌面指令数异常: {len(desktop)}"
     orders = [c["commandOrder"] for c in desktop]
     assert orders == sorted(orders), f"commandOrder 未按序: {orders}"
 

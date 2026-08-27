@@ -15,12 +15,12 @@ rpa-script/
 ├── src/
 │   ├── runtime/          FastAPI 后端
 │   │   ├── workflow/          指令编译器 + 运行器（extension_runner.py）+ emitter + handler registry
-│   │   ├── commands/          指令 handler（extension/backend/desktop/control/electron 五类）
+│   │   ├── commands/          指令 handler（extension/backend/desktop/control 四类）
 │   │   ├── routers/           API 路由（含 projects 流程目录读写）
-│   │   └── tests/             测试（186 通过）
+│   │   └── tests/             测试（runtime 196 通过）
 │   ├── ui/workflow-editor/    React 编辑器（Vite + Tailwind，DB 模式 & 项目目录模式）
 │   └── mcp_server/            MCP 适配器（可选旁路）
-├── commands/             指令 JSON 定义（唯一定义源，72 个，含 $ref 共享参数）
+├── commands/             指令 JSON 定义（唯一定义源，82 个，含 $ref 共享参数）
 ├── rpa-dsh-plugin/       DSH 插件（工具面 + /rpa 斜杠命令 + rpa_bridge 免后端读写 + 捕获）
 ├── scripts/              构建/工具脚本（generate_commands / build_content_js / build_extension 等）
 │   └── capture_gui/          元素捕获覆盖层（遮罩式统一捕获 web/桌面/UIA）
@@ -37,7 +37,7 @@ rpa-script/
 | 前端 | React (Vite) + Tailwind CSS（DSH 内嵌 / workflow-editor） |
 | 浏览器 | Chrome/Edge Extension (Manifest V3) |
 | DSH 集成 | `rpa-dsh-plugin`（工具 + 斜杠命令 + 免后端读写） |
-| 测试 | pytest (186 通过) |
+| 测试 | pytest（runtime 196 通过；含 mcp_server 需 fastmcp） |
 
 > **认证**：本机**免登录**（`auth.py` 已简化，密码/登录功能移除，`get_current_user` 恒放行为 admin）。开发/本机使用无需登录。
 
@@ -53,7 +53,7 @@ python -m src.runtime.main              # 后端
 npm run dev                             # 前端开发服务器（可选，编辑器可走 DSH 内嵌）
 
 # 运行测试
-pytest -q                               # 186 通过
+pytest -q                               # runtime 196 通过（mcp_server 需先装 fastmcp）
 
 # 构建
 python scripts/generate_commands.py     # 指令 JSON → handler 桩
@@ -73,7 +73,7 @@ extension/dom_handlers_new/clickElement.js               ← 页面内 JS 实现
 extension/background_handlers/clickElement.js            ← 后台 JS 实现（如需要）
 ```
 
-### 指令分类（72 个）
+### 指令分类（82 个）
 
 | 目录 | 运行时 | 说明 |
 |------|--------|------|
@@ -83,7 +83,6 @@ extension/background_handlers/clickElement.js            ← 后台 JS 实现（
 | `backend_commands` | backend | Python 后端执行（日志/wordToPdf/excelRead 等） |
 | `desktop_commands` | backend | 桌面控件操作（Win32/UIA） |
 | `control_commands` | control | 流程控制（if/for/while/try/break 等） |
-| `electron_commands` | backend | Electron 应用操作 |
 
 ### 新增指令（推荐：命令 + 质量门禁）
 
